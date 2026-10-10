@@ -82,7 +82,7 @@ groth16 = "0.2"
 blake2b_simd = "1"
 bs58 = "0.5"
 ed25519-zebra = "4"
-equihash = "0.2"
+equihash = "0.3"
 group = "0.14"
 lazy_static = "1"
 phf = { version = "0.11", features = ["macros"] }

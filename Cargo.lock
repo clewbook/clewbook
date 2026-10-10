@@ -2221,22 +2221,13 @@ dependencies = [
 
 [[package]]
 name = "equihash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab579d7cf78477773b03e80bc2f89702ef02d7112c711d54ca93dcdce68533d5"
-dependencies = [
- "blake2b_simd",
- "byteorder",
-]
-
-[[package]]
-name = "equihash"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "306286e8dcc39ab3dfceb74c792ce8baffdab90591321d3ffaae64829734c37f"
 dependencies = [
  "blake2b_simd",
  "corez",
+ "document-features",
 ]
 
 [[package]]
@@ -9500,7 +9491,7 @@ dependencies = [
  "clap",
  "crossterm",
  "ed25519-zebra",
- "equihash 0.2.0",
+ "equihash",
  "futures-util",
  "groth16",
  "group 0.14.0",
@@ -9794,7 +9785,7 @@ dependencies = [
  "blake2b_simd",
  "corez",
  "document-features",
- "equihash 0.3.0",
+ "equihash",
  "ff 0.14.0",
  "hex",
  "incrementalmerkletree",
