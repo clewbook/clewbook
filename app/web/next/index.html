@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="start.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a href="./" aria-current="page">Home</a><a href="recount.html">Recount</a><a href="host.html">Host</a></nav>
+</header>
+<main class="page">
+  <h1 class="t-h1">Fundraisers and auctions on Zcash, with books anyone can check</h1>
+  <p class="t-lead home-lead">Contributors pay a shielded address, so who paid and where a refund goes stay private, and each one holds a refund ticket signed in advance. The host publishes a signed list of everything that came in. Any visitor can recount that list against the public chain in their own browser, without trusting the host or this site.</p>
+
+  <section class="sect" id="live-card">
+    <div class="hd"><h2>Live campaigns</h2></div>
+    <div id="live" class="cards"><p class="muted" id="loading">Looking for campaigns…</p></div>
+  </section>
+
+  <section class="sect" id="closed-card" hidden>
+    <div class="hd"><h2>Closed campaigns</h2></div>
+    <div id="closed" class="cards"></div>
+  </section>
+
+  <div class="cols start-cols">
+  <div>
+  <section class="sect">
+    <div class="hd"><h2>Check any campaign</h2></div>
+    <p class="muted">Have a saved copy of a campaign's list? Open the recount page, load the file, and see for yourself whether the books match the chain.</p>
+    <p style="margin-top:var(--s3)"><a class="btn" href="recount.html">Open the recount page</a></p>
+  </section>
+  </div>
+  <div>
+  <section class="sect">
+    <div class="hd"><h2>Host your campaign</h2></div>
+    <p class="muted">Run an auction or a fundraiser of your own. You run the host program on your own computer; this page explains what you need.</p>
+    <p style="margin-top:var(--s3)"><a class="btn sec" href="host.html">How to host</a></p>
+  </section>
+  </div>
+  </div>
+
+  <section class="sect">
+    <div class="hd"><h2>Try it with test money</h2></div>
+    <p class="muted">The Zcash test network's coins have no value, so you can try a campaign without risking anything.</p>
+    <p style="margin-top:var(--s3)"><a class="btn sec" href="https://clewbook.xyz/demo">Try it with test money</a></p>
+  </section>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="home.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+/target
+/zec_sqlite_wallet*
+
+# Guard against accidental commits of the `local` and `tmp` paths
+/local
+/.local/
+/tmp
+
+# Windows "downloaded from internet" markers
+*:Zone.Identifier
+
+# Wallet identity files (contain the seed phrase, encrypted)
+*.age
+
+# Wallet folders (keys, viewing keys, wallet database)
+campaign/
+bidder/
+outsider/
+viewer/
+
+# Spike run outputs (signed tickets, logs)
+spikes/out/
+
+# App build output and local runs (campaign secret keys, contributor seeds, tickets)
+/app/target
+/runs/
+/app/vectors/js/node_modules
+/app/vectors/js/js_out.json
+/app/web/www/pkg
+/app/web/www/bundles
+
+# Local relay data (ledger entries and sealed tickets of test campaigns)
+/relay-data/
+/app/web/www/current.json
+/app/target-cheat
+/app/target-drop
+
+# Internal working log (kept on disk, never published)
+/NOTES.md
+/app/proofmeasure/out
+
+# build output in any folder (a cargo run started from a sub-folder once created app/host/target-cheat)
+target/
+target-cheat/
+target-drop/
+/app/web/www/proof
+/app/target-before
+/design/
+
+# The list of campaigns shown on the home page: real campaign numbers, kept by hand, never committed
+/app/web/www/campaigns.json
+/app/web/next/campaigns.json

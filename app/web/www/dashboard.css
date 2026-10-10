@@ -1,0 +1,31 @@
+/* Host dashboard: only what is specific to it (the shared look is in ui.css). */
+.dash-cols { max-width: none; }
+@media (min-width: 900px) { .dash-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+select { width: 100%; min-height: 44px; border: 1px solid var(--edge); border-radius: 2px; background: var(--surface); padding: 0 var(--s3); font: 500 1rem var(--mono); color: var(--ink); }
+.plainlist { margin-top: var(--s3); font-size: .9375rem; }
+.plainlist li { padding: var(--s1) 0; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+.runlog { counter-reset: r; border-top: 1px solid var(--ink); }
+.runlog li { counter-increment: r; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--rule); font: .8125rem/1.25rem var(--mono); overflow-wrap: anywhere; }
+.runlog li:before { content: counter(r, decimal-leading-zero); color: var(--muted); }
+.runlog li.bad { background: var(--fail-bg); }
+/* the progress rows double as to-do and transaction rows */
+.progress li .what { font-weight: 700; overflow-wrap: anywhere; }
+.progress li.todo .dot { border-style: dashed; }
+.progress li.bc-sent, .progress li.bc-resent { border-left-color: var(--warn); }
+.progress li.bc-dead, .progress li.bc-superseded { border-left-color: var(--fail); }
+.progress li .dot { display: inline-flex; width: 20px; height: 20px; border: 1px dashed var(--nc); border-radius: 2px; background: var(--nc-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6h7' fill='none' stroke='%23645F53' stroke-width='1.75'/%3E%3C/svg%3E"); }
+.progress li.done .dot { border: 1px solid var(--pass); background: var(--pass-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5 4.8 9.2 10 3' fill='none' stroke='%231D6641' stroke-width='1.75'/%3E%3C/svg%3E"); }
+.progress li.bad .dot { border: 1px solid var(--fail); background: var(--fail-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5' fill='none' stroke='%239E3426' stroke-width='1.75'/%3E%3C/svg%3E"); }
+.progress li { grid-template-columns: 28px minmax(0, 1.2fr) minmax(0, 1fr); }
+.progress li .state { text-align: right; }
+@media (max-width: 639px) { .progress li { grid-template-columns: 28px minmax(0, 1fr); } .progress li .state { grid-column: 2; text-align: left; } }
+
+.mt3 { margin-top: var(--s3); } .mt5 { margin-top: var(--s5); }
+
+.mainnet { border-width: 2px; border-left-width: 6px; margin-top: var(--s4); }
+.mainnet .k { font-size: .875rem; }
+/* neutral grey for the real network (not the red used for errors); label #44444A on #E6E6E8 is about 7:1 */
+.notice.mainnet { border-color: #808084; background: #E6E6E8; }
+.notice.mainnet .k { color: #44444A; }
+.confirm-line { display: flex; gap: var(--s2); align-items: center; font-weight: 700; margin: var(--s3) 0; }
+.confirm-line input { width: 20px; min-height: 20px; }

@@ -1,0 +1,13 @@
+#!/bin/bash
+# C compiler for wasm32-unknown-unknown (secp256k1-sys) via Zig's bundled clang; no system
+# clang needed. Drops the target flags the cc crate adds (Zig names the target differently).
+args=(); skip=0
+for a in "$@"; do
+  if [ $skip = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    --target=*) ;;
+    -target) skip=1 ;;
+    *) args+=("$a") ;;
+  esac
+done
+exec "${ZIG:-zig}" cc -target wasm32-freestanding "${args[@]}"

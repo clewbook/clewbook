@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>proof measurement</title>
+<script type="module">
+import init, { Checker } from './out/ll_proofmeasure.js';
+window.run = async (tickets) => {
+  const out = {};
+  let t = performance.now();
+  const wasm = await init();
+  out.instantiate_ms = Math.round(performance.now() - t);
+  out.wasm_memory_after_init_mb = +(wasm.memory.buffer.byteLength / 1048576).toFixed(1);
+  t = performance.now();
+  const c = new Checker();
+  out.build_verifying_key_ms = Math.round(performance.now() - t);
+  out.wasm_memory_after_key_mb = +(wasm.memory.buffer.byteLength / 1048576).toFixed(1);
+  out.proofs = [];
+  for (const hex of tickets) {
+    const times = []; let ok;
+    for (let i = 0; i < 5; i++) { t = performance.now(); ok = c.verify(hex); times.push(Math.round((performance.now() - t) * 10) / 10); }
+    out.proofs.push({ ok, ms_each: times });
+  }
+  // a ticket whose proof bytes are damaged must not verify
+  // damage one byte inside the proof (the proof sits just before the 3 x 64-byte signatures at the end of the transaction)
+  const raw = tickets[0]; out.damaged = [];
+  for (const back of [400, 1200, 3000]) {
+    const at = raw.length - 2 * back; const flip = raw.slice(0, at) + (raw[at] === '0' ? '1' : '0') + raw.slice(at + 1);
+    try { out.damaged.push({ bytes_before_end: back, verifies: c.verify(flip) }); } catch (e) { out.damaged.push({ bytes_before_end: back, error: e.message }); }
+  }
+  out.wasm_memory_after_proofs_mb = +(wasm.memory.buffer.byteLength / 1048576).toFixed(1);
+  if (performance.memory) out.js_heap_used_mb = +(performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+  return out;
+};
+</script>

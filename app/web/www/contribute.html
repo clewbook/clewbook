@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contribute</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="contribute.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <span class="mono t-sm dim" id="campaign-id"></span>
+</header>
+<main class="page">
+  <div class="crumb" id="crumb">&nbsp;</div>
+  <h1 class="t-h1" id="page-title">&nbsp;</h1>
+  <div class="status-line" id="status-line" hidden><span id="status-chip"></span><span class="t-sm dim" id="status-text"></span></div>
+
+  <p class="recount-row"><a class="btn sec recount-btn" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
+
+  <div id="banners" aria-live="polite"></div>
+  <p id="left-note" class="warnline" role="note" hidden></p>
+  <p id="near-deadline" class="warnline" role="note" hidden></p>
+  <div id="earlier" class="earlier" hidden></div>
+
+  <div id="host-seen" hidden></div>
+  <div id="memory-note" hidden></div>
+
+  <div class="cols">
+  <div class="col-a">
+  <section class="sect" id="form-card" hidden>
+    <div class="hd"><h2 id="form-title">Your contribution</h2></div>
+    <p class="muted" id="form-intro">Your refund address and amount stay in this browser. We never ask for your name.</p>
+    <form id="form" novalidate>
+      <label for="amount" id="amount-label">Amount (<span class="ticker">TAZ</span>)</label>
+      <input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01">
+      <p class="hint" id="amount-hint"></p>
+      <label for="refund">Where should a refund go?</label>
+      <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
+      <p class="hint">You only enter this once. It is sealed so that only the campaign can read it, and it is never shown publicly.</p>
+      <p class="warnline" id="auction-account-note" hidden>For this auction, give a refund address from an account you would be happy to show later.</p>
+      <p class="error" id="form-error" role="alert" hidden></p>
+      <button type="submit" id="create" class="block">Create my payment</button>
+    </form>
+    <details class="plain">
+      <summary>I have a backup file</summary>
+      <p class="hint">Restore a contribution you started earlier, on this or another device.</p>
+      <input type="file" id="restore" accept="application/json,.json">
+    </details>
+  </section>
+
+  <section class="sect" id="pay-card" hidden>
+    <div class="hd"><h2>Pay from your wallet</h2><span class="t-label">Step by step</span></div>
+    <div id="edit-box" class="btns"><button type="button" class="secondary" id="edit-amount" style="min-height:48px;padding:0 var(--s4)"><span aria-hidden="true">&larr;</span> Edit amount</button></div>
+    <p id="edit-locked" class="warnline" hidden>A payment for this code was seen, so its amount can no longer change.</p>
+    <ol class="steps">
+      <li><div><strong>Save your backup file first.</strong> It lets you get your refund even if you lose this page.
+        <div class="btns"><button type="button" class="secondary" id="backup">Download backup file</button> <span id="backup-done" class="chip pass" hidden><svg aria-hidden="true"><use href="#i-pass"/></svg>Saved</span></div></div></li>
+      <li><div><p class="warnline" id="pay-warning" role="note">Pay exactly <span id="pay-min"></span> once, from your own wallet's shielded balance, not an exchange or transparent funds.</p>
+        <details class="plain why" id="pay-why"><summary>Why?</summary><p class="hint">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details>
+      </div></li>
+      <li><div><strong>Scan this code</strong> with your wallet app. It fills in the amount and a message for you.
+        <div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div><span class="c1"></span><span class="c2"></span></div>
+        <p class="hint"><button type="button" class="secondary" id="qr-toggle" hidden>Code hard to scan? Show a simpler code</button></p>
+        <p class="t-label" style="margin:var(--s4) 0 var(--s2)">This code contains</p>
+        <dl class="kv pl" id="qr-contains" style="grid-template-columns:84px minmax(0,1fr)">
+          <dt>Address</dt><dd><span id="qc-addr"></span></dd>
+          <dt>Amount</dt><dd id="qc-amount"></dd>
+          <dt>Message</dt><dd><span id="qc-memo"></span></dd>
+        </dl>
+        <p class="hint">Paying <strong id="pay-amount"></strong>. You can get back <strong id="pay-refund"></strong> if you change your mind (a small fee is kept).</p></div></li>
+      <li><div>If your wallet can't scan it, copy the address and the message below; both are needed.
+        <details id="manual" class="plain">
+          <summary>Show payment details</summary>
+          <p class="t-label">Address</p><pre id="pay-to" class="copybox"></pre>
+          <button type="button" class="secondary" data-copy="pay-to">Copy address</button>
+          <p class="t-label" style="margin-top:var(--s3)">Message (memo)</p><pre id="memo" class="copybox"></pre>
+          <button type="button" class="secondary" data-copy="memo">Copy message</button>
+          <p class="hint"><a id="paylink" href="#">Open in my wallet app</a> (works with some wallets only; scanning the code is the most reliable way).</p>
+        </details></div></li>
+    </ol>
+    <div id="leave-box">
+      <p class="t-label">Wrong amount, or want to begin again?</p>
+      <div class="btns"><button type="button" class="secondary" id="change-amount">Back to the amount</button> <button type="button" class="secondary" id="start-over">Start over</button></div>
+      <div id="leave-confirm" class="notice warn" hidden>
+        <p id="leave-text"></p>
+        <div class="do"><button type="button" id="leave-yes" class="danger">Yes, leave this payment code</button> <button type="button" id="leave-no" class="secondary">Keep it</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sect" id="auction-card" hidden>
+    <div class="hd"><h2 id="auction-title">Auction result</h2></div>
+    <p id="auction-text"></p>
+    <div id="auction-proof" hidden>
+      <h3 class="t-h3" style="margin-top:var(--s4)">Optional: prove your excess arrived</h3>
+      <p class="muted">The money paid back to you above the price went to the refund address you gave. Only you can see it arrive. If you want to make a dispute provable, you can publish the <strong>incoming viewing key</strong> of the account that address belongs to. Anyone can then check, with that key, that the excess reached you.</p>
+      <p class="warnline">Publishing this key shows everything that account ever received, so publish only a dedicated account's key.</p>
+      <textarea id="proof-key" rows="3" placeholder="Incoming viewing key (starts with uivk…)" autocomplete="off"></textarea>
+      <div class="btns stack" style="margin-top:var(--s2)">
+        <button type="button" class="secondary" id="proof-publish">Publish the key so my excess can be checked</button>
+        <button type="button" class="secondary" id="proof-complain">Report that my excess did not arrive (no key)</button>
+      </div>
+      <p id="proof-status" class="muted" hidden></p>
+    </div>
+  </section>
+  </div>
+
+  <div class="col-b">
+  <section class="sect" id="about" hidden>
+    <div class="hd"><h2>About this campaign</h2></div>
+    <p id="about-text"></p>
+    <dl id="about-facts" class="kv pl" style="margin-top:var(--s3)"></dl>
+    <p style="margin-top:var(--s3)"><button type="button" class="secondary" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></p>
+    <p class="hint">The list is public, but a server can stop showing part of it. A copy you keep can be loaded on the recount page to compare it later.</p>
+  </section>
+
+  <section class="sect" id="progress-card" hidden>
+    <div class="hd"><h2>Where things stand</h2></div>
+    <ul class="progress">
+      <li id="s-seen"><span class="dot"></span><span class="what">Your payment</span><span class="state"></span></li>
+      <li id="s-received"><span class="dot"></span><span class="what" id="received-what">Contribution received</span><span class="state"></span></li>
+      <li id="s-ticket"><span class="dot"></span><span class="what">Refund ticket</span><span class="state"></span></li>
+    </ul>
+    <p id="progress-note" class="muted" style="margin-top:var(--s3)"></p>
+    <p id="paid-warning" class="notice bad" hidden></p>
+    <p id="ticket-late" class="notice bad" hidden><strong>Your refund ticket has not arrived. Do not rely on this payment until it does.</strong> <span id="ticket-late-detail"></span></p>
+    <p id="format-note" class="warnline" hidden>This older payment code could have been copied by someone who saw it before your payment was mined.</p>
+    <p id="over-note" class="notice info" hidden><strong>You paid more than the amount you chose.</strong> The whole payment counts as your contribution, and your refund is the payment minus the fee.</p>
+    <div id="ticket-checks" hidden>
+      <p class="t-label" style="margin:var(--s5) 0 var(--s2)">Ticket checks</p>
+      <p id="tc-bad" class="notice bad" hidden></p>
+      <p id="tc-summary" class="summary"></p>
+      <p id="proof-row" hidden><button type="button" class="secondary" id="proof-btn">Check the proof too</button> <button type="button" class="secondary" id="proof-cancel" hidden>Cancel</button></p>
+      <p id="proof-progress" class="muted" hidden></p>
+      <details id="tc-details" class="plain" open><summary>What was checked, in detail</summary><div id="tc-list" class="checks"></div></details>
+    </div>
+    <p id="unconfirmed" class="warnline" hidden>Not seen yet: if your wallet shows the payment failed, nothing was spent; if sent, this page keeps looking.</p>
+    <div id="proof" class="notice" hidden><p id="challenge-text"></p><div class="do"><button type="button" id="challenge-btn">Publish proof that my payment was valid</button></div></div>
+    <div id="refund-area" hidden>
+      <p id="refund-explain"></p>
+      <button type="button" id="refund-btn" class="danger">Refund me</button>
+      <div id="refund-confirm" class="notice warn" hidden>
+        <p id="refund-confirm-text"></p>
+        <div class="do"><button type="button" id="refund-yes" class="danger">Yes, send my refund</button>
+        <button type="button" id="refund-no" class="secondary">Not now</button></div>
+      </div>
+    </div>
+    <p id="refund-result" class="notice" hidden></p>
+    <details class="plain">
+      <summary>Know your payment's transaction ID?</summary>
+      <p class="hint">Optional. If you paste it, this page can check that the campaign accepted your payment.</p>
+      <input id="manual-txid" autocomplete="off" spellcheck="false" placeholder="transaction ID">
+      <button type="button" class="secondary" id="manual-txid-save">Check</button>
+    </details>
+    <button type="button" class="secondary" id="backup2">Download backup file</button>
+  </section>
+  </div>
+  </div>
+
+  <p class="foot" id="footer">Your secret stays in this browser. Nothing here is sent anywhere except the payment details you choose to pay with.</p>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="contribute.js"></script>
+</body>
+</html>

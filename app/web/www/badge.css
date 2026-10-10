@@ -1,0 +1,14 @@
+/* The recount badge a host embeds in their own page (as an iframe). Small and capped; it claims nothing. */
+.badge-body { background: transparent; margin: 0; }
+.badge { display: block; width: 100%; max-width: 300px; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); text-decoration: none; font-size: .8125rem; line-height: 1.3; }
+.badge .t { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); padding: 6px 10px; border-bottom: 1px solid var(--ink); }
+.badge .brand { font: 600 .9375rem/1 var(--head); }
+.badge .m { display: grid; gap: 4px; padding: 8px 10px; }
+.badge .n { font: 600 1rem/1.25rem var(--head); overflow-wrap: anywhere; }
+.badge .s { font: 700 .875rem var(--body); }
+.badge .st { display: block; margin-top: 2px; }
+.badge .f { display: block; padding: 6px 10px; border-top: 1px solid var(--rule); color: var(--ink2); font-size: .75rem; }
+.badge .f u { color: var(--link); }
+.badge:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+
+.recount-cta { display: inline-block; margin: 6px 0; padding: 8px 12px; background: #1C1B18; color: #F3F0E8; font-weight: 700; }

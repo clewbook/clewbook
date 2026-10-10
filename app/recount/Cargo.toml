@@ -1,0 +1,23 @@
+[package]
+name = "ll-recount"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+hex.workspace = true
+ll-core.workspace = true
+ll-relay = { path = "../relay" }
+serde_json.workspace = true
+
+# the program is built under its new name and under the old one (the old name keeps working)
+[[bin]]
+name = "cb-recount"
+path = "src/main.rs"
+
+[[bin]]
+name = "ll-recount"
+path = "src/main.rs"

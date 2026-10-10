@@ -1,0 +1,7 @@
+/* Capability card: only what is specific to it (the shared look is in ui.css). */
+.card-cols { max-width: none; }
+@media (min-width: 900px) { .card-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.mt5 { margin-top: var(--s5); }
+.chk .body { padding-top: 0; }
+.chk .ids { margin-top: var(--s2); display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); }
+.chk .when { display: block; font-weight: 400; font-size: .875rem; color: var(--ink2); margin-top: 2px; }

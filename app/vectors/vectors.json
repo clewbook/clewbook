@@ -1,0 +1,82 @@
+{
+  "about": "Shared test values; every other implementation must reproduce them exactly. See SPEC.md.",
+  "blake2b_personal": "BLAKE2b-256, no key, salt 16 zero bytes, personalization = ASCII label zero-padded to 16 bytes",
+  "campaign": {
+    "ledger_pk": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+    "ledger_seed": "1111111111111111111111111111111111111111111111111111111111111111",
+    "payload_pk": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
+    "payload_sk": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "contributor": {
+    "enc_pk": "07ea399c364a31d65cfc2defa69ecfe1b50dcc9384f277c8e047d57162483366",
+    "enc_sk": "05f999519f3b473ed8ac425ad979159be20ea672780db14c50ba5251c68bbf2f",
+    "eph_pk": "dca8b269ee57f4adae405e5a11dbac171ca9266feae051608068f34ad4d35356",
+    "eph_sk": "88f9da8f25c9285d0aff508590f23062df468421276999279b33a9f03b465a26",
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "sign_pk": "b2bd332a7c5b2e56432fabb69246dce2787a15b2e7661dc18f673e78fc878acb",
+    "sign_seed": "126981bbbbadc9c3e1d53522bc97245b72f76b6ccdecb525b9d6c83e75f7b796"
+  },
+  "entry": {
+    "canonical_signed": "{\"blob_hash\":\"fe83829cad5716592ca4f5048e44d8777e62a4881a814e63f1a562e149b9f1cb\",\"contribution\":{\"action\":0,\"height\":4467208,\"nf\":\"93a36f6ea688190a43f006843ba382b57519f7f7c9e92d0a660939392dd44a31\",\"txid\":\"9a1b522941a69000e841b636d838580db35e8b880d8d735801520a562cbb48f1\",\"value_zat\":1000000},\"kind\":\"issue\",\"prev\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"rules_id\":\"3bd5556857b286dd982454a14761bc6f1065dece7a9e3fa617c86bfbaf253fcb\",\"seq\":0,\"sig\":\"b1f6331ce2a3762bc1acfd2c5ad187b790a53faf1a83d2de97dc450ff5af559538aefb4dfdef01a0dd691febe5148d4ec827b7d41c60aa6b648fdf3b5298ae0b\",\"ticket\":{\"branch_id\":\"77190ad9\",\"issue_height\":4467209,\"txid\":\"c5423510a2e208b8c89064313e4fdf86524d52ae6e5fe9e02b61e4fdf30925b3\"},\"v\":1}",
+    "canonical_unsigned": "{\"blob_hash\":\"fe83829cad5716592ca4f5048e44d8777e62a4881a814e63f1a562e149b9f1cb\",\"contribution\":{\"action\":0,\"height\":4467208,\"nf\":\"93a36f6ea688190a43f006843ba382b57519f7f7c9e92d0a660939392dd44a31\",\"txid\":\"9a1b522941a69000e841b636d838580db35e8b880d8d735801520a562cbb48f1\",\"value_zat\":1000000},\"kind\":\"issue\",\"prev\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"rules_id\":\"3bd5556857b286dd982454a14761bc6f1065dece7a9e3fa617c86bfbaf253fcb\",\"seq\":0,\"ticket\":{\"branch_id\":\"77190ad9\",\"issue_height\":4467209,\"txid\":\"c5423510a2e208b8c89064313e4fdf86524d52ae6e5fe9e02b61e4fdf30925b3\"},\"v\":1}",
+    "entry_hash": "11f5ac806f60a4de7feffb3d082e8cc9041c418febe4879f2794d8b70488442a",
+    "sig": "b1f6331ce2a3762bc1acfd2c5ad187b790a53faf1a83d2de97dc450ff5af559538aefb4dfdef01a0dd691febe5148d4ec827b7d41c60aa6b648fdf3b5298ae0b"
+  },
+  "hashes": {
+    "amount_commit": {
+      "amount_key": "4444444444444444444444444444444444444444444444444444444444444444",
+      "commit": "47ba4a95c776a88377a5293199b5f4504089ba87ac6719739345c4f70d852846",
+      "nf": "93a36f6ea688190a43f006843ba382b57519f7f7c9e92d0a660939392dd44a31",
+      "value_zat": 1000000
+    },
+    "ufvk_hash": {
+      "hash": "e00edc1c4ee26bebfc7de072946be404b9365ab1debe4c29f35d7b57b159929c",
+      "ufvk": "uvftest1example"
+    }
+  },
+  "payload": {
+    "memo": "LL1:3Kiyae5X9K2uQF5aEdusFxypJm_q4FFggGjzStTTU1bmItMMU2be3Pr2sWOHUPKklZOVybjN8WK5R6zLPaxvZ8VG-nO-JUv5LTFrlDZdWAguVeOLx-cW867OFbgNsewWXmXcGrMg56hsLagkr45aqizNQmWuApkx6eoLcroRC9sIy5v8w_gBsEBDhM7_mYWbWupmzNaZhI8v1IILCBjyfwe9NwawqxGlaNn7bUeQ5WCiryW-FmCoWMRob2Bb",
+    "refund_receiver": "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+    "refund_typecode": 3,
+    "sealed": "dca8b269ee57f4adae405e5a11dbac171ca9266feae051608068f34ad4d35356e622d30c5366dedcfaf6b1638750f2a4959395c9b8cdf162b947accb3dac6f67c546fa73be254bf92d316b94365d58082e55e38bc7e716f3aece15b80db1ec165e65dc1ab320e7a86c2da824af8e5aaa2ccd4265ae029931e9ea0b72ba110bdb08cb9bfcc3f801b0404384ceff99859b5aea66ccd699848f2fd4820b0818f27f07bd3706b0ab11a568d9fb6d4790e560a2af25be1660a858c4686f605b"
+  },
+  "payload_v2": {
+    "amount_zat": 1000000,
+    "memo": "LL1:3Kiyae5X9K2uQF5aEdusFxypJm_q4FFggGjzStTTU1Y-0XC_QAwKUbkQZhIUxnT1lpOVybjN8WK5R6zLPaxvZ8VG-nO-JUv5LTFrlDZdWAguVeOLx-cW867OFbgNsewWXmXcGrMg56hsLagkr45aqizNQmWuApkx6eoLcroRC9sIy5v8w_gBsEBDhM7_mYWbWupmzNaZhI8v1IILCBjyfwe9NwawqxGlaNn7bUeQ5WCiryW-FmCoWMRob2Bbz9_GMZ_iBdQ",
+    "sealed": "dca8b269ee57f4adae405e5a11dbac171ca9266feae051608068f34ad4d353563ed170bf400c0a51b910661214c674f5969395c9b8cdf162b947accb3dac6f67c546fa73be254bf92d316b94365d58082e55e38bc7e716f3aece15b80db1ec165e65dc1ab320e7a86c2da824af8e5aaa2ccd4265ae029931e9ea0b72ba110bdb08cb9bfcc3f801b0404384ceff99859b5aea66ccd699848f2fd4820b0818f27f07bd3706b0ab11a568d9fb6d4790e560a2af25be1660a858c4686f605bcfdfc6319fe205d4"
+  },
+  "rules": {
+    "canonical": "{\"campaign_ufvk\":\"uvftest1example\",\"close_grace\":10,\"deadline_height\":4467266,\"goal_zat\":5000000,\"ledger_pubkey\":\"d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737\",\"min_contribution_zat\":20000,\"mode\":\"raise\",\"network\":\"test\",\"payload_pubkey\":\"0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20\",\"refund_fee_zat\":10000,\"reissue_window\":20,\"start_height\":4467207,\"ticket_k\":10,\"v\":1}",
+    "object": {
+      "campaign_ufvk": "uvftest1example",
+      "close_grace": 10,
+      "deadline_height": 4467266,
+      "goal_zat": 5000000,
+      "ledger_pubkey": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+      "min_contribution_zat": 20000,
+      "mode": "raise",
+      "network": "test",
+      "payload_pubkey": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20",
+      "refund_fee_zat": 10000,
+      "reissue_window": 20,
+      "start_height": 4467207,
+      "ticket_k": 10,
+      "v": 1
+    },
+    "rules_id": "3bd5556857b286dd982454a14761bc6f1065dece7a9e3fa617c86bfbaf253fcb"
+  },
+  "ticket": {
+    "blob": "042e15041603ae32c1fd1f833cc0435117d85da3fc9100150ee613587994d237651fa4e54a3eb97f78afb486a5842bb82c3e72fd173bb00815aa30f05dca75527e56aa9e8af551c791b1d5dd05ad9b2ae543f0e8e8addd87457cf64e665c59ca9051ef798421664268c32a0449d8a37ec6402a1100d29246be1e13b4479024cb691ad6ed55c98508df15093a38f1efa18591bae04abf59ae95f98eb2cadac861ebbcd6e6f7434a60dca99760db67e30661dc3c0048a0e71b9c91ee9ab198902f92f875d7131fa198084e452d845b7de2fa1b8a873ebbfd4e5e8e4bf11c542ee7250715e44453f8318beb4c8e146175ad45587f972d0dbd49",
+    "blob_hash": "fe83829cad5716592ca4f5048e44d8777e62a4881a814e63f1a562e149b9f1cb",
+    "raw_tx": "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71"
+  },
+  "ticket_v2": {
+    "blob": "a5f2e3437c0adc8dfb36b698ac8ca9be0f3e987510e06866b103524b2dbc2a3303dc43bb318a2e85d1b229f9ed9f331e54c0edb9a04f40278576e8ec7826fbae26d6d598d36793fe0e75dda9b06fb12fd27255988fc24dc04e31df6c3127a349cc4721d00e386716e6481012ad2ae1b0885f529104ee1fc052f89f4abd38d93b53a3e1e5f13f7b60297049d1fe6c35a6dda3923d5cc919a2d1984b55dfcbb55461c613d33cb42aef3ab05be409064ae024c5a3e47618fe58af4011240f02d8ef2f7abc03cd7bff4103f258c8df8e13e03f5506b597a8dadfcf7ceba7d5fa76100a1b7db1e6303ae5431f5d3e810b5f8f6de177559c246a42e8ca13d49d5d9d952a3405355930823bb5ba985de6414f22f6111d8562b5766f1e98fb59a37cdad7900469d728962ed7e1",
+    "opening": {
+      "action": 1,
+      "rseed": "1111111111111111111111111111111111111111111111111111111111111111",
+      "value_zat": 990000
+    },
+    "plaintext": "4c4c5432c800000000070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a7101301b0f00000000001111111111111111111111111111111111111111111111111111111111111111"
+  }
+}

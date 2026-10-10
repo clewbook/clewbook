@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Components</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<header class="bar"><a class="word" href="./"><span class="mark"></span><span data-brand></span></a><nav class="nav" aria-label="Main"><a href="components.html" aria-current="page">Components</a></nav></header>
+<main class="page">
+  <div class="crumb">Shared components</div>
+  <h1 class="t-h1">Components in use</h1>
+  <p class="t-lead" style="margin-top:12px;max-width:62ch">Every component the pages share, drawn with real check names and states. This page is a reference for the interface, not part of a campaign.</p>
+
+  <section class="sect"><div class="hd"><h2>Buttons and chips</h2></div>
+    <div class="btns"><button class="btn">Create my payment</button><button class="btn sec">Check the proof too</button><button class="btn stop">Refund me</button><button class="btn" disabled>Close campaign</button></div>
+    <div class="btns" style="margin-top:16px;align-items:center"><span class="chip open">Open</span><span class="chip closed">Closed</span><span class="chip refunded">Refunded</span><span id="chips"></span><span class="chip warn">Pending</span></div>
+  </section>
+
+  <section class="sect"><div class="hd"><h2>Amounts and hashes</h2><span class="t-label">8 decimals, never rounded</span></div>
+    <div id="amts" style="display:grid;gap:8px;font-size:1.5rem"></div>
+    <div style="display:grid;gap:12px;margin-top:16px"><span id="h1"></span><span id="h2"></span></div>
+  </section>
+
+  <section class="sect"><div class="hd"><h2>Check rows and strip</h2><span class="t-label">ticket checks</span></div>
+    <div class="checks" id="rows"></div>
+    <dl class="cn"><dt class="p">Checked</dt><dd id="cn-p"></dd><dt class="x">Not checked</dt><dd id="cn-x"></dd></dl>
+    <div class="strip" style="margin-top:24px"><div class="p"><div class="v">9</div><div class="l">Passed</div></div><div class="f"><div class="v">1</div><div class="l">Failed</div></div><div class="x"><div class="v">2</div><div class="l">Not checked</div></div><div><button class="btn">Run again</button></div></div>
+  </section>
+
+  <section class="sect"><div class="hd"><h2>Notices</h2></div>
+    <div class="notices">
+      <div class="notice fail"><div class="k">Does not match</div><h3>Your ticket did not pass a check: it is for the network version in use now.</h3><p>This ticket is for an older network version; the campaign must re-issue it. Keep your backup file.</p></div>
+      <div class="notice warn"><div class="k">Needs attention</div><h3>Pay at least 0.01 TAZ, in one payment.</h3><p>A smaller payment is not a contribution and is not refunded.</p></div>
+      <div class="notice info"><div class="k">Note</div><h3>Older payment code (copyable).</h3><p>New payment codes seal in the amount and cannot be copied this way.</p></div>
+    </div>
+  </section>
+
+  <section class="sect"><div class="hd"><h2>Ledger rows</h2></div>
+    <table class="ledger"><thead><tr><th>No.</th><th>Block</th><th class="r">Amount</th><th>Ticket</th></tr></thead><tbody>
+      <tr><td class="n">3</td><td>4,468,311</td><td class="r" id="l3"></td><td><span id="lh3"></span></td></tr>
+      <tr class="pend"><td class="n">2</td><td>4,468,302</td><td class="r" id="l2"></td><td>Pending</td></tr>
+    </tbody></table>
+  </section>
+
+  <section class="sect"><div class="hd"><h2>QR frame</h2></div>
+    <div class="qr"><div class="code" role="img" aria-label="Demonstration pattern, not a payment code"><svg viewBox="0 0 8 8"><path d="M0 0h3v3H0zM5 0h3v3H5zM0 5h3v3H0zM4 4h1v1H4zM6 5h2v1H6zM5 7h1v1H5zM7 7h1v1H7z" fill="#000"/><path d="M1 1h1v1H1zM6 1h1v1H6zM1 6h1v1H1z" fill="#fff"/></svg></div><span class="c1"></span><span class="c2"></span></div>
+    <p class="t-sm dim" style="text-align:center;margin-top:8px">A pattern for the frame only; it is not a payment code.</p>
+  </section>
+</main>
+<script type="module">
+import { setup, chipHTML, amountHTML, mountHash, checkRow, cidEl } from './ui.js';
+const $ = (s) => document.querySelector(s);
+setup('Components');
+$('#chips').innerHTML = chipHTML('pass') + ' ' + chipHTML('fail') + ' ' + chipHTML('nc');
+$('#amts').innerHTML = [8742500000, 1002500, 100000000, 1].map((z) => `<div>${amountHTML(z, "ZEC")}</div>`).join("");
+mountHash($('#h1'), '9c1163cd526f27f5d35b8e112d37201376608a285da23904b57a72900b80b231', 6);
+mountHash($('#h2'), '8233848e5cd72db85dc7e6a06b2bb9828b74c6f732f69bb0885bb41ba807df2a', 6);
+$('#h2').querySelector('.h-x').click();
+const rows = [
+  ['signatures', 'its signatures are valid', 'every signature in the refund verifies', 'pass'],
+  ['coin_unspent', "your contribution's coin is not used by anything else", 'the coin was spent in block 4,470,999 by a transaction the list does not name', 'fail'],
+  ['proof', 'the proof', 'not run: it takes a while on this device; press "Check the proof too" to run it', 'not_checked'],
+];
+$('#rows').replaceChildren(...rows.map(([id, name, detail, status]) => checkRow({ id, name, detail, status })));
+const line = (st) => rows.filter((r) => r[3] === st).map((r) => r[0]);
+$('#cn-p').replaceChildren(...line('pass').flatMap((id) => [cidEl(id), ' ']));
+$('#cn-x').replaceChildren(...line('not_checked').flatMap((id) => [cidEl(id), ' ']));
+$('#l3').innerHTML = amountHTML(25000000); $('#l2').innerHTML = amountHTML(100000000);
+mountHash($('#lh3'), '4c745934f70af7ed793bbbf106b816368bf4130d53afcb563d46f228e6d23db5', 6);
+</script>
+</body>
+</html>

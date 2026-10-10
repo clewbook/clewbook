@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New campaign</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="/"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a href="/">Dashboard</a><a href="/setup.html" aria-current="page">New campaign</a></nav>
+</header>
+<main class="page">
+  <div class="crumb">Host / New campaign</div>
+  <h1 class="t-h1">Set up a campaign</h1>
+  <p class="t-lead" style="margin-top:12px;max-width:62ch">Choose what you are running and when it ends. Every contributor gets a signed refund ticket that never expires, whatever happens to you afterwards.</p>
+  <p class="muted" id="net-note"></p>
+  <div id="banner" class="notice bad" hidden></div>
+  <div id="mainnet-banner" class="notice bad mainnet" hidden><div class="k">MAINNET: real money</div><h3>This program is set to the real Zcash network</h3><p>Everything created here uses real ZEC, and a mistake can lose it. Contributors will pay real money into this campaign.</p><p id="nu7-note"></p></div>
+
+  <form id="setup-form" novalidate>
+  <div class="cols setup-cols">
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>Type</h2><span class="t-label">01</span></div>
+      <fieldset class="choices">
+        <legend class="sr">Type of campaign</legend>
+        <label class="choice"><input type="radio" name="mode" value="raise" checked><span><b>Fundraiser</b><small>If the goal is not reached by the deadline, everyone is refunded.</small></span></label>
+        <label class="choice"><input type="radio" name="mode" value="auction"><span><b>Auction</b><small>The highest bids win, everyone else is refunded.</small></span></label>
+      </fieldset>
+      <label for="campaign-name">Name (optional)</label>
+      <input id="campaign-name" autocomplete="off" maxlength="60" placeholder="For example: Community radio mast">
+      <p class="hint">The name is public. Do not put anything private in it. Up to 60 characters, plain text. It is part of the signed rules and cannot be changed later. Without a name, the campaign is shown by a short number.</p>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Terms</h2><span class="t-label">02</span></div>
+      <div id="goal-row">
+        <label for="goal">Goal (<span class="ticker">TAZ</span>)</label>
+        <input id="goal" inputmode="decimal" autocomplete="off" placeholder="0.05">
+      </div>
+      <div id="items-row" hidden>
+        <label for="items">Number of items for sale</label>
+        <input id="items" inputmode="numeric" autocomplete="off" placeholder="1">
+      </div>
+      <label for="minimum">Smallest contribution (<span class="ticker">TAZ</span>)</label>
+      <input id="minimum" inputmode="decimal" autocomplete="off" value="0.0002">
+      <p class="hint" id="minimum-hint"></p>
+      <label for="deadline">Deadline: blocks from now</label>
+      <input id="deadline" inputmode="numeric" autocomplete="off" value="500">
+      <p class="hint" id="deadline-hint"></p>
+      <label for="ticketk">Ticket window: blocks</label>
+      <input id="ticketk" inputmode="numeric" autocomplete="off" value="30">
+      <p class="hint" id="ticketk-hint"></p>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Relays</h2><span class="t-label">03, optional</span></div>
+      <label for="relays">One address per line</label>
+      <textarea id="relays" rows="2" autocomplete="off" spellcheck="false"></textarea>
+      <p class="hint" id="relays-hint">The relays keep the public signed list. Leave this empty to use the ones this program was started with.</p>
+    </section>
+  </div>
+
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>What you are about to publish</h2></div>
+      <dl class="kv pl" id="terms"></dl>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Your campaign key</h2></div>
+      <div class="notice info"><div class="k">Note</div><h3>Back up the campaign folder</h3><p>Creating a campaign makes a new wallet and key for it on this computer. They are not sent anywhere. Without them you cannot close the campaign or send refunds, so keep a copy of the campaign's folder (in this program's runs folder) somewhere safe. Contributors can still refund themselves with their tickets.</p></div>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Create</h2></div>
+      <label class="choice confirm" id="confirm-row" hidden><input type="checkbox" id="confirm-mainnet"><span><b>I understand this is real money</b><small>I have read the MAINNET notice above and want to create this campaign on the real network.</small></span></label>
+      <div id="setup-error" class="notice bad" role="alert" hidden></div>
+      <div class="btns stack">
+        <button type="submit" class="btn" id="create-btn">Create campaign</button>
+        <a class="btn sec" id="cancel-btn" href="/">Cancel</a>
+      </div>
+      <p class="hint" id="create-hint">Creating a campaign needs the public network server and can take a minute.</p>
+    </section>
+  </div>
+  </div>
+  </form>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="setup.js"></script>
+</body>
+</html>

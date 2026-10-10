@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Host</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="start.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a href="./">Home</a><a href="recount.html">Recount</a><a href="host.html" aria-current="page">Host</a></nav>
+</header>
+<main class="page">
+  <h1 class="t-h1">Host a campaign</h1>
+  <p class="t-lead home-lead">You can run a fundraiser or an auction of your own. Hosting is done from your own computer, with a program you run there. This site does not host campaigns, hold keys or touch anyone's money, and it has no button that sets one up for you.</p>
+
+  <section class="sect">
+    <div class="hd"><h2>Which kind</h2></div>
+    <ul class="plainlist">
+      <li><strong>Fundraiser.</strong> People contribute toward a goal. If the goal is reached by the deadline, you keep the money. If not, everyone is refunded.</li>
+      <li><strong>Auction.</strong> People bid for a number of items. Bids stay sealed until you close. The highest bids win and are paid to your address; everyone else is refunded. A uniform-price auction, where every winner pays the same price and gets the rest of their bid back, is set up from the command line instead of the dashboard.</li>
+    </ul>
+  </section>
+
+  <section class="sect">
+    <div class="hd"><h2>What you need</h2></div>
+    <ul class="plainlist">
+      <li>A computer that stays on and online from the first contribution until you have closed the campaign. Tickets are issued only while the host program runs.</li>
+      <li>The host program (<code>cb-host</code>) and the relay program (<code>cb-relay</code>), built from the source code that comes with this project. The README has the steps.</li>
+      <li>A place for the public list: a relay that contributors and visitors can reach. You can run your own and give it a web address, or use one you trust.</li>
+      <li>A shielded address to receive what the campaign keeps.</li>
+    </ul>
+  </section>
+
+  <section class="sect">
+    <div class="hd"><h2>The steps, from your own computer</h2></div>
+    <ol class="plainlist">
+      <li>Start the host program's dashboard on your own computer. It is for you only and cannot be reached from other devices.</li>
+      <li>Set up the campaign there: type, goal or items, deadline, smallest contribution, and the ticket window. It makes a wallet and a key for this campaign alone.</li>
+      <li>Share the contribute link it gives you. Contributors pay from their own wallets, and each one gets a refund ticket signed in advance.</li>
+      <li>After the deadline, close the campaign from the dashboard. It refunds, sweeps or settles, and saves a final copy of the list with a signed fingerprint.</li>
+      <li>Share the recount link. Anyone can then check your books against the public chain.</li>
+    </ol>
+  </section>
+
+  <section class="sect">
+    <div class="hd"><h2>What to know first</h2></div>
+    <ul class="plainlist">
+      <li><strong>Try it on the test network first.</strong> Its coins have no value. A real-money campaign asks for an extra confirmation.</li>
+      <li><strong>Back up the campaign folder.</strong> It holds the wallet and the key. If you lose it, nothing can recover them; contributors can still use their own tickets.</li>
+      <li><strong>Late payments are not counted.</strong> A payment that arrives after the deadline gets no ticket and is not refunded automatically; it stays in the campaign wallet until you return it by hand.</li>
+      <li><strong>Close in time.</strong> If you do not close within the ticket window after the deadline, contributors may claim their own refunds.</li>
+      <li><strong>The recount is public.</strong> Anything that does not match the chain shows up as a failed check for everyone to see.</li>
+    </ul>
+  </section>
+
+  <p><a class="btn sec" href="./">Back to the home page</a></p>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="host.js"></script>
+</body>
+</html>

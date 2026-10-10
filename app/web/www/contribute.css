@@ -1,0 +1,32 @@
+/* Contribute page: only what is specific to it (the shared look is in ui.css). */
+.status-line { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; margin-top: var(--s3); }
+.summary { font-size: .875rem; color: var(--ink2); border-left: 4px solid var(--edge); padding: var(--s1) var(--s3); margin-bottom: var(--s3); overflow-wrap: anywhere; }
+#form-card > p.muted { margin-bottom: var(--s2); }
+#create { margin-top: var(--s3); }
+#tc-details > summary { margin-bottom: var(--s2); }
+#tc-details .checks { margin-top: var(--s2); }
+#ticket-checks #proof-row, #ticket-checks #proof-progress { margin: var(--s3) 0; }
+#challenge-text { margin-bottom: 0; }
+#proof { margin-top: var(--s4); }
+#proof .do { margin-top: var(--s3); }
+#refund-area { margin-top: var(--s4); }
+#manual pre.copybox { max-height: 7rem; }
+#about-text { max-width: 62ch; }
+#pay-warning .k { display: block; }
+#qr-contains .hash { max-width: 100%; }
+/* progress rows: the drawn tick and dash, on the same marker box as the chips */
+.progress .dot { display: inline-flex !important; width: 20px; height: 20px; border: 1px dashed var(--nc); border-radius: 2px; background: var(--nc-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6h7' fill='none' stroke='%23645F53' stroke-width='1.75'/%3E%3C/svg%3E"); }
+.progress li.done .dot { border: 1px solid var(--pass); background: var(--pass-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5 4.8 9.2 10 3' fill='none' stroke='%231D6641' stroke-width='1.75'/%3E%3C/svg%3E"); }
+.progress li.bad .dot { border: 1px solid var(--fail); background: var(--fail-bg) center / 12px 12px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5' fill='none' stroke='%239E3426' stroke-width='1.75'/%3E%3C/svg%3E"); }
+@media (max-width: 639px) {
+  .steps li { grid-template-columns: 1fr; gap: var(--s1); }
+  .qr { padding: var(--s2); }
+  .qr .code { min-width: 0; width: 100%; padding: 8px; }
+}
+@media (min-width: 640px) { .col-a .qr .code { width: min(100%, 340px); } }
+#leave-box { margin-top: var(--s4); }
+#leave-box .btns { display: flex; gap: var(--s3); flex-wrap: wrap; margin-top: var(--s2); }
+
+.why summary { font-size: .875rem; color: var(--muted); }
+.earlier { margin: var(--s3) 0; }
+.earlier .row { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin-top: var(--s2); }

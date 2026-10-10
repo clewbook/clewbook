@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Host dashboard</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="/"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a href="/" aria-current="page">Dashboard</a><a href="/setup.html">New campaign</a></nav>
+</header>
+<main class="page">
+  <div class="crumb">Host / Dashboard</div>
+  <h1 class="t-h1">Host dashboard</h1>
+  <p class="muted" id="net-note"></p>
+  <div id="banner" class="notice bad" hidden></div>
+  <div id="mainnet-banner" class="notice mainnet" hidden><div class="k">ZCASH MAINNET</div><h3>This program is set to the real Zcash network</h3><p>Everything here uses real ZEC. Closing a campaign moves real money and cannot be undone.</p></div>
+
+  <section class="sect" id="chooser">
+    <div class="hd"><h2>Your campaigns</h2><span class="t-label">Choose one</span></div>
+    <p id="no-campaigns" hidden>No campaign yet.</p>
+    <select id="campaign-select" hidden></select>
+    <p class="mt3"><a class="btn" id="new-btn" href="/setup.html">Set up a new campaign</a></p>
+  </section>
+
+  <section class="sect" id="warnings-section" hidden>
+    <div class="hd"><h2>Warnings</h2></div>
+    <div id="warning-list" class="notices"></div>
+  </section>
+
+  <div id="live" hidden>
+  <div class="cols dash-cols">
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>Status</h2><span id="status-chip"></span></div>
+      <dl id="facts" class="kv pl"></dl>
+    </section>
+
+    <section class="sect" id="todo-section">
+      <div class="hd"><h2>What you still have to do</h2></div>
+      <ul id="todo-list" class="progress"></ul>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Link for contributors</h2></div>
+      <pre id="contribute-link" class="copybox"></pre>
+      <button type="button" class="secondary" id="copy-link">Copy link</button>
+      <p class="mt3"><a id="recount-link" href="#">Open the recount for this campaign</a></p>
+      <p class="mt3"><button type="button" class="secondary" id="export-btn">Download a public copy of the list</button> <span class="muted t-sm" id="export-note">A file anyone can load on the recount page when no relay answers. It holds no key and nothing private.</span></p>
+      <p class="error" id="export-error" role="alert" hidden></p>
+    </section>
+  </div>
+
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>What has happened so far</h2></div>
+      <dl id="counts" class="kv pl"></dl>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Self-check</h2><span class="t-label">your own data</span></div>
+      <p class="muted t-sm">The same checks anyone can run on your campaign, run on your own data.</p>
+      <div id="check-list" class="checks mt3"></div>
+    </section>
+
+    <section class="sect" id="final-section" hidden>
+      <div class="hd"><h2>Final public copy</h2></div>
+      <p class="muted t-sm">Saved when the campaign was closed, with a signed fingerprint of the list. Anyone can use the fingerprint to check that a copy of the list is the one you fixed, with nothing cut off.</p>
+      <pre id="final-line" class="copybox"></pre>
+      <p class="muted t-sm">Keep the downloaded file safe, and post this line somewhere that lasts (your own site, a public page that is archived). The recount page compares a list with it.</p>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Relays</h2></div>
+      <ol id="relay-list" class="runlog"></ol>
+    </section>
+  </div>
+  </div>
+  </div>
+
+  <section class="sect" id="close-section" hidden>
+    <div class="hd"><h2>Close the campaign</h2></div>
+    <p id="close-explain"></p>
+    <button type="button" id="close-btn">Close the campaign</button>
+    <p id="close-finish-error" class="muted" hidden></p>
+    <div id="close-confirm" class="notice warn" hidden>
+      <div class="k">Before you close</div>
+      <p id="close-confirm-text"></p>
+      <label for="sweep-to">Address that receives the money the campaign keeps</label>
+      <textarea id="sweep-to" rows="3" autocomplete="off" spellcheck="false"></textarea>
+      <label class="confirm-line" id="confirm-close-row" hidden><input type="checkbox" id="confirm-mainnet-close"> I understand this moves real money</label>
+      <p id="close-error" class="notice bad" hidden></p>
+      <div class="do"><button type="button" id="close-yes">Close now</button>
+      <button type="button" id="close-no" class="secondary">Not now</button></div>
+    </div>
+    <ul id="close-log" class="plainlist"></ul>
+    <h3 class="t-h3 mt5">Transactions sent</h3>
+    <p class="muted t-sm" id="broadcasts-note">The host follows every refund, sweep and settlement it sends. If a public server drops one, the same transaction is sent again.</p>
+    <ul id="broadcast-list" class="progress mt3"></ul>
+  </section>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

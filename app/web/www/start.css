@@ -1,0 +1,23 @@
+/* Start page and the friendly "not here" page. The shared look is in ui.css. */
+.start-cols { max-width: none; }
+@media (min-width: 900px) { .start-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.btn.off { border-color: var(--edge); color: var(--muted); background: transparent; pointer-events: none; }
+.status { font-weight: 700; margin-top: var(--s2); }
+.status.open { color: var(--ink); } .status.ended { color: var(--ink2); }
+.notfound { max-width: 40rem; margin: 0 auto; padding: var(--s6) var(--s5); }
+
+/* the home page */
+.home-lead { margin-top: var(--s3); max-width: 62ch; }
+.cards { display: grid; gap: var(--s4); }
+@media (min-width: 900px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.card { border: 1px solid var(--rule); background: var(--surface); padding: var(--s4); }
+.card-head { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; justify-content: space-between; }
+.netchip { font: 700 .6875rem/1 var(--mono); letter-spacing: .08em; padding: 5px 8px; }
+.netchip.main { background: #2B2B2F; color: #F3F0E8; }
+.netchip.test { background: #F4E9CF; color: #4A3205; border: 1px dashed #76500A; }
+.netchip.unknown { background: #E6E6E8; color: #1C1B18; border: 1px dotted #44444A; }
+.card .btns { margin-top: var(--s3); }
+
+/* the host page */
+.plainlist { margin: var(--s3) 0 0; padding-left: 1.2rem; font-size: 1rem; }
+.plainlist li { padding: var(--s1) 0; overflow-wrap: anywhere; }

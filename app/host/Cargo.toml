@@ -1,0 +1,50 @@
+[package]
+name = "ll-host"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+hex.workspace = true
+ll-core.workspace = true
+ll-relay = { path = "../relay" }
+pczt.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zcash_primitives.workspace = true
+crypto_box.workspace = true
+rand_core.workspace = true
+age = { version = "0.12", features = ["armor"] }
+async-trait = "0.1"
+bip0039 = { version = "0.14", features = ["std"] }
+orchard = { workspace = true, features = ["circuit"] }
+rusqlite.workspace = true
+secrecy = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+toml = "0.8"
+tonic = { version = "0.14", features = ["tls-webpki-roots"] }
+zcash_address.workspace = true
+zcash_client_backend = { version = "=0.25.0-pre.0", features = ["lightwalletd-tonic-tls-webpki-roots", "orchard", "pczt", "sync", "unstable"] }
+zcash_client_sqlite = { version = "=0.23.0-pre.0", features = ["orchard", "serde", "transparent-inputs", "unstable"] }
+zcash_keys = { version = "=0.17.0-pre.0", features = ["orchard", "unstable"] }
+zcash_protocol.workspace = true
+zip321 = "=0.10.0-pre.0"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tiny_http = "0.12"
+
+[features]
+# Fake cheating host for tests (sends a winner's excess elsewhere). Off in normal builds.
+test-cheats = []
+
+# the program is built under its new name and under the old one (the old name keeps working)
+[[bin]]
+name = "cb-host"
+path = "src/main.rs"
+
+[[bin]]
+name = "ll-host"
+path = "src/main.rs"

@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Recount (spike)</title>
+<style>body{font:14px/1.4 ui-monospace,monospace;margin:1rem}pre{white-space:pre-wrap}</style>
+<h1>Recount</h1>
+<p>Campaign <code id="name"></code> &middot; endpoint <code id="ep"></code></p>
+<pre id="log"></pre>
+<pre id="out">running...</pre>
+<script type="module">
+  import { runRecount } from './recount.js';
+  const q = new URLSearchParams(location.search);
+  const name = q.get('campaign');
+  const endpoints = q.getAll('endpoint').length ? q.getAll('endpoint') : ['https://zjs.zec.rocks/testnet', 'https://zcash-testnet.chainsafe.dev'];
+  document.getElementById('name').textContent = name;
+  document.getElementById('ep').textContent = endpoints.join(' , ');
+  const logEl = document.getElementById('log'), out = document.getElementById('out');
+  try {
+    const bundle = await (await fetch(`bundles/${name}.json`)).json();
+    const { report, stats, events } = await runRecount(endpoints, bundle, { log: (m) => (logEl.textContent += m + '\n') });
+    for (const e of events) logEl.textContent += 'NOTE: ' + e + '\n';
+    out.dataset.events = JSON.stringify(events);
+    out.textContent = report;
+    out.dataset.stats = JSON.stringify(stats);
+    out.dataset.done = 'yes';
+  } catch (e) {
+    out.textContent = 'The recount could not finish: ' + (e?.message ?? e) + ' Nothing was concluded.';
+    out.dataset.done = 'error';
+  }
+</script>

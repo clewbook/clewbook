@@ -1,0 +1,32 @@
+/* Recount page: only what is specific to it (the shared look is in ui.css). */
+.verdict { border: 1px solid var(--edge); border-left-width: 4px; background: var(--surface); padding: var(--s4) var(--s4); margin: var(--s5) 0 var(--s4); }
+.verdict .k { font: 700 .75rem/1rem var(--mono); letter-spacing: .06em; text-transform: uppercase; margin-bottom: var(--s1); }
+.verdict h2 { font: 600 1.5rem/2rem var(--head); }
+.verdict p { margin-top: var(--s2); max-width: 70ch; }
+.verdict.pass { border-color: var(--pass); background: var(--pass-bg); } .verdict.pass .k { color: var(--pass); }
+.verdict.fail { border-color: var(--fail); background: var(--fail-bg); } .verdict.fail .k { color: var(--fail); }
+.verdict.cannot, .verdict.partial { border-color: var(--warn); background: var(--warn-bg); } .verdict.cannot .k, .verdict.partial .k { color: var(--warn); }
+.verdict.working { border-style: dashed; }
+.progress-line { color: var(--muted); font-size: .875rem; margin-top: var(--s2); }
+.progress-line:empty { display: none; }
+#summary { margin-top: var(--s4); }
+#again { margin: 0; }
+#summary .strip { grid-template-columns: repeat(3, 1fr); }
+#summary .strip > div:last-child { display: block; }
+#totals dd .amt { font-weight: 500; }
+.chk .body ul { margin: var(--s2) 0 0 var(--s4); list-style: disc; font-size: .875rem; color: var(--ink2); }
+.chk .body li { margin: 2px 0; overflow-wrap: anywhere; }
+.chk summary .id .cid { white-space: nowrap; }
+.runlog { counter-reset: r; border-top: 1px solid var(--ink); }
+.runlog li { counter-increment: r; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--rule); font: .8125rem/1.25rem var(--mono); overflow-wrap: anywhere; }
+.runlog li:before { content: counter(r, decimal-leading-zero); color: var(--muted); }
+.runlog li.bad { background: var(--fail-bg); }
+@media (min-width: 900px) { .rec-cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 var(--s7); align-items: start; } }
+@media (max-width: 639px) { #summary .strip > div:last-child { grid-column: auto; border-top: 0; } #summary .strip .v { font-size: 2rem; line-height: 2.25rem; } }
+
+.nc-line { display: block; }
+#notchecked-line { font-family: var(--body); font-size: .9375rem; line-height: 1.45; }
+.ncrow { display: block; padding: var(--s2) 0; border-bottom: 1px solid var(--rule); }
+.ncrow:first-child { padding-top: 0; }
+.ncrow:last-child { border-bottom: 0; }
+.ncrow b { font-weight: 700; }

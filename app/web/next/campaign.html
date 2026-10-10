@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="campaign.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a href="#" aria-current="page">Campaign</a><a id="nav-recount" href="#">Recount</a></nav>
+</header>
+<main class="page">
+  <div class="crumb">Campaign <span id="campaign-id"></span></div>
+  <h1 class="t-h1" id="title">Campaign</h1>
+  <div class="status-line" id="status-line" hidden><span id="status-chip"></span><span class="t-sm dim" id="status-text"></span></div>
+  <div id="banners"></div>
+
+  <div class="cols2">
+  <div>
+  <section class="sect" id="about" hidden>
+    <div class="hd"><h2>About this campaign</h2></div>
+    <dl class="kv pl" id="facts"></dl>
+  </section>
+
+  <section class="sect" id="links" hidden>
+    <div class="hd"><h2>Take part or check</h2></div>
+    <div class="btns stack">
+      <a class="btn" id="contribute-link" href="#">Contribute</a>
+      <a class="btn sec recount-btn" id="recount-link" href="#">Recount this campaign</a>
+      <a class="btn sec" id="card-link" href="#">Capability card</a>
+    </div>
+    <p class="muted t-sm" style="margin-top:var(--s3)">The recount checks, in your browser and from the public chain, that the campaign kept its promises.</p>
+  </section>
+  </div>
+
+  <div>
+  <section class="sect" id="public-list" hidden>
+    <div class="hd"><h2>The public list</h2></div>
+    <p>Every contribution the campaign has accepted is listed publicly, signed by the campaign.</p>
+    <dl class="kv pl" id="list-facts" style="margin-top:var(--s3)"></dl>
+    <p class="t-label" style="margin:var(--s5) 0 var(--s2)">Where it was read from</p>
+    <ol class="runlog" id="relay-list"></ol>
+  </section>
+  </div>
+  </div>
+
+  <section class="sect" id="entries-card" hidden>
+    <div class="hd"><h2>Latest entries</h2><span class="t-label" id="entries-hint"></span></div>
+    <div class="ledger-wide scroll"><table class="ledger"><thead><tr><th>No.</th><th>Entry</th><th>Block</th><th class="r">Amount</th><th>Reference</th></tr></thead><tbody id="entries"></tbody></table></div>
+    <div class="ledger-narrow" id="entries-narrow"></div>
+  </section>
+
+  <section class="sect" id="badge-card" hidden>
+    <div class="hd"><h2>Badge for your own site</h2></div>
+    <p>Paste this into a web page. It shows a small card that names this campaign and sends readers to its live recount. It does not claim any result by itself.</p>
+    <pre id="badge-code" class="copybox"></pre>
+    <button type="button" class="secondary" id="badge-copy">Copy</button>
+    <p class="t-label" style="margin:var(--s4) 0 var(--s2)">How it looks</p><div id="badge-preview"></div>
+  </section>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="campaign.js"></script>
+</body>
+</html>

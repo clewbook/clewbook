@@ -1,0 +1,587 @@
+//! Option B: wallet operations through the Zcash wallet libraries directly (no devtool).
+//! Uses the same wallet directory layout as zcash-devtool (`data.sqlite`, `keys.toml`).
+
+use std::{
+    collections::BTreeSet,
+    fs,
+    num::NonZeroUsize,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
+
+use anyhow::{Context, Result, anyhow, bail};
+use async_trait::async_trait;
+use pczt::{
+    Pczt,
+    roles::{prover::Prover, signer::Signer, spend_finalizer::SpendFinalizer, tx_extractor::TransactionExtractor, verifier::Verifier},
+};
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use secrecy::{ExposeSecret, SecretVec};
+use tokio::runtime::Runtime;
+use tonic::transport::{Channel, ClientTlsConfig};
+use zcash_address::ZcashAddress;
+use zcash_client_backend::{
+    data_api::{
+        Account as _, OutputLockStore, TransactionDataRequest, TransactionStatus, WalletRead, WalletWrite,
+        chain::{BlockCache, BlockSource, error as chain_error},
+        locking::LockOwner,
+        scanning::ScanRange,
+        wallet::{
+            ConfirmationsPolicy, create_pczt_from_proposal, decrypt_and_store_transaction,
+            input_selection::{GreedyInputSelector, LockedInputPolicy, NonEmptyBTreeSet, SpendPolicy},
+            propose_transfer,
+        },
+    },
+    fees::{DustOutputPolicy, SplitPolicy, StandardFeeRule, standard::MultiOutputChangeStrategy},
+    proto::{
+        compact_formats::CompactBlock,
+        service::{self, compact_tx_streamer_client::CompactTxStreamerClient},
+    },
+    wallet::{OutputRef, OvkPolicy},
+};
+use zcash_client_sqlite::{WalletDb, util::SystemClock};
+use zcash_keys::keys::UnifiedSpendingKey;
+use zcash_primitives::transaction::Transaction;
+use zcash_protocol::{
+    PoolType, ShieldedPool, TxId,
+    consensus::{BlockHeight, BranchId, Network},
+    value::Zatoshis,
+};
+use zip321::{Payment, TransactionRequest};
+
+use ll_core::walletdb::{self, WalletNote};
+
+use crate::backend::{AccountInfo, ChainTip, SpendRequest, WalletBackend};
+
+type Rng = UnwrapErr<SysRng>;
+type Db = WalletDb<rusqlite::Connection, Network, SystemClock, Rng>;
+
+fn rng() -> Rng {
+    UnwrapErr(SysRng)
+}
+
+pub struct LibsBackend {
+    wallet: PathBuf,
+    identity: PathBuf,
+    params: Network,
+    server: String,
+    rt: Runtime,
+    proving_key: Option<(u32, orchard::circuit::ProvingKey)>,
+}
+
+/// Same derivation as the devtool's `wallet lock-note --owner`.
+fn lock_owner(label: &str) -> LockOwner {
+    LockOwner::new(ll_core::hash(b"ledgerlab_lock", label.as_bytes()))
+}
+
+#[derive(serde::Deserialize)]
+struct KeysToml {
+    mnemonic: Option<String>,
+    network: Option<String>,
+}
+
+impl LibsBackend {
+    pub fn new(wallet: PathBuf, identity: PathBuf) -> Result<Self> {
+        let keys: KeysToml = toml::from_str(&fs::read_to_string(wallet.join("keys.toml"))?)?;
+        let (params, server) = match keys.network.as_deref().unwrap_or("test") {
+            "test" => (Network::TestNetwork, "https://testnet.zec.rocks:443"),
+            "main" => (Network::MainNetwork, "https://zec.rocks:443"),
+            other => bail!("unsupported network {other}"),
+        };
+        Ok(Self { wallet, identity, params, server: server.into(), rt: Runtime::new()?, proving_key: None })
+    }
+
+    fn db(&self) -> Result<Db> {
+        Ok(WalletDb::for_path(self.wallet.join("data.sqlite"), self.params, SystemClock, rng())?)
+    }
+
+    /// The connection to the chain server. A stalled server must not hang a watcher pass: connecting (TCP, TLS and the HTTP/2 set-up together)
+    /// has to finish within CONNECT_TIMEOUT, and a connection that goes silent later is noticed by keepalive pings (KEEPALIVE_EVERY, with
+    /// KEEPALIVE_ANSWER to answer each) and closed, so the call fails and the next pass connects again.
+    fn client(&self) -> Result<CompactTxStreamerClient<Channel>> {
+        const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+        const KEEPALIVE_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+        const KEEPALIVE_ANSWER: std::time::Duration = std::time::Duration::from_secs(20);
+        let host = self.server.trim_start_matches("https://").split(':').next().unwrap_or_default().to_string();
+        self.rt.block_on(async {
+            let endpoint = Channel::from_shared(self.server.clone())?
+                .tls_config(ClientTlsConfig::new().domain_name(host).assume_http2(true).with_webpki_roots())?
+                .connect_timeout(CONNECT_TIMEOUT)
+                .tcp_keepalive(Some(KEEPALIVE_EVERY))
+                .http2_keep_alive_interval(KEEPALIVE_EVERY)
+                .keep_alive_timeout(KEEPALIVE_ANSWER)
+                .keep_alive_while_idle(true);
+            // the endpoint's own connect timeout covers only the TCP connect; this bounds the TLS and HTTP/2 set-up as well
+            let channel = tokio::time::timeout(CONNECT_TIMEOUT, endpoint.connect())
+                .await
+                .map_err(|_| anyhow::anyhow!("the chain server {} did not answer within {} s", self.server, CONNECT_TIMEOUT.as_secs()))??;
+            Ok(CompactTxStreamerClient::new(channel))
+        })
+    }
+
+    /// Decrypts the wallet's mnemonic with the age identity and derives the seed.
+    fn seed(&self) -> Result<SecretVec<u8>> {
+        let keys: KeysToml = toml::from_str(&fs::read_to_string(self.wallet.join("keys.toml"))?)?;
+        let ciphertext = keys.mnemonic.context("wallet has no mnemonic")?;
+        let identities = age::IdentityFile::from_file(self.identity.to_string_lossy().into_owned())?
+            .into_identities()?;
+        let decryptor = age::Decryptor::new(age::armor::ArmoredReader::new(ciphertext.as_bytes()))?;
+        let mut phrase = vec![];
+        std::io::Read::read_to_end(
+            &mut decryptor.decrypt(identities.iter().map(|i| i.as_ref() as _))?,
+            &mut phrase,
+        )?;
+        let phrase = SecretVec::new(phrase);
+        let mnemonic = bip0039::Mnemonic::<bip0039::English>::from_phrase(std::str::from_utf8(phrase.expose_secret())?)?;
+        Ok(SecretVec::new(mnemonic.to_seed("").to_vec()))
+    }
+
+    fn account_id(db: &Db) -> Result<<Db as WalletRead>::AccountId> {
+        db.get_account_ids()?.into_iter().next().context("wallet has no account")
+    }
+
+    fn enhance(&self, client: &mut CompactTxStreamerClient<Channel>) -> Result<()> {
+        let mut db = self.db()?;
+        let tip = db.chain_height()?.context("wallet has not synced")?;
+        let mut done = BTreeSet::new();
+        loop {
+            let mut progressed = false;
+            for request in db.transaction_data_requests()? {
+                if !done.insert(request.clone()) {
+                    continue;
+                }
+                progressed = true;
+                match &request {
+                    TransactionDataRequest::GetStatus(txid) => {
+                        let status = self.fetch(client, tip, *txid)?.map_or(
+                            TransactionStatus::TxidNotRecognized,
+                            |(_, h)| h.map_or(TransactionStatus::NotInMainChain, TransactionStatus::Mined),
+                        );
+                        db.set_transaction_status(*txid, status)?;
+                    }
+                    TransactionDataRequest::Enhancement(txid) => match self.fetch(client, tip, *txid)? {
+                        None => db.set_transaction_status(*txid, TransactionStatus::TxidNotRecognized)?,
+                        Some((tx, h)) => decrypt_and_store_transaction(&self.params, &mut db, &tx, h)?,
+                    },
+                    // The campaign account receives only shielded funds.
+                    TransactionDataRequest::TransactionsInvolvingAddress(_) => {}
+                }
+            }
+            if !progressed {
+                return Ok(());
+            }
+        }
+    }
+
+    fn fetch(
+        &self,
+        client: &mut CompactTxStreamerClient<Channel>,
+        tip: BlockHeight,
+        txid: TxId,
+    ) -> Result<Option<(Transaction, Option<BlockHeight>)>> {
+        let request = service::TxFilter { hash: txid.as_ref().to_vec(), ..Default::default() };
+        let raw = match self.rt.block_on(client.get_transaction(request)) {
+            Ok(r) => r.into_inner(),
+            Err(s) if s.code() == tonic::Code::NotFound => return Ok(None),
+            Err(s) => return Err(s.into()),
+        };
+        let height = (raw.height > 0 && raw.height <= u64::from(u32::MAX))
+            .then(|| BlockHeight::from_u32(raw.height as u32));
+        let tx = Transaction::read(&raw.data[..], BranchId::for_height(&self.params, height.unwrap_or(tip)))?;
+        Ok(Some((tx, height)))
+    }
+
+    fn extract_raw(signed: &[u8]) -> Result<(Vec<u8>, String)> {
+        let pczt = Pczt::parse(signed).map_err(|e| anyhow!("unreadable PCZT: {e:?}"))?;
+        let finalized = SpendFinalizer::new(pczt).finalize_spends().map_err(|e| anyhow!("{e:?}"))?;
+        let tx = TransactionExtractor::new(finalized).extract(rng()).map_err(|e| anyhow!("{e:?}"))?;
+        let mut raw = vec![];
+        tx.write(&mut raw)?;
+        Ok((raw, tx.txid().to_string()))
+    }
+}
+
+/// In-memory compact block cache for the library's sync loop.
+#[derive(Default, Clone)]
+struct MemoryCache(Arc<Mutex<Vec<CompactBlock>>>);
+
+impl BlockSource for MemoryCache {
+    type Error = std::convert::Infallible;
+
+    fn with_blocks<F, WalletErrT>(
+        &self,
+        from_height: Option<BlockHeight>,
+        limit: Option<usize>,
+        mut with_block: F,
+    ) -> Result<(), chain_error::Error<WalletErrT, Self::Error>>
+    where
+        F: FnMut(CompactBlock) -> Result<(), chain_error::Error<WalletErrT, Self::Error>>,
+    {
+        let mut blocks: Vec<CompactBlock> = self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|b| from_height.is_none_or(|h| b.height >= u64::from(h)))
+            .cloned()
+            .collect();
+        blocks.sort_by_key(|b| b.height);
+        for b in blocks.into_iter().take(limit.unwrap_or(usize::MAX)) {
+            with_block(b)?;
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl BlockCache for MemoryCache {
+    fn get_tip_height(&self, range: Option<&ScanRange>) -> Result<Option<BlockHeight>, Self::Error> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|b| BlockHeight::from_u32(b.height as u32))
+            .filter(|h| range.is_none_or(|r| r.block_range().contains(h)))
+            .max())
+    }
+
+    async fn read(&self, range: &ScanRange) -> Result<Vec<CompactBlock>, Self::Error> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|b| range.block_range().contains(&BlockHeight::from_u32(b.height as u32)))
+            .cloned()
+            .collect())
+    }
+
+    async fn insert(&self, mut blocks: Vec<CompactBlock>) -> Result<(), Self::Error> {
+        self.0.lock().unwrap().append(&mut blocks);
+        Ok(())
+    }
+
+    async fn delete(&self, range: ScanRange) -> Result<(), Self::Error> {
+        self.0
+            .lock()
+            .unwrap()
+            .retain(|b| !range.block_range().contains(&BlockHeight::from_u32(b.height as u32)));
+        Ok(())
+    }
+}
+
+impl WalletBackend for LibsBackend {
+    fn name(&self) -> &'static str {
+        "libs"
+    }
+
+    fn sync(&mut self) -> Result<()> {
+        let mut client = self.client()?;
+        let mut db = self.db()?;
+        let cache = MemoryCache::default();
+        self.rt
+            .block_on(zcash_client_backend::sync::run(&mut client, &self.params, &cache, &mut db, 1000))
+            .map_err(|e| anyhow!("sync failed: {e:?}"))?;
+        drop(db);
+        self.enhance(&mut client)
+    }
+
+    fn chain_tip(&mut self) -> Result<ChainTip> {
+        let mut client = self.client()?;
+        let info = self.rt.block_on(client.get_lightd_info(service::Empty {}))?.into_inner();
+        Ok(ChainTip { height: info.block_height as u32, branch_id: info.consensus_branch_id })
+    }
+
+    fn account(&mut self) -> Result<AccountInfo> {
+        let db = self.db()?;
+        let account = db.get_account(Self::account_id(&db)?)?.context("no account")?;
+        let ufvk = account.ufvk().context("account has no UFVK")?.encode(&self.params);
+        let (ua, _) = db
+            .get_last_generated_address_matching(account.id(), zcash_keys::keys::UnifiedAddressRequest::AllAvailableKeys)?
+            .map(|a| (a.encode(&self.params), ()))
+            .context("no address")?;
+        drop(account);
+        // Prefer the stored UFVK string so it matches what other tools publish.
+        let stored = walletdb::account_ufvk(&self.wallet.join("data.sqlite"))?.unwrap_or(ufvk);
+        Ok(AccountInfo { ufvk: stored, address: ua })
+    }
+
+    fn notes(&mut self) -> Result<Vec<WalletNote>> {
+        walletdb::read_notes(&self.wallet.join("data.sqlite"))
+    }
+
+    fn lock(&mut self, txid: &str, action: u32, owner: &str, until: u32) -> Result<()> {
+        let mut bytes = ll_core::hex32(txid)?;
+        bytes.reverse();
+        let output = OutputRef::new(TxId::from_bytes(bytes), PoolType::Shielded(ShieldedPool::Ironwood), action);
+        self.db()?
+            .lock_outputs(&[output], lock_owner(owner), BlockHeight::from_u32(until))
+            .map_err(|e| anyhow!("lock failed: {e:?}"))?;
+        Ok(())
+    }
+
+    fn unlock(&mut self, txid: &str, action: u32, owner: &str) -> Result<bool> {
+        let mut bytes = ll_core::hex32(txid)?;
+        bytes.reverse();
+        let output = OutputRef::new(TxId::from_bytes(bytes), PoolType::Shielded(ShieldedPool::Ironwood), action);
+        Ok(self.db()?.unlock_output(&output, lock_owner(owner))?)
+    }
+
+    fn build(&mut self, req: &SpendRequest) -> Result<Vec<u8>> {
+        let mut db = self.db()?;
+        let account = Self::account_id(&db)?;
+        let change = MultiOutputChangeStrategy::new(
+            StandardFeeRule::Zip317,
+            None,
+            ShieldedPool::Orchard,
+            DustOutputPolicy::default(),
+            SplitPolicy::with_min_output_value(NonZeroUsize::new(4).unwrap(), Zatoshis::from_u64(10_000_000)?),
+        );
+        let payment = |to: &str, value: u64| -> Result<Payment> {
+            Payment::new(ZcashAddress::from_str(to).map_err(|e| anyhow!("{e}"))?, Some(Zatoshis::from_u64(value)?), None, None, None, vec![])
+                .map_err(|e| anyhow!("{e:?}"))
+        };
+        // The wallet's fee model always reserves a change output, which would make a two-payment transaction
+        // cost one more logical action than it needs. So the proposal is made for the first payment, and a
+        // two-payment, no-change step is rebuilt from its note selection below.
+        let request = TransactionRequest::new(vec![payment(&req.to_address, req.value_zat)?]).map_err(|e| anyhow!("{e:?}"))?;
+        let owners = NonEmptyBTreeSet::from_set(req.lock_owners.iter().map(|o| lock_owner(o)).collect())
+            .context("no lock owners given")?;
+        let policy = SpendPolicy::default().with_locked_input_policy(LockedInputPolicy::PreferLocked(owners));
+        let proposal = propose_transfer::<_, _, _, _, std::convert::Infallible>(
+            &mut db,
+            &self.params,
+            account,
+            &GreedyInputSelector::new(),
+            &change,
+            request,
+            ConfirmationsPolicy::new_symmetrical(std::num::NonZeroU32::MIN, true),
+            &policy,
+            None,
+            None,
+        )
+        .map_err(|e| anyhow!("proposal failed: {e:?}"))?;
+        let proposal = if req.also_pay.is_empty() {
+            proposal
+        } else {
+            // outputs: the first payment and every `also_pay`; no change; the exact ZIP 317 fee for one spend and two
+            // outputs (the proposal validates that inputs = outputs + fee exactly)
+            let mut payments = vec![payment(&req.to_address, req.value_zat)?];
+            for (to, value) in &req.also_pay {
+                payments.push(payment(to, *value)?);
+            }
+            let outputs = payments.len();
+            let full = TransactionRequest::new(payments).map_err(|e| anyhow!("{e:?}"))?;
+            let step = proposal.steps().first();
+            let pool = *step.payment_pools().get(&0).context("no payment pool")?;
+            let pools = (0..outputs).map(|i| (i, pool)).collect();
+            let fee = Zatoshis::from_u64(5_000 * outputs.max(2) as u64)?;
+            zcash_client_backend::proposal::Proposal::single_step(
+                full,
+                pools,
+                vec![],
+                step.shielded_inputs().cloned(),
+                step.anchor_height().context("no anchor height")?,
+                zcash_client_backend::fees::TransactionBalance::new(vec![], fee).map_err(|e| anyhow!("{e:?}"))?,
+                StandardFeeRule::Zip317,
+                proposal.min_target_height(),
+                proposal.confirmations_policy(),
+                false,
+                true,
+            )
+            .map_err(|e| anyhow!("two-output proposal rejected: {e:?}"))?
+        };
+        let pczt = create_pczt_from_proposal::<_, _, std::convert::Infallible, _, std::convert::Infallible, _>(
+            &mut db,
+            &self.params,
+            &SystemClock,
+            &mut rng(),
+            account,
+            OvkPolicy::Discard,
+            &proposal,
+            req.no_expiry.then(|| BlockHeight::from_u32(0)),
+            zcash_primitives::transaction::builder::BundlePadding::DEFAULT,
+        )
+        .map_err(|e| anyhow!("PCZT creation failed: {e:?}"))?;
+
+        // Prove (Ironwood only; tickets have no Sapling or Orchard parts).
+        let raw_branch = *pczt.global().consensus_branch_id();
+        let branch = BranchId::try_from(raw_branch).map_err(|_| anyhow!("unknown branch"))?;
+        let mut prover = Prover::new(pczt);
+        if prover.requires_ironwood_proof() {
+            if self.proving_key.as_ref().is_none_or(|(b, _)| *b != raw_branch) {
+                let version = zcash_primitives::transaction::components::orchard::bundle_version_for_branch(
+                    branch,
+                    orchard::ValuePool::Orchard,
+                )
+                .context("branch does not support Orchard circuits")?
+                .circuit_version();
+                self.proving_key = Some((raw_branch, orchard::circuit::ProvingKey::build(version)));
+            }
+            let pk = &self.proving_key.as_ref().expect("built").1;
+            prover = prover.create_ironwood_proof(rng(), pk).map_err(|e| anyhow!("prove: {e:?}"))?;
+        }
+        if prover.requires_orchard_proof() || prover.requires_sapling_proofs() {
+            bail!("ticket unexpectedly needs Orchard or Sapling proofs");
+        }
+        Ok(prover.finish().serialize().map_err(|e| anyhow!("{e:?}"))?)
+    }
+
+    fn sign(&mut self, pczt: &[u8]) -> Result<Vec<u8>> {
+        let pczt = Pczt::parse(pczt).map_err(|e| anyhow!("unreadable PCZT: {e:?}"))?;
+        let seed = self.seed()?;
+        let db = self.db()?;
+        let account = db.get_account(Self::account_id(&db)?)?.context("no account")?;
+        let index = match account.source() {
+            zcash_client_backend::data_api::AccountSource::Derived { derivation, .. } => derivation.account_index(),
+            _ => bail!("campaign account must be derived from the wallet seed"),
+        };
+        let usk = UnifiedSpendingKey::from_seed(&self.params, seed.expose_secret(), index)?;
+
+        // Our spends carry a ZIP 32 derivation; dummy spends do not and are already signed.
+        let mut ours = vec![];
+        let pczt = Verifier::new(pczt)
+            .with_ironwood::<(), _>(|bundle| {
+                for (i, a) in bundle.actions().iter().enumerate() {
+                    if a.spend().zip32_derivation().is_some() {
+                        ours.push(i);
+                    }
+                }
+                Ok(())
+            })
+            .map_err(|e| anyhow!("{e:?}"))?
+            .finish();
+        let ask = orchard::keys::SpendAuthorizingKey::from(usk.orchard());
+        let mut signer = Signer::new(pczt).map_err(|e| anyhow!("{e:?}"))?;
+        for i in ours {
+            signer.sign_ironwood(rng(), i, &ask).map_err(|e| anyhow!("sign action {i}: {e:?}"))?;
+        }
+        Ok(signer.finish().serialize().map_err(|e| anyhow!("{e:?}"))?)
+    }
+
+    fn broadcast(&mut self, signed: &[u8]) -> Result<String> {
+        let (raw, txid) = Self::extract_raw(signed)?;
+        self.broadcast_raw(&raw)?;
+        Ok(txid)
+    }
+
+    fn broadcast_raw(&mut self, raw: &[u8]) -> Result<String> {
+        let txid = {
+            let tx = Transaction::read(raw, BranchId::Nu7).or_else(|_| Transaction::read(raw, BranchId::Nu6_3)).map_err(|e| anyhow!("unreadable transaction: {e}"))?;
+            tx.txid().to_string()
+        };
+        #[cfg(feature = "test-cheats")]
+        if test_drop_first(&self.wallet, &txid)? {
+            return Ok(txid); // pretend it was sent
+        }
+        let mut client = self.client()?;
+        let resp = self
+            .rt
+            .block_on(client.send_transaction(service::RawTransaction { data: raw.to_vec(), height: 0 }))?
+            .into_inner();
+        if resp.error_code != 0 {
+            bail!("broadcast rejected ({}): {}", resp.error_code, resp.error_message);
+        }
+        Ok(txid)
+    }
+
+    fn tx_known(&mut self, txid: &str) -> Result<bool> {
+        let mut hash = ll_core::hex32(txid)?.to_vec();
+        hash.reverse();
+        let mut client = self.client()?;
+        match self.rt.block_on(client.get_transaction(service::TxFilter { hash, ..Default::default() })) {
+            Ok(r) => Ok(!r.into_inner().data.is_empty()),
+            Err(s) if s.code() == tonic::Code::NotFound || s.code() == tonic::Code::InvalidArgument => Ok(false),
+            Err(s) => Err(anyhow!("server error: {s}")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod branch_tests {
+    use zcash_protocol::consensus::{BlockHeight, BranchId, Network};
+
+    /// Mainnet is on NU6.3 (branch 37a5165b, as the public mainnet server reports) and the libraries do
+    /// not yet know a mainnet NU7 height, so they must build for NU6.3 there; testnet is on NU7.
+    #[test]
+    fn libraries_pick_the_branch_the_networks_report() {
+        assert_eq!(u32::from(BranchId::for_height(&Network::MainNetwork, BlockHeight::from_u32(3_900_000))), 0x37a5_165b);
+        assert_eq!(u32::from(BranchId::for_height(&Network::TestNetwork, BlockHeight::from_u32(4_468_000))), 0x7719_0ad9);
+    }
+}
+
+#[cfg(test)]
+mod key_format_tests {
+    use zcash_protocol::consensus::Network;
+
+    /// The viewing keys a wallet database stores (`uvf…` and `uvi…`) must decode, since winners paste them.
+    #[test]
+    fn stored_testnet_keys_decode() {
+        let (Ok(uivk), Ok(ufvk)) = (std::env::var("LL_TEST_UIVK"), std::env::var("LL_TEST_UFVK")) else { return };
+        let u = zcash_keys::keys::UnifiedIncomingViewingKey::decode(&Network::TestNetwork, &uivk).expect("uivk decodes");
+        assert!(u.orchard().is_some());
+        let f = zcash_keys::keys::UnifiedFullViewingKey::decode(&Network::TestNetwork, &ufvk).expect("ufvk decodes");
+        assert!(f.orchard().is_some());
+    }
+}
+
+/// TEST ONLY (`test-cheats` builds): drops the FIRST broadcast of every transaction, as a flaky public server
+/// sometimes does (the call reports success but nothing is sent), so the outbox's recovery can be proven.
+#[cfg(feature = "test-cheats")]
+fn test_drop_first(wallet: &std::path::Path, txid: &str) -> Result<bool> {
+    if std::env::var("LL_TEST_DROP_FIRST_BROADCAST").is_err() {
+        return Ok(false);
+    }
+    let seen = wallet.join("test-dropped.txt");
+    let list = fs::read_to_string(&seen).unwrap_or_default();
+    if list.lines().any(|l| l == txid) {
+        return Ok(false);
+    }
+    fs::write(&seen, format!("{list}{txid}\n"))?;
+    eprintln!("\n################################################################");
+    eprintln!("#  FAKE FLAKY SERVER (test-cheats build): the first broadcast of");
+    eprintln!("#  {txid} is being DROPPED. Never use for real.");
+    eprintln!("################################################################\n");
+    Ok(true)
+}
+
+#[cfg(test)]
+mod connect_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn backend(server: &str) -> LibsBackend {
+        LibsBackend { wallet: PathBuf::new(), identity: PathBuf::new(), params: Network::TestNetwork, server: server.into(), rt: Runtime::new().unwrap(), proving_key: None }
+    }
+
+    /// A chain server that takes the connection and then says nothing (the way a stalled server behaves): the host must give up within the
+    /// connect timeout, so a watcher pass ends with an error instead of hanging, and the next pass tries again.
+    #[test]
+    fn a_server_that_accepts_the_connection_and_never_answers_fails_within_the_timeout() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let mut held = vec![];
+            for c in listener.incoming().take(4) {
+                held.push(c); // accepted, never read, never answered
+            }
+            std::thread::sleep(Duration::from_secs(120));
+        });
+        let started = Instant::now();
+        let err = backend(&format!("https://127.0.0.1:{port}")).chain_tip().err().expect("a silent server must give an error, not an answer");
+        let took = started.elapsed();
+        assert!(took >= Duration::from_secs(19) && took < Duration::from_secs(30), "gave up after {took:?}, expected about 20 s");
+        assert!(format!("{err:#}").contains("did not answer within 20 s"), "{err:#}");
+    }
+
+    /// The same code path still reaches a real chain server (the public testnet one) and gets an answer: after a failure, the next pass connects
+    /// again from scratch. Needs the network, so it runs only when asked: cargo test -p ll-host -- --ignored connect_tests
+    #[test]
+    #[ignore]
+    fn the_real_testnet_server_still_answers() {
+        let tip = backend("https://testnet.zec.rocks:443").chain_tip().expect("the testnet server answers");
+        assert!(tip.height > 4_000_000, "{}", tip.height);
+    }
+}

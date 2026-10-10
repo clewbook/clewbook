@@ -1,0 +1,149 @@
+{
+  "framework": null,
+  "cleanUrls": false,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/demo/badge.html",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/demo/pkg/ll_web_bg.wasm",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/wasm"
+        }
+      ]
+    },
+    {
+      "source": "/demo/proof/ll_proofcheck_bg.wasm",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/wasm"
+        }
+      ]
+    },
+    {
+      "source": "/demo/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/relays/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/demo/relays/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/demo/relays/:relay/v1/campaigns/:id",
+      "destination": "/demo/relays/:relay/v1/campaigns/:id/index.html"
+    },
+    {
+      "source": "/relays/:relay/v1/campaigns/:id",
+      "destination": "/demo/relays/:relay/v1/campaigns/:id/index.html"
+    },
+    {
+      "source": "/relays/:path*",
+      "destination": "/demo/relays/:path*"
+    },
+    {
+      "source": "/demo/proofs",
+      "destination": "/demo/proofs/index.html"
+    },
+    {
+      "source": "/demo",
+      "destination": "/demo/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://app.clewbook.xyz/",
+      "permanent": false
+    },
+    {
+      "source": "/index.html",
+      "destination": "/demo/",
+      "permanent": false
+    },
+    {
+      "source": "/:page(recount|campaign|card|badge|contribute).html",
+      "destination": "/demo/:page.html",
+      "permanent": false
+    },
+    {
+      "source": "/:file(ui|recount|recount-page|campaign|card|badge|contribute|public|capabilities|canon|brand|blocktime|proof-worker|loadguard|copies|examples|demo).:ext(js|css)",
+      "destination": "/demo/:file.:ext",
+      "permanent": false
+    },
+    {
+      "source": "/pkg/:path*",
+      "destination": "/demo/pkg/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/proof/:path*",
+      "destination": "/demo/proof/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/fonts/:path*",
+      "destination": "/demo/fonts/:path*",
+      "permanent": false
+    }
+  ]
+}

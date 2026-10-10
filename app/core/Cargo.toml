@@ -1,0 +1,25 @@
+[package]
+name = "ll-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["walletdb"]
+# Read-only access to a zcash_client_sqlite wallet database (not available in WebAssembly).
+walletdb = ["dep:rusqlite"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+blake2b_simd.workspace = true
+crypto_box.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+rand_core.workspace = true
+rusqlite = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+zcash_address.workspace = true
+zcash_protocol.workspace = true

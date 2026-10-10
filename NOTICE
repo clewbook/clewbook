@@ -1,0 +1,8 @@
+Clewbook
+Copyright 2026 the Clewbook contributors
+
+This project is licensed under either of the Apache License, Version 2.0 (LICENSE-APACHE) or the MIT license (LICENSE-MIT), at your option
+(MIT OR Apache-2.0).
+
+The directory `src/` and the root `Cargo.toml` are a modified copy of zcash-devtool (https://github.com/zcash/zcash-devtool),
+Copyright 2020-2023 The Electric Coin Company, used under the same two licences; the changes are described in docs/FINDINGS.md section 1.

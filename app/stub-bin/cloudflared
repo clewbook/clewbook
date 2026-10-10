@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stands in for the tunnel program in tests: says what the real one says when it has connected, then waits. Never touches the network.
+echo "INF Registered tunnel connection connIndex=0"
+while true; do sleep 1; done

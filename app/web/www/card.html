@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capability card</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <nav class="nav" aria-label="Main"><a id="nav-campaign" href="#">Campaign</a><a href="#" aria-current="page">Capability card</a><a id="nav-recount" href="#">Recount</a></nav>
+</header>
+<main class="page">
+  <div class="crumb">Campaign <span id="campaign-id"></span> / Capability card</div>
+  <h1 class="t-h1">Capability card</h1>
+  <p class="t-lead" style="margin-top:12px;max-width:62ch">What this campaign promises, what a recount checks and what it does not. Every value below comes from the campaign's committed rules, which this page checked against the campaign id before drawing them.</p>
+  <p><a class="btn recount-btn" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
+  <div id="banners"></div>
+
+  <div id="card" hidden>
+  <div class="cols card-cols">
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>Terms</h2><span class="t-label" id="net-label"></span></div>
+      <dl class="kv pl" id="terms"></dl>
+      <p class="t-label" style="margin:var(--s5) 0 var(--s2)">Rules fingerprint (the campaign id)</p>
+      <span id="rules-id"></span>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Not checked</h2><span class="t-label">by a recount</span></div>
+      <div class="checks" id="not-checked"></div>
+    </section>
+  </div>
+
+  <div>
+    <section class="sect">
+      <div class="hd"><h2>What a recount checks</h2><span class="t-label" id="checks-label"></span></div>
+      <div class="checks" id="checks"></div>
+      <p class="muted t-sm" id="auction-note" hidden>An auction's viewing key stays sealed until it closes, so before the close only R1 and R2 can run; the rest run after it.</p>
+    </section>
+
+    <section class="sect">
+      <div class="hd"><h2>Ticket checks, by level</h2><span class="t-label">on the contributor's device</span></div>
+      <div class="checks" id="levels"></div>
+    </section>
+  </div>
+  </div>
+
+  <p class="mt5"><a id="campaign-link" href="#">Back to the campaign page</a> · <a id="recount-link" href="#">Run the recount</a></p>
+  </div>
+</main>
+<script src="loadguard.js"></script>
+<script type="module" src="card.js"></script>
+</body>
+</html>

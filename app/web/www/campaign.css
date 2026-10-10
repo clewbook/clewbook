@@ -1,0 +1,14 @@
+/* Campaign page: only what is specific to it (the shared look is in ui.css). */
+.status-line { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; margin-top: var(--s3); }
+.cols2 { display: block; }
+@media (min-width: 900px) { .cols2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--s7); align-items: start; } }
+.cols2 > div > .sect:first-child { margin-top: var(--s5); }
+.runlog { counter-reset: r; border-top: 1px solid var(--ink); }
+.runlog li { counter-increment: r; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--rule); font: .8125rem/1.25rem var(--mono); overflow-wrap: anywhere; }
+.runlog li:before { content: counter(r, decimal-leading-zero); color: var(--muted); }
+.btn.off { border-color: var(--edge); color: var(--muted); background: transparent; pointer-events: none; }
+.ledger-narrow { display: none; }
+@media (max-width: 639px) { .ledger-wide { display: none; } .ledger-narrow { display: block; } }
+.ledger td.kind { font-family: var(--body); }
+
+.badge-frame { border: 0; max-width: 100%; display: block; }
