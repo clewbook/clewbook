@@ -1,10 +1,13 @@
 # Clewbook
 
-> Placeholder name; it will be renamed before the project is published.
+Clewbook: fundraisers and auctions on Zcash with books anyone can check.
 
 Contributions to a shielded raise or auction that keep **who paid and where a refund goes** off the public record, with books that anyone can recount in their browser.
 
 Contributors pay a shielded address. The host publishes a signed ledger of what came in, and a recount page lets any visitor check that ledger against the chain without trusting the host. Every contributor also holds a refund ticket, signed in advance, that lets them take their money back without the host's help: before the deadline, or after it if the host has not closed within the campaign's ticket window.
+
+The whole system was proven end to end on the Zcash testnet with NU7 active.
+The main network has no NU7 yet, so the host program refuses campaigns that could still be open when it activates.
 
 Not everything about a contribution is hidden. What is public and what is not (tested: see "Privacy" below):
 
@@ -95,7 +98,7 @@ Stated on the recount page and, for the first four, on the capability card:
 - The amount a contributor promised. It cannot be judged without the contributor's one-time secret, which is revealed only when they publish proof for a rejected payment.
 - The proof inside each ticket, unless the contributor presses "Check the proof too".
 - Each ticket's chain anchor (L4, not built).
-- Ledger anchoring: the host's ledger fingerprint is not yet published anywhere public.
+- Ledger anchoring: the host signs a final fingerprint of the list at the close and relays serve it, but the fingerprint is not anchored on a public ledger.
 - On the recount page, when it applies: agreement between servers (only one chain server answered) and between relays (only one gave a usable list). The result is then marked "limited", and when relays or servers disagree it says "cannot conclude" instead of passing.
 
 ## Privacy
