@@ -196,7 +196,7 @@ Three things to know before hosting:
 - A campaign can have an optional public name (`cb-host create --name "…"`, or the Name field on the set-up page): 1 to 60 characters of plain text, part of the signed rules, shown instead of the short number. It is public, so put nothing private in it. A relay, recount tool or browser module built before names existed cannot reproduce the campaign id of a named campaign: the relay in the test refused it ("the rules hash to … not …"), so upgrade relays before using names (`app/web/polish-b.sh`).
 - The set-up page makes fundraisers and pay-your-bid auctions; a uniform-price auction needs `cb-host create --mode auction --items N --reserve-zat … --treasury-address … --treasury-ufvk …`.
 
-A local trial on the testnet can be run from this README. Public hosting, making a relay reachable and getting listed on app.clewbook.xyz are guided by the project for now and are not yet documented.
+A local trial on the testnet can be run from this README. Public hosting, making a relay reachable and getting listed on app.clewbook.xyz are guided by the project for now and are not yet documented. A first hosting guide is in [docs/HOSTING.md](docs/HOSTING.md), and the story of how the project was built is in [docs/HOW_IT_WAS_BUILT.md](docs/HOW_IT_WAS_BUILT.md).
 
 ## Try it (no wallet, no money)
 
@@ -251,5 +251,7 @@ The host's default wallet backend uses the Zcash libraries directly. zcash-devto
 ## Licence
 
 Licensed under either of the Apache License, Version 2.0 (`LICENSE-APACHE`) or the MIT licence (`LICENSE-MIT`), at your option: **MIT OR Apache-2.0**. Copyright 2026 the Clewbook contributors (see `NOTICE`). The patched copy of zcash-devtool in `src/` keeps its upstream copyright line (The Electric Coin Company) in `LICENSE-MIT` and is covered by the same two licences. The project name is a placeholder and will change before publishing.
+
+The outside libraries we use are listed with their licences in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and every change we made to the patched wallet tool is in [CHANGES.md](CHANGES.md).
 
 Unless you say otherwise, a contribution you submit for inclusion is licensed as above, with no extra terms.
