@@ -2,11 +2,11 @@
 
 **Private Markets. Public Accounting.**
 
-Clewbook: fundraisers and auctions on Zcash with books anyone can check.
+Clewbook runs fundraisers and sealed bid auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record, while the books are public: anyone can recount a campaign in their own browser, with no account and nothing to install. What is hidden and what is not is listed under Privacy below.
 
-Contributions to a shielded raise or auction that keep **who paid and where a refund goes** off the public record, with books that anyone can recount in their browser.
+How it works. The host, whoever runs the campaign, publishes a signed ledger to a relay. The Recount page checks that ledger against the Zcash chain itself and reports pass or fail, check by check. If the host hides or edits an entry, the recount fails. Auction bids stay sealed until the host closes, then the key is published so anyone can open every bid and check the result.
 
-Contributors pay a shielded address. The host publishes a signed ledger of what came in, and a recount page lets any visitor check that ledger against the chain without trusting the host. Every contributor also holds a refund ticket, signed in advance, that lets them take their money back without the host's help: before the deadline, or after it if the host has not closed within the campaign's ticket window.
+Refund tickets. When you contribute, the host issues you a ticket, a transaction signed in advance that sends your money back to you. You hold it and can broadcast it yourself if the campaign fails or the host goes quiet.
 
 The whole system was proven end to end on the Zcash testnet with NU7 active.
 The main network has no NU7 yet, so the host program refuses campaigns that could still be open when it activates.
