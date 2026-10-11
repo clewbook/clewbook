@@ -8,8 +8,8 @@ How it works. The host, whoever runs the campaign, publishes a signed ledger to 
 
 Refund tickets. When you contribute, the host issues you a ticket, a transaction signed in advance that sends your money back to you. You hold it and can broadcast it yourself if the campaign fails or the host goes quiet.
 
-The whole system was proven end to end on the Zcash testnet with NU7 active, and also on Mainnet (without the NU7 upgrade).
-The main network has no NU7 yet, so the host program refuses campaigns that could still be open when it activates. All campaigns currently have a deadline of before Oct 20.
+The whole system was proven end to end on the Zcash testnet with NU7 active. On the main network, which has no NU7 yet, two small real money runs were made, on 6 October 2026 (an earlier version) and on 8 October 2026. In the second, a phone wallet paid and took its money back with its own ticket, and the closed campaign was recounted on a single relay, so the recount was marked limited. Everything else is proven on the testnet only (see docs/EVIDENCE.md, section 8).
+The main network has no NU7 yet, so the host program refuses campaigns that could still be open when it activates. New mainnet campaigns must end at least 7 days before 5 November 2026, the announced upgrade date, until the host supports NU7 on mainnet.
 
 Not everything about a contribution is hidden. What is public and what is not (tested: see "Privacy" below):
 
