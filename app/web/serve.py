@@ -23,6 +23,7 @@ FILES = PAGES | {
 }
 PATTERNS = [re.compile(p) for p in (
     r"fonts/[A-Za-z0-9-]+\.(woff2|txt)",
+    r"img/[A-Za-z0-9-]+\.(svg|png|ico)",
     r"pkg/ll_web(_bg)?\.(js|wasm)",
     r"proof/ll_proofcheck(_bg)?\.(js|wasm)",
 )]

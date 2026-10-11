@@ -1,4 +1,6 @@
-# Clewbook
+<p><img src="app/web/www/img/clewbook-lockup-colour.svg" alt="Clewbook" width="320"></p>
+
+**Private Markets. Public Accounting.**
 
 Clewbook: fundraisers and auctions on Zcash with books anyone can check.
 

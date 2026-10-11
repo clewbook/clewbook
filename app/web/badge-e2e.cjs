@@ -30,12 +30,12 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:|about:)/;
     if (tag === '1280') {
       check('it names the campaign (type and short id)', /^(Fundraiser|Auction) [0-9a-f]{8}…$/.test(name), name);
       const text = (await frame.locator('#badge').textContent()).replace(/\s+/g, ' ');
-      check('it says "Recount it yourself" and "Not yet recounted"', /Recount it yourself/.test(text) && /Not yet recounted/.test(text), text);
+      check('it says "Recount this campaign →" and "Not yet recounted"', /Recount this campaign →/.test(text) && /Not yet recounted/.test(text), text);
       check('it makes no fixed claim: no "verified", "secure", "audited", "trusted" or "safe"', !/verified|secure|audited|trusted|safe|guarantee/i.test(text));
       check('it links to this campaign\'s live recount page', /recount\.html#c=[0-9a-f]{64}/.test(await frame.locator('#badge').getAttribute('href')) && (await frame.locator('#badge').getAttribute('target')) === '_top');
       const box = await host.locator('iframe').boundingBox();
       check('it is small and capped: at most 300 by 160 pixels', box.width <= 300 && box.height <= 160, `${Math.round(box.width)}x${Math.round(box.height)}`);
-      check('the badge uses the shared look: self-hosted fonts load', await frame.locator('body').evaluate(async () => { await document.fonts.ready; return document.fonts.check('16px "Newsreader"') && document.fonts.check('16px "Atkinson Hyperlegible Next"'); }));
+      check('the badge uses the shared look: self-hosted fonts load', await frame.locator('body').evaluate(async () => { await document.fonts.ready; return document.fonts.check('16px "Geist"') && document.fonts.check('16px "Geist Mono"'); }));
       const inner = await frame.locator('#badge').boundingBox();
       check('the whole card fits in the frame (nothing cut off)', inner.height <= 160 && inner.width <= 300, `${Math.round(inner.width)}x${Math.round(inner.height)}`);
     }

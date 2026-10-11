@@ -94,7 +94,7 @@ const text = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' 
     hold();
     await p.waitForSelector('#netbar.test', { timeout: 60000 });
     const tb = await p.evaluate(() => ({ t: document.querySelector('#netbar').textContent, bg: getComputedStyle(document.querySelector('#netbar')).backgroundColor }));
-    check('banner, testnet campaign page: "TEST MONEY ONLY", amber', /^TEST MONEY ONLY/.test(tb.t) && tb.bg === 'rgb(244, 233, 207)', JSON.stringify(tb));
+    check('banner, testnet campaign page: just the word "ZCASH TESTNET" (no sentence), amber', /^ZCASH TESTNET$/.test(tb.t) && tb.bg === 'rgb(244, 233, 207)', JSON.stringify(tb));
     await p.waitForTimeout(2500);
     check('testnet amounts carry TAZ (goal and smallest contribution)', /Goal0\.5\S* TAZ/.test(await text(p, '#facts')) && !/\bZEC\b/.test(await text(p, 'main')), (await text(p, '#facts')).slice(0, 80));
     await p.screenshot({ path: `${SHOTS}/campaign-testnet-390.png`, fullPage: true });
@@ -106,7 +106,7 @@ const text = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' 
     await p.waitForTimeout(4000);
     const mb = await p.evaluate(() => ({ t: document.querySelector('#netbar').textContent, bg: getComputedStyle(document.querySelector('#netbar')).backgroundColor }));
     check('mainnet campaign page: no "demo", "play money" or "start page" wording; the badge preview on it has no network bar of its own', !/\bdemo\b|play money|start page/i.test(await p.evaluate(() => document.body.innerText)) && (await Promise.all(p.frames().filter((f) => f !== p.mainFrame()).map((f) => f.locator('#netbar').count()))).every((n) => n === 0));
-    check('banner, mainnet campaign page: "ZCASH MAINNET", dark, nothing like the testnet bar', /^ZCASH MAINNET/.test(mb.t) && mb.bg === 'rgb(43, 43, 47)' && mb.bg !== tb.bg, JSON.stringify(mb));
+    check('banner, mainnet campaign page: just the word "ZCASH MAINNET" (no sentence), dark, nothing like the testnet bar', /^ZCASH MAINNET$/.test(mb.t) && mb.bg === 'rgb(43, 43, 47)' && mb.bg !== tb.bg, JSON.stringify(mb));
     check('mainnet page shows ZEC, never TAZ, and never the words "test network"', /ZEC/.test(await text(p, 'main')) && !/\bTAZ\b/.test(await text(p, 'main')) && !/test network/i.test(await text(p, 'main')));
     await p.screenshot({ path: `${SHOTS}/campaign-mainnet-390.png`, fullPage: true });
     check('campaign page: "Recount this campaign" opens the recount for that campaign, no pasting', await (async () => { const h = await p.getAttribute('#recount-link', 'href'); return h.includes(`recount.html#c=${mainItem.id}`) && h.includes(`relay=${mainItem.relays[0]}`); })());

@@ -13,7 +13,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 for f in recount campaign card badge contribute; do cp $WWW/$f.html "$OUT/"; done
 for f in recount recount-page campaign card badge contribute public capabilities canon ui brand blocktime recount proof-worker loadguard copies; do [ -f $WWW/$f.js ] && cp $WWW/$f.js "$OUT/"; done
 cp $WWW/ui.css $WWW/recount.css $WWW/campaign.css $WWW/card.css $WWW/badge.css $WWW/contribute.css "$OUT/"
-cp -r $WWW/fonts $WWW/pkg $WWW/proof "$OUT/"
+cp -r $WWW/fonts $WWW/img $WWW/pkg $WWW/proof "$OUT/"
 # two relays, as two copies of the examples (a demonstration, not independent evidence)
 python3 app/web/static-export.py examples/relay "$OUT/relays/a"
 python3 app/web/static-export.py examples/relay "$OUT/relays/b"
@@ -22,9 +22,9 @@ python3 app/web/static-export.py examples/relay "$OUT/relays/b"
 mkdir -p "$OUT/proofs"
 cat > "$OUT/index.html" <<HTML
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo</title>
-<link rel="stylesheet" href="$PREFIX/ui.css"><body>
+<link rel="stylesheet" href="$PREFIX/ui.css"><link rel="icon" href="$PREFIX/img/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="$PREFIX/img/app-icon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="$PREFIX/img/app-icon-16.png"><link rel="icon" type="image/png" sizes="512x512" href="$PREFIX/img/app-icon-512.png"><link rel="apple-touch-icon" sizes="180x180" href="$PREFIX/img/app-icon-180.png"><body>
 <div class="netbar test"><b>TEST MONEY ONLY</b> · Test network: TAZ has no value.</div>
-<header class="bar"><a class="word" href="https://app.clewbook.xyz/"><span class="mark"></span><span data-brand></span></a><nav class="nav" aria-label="Main"><a href="$PREFIX/" aria-current="page">Test money</a><a href="$PREFIX/proofs/">Proofs</a><a href="$PREFIX/recount.html">Recount</a></nav></header>
+<header class="bar"><a class="word" href="https://app.clewbook.xyz/"><img class="logo" src="$PREFIX/img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a><nav class="nav" aria-label="Main"><a href="$PREFIX/" aria-current="page">Test money</a><a href="$PREFIX/proofs/">Proofs</a><a href="$PREFIX/recount.html">Recount</a></nav></header>
 <main class="page"><h1 class="t-h1">Try it with test money</h1>
 <p class="t-lead">Everything here uses the Zcash test network: its coins have no value, and no real money is involved. The campaigns below are finished and kept as plain files, so you can recount them yourself in your browser without anyone's server.</p>
 <section class="sect"><div class="hd"><h2>Tested milestones</h2></div><p class="muted">Five finished test campaigns, each ready to recount: a fundraiser, an auction, one with a name, and one that is meant to fail so you can see what a failure looks like.</p>
@@ -43,7 +43,7 @@ for (const el of document.querySelectorAll('[data-brand]')) el.textContent = 'Cl
 JS
 cat > "$OUT/proofs/index.html" <<HTML
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tested milestones</title>
-<link rel="stylesheet" href="$PREFIX/ui.css"><body>
+<link rel="stylesheet" href="$PREFIX/ui.css"><link rel="icon" href="$PREFIX/img/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="$PREFIX/img/app-icon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="$PREFIX/img/app-icon-16.png"><link rel="icon" type="image/png" sizes="512x512" href="$PREFIX/img/app-icon-512.png"><link rel="apple-touch-icon" sizes="180x180" href="$PREFIX/img/app-icon-180.png"><body>
 <div class="netbar test"><b>TEST MONEY ONLY</b> · Test network: TAZ has no value.</div>
 <main class="page"><div class="crumb"><a href="$PREFIX/">Test money</a> / Tested milestones</div><h1 class="t-h1">Tested milestones</h1>
 <p class="t-lead">Five finished test campaigns. Each recount runs in your browser, reads the public test-network chain servers, and takes up to a minute. The two "relays" are two copies of the same files on this server.</p>

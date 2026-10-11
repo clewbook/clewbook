@@ -6,45 +6,53 @@
 <title>Capability card</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="card.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/app-icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
-  <nav class="nav" aria-label="Main"><a id="nav-campaign" href="#">Campaign</a><a href="#" aria-current="page">Capability card</a><a id="nav-recount" href="#">Recount</a></nav>
+  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
+  <nav class="nav" aria-label="Main"><a id="nav-campaign" href="#">Campaign</a><a class="self" href="#" aria-current="page">Capability card</a><a id="nav-recount" href="#">Recount</a></nav>
 </header>
-<main class="page">
-  <div class="crumb">Campaign <span id="campaign-id"></span> / Capability card</div>
-  <h1 class="t-h1">Capability card</h1>
-  <p class="t-lead" style="margin-top:12px;max-width:62ch">What this campaign promises, what a recount checks and what it does not. Every value below comes from the campaign's committed rules, which this page checked against the campaign id before drawing them.</p>
-  <p><a class="btn recount-btn" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
+<main class="page cardpage">
+  <div class="cardtop">
+    <div class="cardtop-l">
+      <div class="crumb">Campaign <span id="campaign-id"></span></div>
+      <h1 class="t-cardh">Capability card</h1>
+      <p class="cardlead">What this campaign promises, what a recount checks and what it does not. Every value below comes from the campaign's committed rules, which this page checked against the campaign id before drawing them.</p>
+    </div>
+    <p class="cardtop-r"><a class="btn recount-btn" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
+  </div>
   <div id="banners"></div>
 
   <div id="card" hidden>
-  <div class="cols card-cols">
+  <div class="grid2 card-cols">
   <div>
-    <section class="sect">
+    <section class="csect">
       <div class="hd"><h2>Terms</h2><span class="t-label" id="net-label"></span></div>
       <dl class="kv pl" id="terms"></dl>
-      <p class="t-label" style="margin:var(--s5) 0 var(--s2)">Rules fingerprint (the campaign id)</p>
-      <span id="rules-id"></span>
-    </section>
-
-    <section class="sect">
-      <div class="hd"><h2>Not checked</h2><span class="t-label">by a recount</span></div>
-      <div class="checks" id="not-checked"></div>
+      <div class="fprow"><p class="fp-l">Rules fingerprint (the campaign id)</p><span id="rules-id"></span></div>
     </section>
   </div>
 
   <div>
-    <section class="sect">
+    <section class="csect">
       <div class="hd"><h2>What a recount checks</h2><span class="t-label" id="checks-label"></span></div>
-      <div class="checks" id="checks"></div>
+      <div class="checks capchecks" id="checks"></div>
       <p class="muted t-sm" id="auction-note" hidden>An auction's viewing key stays sealed until it closes, so before the close only R1 and R2 can run; the rest run after it.</p>
     </section>
 
-    <section class="sect">
+    <section class="csect">
+      <div class="hd"><h2>Not checked</h2><span class="t-label">by a recount</span></div>
+      <div class="checks capchecks dash" id="not-checked"></div>
+    </section>
+
+    <section class="csect">
       <div class="hd"><h2>Ticket checks, by level</h2><span class="t-label">on the contributor's device</span></div>
-      <div class="checks" id="levels"></div>
+      <div class="checks capchecks lv" id="levels"></div>
     </section>
   </div>
   </div>
@@ -52,6 +60,7 @@
   <p class="mt5"><a id="campaign-link" href="#">Back to the campaign page</a> · <a id="recount-link" href="#">Run the recount</a></p>
   </div>
 </main>
+<footer class="sitefoot"><span><span data-brand></span> · fundraisers and auctions on Zcash, with books anyone can check</span></footer>
 <script src="loadguard.js"></script>
 <script type="module" src="card.js"></script>
 </body>

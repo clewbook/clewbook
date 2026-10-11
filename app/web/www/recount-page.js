@@ -31,7 +31,7 @@ function verdict(kind, title, text) {
   $('#verdict-title').textContent = title;
   $('#verdict-text').textContent = text;
   v.dataset.kind = kind;
-  $('#verdict-kicker').textContent = { pass: 'Result', fail: 'Result', cannot: 'Cannot conclude', partial: 'Limited check', working: 'Working' }[kind] || 'Result';
+  $('#verdict-kicker').textContent = { pass: 'Pass', fail: 'Fail', cannot: 'Cannot conclude', partial: 'Limited check', working: 'Working' }[kind] || 'Result';
 }
 const progress = (t) => { $('#progress').textContent = t; };
 const warn = (kind, text) => $('#banners').append(banner(kind, text));
@@ -92,7 +92,7 @@ function showSummary(r, { partial, oneRelay, fromFile }) {
   const notChecked = [...NOT_CHECKED];
   if (partial) notChecked.push(['agreement between servers', 'only one public server answered']);
   if (oneRelay) notChecked.push(fromFile ? ['agreement with what relays show', 'the list came from a saved file, not from a relay'] : ['agreement between relays', 'only one relay gave a usable list']);
-  $('#n-pass').textContent = String(pass.length); $('#n-fail').textContent = String(fail.length); $('#n-nc').textContent = String(notChecked.length);
+  $('#n-pass').textContent = String(pass.length); $('#n-fail').textContent = String(fail.length); $('#n-fail').classList.toggle('on', fail.length > 0); $('#n-nc').textContent = String(notChecked.length);
   const line = $('#checked-line'); line.replaceChildren();
   for (const x of r.rules) { line.append(cidEl(x.id), ' '); }
   if (fail.length) { const sp = document.createElement('span'); sp.textContent = `(${fail.map((x) => x.id).join(', ')} did not match)`; line.append(sp); }

@@ -6,18 +6,23 @@
 <title>Recount</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="recount.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/app-icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
   <nav class="nav" aria-label="Main"><a id="nav-campaign" href="#">Campaign</a><a href="#" aria-current="page">Recount</a></nav>
 </header>
-<main class="page">
-  <div class="crumb">Campaign <span id="campaign-id"></span> / Recount</div>
-  <h1 class="t-h1">Recount in this browser</h1>
-  <p class="t-lead" style="margin-top:12px;max-width:62ch">This page re-checks a campaign's books in your browser, from the public list and the public chain. It does not trust the campaign.</p>
-  <section class="sect" id="upload-card" hidden>
-    <div class="hd"><h2>Check a saved copy</h2></div>
+<main class="page recount">
+  <div class="kickrow"><span class="kick-type">Recount</span><span class="mono dim">Campaign <span id="campaign-id"></span></span></div>
+  <h1 class="t-recname">Recount in this browser</h1>
+  <p class="rlead">This page re-checks a campaign's books in your browser, from the public list and the public chain. It does not trust the campaign.</p>
+  <section class="uploadpanel" id="upload-card" hidden>
+    <h2 class="sh">Check a saved copy</h2>
     <p class="muted">Load a saved copy of a campaign's public list (a file ending in .json: the host's export, or the copy this site's pages let you save). It is checked here, in your browser, against the public chain. Nothing is uploaded anywhere.</p>
     <input type="file" id="upload-file" accept="application/json,.json" aria-label="Saved copy of a campaign's list">
     <p id="upload-error" class="warnline" role="alert" hidden></p>
@@ -31,9 +36,9 @@
     <p class="progress-line" id="progress"></p>
   </section>
 
-  <p style="margin:var(--s3) 0 0"><button type="button" class="btn sec" id="again" hidden>Run it again</button></p>
+  <p class="againrow"><button type="button" class="teal" id="again" hidden>Run it again</button></p>
 
-  <div id="summary" hidden>
+  <div id="summary" class="grid2 rsummary" hidden>
     <div class="strip">
       <div class="p"><div class="v" id="n-pass">0</div><div class="l">Passed</div></div>
       <div class="f"><div class="v" id="n-fail">0</div><div class="l">Failed</div></div>
@@ -42,7 +47,7 @@
     <dl class="cn">
       <dt class="p">Checked</dt><dd id="checked-line"></dd>
       <dt class="x">Not checked</dt><dd id="notchecked-line"></dd>
-      <dt class="p" style="color:var(--ink2)">Coverage</dt><dd id="coverage-line"></dd>
+      <dt class="cov">Coverage</dt><dd id="coverage-line"></dd>
     </dl>
   </div>
 
@@ -50,12 +55,49 @@
 
   <div id="memory-note" hidden></div>
 
+  <section class="sect" id="rules-card" hidden>
+    <div class="hd"><h2>The checks</h2><span class="t-label" id="rules-hint">Select a row for detail</span></div>
+    <div class="checks" id="rules"></div>
+    <p class="muted t-sm limits" id="limits-note">What this check cannot see: without a contributor revealing their one-time secret, it can see that payments repeated an earlier payment's message and that a payment was set aside, but not what amount a message promised, so it cannot tell whether setting aside a payment for being too small was fair.</p>
+  </section>
+
+  <div class="grid2 rgrid">
+  <section class="sect" id="totals-card" hidden>
+    <div class="hd"><h2>Totals</h2></div>
+    <dl class="kv pl" id="timeline"><dt>Deadline</dt><dd id="tl-deadline"></dd><dt id="tl-closed-t" hidden>Closed at</dt><dd id="tl-closed" hidden></dd></dl>
+    <dl class="kv pl" id="totals"></dl>
+    <p class="notice info" id="open-note" hidden></p>
+  </section>
+
+  <div>
+  <section class="sect" id="sources-card" hidden>
+    <div class="hd"><h2>What was read</h2><span class="t-label">Run log</span></div>
+    <ol class="runlog" id="sources"></ol>
+    <dl class="kv pl runfacts" id="run-facts">
+      <dt>Chain height</dt><dd id="rf-height"></dd>
+      <dt>Ran at</dt><dd id="rf-time"></dd>
+      <dt>Report hash</dt><dd><span id="rf-hash"></span><span class="sub">SHA-256 of the report as canonical JSON (sorted keys, no spaces, campaign id and chain height included). The same recount gives the same hash; see SPEC section 5.</span></dd>
+    </dl>
+  </section>
+
+  <section class="sect" id="add-server-card" hidden>
+    <div class="hd"><h2>Check against another server</h2></div>
+    <p class="muted">Add a public lightwalletd server address (it must allow requests from web pages). The recount runs again including it.</p>
+    <form id="add-server" novalidate>
+      <input type="url" id="server-url" placeholder="https://…" required autocomplete="off">
+      <button type="submit" class="secondary addbtn">Add and run again</button>
+    </form>
+    <p class="notice bad" id="server-error" hidden></p>
+  </section>
+  </div>
+  </div>
+
   <section class="sect" id="copy-card" hidden>
     <div class="hd"><h2>Keep a copy of the list</h2></div>
     <p class="muted">The list is public, but a server can stop showing part of it. A copy you keep is the one thing nobody else can change.</p>
     <div class="btns"><button type="button" class="secondary" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></div>
     <div id="compare-box">
-      <p class="t-label" style="margin:var(--s4) 0 var(--s2)">Compare with my saved copy</p>
+      <p class="t-sub cmp-l">Compare with my saved copy</p>
       <input type="file" id="compare-file" accept="application/json,.json">
       <p id="compare-error" class="error" role="alert" hidden></p>
       <div id="compare-out" class="notice" hidden></div>
@@ -75,18 +117,13 @@
     <p id="saved-using" class="notice info" hidden>Using the saved copy you loaded. <button type="button" class="secondary" id="saved-clear">Ask the relays again instead</button></p>
   </section>
 
-  <section class="sect" id="rules-card" hidden>
-    <div class="hd"><h2>The checks</h2><span class="t-label" id="rules-hint">Select a row for detail</span></div>
-    <div class="checks" id="rules"></div>
-    <p class="muted t-sm" id="limits-note" style="margin-top:var(--s3)">What this check cannot see: without a contributor revealing their one-time secret, it can see that payments repeated an earlier payment's message and that a payment was set aside, but not what amount a message promised, so it cannot tell whether setting aside a payment for being too small was fair.</p>
-  </section>
 
   <section class="sect" id="fp-card" hidden>
     <div class="hd"><h2>Fingerprint of this list</h2></div>
     <p class="muted t-sm">How many entries the list has, and the hash of its last entry:</p>
     <pre id="fp-line" class="copybox"></pre>
     <p id="fp-status" class="notice" hidden></p>
-    <p class="t-label" style="margin:var(--s3) 0 var(--s1)">Compare with a fingerprint you were given</p>
+    <p class="t-sub cmp-l">Compare with a fingerprint you were given</p>
     <input id="fp-given" autocomplete="off" spellcheck="false" placeholder="for example: 12 entries, last entry 3fa9…">
     <p id="fp-given-status" class="muted t-sm" hidden></p>
     <details class="plain"><summary>What the fingerprint can and cannot show</summary>
@@ -95,34 +132,8 @@
     </details>
   </section>
 
-  <section class="sect" id="totals-card" hidden>
-    <div class="hd"><h2>Totals</h2></div>
-    <dl class="kv pl" id="timeline"><dt>Deadline</dt><dd id="tl-deadline"></dd><dt id="tl-closed-t" hidden>Closed at</dt><dd id="tl-closed" hidden></dd></dl>
-    <dl class="kv pl" id="totals"></dl>
-    <p class="notice info" id="open-note" hidden></p>
-  </section>
 
-  <section class="sect" id="sources-card" hidden>
-    <div class="hd"><h2>What was read</h2><span class="t-label">Run log</span></div>
-    <ol class="runlog" id="sources"></ol>
-    <dl class="kv pl" id="run-facts" style="margin-top:var(--s4)">
-      <dt>Chain height</dt><dd id="rf-height"></dd>
-      <dt>Ran at</dt><dd id="rf-time"></dd>
-      <dt>Report hash</dt><dd><span id="rf-hash"></span><span class="t-sm dim" style="display:block;font-family:var(--body);margin-top:4px">SHA-256 of the report as canonical JSON (sorted keys, no spaces, campaign id and chain height included). The same recount gives the same hash; see SPEC section 5.</span></dd>
-    </dl>
-  </section>
-
-  <section class="sect" id="add-server-card" hidden>
-    <div class="hd"><h2>Check against another server</h2></div>
-    <p class="muted">Add a public lightwalletd server address (it must allow requests from web pages). The recount runs again including it.</p>
-    <form id="add-server" novalidate>
-      <input type="url" id="server-url" placeholder="https://…" required autocomplete="off">
-      <button type="submit" class="secondary" style="margin-top:var(--s2)">Add and run again</button>
-    </form>
-    <p class="notice bad" id="server-error" hidden></p>
-  </section>
-
-  <p style="margin-top:var(--s5)"><a id="campaign-link" href="#" hidden>Back to the campaign page</a></p>
+  <p class="backrow"><a id="campaign-link" href="#" hidden>Back to the campaign page</a></p>
 </main>
 <script src="loadguard.js"></script>
 <script type="module" src="recount-page.js"></script>

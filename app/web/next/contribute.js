@@ -379,11 +379,16 @@ function fact(label, value) {
   return [dt, dd];
 }
 
+/** The campaign's own name (from the checked rules), else its type and short id. */
+const campaignName = () => campaign.name || `${campaign.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${cfg.id.slice(0, 8)}…`;
+
 function renderAbout() {
   if (!campaign) return;
   $('#about').hidden = false;
   setCampaignLabel(cfg.id, campaign.name, 'Campaign ');
   const raise = campaign.mode === 'raise';
+  $('#contrib-name').textContent = campaignName();
+  $('#contrib-to').hidden = $('#contrib-name').hidden = false;
   $('#about-text').textContent = raise
     ? `This is a fundraiser with a goal of ${campaign.goal} ${campaign.ticker}. If the goal isn't reached by the deadline, everyone is refunded. Either way, you keep a refund ticket that only you can use.`
     : `This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. Your contribution is your bid, and bids stay private until the auction closes. If you don't win, you are refunded. You keep a refund ticket that only you can use.`;
@@ -519,6 +524,8 @@ function renderProgress() {
   const tcv = ticketCheck && ticketCheck.verdict;
   setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…');
   $('#s-ticket').classList.toggle('bad', t && tcv === 'fail');
+  { let first = true; for (const li of document.querySelectorAll('.progress li')) { const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }
+  renderTicketView(tcv);
   renderTicketChecks();
   let note = '';
   if (!t) note = 'After you pay, this usually takes a minute or two. You can leave this page open, or come back later with the same link; your progress is saved in this browser.';
@@ -557,7 +564,7 @@ function renderProgress() {
     const all = c && done === cfg.relays.length;
     const underpaid = /^underpaid/.test(rej.reason || '') || (state.paidZat != null && state.paidZat < state.amountZat);
     proof.hidden = false;
-    proof.className = underpaid ? 'notice' : 'notice warn';
+    proof.className = underpaid ? 'rsect' : 'rsect warn';
     const reason = underpaid
       ? "This payment looks underpaid: it is smaller than the amount in your payment code. Publishing won't change the outcome. "
       : 'The campaign did not accept this payment. If you think it was valid, you can publish proof. ';
@@ -589,13 +596,13 @@ function renderProgress() {
   const rr = $('#refund-result');
   if (state.refundSentAt) {
     const rf = state.refundTrack || {};
-    rr.hidden = false; rr.className = rf.status === 'other' ? 'notice' : 'notice good';
+    rr.hidden = false; rr.className = rf.status === 'other' ? 'notice' : 'notice good'; rr.dataset.state = rf.status || 'sent';
     if (rf.status === 'confirmed') rr.textContent = `Your refund is confirmed in block ${rf.minedHeight}. It should reach the address you gave.`;
     else if (rf.status === 'other') rr.textContent = `Your contribution was already spent in block ${rf.minedHeight} by a different transaction (for example the campaign's own refund). Look at the address you gave; nothing more is needed from you.`;
     else if (rf.status === 'resent') rr.textContent = `Your refund had not been mined after about ${REFUND_RESEND_BLOCKS} blocks, so we sent the very same refund again (send ${rf.sends}). You don't need to do anything, and you never need to pay again.`;
     else rr.textContent = 'Your refund was sent to the network and is waiting to be mined. If it takes long, this page sends the same refund again by itself. Nothing is lost.';
   } else if (t && !mode && tip != null) {
-    rr.hidden = false; rr.className = 'notice';
+    rr.hidden = false; rr.className = 'notice'; rr.dataset.state = 'info';
     const closed = view.entries.some((e) => e.kind === 'close');
     rr.textContent = closed
       ? (owedRefund() ? 'The campaign has closed; if your refund does not appear, a button to send it yourself shows here.' : 'The campaign has closed.')
@@ -642,6 +649,60 @@ const blocksLeft = () => (campaign && tip != null ? campaign.deadline_height - t
 const pastDeadline = () => { const b = blocksLeft(); return b != null && b < 0; };
 const tooLateToStart = () => { const b = blocksLeft(); return b != null && b >= 0 && b < CUTOFF_BLOCKS; };
 
+/** The stepper above the page (a visual aid only): which of the three steps this page is on. */
+function renderStepper() {
+  const el = $('#stepper');
+  el.hidden = !!refused || !campaign;
+  const now = !state ? 'amount' : !state.ticket && !state.txid ? 'pay' : 'stand';
+  const order = ['amount', 'pay', 'stand'];
+  for (const li of el.children) {
+    const i = order.indexOf(li.dataset.step), at = order.indexOf(now);
+    li.className = i === at ? 'now' : i < at ? 'done' : '';
+  }
+}
+
+/** The refund ticket drawn as a ticket, from the ticket this page holds and its checks; then four short facts about it. Presentation only. */
+function renderTicketView(tcv) {
+  const view_ = $('#ticket-view'), led = $('#ticket-ledger');
+  const t = state && state.ticket;
+  view_.hidden = led.hidden = !t;
+  if (!t) return;
+  const e = t.entry, c = e.contribution || {};
+  const rf = state.refundTrack || {};
+  $('#tk-name').textContent = campaignName();
+  $('#tk-entry').textContent = `#${e.seq}`;
+  const chip = rf.status === 'confirmed' ? ['refunded', 'Refunded'] : tcv === 'pass' ? ['pass', 'Passed the checks'] : tcv === 'fail' ? ['fail', 'Did not pass a check'] : ['nc', 'Checking'];
+  $('#tk-chip').innerHTML = `<span class="chip ${chip[0]}">${chip[1]}</span>`;
+  const back = c.value_zat != null ? c.value_zat - campaign.fee_zat : null; // what the ticket pays: the listed contribution minus the refund fee
+  $('#tk-amount-box').hidden = back == null;
+  if (back != null) $('#tk-amount').innerHTML = amountHTML(back, campaign.ticker);
+  const checks = ticketCheck ? ticketCheck.checks : [];
+  const st = (id) => (checks.find((x) => x.id === id) || {}).status;
+  const rows = [];
+  if (st('pays_you') === 'pass') rows.push(['Pays', 'Your refund address, sealed so only the campaign could read it']);
+  if (st('no_expiry') === 'pass') rows.push(['Expires', 'Never']);
+  if (c.value_zat != null || c.height != null) rows.push(['Contribution', [c.value_zat != null ? `${coin(c.value_zat)} ${campaign.ticker}` : '', c.height != null ? `block ${c.height.toLocaleString('en-US')}` : ''].filter(Boolean).join(' · ')]);
+  rows.push(['Kept where', storageOk ? 'This browser; with your backup file this page can fetch it again from a relay' : 'With your backup file this page can fetch it again from a relay']);
+  $('#tk-facts').replaceChildren(...rows.flatMap(([k, v]) => fact(k, v)));
+  // four facts, kept apart: saved, checked, refund path, refund
+  const pass = checks.filter((x) => x.status === 'pass'), fail = checks.filter((x) => x.status === 'fail'), not = checks.filter((x) => x.status === 'not_checked');
+  const mode = refundMode();
+  const cells = [
+    ['Saved', storageOk ? ['ok', 'Yes', 'In this browser'] : ['warn', 'Not in this browser', 'Keep your backup file']],
+    ['Checked', !ticketCheck ? ['', 'Checking…', ''] : fail.length ? ['bad', `${fail.length} ${fail.length === 1 ? 'check' : 'checks'} failed`, 'Keep your backup file'] : ['ok', `${pass.length} of ${checks.length} passed`, not.length ? `Not checked: ${not.map((x) => x.label).join('; ')}` : '']],
+    ['Refund path', state.refundSentAt ? ['', 'Used', ''] : tcv === 'fail' ? ['warn', "Don't rely on it yet", ''] : mode === 'withdraw' ? ['teal', 'Available', `“Refund me” until block ${campaign.deadline_height}`] : mode ? ['teal', 'Available', '“Claim my refund”'] : ['', 'Not available now', '']],
+    ['Refund', !state.refundSentAt ? ['', 'Not sent', ''] : rf.status === 'confirmed' ? ['ok', 'Confirmed', `Block ${rf.minedHeight}`] : rf.status === 'other' ? ['', 'Spent by another transaction', `Block ${rf.minedHeight}`] : ['warn', 'Sent, waiting to be mined', 'Resent automatically if slow']],
+  ];
+  led.replaceChildren(...cells.map(([label, [cls, value, sub]]) => {
+    const d = document.createElement('div');
+    const l = document.createElement('p'); l.className = 'tl-l'; l.textContent = label;
+    const v = document.createElement('p'); v.className = `tl-v ${cls}`; v.textContent = value;
+    d.append(l, v);
+    if (sub) { const s2 = document.createElement('p'); s2.className = 'tl-s'; s2.textContent = sub; d.append(s2); }
+    return d;
+  }));
+}
+
 /** The one line about the deadline, only in the last blocks before it. */
 function renderNearDeadline() {
   const el = $('#near-deadline');
@@ -657,6 +718,7 @@ function renderNearDeadline() {
 function renderAllInner() {
   renderBanners();
   renderNearDeadline();
+  renderStepper();
   if (refused) { for (const id of ['#form-card', '#pay-card', '#progress-card', '#auction-card']) $(id).hidden = true; return; } // no payment on a page that cannot tell the network
   renderHostSeen();
   renderEarlier();

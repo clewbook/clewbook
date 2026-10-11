@@ -515,6 +515,11 @@ fn static_file(st: &State, path: &str) -> Resp {
         "/dashboard.js" | "/setup.js" | "/ui.js" | "/brand.js" | "/blocktime.js" => (path[1..].to_string(), "text/javascript; charset=utf-8"),
         "/dashboard.css" | "/setup.css" | "/ui.css" => (path[1..].to_string(), "text/css; charset=utf-8"),
         "/favicon.ico" => return respond(204, "text/plain", vec![]),
+        // the logo and icons: a flat file name of letters, digits and dashes with one of three known endings
+        p if p.starts_with("/img/") && !p[5..].contains("..") && !p[5..].contains('/') && p[5..].chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.') && (p.ends_with(".svg") || p.ends_with(".png") || p.ends_with(".ico")) => {
+            let ct = if p.ends_with(".svg") { "image/svg+xml" } else if p.ends_with(".png") { "image/png" } else { "image/x-icon" };
+            (p[1..].to_string(), ct)
+        }
         p if p.starts_with("/fonts/") && p.ends_with(".woff2") && p[7..].chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.') && !p[7..].contains("..") => (p[1..].to_string(), "font/woff2"),
         _ => return respond(404, "text/html; charset=utf-8", NOT_FOUND.as_bytes().to_vec()),
     };

@@ -29,16 +29,21 @@ const NETBAR = {
   main: ['main', 'ZCASH MAINNET', 'Real ZEC.'],
   unknown: ['unknown', 'NETWORK UNKNOWN', 'This page cannot tell which network this is.'],
 };
-export function setNetwork(network) {
+// `short`: only the network word (the campaign page, which shows no money-moving form; every amount there carries its ticker). The page that takes a
+// payment keeps the full sentence, and an unknown network always keeps its sentence.
+const SHORT = { test: 'ZCASH TESTNET', main: 'ZCASH MAINNET' };
+export function setNetwork(network, { short = false } = {}) {
   const kind = network === 'test' || network === 'main' ? network : 'unknown';
-  const [cls, head, tail] = NETBAR[kind];
+  const [cls, head0, tail] = NETBAR[kind];
+  const word = short && SHORT[kind] ? SHORT[kind] : null;
+  const head = word || head0;
   document.documentElement.dataset.net = kind;
   const bar = document.getElementById('netbar');
   if (!bar) return kind;
   bar.className = `netbar ${cls}`;
   bar.replaceChildren();
   const b = document.createElement('b'); b.textContent = head;
-  bar.append(b, ` · ${tail}`);
+  if (word) bar.append(b); else bar.append(b, ` · ${tail}`);
   return kind;
 }
 
@@ -67,7 +72,7 @@ export function markerHTML(status) {
   return `<span class="mk ${s}" aria-hidden="true"><svg><use href="#${ICON[s]}"/></svg></span>`;
 }
 
-// ---------- amounts: all 8 decimals, 4 + gap + 4, trailing zeros dimmed, never rounded ----------
+// ---------- amounts: all 8 decimals, trailing zeros dimmed (at least two decimals bright), never rounded ----------
 export function amountHTML(zat, unit) {
   const neg = zat < 0; const a = Math.abs(zat);
   return amountParts(String(Math.floor(a / 1e8)), String(a % 1e8).padStart(8, '0'), unit, neg);
@@ -75,6 +80,7 @@ export function amountHTML(zat, unit) {
 function amountParts(whole, frac8, unit, neg = false) {
   const digits = frac8.split('');
   let z = digits.length; while (z > 0 && digits[z - 1] === '0') z--; // digits from index z on are trailing zeros
+  z = Math.max(z, 2); // at least two decimals stay bright (40.00 then the dimmed tail)
   const cell = (from, to) => { let out = ''; for (let i = from; i < to; i++) out += i >= z ? `<span class="z">${digits[i]}</span>` : digits[i]; return out; };
   return `<span class="amt">${neg ? '−' : ''}${esc(whole)}.${cell(0, 4)}<span class="g">${cell(4, 8)}</span>${unit ? `<span class="u"> ${esc(unit)}</span>` : ''}</span>`;
 }

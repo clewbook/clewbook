@@ -22,6 +22,7 @@ function fact(dl, label, value) {
 async function main() {
   setup('Campaign');
   $('#campaign-id').textContent = cfg.id ? `${cfg.id.slice(0, 8)}…` : '';
+  $('#short-id').textContent = /^[0-9a-f]{64}$/.test(cfg.id) ? `${cfg.id.slice(0, 8)}…` : '';
   if (!/^[0-9a-f]{64}$/.test(cfg.id) || cfg.relays.length === 0) {
     $('#banners').append(banner('bad', 'This link is incomplete. Please ask whoever sent it for the full campaign link.'));
     return;
@@ -37,7 +38,7 @@ async function main() {
   const c = JSON.parse(W.campaign_summary(j.rules, cfg.id));
   setCampaignLabel(cfg.id, c.name);
   const endpoints = cfg.endpoints.length ? cfg.endpoints : DEFAULT_ENDPOINTS[c.network] || [];
-  setNetwork(c.network);
+  setNetwork(c.network, { short: true });
   if (j.kind === 'disagree') $('#banners').append(banner('bad', 'RELAYS DISAGREE, CANNOT CONCLUDE. What is shown below comes from the relay with the longest list. Run the recount for a fuller check.'));
   if (j.kind === 'single') $('#banners').append(banner('info', cfg.relays.length > 1 ? 'Only one relay gave a usable list.' : 'Only one relay was asked, so nothing here has been cross-checked.'));
 
@@ -62,24 +63,27 @@ async function main() {
   }
   fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}: each contribution gets its refund ticket within this window, and if the host has not closed this long after the deadline, contributors may claim their own refunds`);
   fact(facts, 'Refund promise', 'Every contribution comes with a signed refund ticket that never expires.');
-  $('#about').hidden = false;
+  $('#about').hidden = false; $('#take').hidden = false;
   $('#title').textContent = c.mode === 'auction' ? 'Auction' : 'Fundraiser';
+  $('#display-name').textContent = c.name || `${c.mode === 'auction' ? 'Auction' : 'Fundraiser'} ${cfg.id.slice(0, 8)}…`;
+  $('#display-name').hidden = false;
   $('#status-line').hidden = false;
   $('#status-chip').innerHTML = closed ? '<span class="chip closed">Closed</span>' : left == null ? '<span class="chip warn">Unknown</span>' : left > 0 ? '<span class="chip open">Open</span>' : '<span class="chip warn">Wrapping up</span>';
   $('#status-text').textContent = c.goal ? `Goal ${c.goal} ${c.ticker}` : `${c.items} ${c.items === 1 ? 'item' : 'items'} for sale`;
 
   const count = (k) => j.entries.filter((e) => e.kind === k).length;
   const lf = $('#list-facts');
-  fact(lf, 'Entries in the public list', String(j.entries.length));
-  fact(lf, 'Refund tickets issued', String(count('issue')));
-  fact(lf, 'Tickets re-issued', String(count('reissue')));
-  fact(lf, 'Payments set aside', String(count('reject')));
+  const stat = (label, value) => { const d = document.createElement('div'); d.className = 'stat'; fact(d, label, value); lf.append(d); };
+  stat('Entries in the public list', String(j.entries.length));
+  stat('Refund tickets issued', String(count('issue')));
+  stat('Tickets re-issued', String(count('reissue')));
+  stat('Payments set aside', String(count('reject')));
   const ul = $('#relay-list');
   for (const url of cfg.relays) {
     const li = document.createElement('li');
     const info = j.ok.find((r) => r.url === url);
     li.textContent = `${hostOf(url)}: ${info ? `${info.entries.length} entries` : 'no usable answer'}`;
-    if (!info) li.style.background = 'var(--fail-bg)';
+    if (!info) li.className = 'bad';
     ul.append(li);
   }
   $('#public-list').hidden = false;
@@ -94,7 +98,7 @@ async function main() {
       const zat = e.contribution && e.contribution.value_zat != null ? e.contribution.value_zat : e.settle ? e.settle.price_zat : null;
       const height = e.contribution ? e.contribution.height : null;
       const tr = document.createElement('tr');
-      const cells = [['n', String(e.seq)], ['kind', KIND[e.kind] || e.kind], ['', height != null ? height.toLocaleString('en-US') : ''], ['r', null], ['', null]];
+      const cells = [['n', `#${e.seq}`], ['kind', KIND[e.kind] || e.kind], ['blk', height != null ? `block ${height.toLocaleString('en-US')}` : ''], ['r', null], ['', null]];
       for (const [cls, text] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; if (text != null) td.textContent = text; tr.append(td); }
       tr.children[3].innerHTML = zat != null ? amountHTML(zat, c.ticker) : '<span class="dim">hidden or none</span>';
       if (ref) mountHash(tr.children[4].appendChild(document.createElement('span')), ref, 6);
@@ -103,7 +107,7 @@ async function main() {
       const l = document.createElement('span'); l.textContent = `No. ${e.seq} ${KIND[e.kind] || e.kind}${height != null ? ` / block ${height.toLocaleString('en-US')}` : ''}`;
       const a = document.createElement('span'); a.className = 'a'; a.innerHTML = zat != null ? amountHTML(zat, c.ticker) : '<span class="dim">hidden or none</span>';
       row.append(l, a);
-      if (ref) { const h = document.createElement('span'); h.style.gridColumn = '1 / -1'; mountHash(h, ref, 6); row.append(h); }
+      if (ref) { const h = document.createElement('span'); h.className = 'full'; mountHash(h, ref, 6); row.append(h); }
       narrow.append(row);
     }
     $('#entries-hint').textContent = `${latest.length} of ${j.entries.length}`;
@@ -113,7 +117,7 @@ async function main() {
   const base = { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server };
   const links = { contribute: sibling('contribute', { ...base, endpoints: [] }), recount: sibling('recount', base) };
   $('#contribute-link').href = links.contribute;
-  $('#card-link').href = sibling('card', base);
+  $('#card-link').href = $('#nav-card').href = sibling('card', base); $('#nav-card').hidden = false;
   $('#recount-link').href = links.recount; $('#nav-recount').href = links.recount;
   if (closed || left != null && left <= 0) $('#contribute-link').classList.add('off');
   $('#links').hidden = false;

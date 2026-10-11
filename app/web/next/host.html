@@ -6,13 +6,18 @@
 <title>Host</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="start.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/app-icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><span class="mark"></span><span data-brand></span></a>
+  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
   <nav class="nav" aria-label="Main"><a href="./">Home</a><a href="recount.html">Recount</a><a href="host.html" aria-current="page">Host</a></nav>
 </header>
-<main class="page">
+<main class="page hostpage">
   <h1 class="t-h1">Host a campaign</h1>
   <p class="t-lead home-lead">You can run a fundraiser or an auction of your own. Hosting is done from your own computer, with a program you run there. This site does not host campaigns, hold keys or touch anyone's money, and it has no button that sets one up for you.</p>
 
@@ -36,7 +41,7 @@
 
   <section class="sect">
     <div class="hd"><h2>The steps, from your own computer</h2></div>
-    <ol class="plainlist">
+    <ol class="steps">
       <li>Start the host program's dashboard on your own computer. It is for you only and cannot be reached from other devices.</li>
       <li>Set up the campaign there: type, goal or items, deadline, smallest contribution, and the ticket window. It makes a wallet and a key for this campaign alone.</li>
       <li>Share the contribute link it gives you. Contributors pay from their own wallets, and each one gets a refund ticket signed in advance.</li>
@@ -56,8 +61,9 @@
     </ul>
   </section>
 
-  <p><a class="btn sec" href="./">Back to the home page</a></p>
+  <p class="backhome"><a class="btn sec" href="./">Back to the home page</a></p>
 </main>
+<footer class="sitefoot"><span><span data-brand></span> · fundraisers and auctions on Zcash, with books anyone can check</span></footer>
 <script src="loadguard.js"></script>
 <script type="module" src="host.js"></script>
 </body>

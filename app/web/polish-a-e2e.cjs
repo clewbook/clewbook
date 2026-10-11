@@ -45,7 +45,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.waitForSelector('#status-chip .sbadge', { timeout: 60000 });
     check('badge, open: the word OPEN', (await text(p, '#status-chip')) === 'OPEN');
     const open = await p.evaluate(() => { const b = document.querySelector('#status-chip .sbadge'), d = b.querySelector('.sdot'); return { color: getComputedStyle(b).color, anim: getComputedStyle(d).animationName, g: getComputedStyle(b).color }; });
-    check('badge, open: green and blinking (motion allowed)', open.anim === 'sblink' && /^rgb\(29, 102, 65\)$/.test(open.color), JSON.stringify(open));
+    check('badge, open: green and pulsing (motion allowed)', open.anim === 'pulse' && /^rgb\(20, 92, 78\)$/.test(open.color), JSON.stringify(open));
     await p.screenshot({ path: `${SHOTS}/polish-a-open.png` });
     await p.context().close();
 
@@ -67,7 +67,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.goto(link(MISSED));
     await p.waitForFunction(() => /CLOSED/.test(document.querySelector('#status-chip').textContent), null, { timeout: 60000 });
     const closed = await p.evaluate(() => ({ words: document.querySelector('#status-chip').textContent, red: getComputedStyle(document.querySelector('#status-chip .sbadge.closed')).color, still: document.querySelector('#status-chip .sdot') === null }));
-    check('badge, closed: the word CLOSED, static red', /CLOSED/.test(closed.words) && closed.red === 'rgb(158, 52, 38)' && closed.still, JSON.stringify(closed));
+    check('badge, closed: the word CLOSED, static, in ink', /CLOSED/.test(closed.words) && closed.red === 'rgb(32, 43, 41)' && closed.still, JSON.stringify(closed));
     check('badge, closed with the goal missed: FAILED', /FAILED/.test(closed.words) && !/SUCCEEDED/.test(closed.words));
     await p.context().close();
 
@@ -123,7 +123,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
     });
-    check('pre-payment line: one plain grey sentence (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(68, 68, 74)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
+    check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(32, 43, 41)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
