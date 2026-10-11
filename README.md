@@ -175,7 +175,7 @@ You need: Rust (stable, 1.88 or newer, with `rustup`), Python 3, Node 22 (for th
 
 ```
 cd app && cargo build --release        # cb-host, cb-contrib, cb-recount, cb-relay, ll-vectors in app/target/release
-cd .. && cargo build --release         # the patched wallet tool, target/release/zcash-devtool (only for the scenarios that make real payments)
+cd .. && cargo build --release         # the patched wallet tool, target/release/zcash-devtool (required: the dashboard uses it to create a campaign wallet, and the scenarios that make real payments use it too)
 ZIG=/path/to/zig app/web/build.sh      # the browser module, into app/web/www/pkg and app/web/www/proof (the pages do not work without it)
 ```
 
@@ -195,6 +195,8 @@ Three things to know before hosting:
 - A campaign's wallet and key are created on the host's own computer. There is no key import. The campaign folder is the key, so back it up before taking any money.
 - A campaign can have an optional public name (`cb-host create --name "…"`, or the Name field on the set-up page): 1 to 60 characters of plain text, part of the signed rules, shown instead of the short number. It is public, so put nothing private in it. A relay, recount tool or browser module built before names existed cannot reproduce the campaign id of a named campaign: the relay in the test refused it ("the rules hash to … not …"), so upgrade relays before using names (`app/web/polish-b.sh`).
 - The set-up page makes fundraisers and pay-your-bid auctions; a uniform-price auction needs `cb-host create --mode auction --items N --reserve-zat … --treasury-address … --treasury-ufvk …`.
+
+A local trial on the testnet can be run from this README. Public hosting, making a relay reachable and getting listed on app.clewbook.xyz are guided by the project for now and are not yet documented.
 
 ## Try it (no wallet, no money)
 
