@@ -247,7 +247,6 @@ The host's default wallet backend uses the Zcash libraries directly. zcash-devto
 - SPEC.md: the formats and rules.
 - docs/THREAT_MODEL.md: who can do what, and what stops them.
 - docs/EVIDENCE.md and docs/FINDINGS.md: test evidence and findings.
-- docs/DEMO_SCRIPT.md: a 3 to 4 minute demonstration script.
 
 ## Licence
 
