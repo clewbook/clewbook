@@ -13,7 +13,6 @@ Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded 
 - **The app:** https://app.clewbook.xyz (live campaigns on the main network and the test network).
 - **The demo:** https://clewbook.xyz/demo/ (test network campaigns, no wallet needed).
 - **The proofs:** https://clewbook.xyz/demo/proofs/ (13 finished test campaigns, including dishonest hosts that the recount catches; each recount runs in your browser).
-- **Video:** *link to be added*.
 
 ## How it works
 
