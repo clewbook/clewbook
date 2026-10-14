@@ -20,7 +20,7 @@ fn campaign(seed: u8) -> Campaign {
         v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(5_000_000), items: None,
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-        pay_to: None, name: None,
+        pay_to: None, early_close: None, cap_zat: None, name: None,
         pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
     let id = hex::encode(rules.id().unwrap());
@@ -563,4 +563,16 @@ fn a_later_final_record_replaces_an_earlier_one_only_when_it_covers_more() {
     let later = signed_final(&c, &list);
     r.put_final(&c.id, &later).unwrap();
     assert_eq!(status(&r.put_final(&c.id, &early).unwrap_err()), 409, "an earlier one cannot come back");
+}
+
+#[test]
+fn a_capped_campaign_is_accepted_with_the_same_id_and_its_cap_is_kept() {
+    let (_d, r, _) = relay();
+    let mut c = campaign(41);
+    c.rules.cap_zat = Some(12_000_000);
+    c.id = hex::encode(c.rules.id().unwrap());
+    r.register(&c.rules).unwrap();
+    let back = r.rules(&c.id).unwrap();
+    assert_eq!(back.cap_zat, Some(12_000_000), "the relay keeps the field");
+    assert_eq!(hex::encode(back.id().unwrap()), c.id, "and the id it serves under is the one computed with the cap");
 }

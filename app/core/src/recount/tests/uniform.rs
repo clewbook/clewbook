@@ -109,7 +109,7 @@ fn undersubscribed_auction_pays_the_reserve_and_low_bids_do_not_win() {
     let r = run(&f, &l, &notes, &[], &Extra::default(), 207);
     let an = analyze(&f.rules, &f.id, &l, &notes, &[]);
     assert_eq!(an.plan.unwrap().price_zat, 100_000);
-    assert!(!failing(&r).contains(&"R7"), "{:?}", r.results[6].details);
+    assert!(!failing(&r).contains(&"R7"), "{:?}", by_id(&r, "R7").details);
 }
 
 #[test]
@@ -241,7 +241,7 @@ fn tie_order_follows_the_chain_not_the_ledger_or_the_hosts_choice() {
     let l = f.ledger(vec![f.entry("issue", &x), f.entry("issue", &y), close_u(&f, vec![nf(&y)], 290_000)]);
     let notes = vec![spent(x.clone(), &ticket_of(&x), 204), spent(y.clone(), "s-y", 203)];
     let r = run(&f, &l, &notes, &[], &Extra::default(), 207);
-    assert!(!failing(&r).contains(&"R7"), "{:?}", r.results[6].details);
+    assert!(!failing(&r).contains(&"R7"), "{:?}", by_id(&r, "R7").details);
     // the ledger lists x first, but the chain says y; a host that declares x the winner is caught
     let l = f.ledger(vec![f.entry("issue", &x), f.entry("issue", &y), close_u(&f, vec![nf(&x)], 290_000)]);
     let r = run(&f, &l, &notes, &[], &Extra::default(), 207);

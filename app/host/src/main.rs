@@ -1,4 +1,5 @@
 //! Host app: creates a campaign, issues refund tickets automatically, closes it.
+#![recursion_limit = "256"] // the dashboard status is one large json! object
 
 mod backend;
 mod dashboard;
@@ -24,8 +25,8 @@ use ll_core::{
     keys::CampaignSecrets,
     ledger::{self, Close, Contribution, Entry, LedgerDir, Ticket, amount_commit},
     payload::{Payload, is_payload_shaped},
-    receiver::{TYPECODE_ORCHARD, encode_orchard, network_type, orchard_receiver},
-    recount::{ChainNote, analyze, close_entry},
+    receiver::{encode_orchard, network_type, orchard_receiver},
+    recount::{Analysis, ChainNote, analyze, close_entry, contribution_end},
     rules::{Rules, ufvk_hash},
     walletdb::WalletNote,
 };
@@ -93,6 +94,17 @@ enum Cmd {
         /// The ticket window K in blocks: a refund ticket must be issued within K blocks of a contribution, and after the deadline the host has K blocks to close before contributors may claim their own refunds
         #[arg(long, default_value_t = ll_core::rules::DEFAULT_TICKET_K)]
         ticket_k: u32,
+        /// Confirmations a payment needs before its entry and ticket are written (default: 3 on the main network, 1 on the test network).
+        /// Kept in the campaign's private config.json; it is not part of the rules
+        #[arg(long)]
+        min_confirmations: Option<u32>,
+        /// Fundraiser only: allow closing before the deadline once the goal is met (part of the signed rules; contributors are told before they pay)
+        #[arg(long)]
+        early_close: bool,
+        /// Fundraiser only: the hard cap in zatoshis, the most the campaign keeps (at least the goal). At the close, contributions are kept in
+        /// chain order while they fit; a payment that does not fit is refunded whole by its own ticket. Part of the signed rules
+        #[arg(long)]
+        cap_zat: Option<u64>,
         /// Optional public name of the campaign (1 to 60 characters, plain text). It becomes part of the signed rules and is public: put nothing private in it.
         #[arg(long)]
         name: Option<String>,
@@ -228,7 +240,15 @@ struct RunConfig {
     devtool: PathBuf,
     wallet: PathBuf,
     identity: PathBuf,
+    /// How many confirmations a payment needs before the host writes its entry and ticket (1 = mined). Absent in campaigns made
+    /// before this setting existed: they keep 1, so nothing changes for them. Private to the host; not part of the rules.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min_confirmations: Option<u32>,
 }
+
+/// Confirmations a new main network campaign waits for before ticketing, unless `--min-confirmations` says otherwise (a reorg that
+/// removes a ticketed payment would leave a permanent R3 failure in the append only list). Test network campaigns keep 1.
+const MAINNET_MIN_CONFIRMATIONS: u32 = 3;
 
 struct Run {
     dir: PathBuf,
@@ -236,6 +256,8 @@ struct Run {
     rules: Rules,
     rules_id: String,
     secrets: CampaignSecrets,
+    /// From `config.json` (`min_confirmations`); 1 when it is not set.
+    min_confirmations: u32,
 }
 
 impl Run {
@@ -243,7 +265,12 @@ impl Run {
         let rules: Rules = serde_json::from_slice(&fs::read(dir.join("rules.json"))?)?;
         let rules_id = fs::read_to_string(dir.join("rules_id"))?.trim().to_string();
         let secrets = serde_json::from_slice(&fs::read(dir.join("secrets.json"))?)?;
-        Ok(Self { dir: dir.into(), ledger_dir: dir.join("ledger"), rules, rules_id, secrets })
+        let min_confirmations = fs::read(dir.join("config.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+            .and_then(|v| v["min_confirmations"].as_u64())
+            .map_or(1, |n| n.max(1) as u32);
+        Ok(Self { dir: dir.into(), ledger_dir: dir.join("ledger"), rules, rules_id, secrets, min_confirmations })
     }
 
     fn ledger(&self) -> LedgerDir<'_> {
@@ -366,6 +393,38 @@ pub struct MainnetCheck {
     pub nu7_height: Option<u32>,
 }
 
+/// A payment the dashboard warns about once it has been skipped this many watch passes in a row.
+pub(crate) const SKIP_WARN_PASSES: u64 = 10;
+
+/// Keeps, in `private/skips.json`, how many watch passes in a row each payment was skipped (a valid payment whose ticket could not be built:
+/// a failure on the host's side, never a reject) and the last reason. Payments that only wait for their confirmations are not counted, and a
+/// payment that is no longer skipped is dropped. The dashboard warns from SKIP_WARN_PASSES on; nothing is rejected automatically.
+fn record_skips(run: &Run, skipped: &[(String, String)]) {
+    let path = run.dir.join("private").join("skips.json");
+    let old: BTreeMap<String, serde_json::Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let mut now: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+    for (key, reason) in skipped.iter().filter(|(_, r)| !r.starts_with("waiting for ")) {
+        let count = old.get(key).and_then(|v| v["count"].as_u64()).unwrap_or(0) + 1;
+        let first = old.get(key).and_then(|v| v["first_unix"].as_u64()).unwrap_or_else(now_unix);
+        now.insert(key.clone(), serde_json::json!({ "count": count, "reason": reason, "first_unix": first }));
+    }
+    if now.is_empty() && old.is_empty() {
+        return;
+    }
+    let _ = write_private(&path, &serde_json::to_vec_pretty(&now).unwrap_or_default());
+}
+
+/// The payments skipped at least SKIP_WARN_PASSES passes in a row: (`txid:action`, passes, last reason).
+pub(crate) fn long_skips(run: &Run) -> Vec<(String, u64, String)> {
+    let skips: BTreeMap<String, serde_json::Value> =
+        fs::read(run.dir.join("private").join("skips.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    skips
+        .into_iter()
+        .filter_map(|(k, v)| Some((k, v["count"].as_u64()?, v["reason"].as_str().unwrap_or_default().to_string())))
+        .filter(|(_, c, _)| *c >= SKIP_WARN_PASSES)
+        .collect()
+}
+
 fn now_unix() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
@@ -392,10 +451,17 @@ fn create(
     ticket_k: u32,
     mainnet: MainnetCheck,
     name: Option<String>,
+    early_close: bool,
+    cap_zat: Option<u64>,
 ) -> Result<()> {
     mainnet::require_confirmation(network, mainnet.confirmed)?;
     if let Some(n) = &name {
         ll_core::rules::check_name(n)?; // before anything is created
+    }
+    if let Some(cap) = cap_zat {
+        // before anything is created (the full rules are checked again below)
+        ensure!(mode == "raise", "only a fundraiser can have a hard cap; an auction has its number of items instead");
+        ensure!(goal_zat.is_none_or(|g| cap >= g), "the hard cap must be at least the goal (the soft cap)");
     }
     if run.join("rules.json").exists() {
         bail!("{} already holds a campaign", run.display());
@@ -407,7 +473,12 @@ fn create(
         let real = p.canonicalize().map_err(|_| anyhow!("the {what} {} does not exist", p.display()))?;
         real.strip_prefix(&canon).map(PathBuf::from).map_err(|_| anyhow!("the {what} {} must be inside the campaign folder {}", p.display(), run.display()))
     };
-    let cfg = RunConfig { wallet: inside(&cfg.wallet, "wallet")?, identity: inside(&cfg.identity, "wallet key file")?, ..cfg };
+    let min_confirmations = cfg.min_confirmations.or((network == "main").then_some(MAINNET_MIN_CONFIRMATIONS)).filter(|n| *n > 1);
+    if let Some(n) = min_confirmations {
+        ensure!(n <= 20, "--min-confirmations must be 20 or fewer, not {n}");
+        ensure!(ticket_k >= n + 5, "the ticket window K ({ticket_k} blocks) must leave room after {n} confirmations: at least {} blocks", n + 5);
+    }
+    let cfg = RunConfig { wallet: inside(&cfg.wallet, "wallet")?, identity: inside(&cfg.identity, "wallet key file")?, min_confirmations, ..cfg };
     fs::write(run.join("config.json"), serde_json::to_vec_pretty(&cfg)?)?;
     let mut backend = backend_for(run)?;
     backend.sync()?;
@@ -448,10 +519,15 @@ fn create(
         treasury_address: uniform.as_ref().map(|u| ll_core::receiver::to_standard(&u.treasury_address)).transpose()?,
         treasury_ufvk: uniform.as_ref().map(|u| u.treasury_ufvk.clone()),
         name,
+        early_close: early_close.then_some(true),
+        cap_zat: if auction { None } else { cap_zat },
         ledger_pubkey: secrets.ledger_pubkey_hex()?,
         payload_pubkey: secrets.payload_pubkey_hex()?,
     };
     rules.validate()?;
+    if let Some(w) = rules.cap_warning() {
+        println!("warning: {w}");
+    }
     if rules.min_contribution_zat < 2 * fee {
         bail!("the smallest contribution must be at least {} zatoshis (twice the refund fee), or a refund would leave nothing", 2 * fee);
     }
@@ -511,9 +587,36 @@ fn check_treasury(network: &str, address: &str, ufvk: &str) -> Result<()> {
     Ok(())
 }
 
-/// Payments received after the deadline (not change): never contributions, so nothing tickets, counts or refunds them (README, limits).
-pub(crate) fn late_payments(rules: &Rules, notes: &[ChainNote]) -> Vec<ChainNote> {
-    notes.iter().filter(|n| !n.is_change && n.height.is_some_and(|h| h > rules.deadline_height)).cloned().collect()
+/// Payments mined after the last height that counts: the deadline, or an early close (SPEC §4). They are not contributions.
+pub(crate) fn late_payments(rules: &Rules, entries: &[Entry], notes: &[ChainNote]) -> Vec<ChainNote> {
+    let end = contribution_end(rules, entries);
+    notes.iter().filter(|n| !n.is_change && n.height.is_some_and(|h| h > end)).cloned().collect()
+}
+
+/// Whether the campaign may be closed now (SPEC §4): after the deadline, or before it for a fundraiser whose rules allow closing early,
+/// once the goal is met net of the contributions taken back (computed as the recount computes it). Otherwise the plain reason.
+/// The words "not reached" mark "wait for the deadline"; the scripts that close as soon as they may look for them.
+pub(crate) fn may_close(rules: &Rules, a: &Analysis, tip: u32) -> std::result::Result<(), String> {
+    if tip > rules.deadline_height {
+        return Ok(());
+    }
+    if !rules.allows_early_close() {
+        return Err(if rules.is_auction() {
+            format!("deadline {} not reached (tip {tip}); an auction cannot be closed early", rules.deadline_height)
+        } else {
+            format!("deadline {} not reached (tip {tip}); this campaign's rules do not allow closing early", rules.deadline_height)
+        });
+    }
+    if a.goal_met != Some(true) {
+        let net: u64 = a.contributions.iter().filter(|n| n.nf.as_ref().is_some_and(|nf| !a.withdrawn.contains(nf))).map(|n| n.value_zat).sum();
+        return Err(format!(
+            "the goal is not met yet ({net} of {} zat, counting only contributions that were not taken back{}), so this campaign cannot close early; it can close as soon as the goal is met, or after the deadline (block {})",
+            rules.goal_zat.unwrap_or(0),
+            if rules.cap_zat.is_some() { "; with a hard cap, only what fits under it counts" } else { "" },
+            rules.deadline_height
+        ));
+    }
+    Ok(())
 }
 
 fn chain_notes(notes: &[WalletNote]) -> Vec<ChainNote> {
@@ -635,6 +738,16 @@ fn issue_ticket(
     fs::create_dir_all(&tickets)?;
     fs::write(tickets.join(format!("{nf}.blob")), &blob)?;
 
+    // TEST ONLY (`test-cheats` builds): `LL_TEST_BACKDATE_ISSUE=<payment txid>` makes a lying host that writes the payment's own
+    // height as the issue height of that payment's ticket, to show that the recount cannot tell (docs/THREAT_MODEL.md threat 22).
+    #[cfg(feature = "test-cheats")]
+    let tip = match (std::env::var("LL_TEST_BACKDATE_ISSUE"), n.height) {
+        (Ok(t), Some(h)) if t == n.txid => {
+            banner("this ticket's issue height is BACKDATED to its payment's height, on purpose.");
+            h
+        }
+        _ => tip,
+    };
     let mut entry = Entry::new(&run.rules_id, kind);
     entry.contribution = Some(contribution_of(run, n)?);
     entry.ticket = Some(Ticket { txid: checked.txid, issue_height: tip, branch_id: checked.branch_id });
@@ -751,34 +864,32 @@ fn issue_pending(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote
         .filter(|e| e.ticket.is_some())
         .filter_map(|e| e.nf().and_then(|nf| notes.iter().find(|w| w.note.nf.as_deref() == Some(nf)).and_then(|w| w.note.memo_text.clone())))
         .collect();
+    let end = contribution_end(r, entries); // the deadline, or an early close
     for note in ordered {
         let n = &note.note;
         let (Some(h), Some(nf)) = (n.height, &n.nf) else { continue };
         let candidate = !n.is_change
             && h >= r.start_height
-            && h <= r.deadline_height
+            && h <= end
             && n.value_zat >= r.min_contribution_zat
             && n.spent_by.is_none()
             && n.memo_text.as_deref().is_some_and(is_payload_shaped);
         if !candidate || entries.iter().any(|e| e.nf() == Some(nf.as_str())) {
             continue;
         }
+        let confirmations = (tip.height + 1).saturating_sub(h);
+        if confirmations < run.min_confirmations {
+            skipped.push((format!("{}:{}", n.txid, n.action), format!("waiting for {} confirmations (it has {confirmations})", run.min_confirmations)));
+            continue;
+        }
         let opened = Payload::open(n.memo_text.as_deref().unwrap_or_default(), &run.secrets.payload_key()?)
+            .map_err(|e| anyhow!("{e} [unreadable]"))
             .and_then(|p| {
                 if n.memo_text.as_deref().is_some_and(|memo| accepted.contains(memo)) {
                     bail!("replayed payload: the same sealed message was already used by an earlier payment");
                 }
-                if let Some(promised) = p.amount_zat {
-                    if n.value_zat < promised {
-                        bail!("underpaid: {} zat were paid but the sealed message promises at least {promised} zat, so this payment is not a contribution", n.value_zat);
-                    }
-                }
-                if hex::encode(p.rules_id) != run.rules_id {
-                    bail!("payload is for another campaign");
-                }
-                if p.refund_typecode != TYPECODE_ORCHARD {
-                    bail!("unsupported refund receiver type {}", p.refund_typecode);
-                }
+                // the one validity rule (shared with the recount): a payload that fails it is rejected here, before any lock or build
+                ll_core::payload::check(&p, &run.rules_id, n.value_zat, r.refund_fee_zat).map_err(|e| anyhow!(e.reason()))?;
                 Ok(p)
             });
         let result = match opened {
@@ -795,7 +906,12 @@ fn issue_pending(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote
                 let mut e = Entry::new(&run.rules_id, "reject");
                 e.contribution = Some(contribution_of(run, n)?);
                 e.reason = Some(reason.to_string());
-                run.append(e)
+                let written = run.append(e);
+                // An older host may have locked this note while it kept failing to build a ticket for it: a rejected payment holds no lock.
+                if written.is_ok() {
+                    let _ = backend.unlock(&n.txid, n.action, &format!("ticket:{nf}"));
+                }
+                written
             }
         };
         match result {
@@ -839,7 +955,8 @@ fn watch_once(run: &Run, backend: &mut dyn WalletBackend, assume_branch: Option<
             }
         }
     }
-    let (new, _skipped) = issue_pending(run, backend, &notes, &entries, &tip)?;
+    let (new, skipped) = issue_pending(run, backend, &notes, &entries, &tip)?;
+    record_skips(run, &skipped);
     println!("tip {} (branch {}): {} ledger entries, {new} new, {alerts} guard alerts", tip.height, tip.branch_id, entries.len() + new);
     let relays = sync_relays(run);
     publish_heartbeat(run, tip.height, &relays);
@@ -918,8 +1035,20 @@ fn close(run: &Run, backend: &mut dyn WalletBackend, sweep_to: &str) -> Result<V
     let mut log: Vec<String> = vec![];
     backend.sync()?;
     let tip = backend.chain_tip()?;
-    if tip.height <= run.rules.deadline_height {
-        bail!("deadline {} not reached (tip {})", run.rules.deadline_height, tip.height);
+    // before the deadline only a fundraiser that allows an early close may close (the goal is checked below, once every ticket is issued);
+    // a close that was already written is always finished
+    // TEST ONLY (`test-cheats` builds): `LL_TEST_FORCE_EARLY_CLOSE=1` makes a cheating host that closes before the deadline whatever the rules
+    // say, to show that the recount catches it (R2).
+    #[cfg(feature = "test-cheats")]
+    let forced = std::env::var("LL_TEST_FORCE_EARLY_CLOSE").is_ok();
+    #[cfg(not(feature = "test-cheats"))]
+    let forced = false;
+    #[cfg(feature = "test-cheats")]
+    if forced {
+        banner("this host closes BEFORE the deadline although the rules may not allow it, on purpose.");
+    }
+    if !forced && tip.height <= run.rules.deadline_height && !run.rules.allows_early_close() && close_entry(&run.ledger().load()?).is_none() {
+        bail!("{}", may_close(&run.rules, &Analysis::default(), tip.height).unwrap_err());
     }
     let mut wallet_notes = backend.notes()?;
     release_confirmed_locks(backend, &wallet_notes);
@@ -928,7 +1057,17 @@ fn close(run: &Run, backend: &mut dyn WalletBackend, sweep_to: &str) -> Result<V
     // Before the close entry is written (nothing can be added to the list after it): every payment that still waits for its entry gets it now, late,
     // exactly as the watcher would have issued it. If a counted contribution still has no ticket after that, closing would leave its money in the
     // wallet with no way to refund it, so the close stops here, before anything is written or sent, and says which payments and what to do.
-    if close_entry(&entries).is_none() {
+    // TEST ONLY (`test-cheats` builds): `LL_TEST_BACKDATE_CLOSE=<height>` makes a cheating host that writes an EARLIER close height than
+    // the chain's, after skipping the tickets still pending, to see whether an early close can be backdated to leave a later payer out.
+    #[cfg(feature = "test-cheats")]
+    let backdate: Option<u32> = std::env::var("LL_TEST_BACKDATE_CLOSE").ok().and_then(|v| v.parse().ok());
+    #[cfg(not(feature = "test-cheats"))]
+    let backdate: Option<u32> = None;
+    #[cfg(feature = "test-cheats")]
+    if let Some(h) = backdate {
+        banner(&format!("this host writes the close height {h} instead of the chain's {}, and skips pending tickets, on purpose.", tip.height));
+    }
+    if close_entry(&entries).is_none() && backdate.is_none() {
         let (issued, skipped) = issue_pending(run, backend, &wallet_notes, &entries, &tip)?;
         if issued > 0 {
             note!(log, "issued {issued} entr{} that the watcher had not written yet (late; the recount will show them as late)", if issued == 1 { "y" } else { "ies" });
@@ -958,10 +1097,14 @@ fn close(run: &Run, backend: &mut dyn WalletBackend, sweep_to: &str) -> Result<V
     let a = analyze(&run.rules, &run.rules_id, &entries, &notes, &[]);
 
     if close_entry(&entries).is_none() {
+        // an early close: only once the goal is met (nothing is written or sent otherwise)
+        if !forced {
+            may_close(&run.rules, &a, tip.height).map_err(|e| anyhow!("The campaign was NOT closed (nothing was written or sent): {e}."))?;
+        }
         let mut e = Entry::new(&run.rules_id, "close");
         let auction = run.rules.is_auction();
         e.close = Some(Close {
-            close_height: tip.height,
+            close_height: backdate.unwrap_or(tip.height),
             outcome: match a.goal_met {
                 Some(true) => "goal_met".into(),
                 Some(false) => "goal_missed".into(),
@@ -979,6 +1122,21 @@ fn close(run: &Run, backend: &mut dyn WalletBackend, sweep_to: &str) -> Result<V
         }
     }
 
+    // (the cheating host above: what it keeps is decided by its own, backdated close height)
+    #[cfg(feature = "test-cheats")]
+    let a = if backdate.is_some() { analyze(&run.rules, &run.rules_id, &run.ledger().load()?, &notes, &[]) } else { a };
+    // TEST ONLY (`test-cheats` builds): `LL_TEST_KEEP_OVER_CAP=1` makes a cheating host that sweeps the payments over the hard cap too, instead of
+    // refunding them, to see that the recount flags it (R6).
+    #[cfg(feature = "test-cheats")]
+    let a = if std::env::var("LL_TEST_KEEP_OVER_CAP").is_ok() {
+        banner("this host keeps the payments over the hard cap instead of refunding them, on purpose.");
+        let mut a = a;
+        let over: Vec<String> = a.over_cap.iter().filter_map(|n| n.nf.clone()).collect();
+        a.keep.extend(over);
+        a
+    } else {
+        a
+    };
     // From here on the close entry exists. Every later step is recorded: one that fails does not stop the others, what is left is written to
     // `private/close_state.json`, and running the close again (the dashboard's "Try again", or the watcher on its own) does only what is not done.
     // Nothing is sent twice: whatever was sent is in the outbox and is skipped, and a refund is always the same pre-signed transaction.
@@ -1412,13 +1570,13 @@ fn main() -> Result<()> {
     // TLS to the lightwalletd server (libs backend): pick one crypto provider explicitly.
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Cli::parse().command {
-        Cmd::Create { run, wallet, identity, devtool, backend, network, mode, goal_zat, items, deadline_in, relay, min_contribution_zat, reserve_zat, treasury_address, treasury_ufvk, ticket_k, name, confirm_mainnet, nu7_mainnet_height } => {
+        Cmd::Create { run, wallet, identity, devtool, backend, network, mode, goal_zat, items, deadline_in, relay, min_contribution_zat, reserve_zat, treasury_address, treasury_ufvk, ticket_k, min_confirmations, early_close, cap_zat, name, confirm_mainnet, nu7_mainnet_height } => {
             let uniform = match (reserve_zat, treasury_address, treasury_ufvk) {
                 (None, None, None) => None,
                 (Some(r), Some(a), Some(k)) => Some(Uniform { reserve_zat: r, treasury_address: a, treasury_ufvk: k }),
                 _ => bail!("a uniform-price auction needs --reserve-zat, --treasury-address and --treasury-ufvk together"),
             };
-            create(&run, RunConfig { backend, devtool, wallet, identity }, &network, &mode, goal_zat, items, deadline_in, &relay, min_contribution_zat, uniform, ticket_k, MainnetCheck { confirmed: confirm_mainnet, nu7_height: nu7_mainnet_height }, name)
+            create(&run, RunConfig { backend, devtool, wallet, identity, min_confirmations }, &network, &mode, goal_zat, items, deadline_in, &relay, min_contribution_zat, uniform, ticket_k, MainnetCheck { confirmed: confirm_mainnet, nu7_height: nu7_mainnet_height }, name, early_close, cap_zat)
         }
         Cmd::Serve { runs_dir, www, listen, network, backend, devtool, relay, page_base, server, nu7_mainnet_height } => {
             dashboard::serve(dashboard::Config { runs_dir, www, listen, network, backend, devtool, relays: relay, page_base, server, nu7_mainnet_height })
@@ -1553,15 +1711,22 @@ fn main() -> Result<()> {
             let r = Run::load(&run)?;
             let cfg = load_config(&run)?;
             let notes = ll_core::walletdb::read_notes(&cfg.wallet.join("data.sqlite"))?;
-            let late = late_payments(&r.rules, &chain_notes(&notes));
+            let entries = r.ledger().load()?;
+            let late = late_payments(&r.rules, &entries, &chain_notes(&notes));
+            let end = contribution_end(&r.rules, &entries);
             if late.is_empty() {
-                println!("no payment reached this campaign after its deadline (block {}), as far as the wallet file has seen", r.rules.deadline_height);
+                if end < r.rules.deadline_height {
+                    println!("no payment reached this campaign after its early close (block {end}), as far as the wallet file has seen");
+                } else {
+                    println!("no payment reached this campaign after its deadline (block {}), as far as the wallet file has seen", r.rules.deadline_height);
+                }
             }
             for n in &late {
                 println!("{}:{}  {} zat  mined in block {}  {}", n.txid, n.action, n.value_zat, n.height.unwrap_or(0), if n.spent_by.is_some() { "(already spent)" } else { "(still in the wallet)" });
             }
             if !late.is_empty() {
-                println!("{} payment(s) after the deadline: not counted, not ticketed, not refunded. Return them by hand if their senders ask.", late.len());
+                let after = if end < r.rules.deadline_height { "the early close" } else { "the deadline" };
+                println!("{} payment(s) after {after}: not counted, not ticketed, not refunded. Return them by hand if their senders ask.", late.len());
             }
             Ok(())
         }
@@ -1684,7 +1849,7 @@ mod settle_resume_tests {
             v: 1, network: "test".into(), mode: "auction".into(), goal_zat: None, items: Some(1),
             start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
             refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: None, ufvk_hash: Some("00".repeat(32)),
-            pay_to: None, pricing: Some("uniform".into()), settle_window: Some(40), reserve_zat: Some(50_000), treasury_address: None, treasury_ufvk: None,
+            pay_to: None, early_close: None, cap_zat: None, pricing: Some("uniform".into()), settle_window: Some(40), reserve_zat: Some(50_000), treasury_address: None, treasury_ufvk: None,
             name: None,
             ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
         };
@@ -1753,7 +1918,7 @@ mod close_resume_tests {
     use ll_core::walletdb::WalletNote;
 
     /// A wallet tool stand-in: the chain is past the deadline, two contributions sit in the wallet, and the first `fail` broadcasts fail.
-    struct Wallet { notes: Vec<WalletNote>, fail: u32, sent: Vec<Vec<u8>> }
+    struct Wallet { notes: Vec<WalletNote>, fail: u32, sent: Vec<Vec<u8>>, unlocked: Vec<String> }
     impl WalletBackend for Wallet {
         fn name(&self) -> &'static str { "devtool" } // sends the stored ticket bytes as they are
         fn sync(&mut self) -> Result<()> { Ok(()) }
@@ -1761,7 +1926,7 @@ mod close_resume_tests {
         fn account(&mut self) -> Result<AccountInfo> { unimplemented!() }
         fn notes(&mut self) -> Result<Vec<WalletNote>> { Ok(self.notes.clone()) }
         fn lock(&mut self, _: &str, _: u32, _: &str, _: u32) -> Result<()> { Ok(()) }
-        fn unlock(&mut self, _: &str, _: u32, _: &str) -> Result<bool> { Ok(false) }
+        fn unlock(&mut self, txid: &str, _: u32, _: &str) -> Result<bool> { self.unlocked.push(txid.into()); Ok(true) }
         fn build(&mut self, _: &SpendRequest) -> Result<Vec<u8>> { bail!("not used: a fundraiser that missed its goal sweeps nothing") }
         fn sign(&mut self, p: &[u8]) -> Result<Vec<u8>> { Ok(p.to_vec()) }
         fn broadcast(&mut self, signed: &[u8]) -> Result<String> {
@@ -1785,7 +1950,7 @@ mod close_resume_tests {
             v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(10_000_000), items: None,
             start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
             refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-            pay_to: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, name: None,
+            pay_to: None, early_close: None, cap_zat: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, name: None,
             ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
         };
         let rules_id = hex::encode(rules.id().unwrap());
@@ -1815,7 +1980,7 @@ mod close_resume_tests {
     fn a_failed_refund_after_the_close_entry_is_recorded_and_try_again_sends_only_what_is_left() {
         let (d, notes) = raise_missed("refund");
         let run = Run::load(&d).unwrap();
-        let mut w = Wallet { notes, fail: 1, sent: vec![] };
+        let mut w = Wallet { notes, fail: 1, sent: vec![], unlocked: vec![] };
 
         let e = close(&run, &mut w, "utest1x").err().expect("one refund failed, so the close is not finished");
         assert!(e.to_string().contains("The campaign is closed, but the refund of") && e.to_string().contains("without sending anything twice"), "{e}");
@@ -1837,11 +2002,177 @@ mod close_resume_tests {
         let _ = fs::remove_dir_all(&d);
     }
 
+    /// A new payment (valid message) at `height`, for the confirmation tests.
+    /// A valid Orchard/Ironwood refund receiver.
+    fn valid_receiver() -> [u8; 43] {
+        let sk: orchard::keys::SpendingKey = Option::from(orchard::keys::SpendingKey::from_bytes([7; 32])).unwrap();
+        orchard::keys::FullViewingKey::from(&sk).address_at(0u32, orchard::keys::Scope::External).to_raw_address_bytes()
+    }
+
+    fn new_payment(run: &Run, height: u32) -> WalletNote {
+        new_payment_to(run, height, 3, valid_receiver())
+    }
+
+    /// A new payment whose sealed message names the refund receiver given (hand made when it is not a valid Orchard one).
+    fn new_payment_to(run: &Run, height: u32, typecode: u8, receiver: [u8; 43]) -> WalletNote {
+        let p = Payload { rules_id: hex32(&run.rules_id).unwrap(), sign_pubkey: [7; 32], enc_pubkey: [7; 32], refund_typecode: typecode, refund_receiver: receiver, amount_zat: Some(50_000) };
+        let memo = p.to_memo(&hex32(&run.rules.payload_pubkey).unwrap(), &crypto_box::SecretKey::from([77; 32])).unwrap();
+        let n = ChainNote { txid: "77".repeat(32), action: 0, value_zat: 50_000, nf: Some("e7".repeat(32)), height: Some(height), tx_index: None, memo_text: Some(memo), is_change: false, spent_by: None };
+        WalletNote { note: n, memo_raw: None, lock_owner: None, lock_expiry: None }
+    }
+
+    #[test]
+    fn a_payment_waits_for_the_campaigns_confirmations_before_it_is_ticketed() {
+        let (d, mut notes) = raise_missed("confirmations");
+        let mut rules = Run::load(&d).unwrap().rules;
+        rules.deadline_height = 300; // still open at tip 260
+        let entries = Run::load(&d).unwrap().ledger().load().unwrap();
+        let tip = backend::ChainTip { height: 260, branch_id: "77190ad9".into() };
+        let reason = |run: &Run, notes: &[WalletNote]| {
+            let mut w = Wallet { notes: notes.to_vec(), fail: 0, sent: vec![], unlocked: vec![] };
+            let (_, skipped) = issue_pending(run, &mut w, notes, &entries, &tip).unwrap();
+            skipped.iter().find(|(k, _)| k.starts_with(&"77".repeat(32))).map(|(_, r)| r.clone()).unwrap_or_default()
+        };
+        // no setting (every campaign made before it): a payment mined in the tip block is ticketed at once (here the stand-in wallet
+        // refuses to build, which shows the host went on to build the ticket)
+        let run = Run { rules: rules.clone(), ..Run::load(&d).unwrap() };
+        assert_eq!(run.min_confirmations, 1);
+        notes.push(new_payment(&run, 260));
+        assert!(reason(&run, &notes).contains("not used"), "{}", reason(&run, &notes));
+        // with 3: two confirmations wait, three go ahead
+        fs::write(d.join("config.json"), r#"{"backend":"libs","devtool":"x","wallet":"w","identity":"w.age","min_confirmations":3}"#).unwrap();
+        let run = Run { rules, ..Run::load(&d).unwrap() };
+        assert_eq!(run.min_confirmations, 3);
+        notes.pop();
+        notes.push(new_payment(&run, 259));
+        assert_eq!(reason(&run, &notes), "waiting for 3 confirmations (it has 2)");
+        notes.pop();
+        notes.push(new_payment(&run, 258));
+        assert!(reason(&run, &notes).contains("not used"), "{}", reason(&run, &notes));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_payment_whose_refund_cannot_be_paid_is_rejected_at_once_and_never_stops_the_close() {
+        // docs/THREAT_MODEL.md threat 25: a hand made payment message whose refund receiver cannot be paid. Before the fix, invalid
+        // receiver bytes were locked, failed to build on every pass, never got an entry, and the close refused.
+        for (tag, typecode, receiver, code) in [("bytes", 3u8, [0xff; 43], "[receiver_bytes]"), ("type", 2u8, valid_receiver(), "[receiver_type]")] {
+            let (d, mut notes) = raise_missed(&format!("poison-{tag}"));
+            let run = Run::load(&d).unwrap();
+            notes.push(new_payment_to(&run, 160, typecode, receiver));
+            let mut w = Wallet { notes, fail: 0, sent: vec![], unlocked: vec![] };
+            let log = close(&run, &mut w, "utest1x").expect("the close goes ahead");
+            let entries = run.ledger().load().unwrap();
+            let reject = entries.iter().find(|e| e.kind == "reject").expect("a signed reject entry");
+            assert!(reject.reason.as_deref().unwrap_or_default().ends_with(code), "{:?}", reject.reason);
+            assert!(reject.ticket.is_none());
+            assert_eq!(w.unlocked, vec!["77".repeat(32)], "any lock an older host left on it is released");
+            assert_eq!(w.sent.len(), 2, "the two real contributions are refunded: {log:?}");
+            assert!(close_entry(&entries).is_some());
+            let _ = fs::remove_dir_all(&d);
+        }
+    }
+
+    #[test]
+    fn a_failure_on_the_hosts_side_is_not_a_reject_and_still_stops_the_close() {
+        // a valid payment whose ticket cannot be built because of the host's own wallet (here the stand-in refuses every build)
+        let (d, mut notes) = raise_missed("hostside");
+        let run = Run::load(&d).unwrap();
+        notes.push(new_payment(&run, 160));
+        let mut w = Wallet { notes, fail: 0, sent: vec![], unlocked: vec![] };
+        let e = close(&run, &mut w, "utest1x").err().expect("the close refuses");
+        assert!(e.to_string().contains("The campaign was NOT closed"), "{e}");
+        assert!(run.ledger().load().unwrap().iter().all(|e| e.kind != "reject" && e.kind != "close"), "no reject and no close written");
+        assert!(w.sent.is_empty());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// The `raise_missed` campaign (two contributions of 50,000 at 150 and 151; the stand-in chain is at 260) with a later deadline, so
+    /// the chain is BEFORE it, and the given goal and early close setting.
+    fn before_deadline(d: &Path, goal: u64, early: bool) -> Run {
+        let mut rules = Run::load(d).unwrap().rules;
+        rules.deadline_height = 300;
+        rules.goal_zat = Some(goal);
+        rules.early_close = early.then_some(true);
+        Run { rules, ..Run::load(d).unwrap() }
+    }
+
+    #[test]
+    fn a_capped_close_keeps_what_fits_and_refunds_the_payment_over_the_cap_by_its_ticket() {
+        // two contributions of 50,000 (at 150 and 151); goal 50,000 and a hard cap of 60,000: the first is kept, the second does not fit
+        let (d, notes) = raise_missed("cap");
+        let mut rules = Run::load(&d).unwrap().rules;
+        rules.goal_zat = Some(50_000);
+        rules.cap_zat = Some(60_000);
+        let run = Run { rules, ..Run::load(&d).unwrap() };
+        let mut w = Wallet { notes: notes.clone(), fail: 0, sent: vec![], unlocked: vec![] };
+        let _ = close(&run, &mut w, "utest1x"); // the stand-in wallet cannot build the sweep, so the close reports that step as unfinished
+        let c = close_entry(&run.ledger().load().unwrap()).cloned().expect("closed");
+        assert_eq!(c.outcome, "goal_met");
+        assert_eq!(w.sent, vec![b"signed refund 1".to_vec()], "exactly one refund, the stored ticket of the payment over the cap");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn an_early_close_needs_the_rules_to_allow_it_and_the_goal_to_be_met() {
+        // no early close in the rules: refused before anything is written, with the deadline in the reason
+        let (d, notes) = raise_missed("early-nofield");
+        let run = before_deadline(&d, 100_000, false);
+        let mut w = Wallet { notes: notes.clone(), fail: 0, sent: vec![], unlocked: vec![] };
+        let e = close(&run, &mut w, "utest1x").err().unwrap().to_string();
+        assert!(e.contains("not reached") && e.contains("do not allow closing early"), "{e}");
+        assert!(close_entry(&run.ledger().load().unwrap()).is_none());
+        // allowed, but the goal (150,000) is not met by the 100,000 contributed: refused, nothing written
+        let run = before_deadline(&d, 150_000, true);
+        let e = close(&run, &mut w, "utest1x").err().unwrap().to_string();
+        assert!(e.contains("NOT closed") && e.contains("goal is not met yet (100000 of 150000 zat"), "{e}");
+        assert!(close_entry(&run.ledger().load().unwrap()).is_none());
+        // allowed and met (goal 100,000): the close entry is written at the chain height, before the deadline, as "goal met"
+        let run = before_deadline(&d, 100_000, true);
+        let _ = close(&run, &mut w, "utest1x"); // the stand-in wallet cannot build the sweep, so the close reports that step as unfinished
+        let c = close_entry(&run.ledger().load().unwrap()).cloned().expect("closed early");
+        assert_eq!((c.close_height, c.outcome.as_str()), (260, "goal_met"));
+        assert!(w.sent.is_empty(), "nothing is refunded: the contributions are kept");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_payment_skipped_ten_checks_in_a_row_is_reported_and_waiting_ones_are_not() {
+        let (d, _) = raise_missed("skips");
+        let run = Run::load(&d).unwrap();
+        let pass = |s: &[(&str, &str)]| record_skips(&run, &s.iter().map(|(k, r)| (k.to_string(), r.to_string())).collect::<Vec<_>>());
+        let both = [("aa:0", "proposal failed: something on the host's side"), ("bb:1", "waiting for 3 confirmations (it has 1)")];
+        for _ in 0..9 {
+            pass(&both);
+        }
+        assert!(long_skips(&run).is_empty(), "nine passes are not yet enough");
+        pass(&both);
+        assert_eq!(long_skips(&run), vec![("aa:0".to_string(), 10, "proposal failed: something on the host's side".to_string())], "waiting for confirmations is never counted");
+        pass(&[]);
+        assert!(long_skips(&run).is_empty(), "a payment that is no longer skipped starts again from zero");
+        let text = crate::dashboard::skip_warning("aa:0", Some(1_500_000), 10, "proposal failed: X");
+        assert!(text.contains("aa:0, 0.01500000") && text.contains("10 checks in a row") && text.contains("proposal failed: X") && text.contains("Do not move this payment"), "{text}");
+        assert!(!text.split_whitespace().any(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).contains('-')) && !text.contains('—'), "no hyphens or dashes: {text}");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn an_auction_can_never_close_early() {
+        let mut rules: Rules = serde_json::from_value(serde_json::json!({
+            "v": 1, "network": "test", "mode": "auction", "items": 1, "ufvk_hash": "00", "start_height": 100, "deadline_height": 300, "ticket_k": 10,
+            "close_grace": 10, "reissue_window": 20, "refund_fee_zat": 10000, "min_contribution_zat": 20000, "ledger_pubkey": "00", "payload_pubkey": "00"
+        })).unwrap();
+        rules.early_close = Some(true); // even if the field were there (validate refuses it), an auction is never allowed
+        let e = may_close(&rules, &Analysis::default(), 260).unwrap_err();
+        assert!(e.contains("an auction cannot be closed early"), "{e}");
+        assert!(may_close(&rules, &Analysis::default(), 301).is_ok(), "after the deadline as always");
+    }
+
     #[test]
     fn a_close_that_stops_before_its_entry_writes_nothing_and_records_nothing() {
         let (d, notes) = raise_missed("before");
         let run = Run::load(&d).unwrap();
-        let mut w = Wallet { notes, fail: 0, sent: vec![] };
+        let mut w = Wallet { notes, fail: 0, sent: vec![], unlocked: vec![] };
         // the chain is not past the deadline yet
         let mut rules = run.rules.clone();
         rules.deadline_height = 300; // tip 260 is before it
@@ -1865,7 +2196,7 @@ mod late_tests {
         rules.deadline_height = 200;
         let n = |h: Option<u32>, change: bool| ChainNote { txid: "t".into(), action: 0, value_zat: 30_000, nf: None, height: h, tx_index: None, memo_text: None, is_change: change, spent_by: None };
         let notes = vec![n(Some(199), false), n(Some(200), false), n(Some(201), false), n(Some(250), true), n(None, false)];
-        let late = late_payments(&rules, &notes);
+        let late = late_payments(&rules, &[], &notes);
         assert_eq!(late.iter().map(|x| x.height).collect::<Vec<_>>(), vec![Some(201)]);
     }
 }

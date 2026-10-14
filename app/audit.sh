@@ -67,7 +67,7 @@ git diff "$RANGE" -- examples | grep -E '^\+' | grep -vE '^\+\+\+' \
 git log "$RANGE" --format=%B | grep -n -i -E "$PAT_CODE" | head -3 | flag "COMMIT MESSAGE"
 git diff "$RANGE" -- . ':!docs' ':!NOTES.md' ':!app/audit.sh' ':!README.md' ':!SPEC.md' | grep -E '^\+' | grep -vE '^\+\+\+' | grep -n -i -E "$PAT_CODE" | head -3 | flag "NAME IN CODE/TEXT"
 # the documents meant to be published (the internal working documents are not checked here)
-for f in README.md SPEC.md docs/THREAT_MODEL.md docs/DEMO_SCRIPT.md docs/EVIDENCE.md docs/FINDINGS.md; do
+for f in README.md SPEC.md CHANGES.md THIRD_PARTY_NOTICES.md docs/README.md docs/THREAT_MODEL.md docs/EVIDENCE.md docs/FINDINGS.md docs/CLAIMS.md docs/CHECKS.md docs/PRIVACY.md docs/LIMITS.md docs/MAINNET.md docs/TESTS.md docs/DEMO.md docs/PATCHES.md docs/HOSTING.md docs/HOW_IT_WAS_BUILT.md docs/ROADMAP.md; do
   [ -f "$f" ] && grep -n -i -E "$PAT_DOCS" "$f" | head -3 | flag "PUBLIC DOC $f"
 done
 # every tracked file, and every new file that is not ignored (it would be tracked by the next commit), this script and the internal documents

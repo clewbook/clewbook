@@ -115,6 +115,74 @@ impl Payload {
     }
 }
 
+/// Why an opened payment message cannot be a contribution (SPEC §2). This is the ONE validity rule for a payload: the host writes a
+/// signed reject for a payment that fails it (with no lock, no ticket and no retry), and the recount upholds that reject even when the
+/// payer publishes their secret. Only the payload and the payment decide it, never the host's wallet or network, so a failure on the
+/// host's side (a wallet that is not synced, a lock, a network error) is never one of these and still stops the close.
+/// A payload that does not open, or opens to the wrong length or version, is refused earlier (`Payload::open`) and is rejected too.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Invalid {
+    /// Sealed for another campaign.
+    OtherCampaign,
+    /// Paid less than the amount sealed in the message (version 2).
+    Underpaid { paid: u64, promised: u64 },
+    /// The refund receiver is not an Orchard/Ironwood one, so no refund can be built for it.
+    ReceiverType(u8),
+    /// The refund receiver's 43 bytes are not a valid address.
+    ReceiverBytes,
+    /// The payment leaves nothing to refund after the fee.
+    NothingToRefund { paid: u64, fee: u64 },
+}
+
+impl Invalid {
+    /// A short stable code, written at the end of the reject's reason.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Invalid::OtherCampaign => "other_campaign",
+            Invalid::Underpaid { .. } => "underpaid",
+            Invalid::ReceiverType(_) => "receiver_type",
+            Invalid::ReceiverBytes => "receiver_bytes",
+            Invalid::NothingToRefund { .. } => "nothing_to_refund",
+        }
+    }
+
+    /// The reason in a reject entry: plain words first (pages match on how it starts), the code last in brackets.
+    pub fn reason(&self) -> String {
+        let text = match self {
+            Invalid::OtherCampaign => "payload is for another campaign".to_string(),
+            Invalid::Underpaid { paid, promised } => {
+                format!("underpaid: {paid} zat were paid but the sealed message promises at least {promised} zat, so this payment is not a contribution")
+            }
+            Invalid::ReceiverType(t) => format!("unsupported refund receiver type {t}"),
+            Invalid::ReceiverBytes => "the refund address in the sealed message is not a valid address, so no refund can be built for it".to_string(),
+            Invalid::NothingToRefund { paid, fee } => format!("{paid} zat leave nothing to refund after the {fee} zat fee"),
+        };
+        format!("{text} [{}]", self.code())
+    }
+}
+
+/// The validity rule (see `Invalid`), for a payment of `value_zat` whose message opened to `p`.
+pub fn check(p: &Payload, rules_id: &str, value_zat: u64, refund_fee_zat: u64) -> std::result::Result<(), Invalid> {
+    if hex::encode(p.rules_id) != rules_id {
+        return Err(Invalid::OtherCampaign);
+    }
+    if let Some(promised) = p.amount_zat {
+        if value_zat < promised {
+            return Err(Invalid::Underpaid { paid: value_zat, promised });
+        }
+    }
+    if p.refund_typecode != crate::receiver::TYPECODE_ORCHARD {
+        return Err(Invalid::ReceiverType(p.refund_typecode));
+    }
+    if !crate::receiver::valid_orchard_receiver(&p.refund_receiver) {
+        return Err(Invalid::ReceiverBytes);
+    }
+    if value_zat <= refund_fee_zat {
+        return Err(Invalid::NothingToRefund { paid: value_zat, fee: refund_fee_zat });
+    }
+    Ok(())
+}
+
 pub fn sealed_bytes(memo: &str) -> Option<Vec<u8>> {
     let body = memo.strip_prefix(PREFIX)?;
     let bytes = URL_SAFE_NO_PAD.decode(body.trim_end()).ok()?;
@@ -177,5 +245,18 @@ mod tests {
         let sk = SecretKey::from([9u8; 32]);
         let sealed = seal_with_ephemeral(b"hello", &sk.public_key(), &SecretKey::from([5u8; 32])).unwrap();
         assert_eq!(sk.unseal(&sealed).unwrap(), b"hello");
+    }
+}
+
+#[cfg(test)]
+mod enc_key_tests {
+    /// The host seals each ticket to the encryption key in the payment message. Any 32 bytes seal, so a hand made key cannot make
+    /// the host fail (it only makes that payer's own ticket unreadable to anyone).
+    #[test]
+    fn any_32_byte_key_seals() {
+        use crypto_box::aead::OsRng;
+        for k in [[0u8; 32], [0xff; 32], { let mut b = [0u8; 32]; b[0] = 1; b }] {
+            assert!(crypto_box::PublicKey::from(k).seal(&mut OsRng, b"ticket").is_ok());
+        }
     }
 }

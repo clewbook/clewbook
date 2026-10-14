@@ -1,6 +1,6 @@
 // A small local static server that applies the "headers" rules of the folder's vercel.json the way Vercel does for plain static files (every
 // matching rule applies, in order; a later rule wins for the same header). It is for testing the headers on this machine; it is not Vercel, and
-// what Vercel really sends is checked after a deploy (see docs/DEPLOY_VERCEL.md). Usage: node app/web/serve-vercel.cjs <folder> [port]
+// what Vercel really sends is checked after a deploy (for example with curl -I on the deployed address). Usage: node app/web/serve-vercel.cjs <folder> [port]
 const http = require('http'), fs = require('fs'), path = require('path');
 const dir = path.resolve(process.argv[2] || 'runs/vercel-site'), port = Number(process.argv[3] || 8805);
 const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'vercel.json'), 'utf8'));

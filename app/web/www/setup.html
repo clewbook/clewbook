@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>New campaign</title>
 <link rel="stylesheet" href="ui.css">
@@ -45,10 +45,27 @@
       <div id="goal-row">
         <label for="goal">Goal (<span class="ticker">TAZ</span>)</label>
         <input id="goal" inputmode="decimal" autocomplete="off" placeholder="0.05">
+        <div id="cap-row" hidden>
+        <label for="cap">Hard cap, if you want one (<span class="ticker">TAZ</span>)</label>
+        <input id="cap" inputmode="decimal" autocomplete="off" placeholder="Leave empty for no hard cap">
+        <p class="hint" id="cap-hint">The most the campaign keeps. With a hard cap, the goal becomes the soft cap: the least it must keep. At the close, payments are counted in the order they reached the chain, and one that does not fit under the hard cap is refunded whole by its own ticket, minus the fee. It is part of the signed rules and cannot be changed later.</p>
+        <p class="warnline" id="cap-warn" hidden></p>
+        </div>
+        <label class="choice confirm" id="early-row"><input type="checkbox" id="early-close"><span><b>Allow closing early once the goal is met</b><small>You may then close before the deadline as soon as the goal is met, counting only contributions that were not taken back. Contributors are told before they pay, and they can take their contribution back only until you close. Payments after the close do not count. This is part of the signed rules and cannot be changed later. Off unless you tick it.</small></span></label>
       </div>
       <div id="items-row" hidden>
         <label for="items">Number of items for sale</label>
         <input id="items" inputmode="numeric" autocomplete="off" placeholder="1">
+        <fieldset class="choices" id="pricing-row">
+          <legend>How winners pay</legend>
+          <label class="choice"><input type="radio" name="pricing" value="uniform" checked><span><b>Everyone who wins pays the same price</b><small>Everyone who wins pays the lowest winning bid; anything extra a winner sent comes back to them. Example: 3 items, and bids of 1.0, 0.8, 0.6 and 0.5. The three highest win and each pays 0.6: whoever bid 1.0 gets 0.4 back, whoever bid 0.8 gets 0.2 back, and whoever bid 0.5 is refunded. The winners' payments go to a treasury wallet that this program makes for the campaign, inside its folder; its viewing key is published so anyone can check what it received.</small></span></label>
+          <label class="choice"><input type="radio" name="pricing" value="pay_your_bid"><span><b>Each winner pays their own bid</b><small>The highest bids win, and each winner pays the whole amount they sent; nothing is paid back to a winner. Simpler, but a bidder who sends more than they meant to pays all of it.</small></span></label>
+        </fieldset>
+        <div id="reserve-row">
+          <label for="reserve">Reserve price (<span class="ticker">TAZ</span>)</label>
+          <input id="reserve" inputmode="decimal" autocomplete="off" placeholder="0.001">
+          <p class="hint">The lowest price an item can sell for. A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.</p>
+        </div>
       </div>
       <label for="minimum">Smallest contribution (<span class="ticker">TAZ</span>)</label>
       <input id="minimum" inputmode="decimal" autocomplete="off" value="0.0002">

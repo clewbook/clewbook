@@ -11,14 +11,61 @@ const SPRITE = `<svg class="sprite" width="0" height="0" aria-hidden="true" focu
   <symbol id="i-fail" viewBox="0 0 12 12"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></symbol>
   <symbol id="i-nc" viewBox="0 0 12 12"><path d="M2.5 6h7"/></symbol></svg>`;
 
-export function setup(title, { netbar = true } = {}) {
+export function setup(title, { netbar = true, themeControl = true } = {}) {
   document.documentElement.dataset.started = '1'; // the page's scripts loaded and ran (loadguard.js looks at this)
+  if (themeControl) mountTheme(); else applyTheme(themeChoice());
   if (!document.getElementById('i-pass')) document.body.insertAdjacentHTML('afterbegin', SPRITE);
   for (const el of document.querySelectorAll('[data-brand]')) el.textContent = PRODUCT_NAME;
   if (netbar && !document.getElementById('netbar')) document.body.insertAdjacentHTML('afterbegin', '<div id="netbar" class="netbar checking" role="status">Checking network…</div>');
   document.title = title ? `${title} · ${PRODUCT_NAME}` : PRODUCT_NAME;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') for (const o of document.querySelectorAll('.cid.open')) o.classList.remove('open'); });
   document.addEventListener('click', (e) => { for (const o of document.querySelectorAll('.cid.open')) if (!o.contains(e.target)) o.classList.remove('open'); });
+}
+
+// ---------- theme: System (follows the device's setting, also when it changes while the page is open), Light or Dark ----------
+// The small script in every page's head applies the saved choice before the page is drawn (no flash). The choice is kept in this browser when it
+// allows it; when storage is blocked the page stays on System. Only colours change (ui.css, :root[data-theme="dark"]).
+const THEME_KEY = 'cb-theme';
+const darkQuery = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
+export function themeChoice() {
+  try { const c = localStorage.getItem(THEME_KEY); return c === 'light' || c === 'dark' ? c : 'system'; } catch { return 'system'; }
+}
+export function applyTheme(choice) {
+  const q = darkQuery();
+  const dark = choice === 'dark' || (choice === 'system' && !!q && q.matches);
+  const root = document.documentElement;
+  root.dataset.themeChoice = choice;
+  root.dataset.theme = dark ? 'dark' : 'light';
+  // the logo has a light version for dark pages (ui.css swaps it too, where the browser allows)
+  for (const img of document.querySelectorAll('img.logo')) {
+    const want = dark ? 'clewbook-lockup-linen.svg' : 'clewbook-lockup-colour.svg';
+    if (!img.getAttribute('src').endsWith(want)) img.setAttribute('src', img.getAttribute('src').replace(/clewbook-lockup-(colour|linen)\.svg$/, want));
+  }
+}
+let themeWatching = false;
+/** The Theme control, always in the same place: the footer line at the bottom of the page (made when the page has none). */
+export function mountTheme() {
+  applyTheme(themeChoice());
+  const q = darkQuery();
+  if (q && !themeWatching) {
+    themeWatching = true;
+    const follow = () => { if (document.documentElement.dataset.themeChoice === 'system') applyTheme('system'); };
+    if (q.addEventListener) q.addEventListener('change', follow); else if (q.addListener) q.addListener(follow);
+  }
+  if (document.getElementById('theme-select')) return;
+  let foot = document.querySelector('footer.sitefoot');
+  if (!foot) { foot = document.createElement('footer'); foot.className = 'sitefoot'; document.body.append(foot); }
+  const label = document.createElement('label'); label.htmlFor = 'theme-select'; label.textContent = 'Theme';
+  const sel = document.createElement('select'); sel.id = 'theme-select';
+  for (const [v, t] of [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); }
+  sel.value = themeChoice();
+  sel.addEventListener('change', () => {
+    let c = sel.value;
+    try { if (c === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, c); } catch { c = 'system'; sel.value = 'system'; }
+    applyTheme(c);
+  });
+  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.append(label, sel);
+  foot.append(wrap);
 }
 
 // ---------- the network bar: the same on every page of a campaign, so the real network and the test network cannot be mistaken for each other ----------
@@ -125,7 +172,7 @@ export const CHECKS = {
   shape: ['Shape', 'The refund has the expected form: two Ironwood actions and nothing else.'],
   signatures: ['Signatures', 'Every signature in the refund transaction verifies.'],
   network_version: ['Network version', 'The ticket was made for the network version in use now; an older one is refused by the network.'],
-  no_expiry: ['No expiry', 'The refund never expires, so it can be sent at any time.'],
+  no_expiry: ['No expiry', 'The refund has no expiry height. It can be sent at any time while your contribution is unspent and the network version is the same.'],
   fee: ['Fee', 'The fee equals the one the campaign rules state.'],
   spends_your_coin: ['Spends your coin', 'The refund spends your contribution and nothing else.'],
   your_amount: ['Your amount', 'The public list shows at least the amount you meant to pay; paying more is fine.'],
@@ -138,7 +185,8 @@ export const CHECKS = {
   R1: ['Rules', 'The published rules (and, for an auction, the revealed key) match what the campaign committed to.'],
   R2: ['List integrity', 'The public list is signed, chained, gap-free, and closed at most once, after the deadline.'],
   R3: ['Entries are real', 'Every entry in the public list is a real payment to the campaign.'],
-  R4: ['Tickets issued', 'Every contribution has a refund ticket within the allowed number of blocks.'],
+  R4: ['Tickets issued', 'Every contribution has a refund ticket on the list once the allowed number of blocks has passed.'],
+  R4b: ['Ticket timing (host reported)', 'Each ticket was issued within the allowed number of blocks, going by the height the host itself wrote. The recount cannot check that height.'],
   R5: ['No early spend', 'No contribution was spent before the deadline except by its own ticket.'],
   R6: ['Refunds only by ticket', 'Contributions that are not kept left the campaign only through their tickets.'],
   R7: ['Outcome', 'The declared outcome (in an auction, the winners and the price) is what the rules select.'],
@@ -146,7 +194,7 @@ export const CHECKS = {
   R9: ['Settlements', 'Each winner paid exactly the clearing price into the treasury, with the exact fee.'],
   R10: ['Treasury total', 'The treasury received exactly the sum of the clearing prices.'],
   R11: ['Nothing diverted', 'Settlements returned no value to the campaign account and have no other outputs.'],
-  R12: ['Delivery proofs', 'The proofs winners published that their excess arrived hold.'],
+  R12: ['Excess paid back (optional proof)', 'For each winner who chose to publish a proof: the money owed back to them above the price arrived. This is about money, not the auctioned item.'],
 };
 let tipSeq = 0;
 export function cidEl(id, text) {

@@ -21,9 +21,9 @@
 .card .btns { grid-column: 2; grid-row: 1 / span 3; margin: 0; justify-content: flex-end; }
 .card .btns .btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
 .netchip { display: inline-flex; align-items: center; font: 600 11px/1 var(--mono); letter-spacing: .07em; padding: 4px 7px; border-radius: 3px; white-space: nowrap; }
-.netchip.main { background: #2B2B2F; color: #F3F0E8; border: 1px solid #2B2B2F; }
-.netchip.test { background: #F4E9CF; color: #4A3205; border: 1px dashed #76500A; }
-.netchip.unknown { background: #E6E6E8; color: #1C1B18; border: 1px dotted #44444A; }
+.netchip.main { background: var(--nb-main-bg); color: var(--nb-main-ink); border: 1px solid var(--nb-main-bg); }
+.netchip.test { background: var(--nb-test-bg); color: var(--nb-test-ink); border: 1px dashed var(--nb-test-edge); }
+.netchip.unknown { background: var(--nb-check-bg); color: var(--nb-unknown-ink); border: 1px dotted var(--nb-check-edge); }
 @media (max-width: 719px) { .card { grid-template-columns: minmax(0, 1fr); } .card .btns { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 6px; } }
 
 /* the host page */

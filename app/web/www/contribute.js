@@ -64,6 +64,24 @@ function parseAmount(text) {
   return Number(whole) * 1e8 + Number(frac.padEnd(8, '0'));
 }
 
+/** A fundraiser with a hard cap: the room left under it, replaying the close's rule over the public list in its order (each payment that fits
+ *  uses up room; one that does not is set aside). Payments taken back are not visible here, so the real room can only be larger. */
+function capRoom() {
+  if (!campaign || campaign.cap_zat == null) return null;
+  let room = campaign.cap_zat;
+  const seen = new Set();
+  for (const e of view.entries) {
+    const c = e.contribution;
+    if (!e.ticket || !c || c.value_zat == null || seen.has(c.nf)) continue;
+    seen.add(c.nf);
+    if (c.value_zat <= room) room -= c.value_zat;
+  }
+  return room;
+}
+
+/** An amount with all eight decimals, as the rules' amounts are shown (goal, cap, fee). */
+const zat8 = (zat) => `${Math.floor(zat / 1e8)}.${String(zat % 1e8).padStart(8, '0')}`;
+
 function coin(zat) {
   const whole = Math.floor(zat / 1e8), frac = zat % 1e8;
   return frac === 0 ? String(whole) : `${whole}.${String(frac).padStart(8, '0')}`.replace(/0+$/, '');
@@ -240,7 +258,7 @@ function renderHostSeen() {
     } else {
       el.className = 'warnline';
       el.dataset.state = 'stale';
-      el.textContent = `The host was last seen ${ago(lag)}, so your refund ticket may come late.`;
+      el.textContent = `The host was last seen ${ago(lag)}; if you pay now, your ticket waits until the host returns.`;
     }
   }
   box.replaceChildren(el);
@@ -349,7 +367,7 @@ async function publishChallenge() {
 function refundMode() {
   if (!state || !state.ticket || state.refundSentAt || tip == null) return null;
   const closed = view.entries.some((e) => e.kind === 'close');
-  if (tip <= campaign.deadline_height) return 'withdraw';
+  if (tip <= campaign.deadline_height && !closed) return 'withdraw'; // a fundraiser closed early keeps what was contributed
   if (!closed && tip > campaign.deadline_height + campaign.ticket_k) return 'silent';
   const coinUnspent = state.coin && state.coin.scanned != null && state.coin.scanned >= tip - 1 && !state.coin.spent;
   // uniform auction: a winner the host has not settled by the settlement deadline may claim their own refund
@@ -362,10 +380,26 @@ function refundMode() {
 
 function closeEntry() { return view.entries.find((e) => e.kind === 'close') || null; }
 function closeHeight() { const c = closeEntry(); return c && c.close ? c.close.close_height : Infinity; }
-/** Whether the close entry says this contribution is refunded: a fundraiser that missed its goal, or a bid that did not win. */
+/** Whether the close entry says this contribution is refunded: a fundraiser that missed its goal, or a bid that did not win. With a hard cap,
+ *  also a contribution that does not fit under it: the public list is replayed in its order, and one that fits even counting every listed
+ *  payment is certainly kept (a payment taken back only frees room); any other is treated as owed a refund (sending its ticket is then
+ *  harmless: the network refuses it if the payment was kept). */
 function owedRefund() {
   const c = closeEntry();
   if (!c || !c.close || !state.ticket) return false;
+  if (campaign.mode === 'raise' && c.close.outcome === 'goal_met' && campaign.cap_zat != null) {
+    let room = campaign.cap_zat;
+    const seen = new Set();
+    for (const e of view.entries) {
+      const x = e.contribution;
+      if (!e.ticket || !x || x.value_zat == null || seen.has(x.nf)) continue;
+      seen.add(x.nf);
+      const fits = x.value_zat <= room;
+      if (fits) room -= x.value_zat;
+      if (x.nf === state.ticket.nf) return !fits;
+    }
+    return true;
+  }
   if (campaign.mode === 'raise') return c.close.outcome === 'goal_missed';
   return !(c.close.winners || []).includes(state.ticket.nf);
 }
@@ -387,24 +421,26 @@ function renderAbout() {
   $('#about').hidden = false;
   setCampaignLabel(cfg.id, campaign.name, 'Campaign ');
   const raise = campaign.mode === 'raise';
+  // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
+  const capped = raise && campaign.cap_zat != null, gw = capped ? 'soft cap' : 'goal', room = capRoom();
   $('#contrib-name').textContent = campaignName();
   $('#contrib-to').hidden = $('#contrib-name').hidden = false;
   $('#about-text').textContent = raise
-    ? `This is a fundraiser with a goal of ${campaign.goal} ${campaign.ticker}. If the goal isn't reached by the deadline, everyone is refunded. Either way, you keep a refund ticket that only you can use.`
-    : `This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. Your contribution is your bid, and bids stay private until the auction closes. If you don't win, you are refunded. You keep a refund ticket that only you can use.`;
+    ? `This is a fundraiser with ${capped ? `a soft cap of ${campaign.goal} ${campaign.ticker} and a hard cap of ${campaign.cap} ${campaign.ticker}` : `a goal of ${campaign.goal} ${campaign.ticker}`}. If the ${gw} isn't reached by the deadline, everyone is refunded. ${capped ? 'At most the hard cap is kept: at the close, contributions are counted in the order they reached the chain, and a payment that does not fit under the hard cap is refunded whole by its own ticket, minus the refund fee. ' : ''}${campaign.early_close ? `The host may close this campaign early once the ${gw} is met; contributions are then kept, and you can take yours back with your ticket only until it closes. ` : ''}You keep a refund ticket that only you can use. It works without the host while your contribution is unspent: until the deadline${campaign.early_close ? ' or an early close' : ''}, and afterwards unless the ${gw} is reached and your contribution is kept.`
+    : `This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. The whole amount you send is your bid. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. If you don't win, you are refunded. You keep a refund ticket that only you can use. It works without the host while your bid is unspent: until the deadline, and afterwards unless your bid wins.`;
   // the words follow the campaign type: a fundraiser takes contributions, an auction takes bids
   $('#crumb').textContent = $('#page-title').textContent = raise ? 'Fundraiser' : 'Auction';
   document.title = `${raise ? 'Fundraiser' : 'Auction'} · ${document.title.split(' · ').pop()}`;
   if (!(state === null && tip != null && tip > campaign.deadline_height)) $('#form-title').textContent = raise ? 'Your contribution' : 'Your bid';
   $('#form-intro').textContent = raise
     ? 'Your refund address and amount stay in this browser. We never ask for your name.'
-    : 'Your refund address and your bid stay in this browser, and bids stay private until the auction closes. We never ask for your name.';
+    : 'Your refund address and your bid are kept in this browser. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. We never ask for your name.';
   $('#amount-label').innerHTML = `${raise ? 'Amount' : 'Your bid'} (<span class="ticker">${campaign.ticker}</span>)`;
   $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
   const closed = view.entries.some((e) => e.kind === 'close');
   let status = 'Checking…', left = '';
   if (tip != null) {
-    if (closed) status = 'Closed';
+    if (closed) status = closedEarlyAt() != null ? `Closed early at block ${closedEarlyAt()}, once the ${gw} was met. Contributions until then are kept${capped ? ' up to the hard cap' : ''}; payments after it do not count.` : 'Closed';
     else if (tip <= campaign.deadline_height) { status = 'Open for contributions'; left = eta(campaign.deadline_height - tip) ? `${eta(campaign.deadline_height - tip)} left (block ${campaign.deadline_height})` : `${campaign.deadline_height - tip} blocks left (block ${campaign.deadline_height}); the length of a block has not been measured yet`; }
     else status = 'The deadline has passed; the campaign is wrapping up';
   }
@@ -414,17 +450,22 @@ function renderAbout() {
     const rt = state && state.refundTrack;
     const refunding = !!closeE && closeE.close && closeE.close.outcome === 'goal_missed' && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
     $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding });
-    $('#status-text').textContent = raise ? `Fundraiser, goal ${campaign.goal} ${campaign.ticker}` : `Auction, ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}`;
+    $('#status-text').textContent = raise ? (capped ? `Fundraiser, soft cap ${campaign.goal} ${campaign.ticker}, hard cap ${campaign.cap} ${campaign.ticker}` : `Fundraiser, goal ${campaign.goal} ${campaign.ticker}`) : `Auction, ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}`;
   }
   const dl = $('#about-facts');
   dl.replaceChildren(
     ...fact('Type', raise ? 'Fundraiser' : 'Auction'),
-    ...(raise ? fact('Goal', `${campaign.goal} ${campaign.ticker}`) : fact('Items', String(campaign.items))),
+    ...(raise ? (capped ? [
+      ...fact('Soft cap', `${campaign.goal} ${campaign.ticker}: the least the campaign must keep at the deadline, or everyone is refunded`),
+      ...fact('Hard cap', `${campaign.cap} ${campaign.ticker}: the most the campaign keeps; a payment that does not fit is refunded whole at the close, minus the fee`),
+      ...fact('Room left under the hard cap', `${zat8(room)} ${campaign.ticker}, counting every payment on the public list, including any taken back (so there may be a little more)`),
+    ] : fact('Goal', `${campaign.goal} ${campaign.ticker}`)) : fact('Items', String(campaign.items))),
     ...fact('Status', status),
     ...(left ? fact('Time left', left) : []),
-    ...(campaign.pricing === 'uniform' ? fact('Pricing', `Everyone who wins pays the same price: the lowest winning bid, but at least ${campaign.reserve} ${campaign.ticker}. The difference is paid back to you. The campaign must settle winners within ${campaign.settle_window} blocks after the deadline (by block ${campaign.settle_by}); after that you can claim your own refund.`) : []),
+    ...(raise ? [] : auctionRules()),
     ...(left && secPerBlock ? fact('Block time', `about ${Math.round(secPerBlock)} seconds, measured over the last ${blockTimeSpan} blocks`) : []),
     ...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`),
+    ...(raise && campaign.early_close ? fact('Early close', 'Allowed: the host may close this campaign before the deadline once the ' + gw + ' is met. You can take your contribution back with your ticket only until it closes. The close height is the host\'s own statement: if you pay and your ticket has not arrived when the campaign closes, keep your backup file and ask the host to return your payment.') : []),
     ...fact(raise ? 'Smallest contribution' : 'Smallest bid', `${campaign.min} ${campaign.ticker}`),
     ...fact('Refund fee', `${campaign.fee} ${campaign.ticker}`),
   );
@@ -445,6 +486,31 @@ function renderAbout() {
   if (campaign.network !== 'main') dl.append(...fact('Network', 'Test network: no real money'));
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
   $('#amount-hint').textContent = `At least ${campaign.min} ${campaign.ticker}${raise ? '' : ' for a bid'}. About ${campaign.fee} ${campaign.ticker} of it is kept if you get a refund.`;
+  // before paying: what the hard cap means for this payment
+  $('#cap-note').hidden = !(capped && !closed);
+  if (capped) $('#cap-note').textContent = `This campaign keeps at most ${campaign.cap} ${campaign.ticker}; room left now: ${zat8(room)} ${campaign.ticker}. A payment that does not fit under the hard cap when the campaign closes is refunded at the close, minus the refund fee of ${campaign.fee} ${campaign.ticker}, and that money stays locked until then.`;
+}
+
+/** The bid page's rules text (an auction only): what a bid is, ties, the reserve, and what happens to an overpaid bid in each kind of auction. */
+function auctionRules() {
+  const t = campaign.ticker;
+  const common = [
+    ...fact('Your bid', `The whole amount you send is your bid. Each bid is for one item; to try for two items, make two bids.`),
+    ...fact('Ties', 'Equal bids are ordered by when they were mined: the one earlier in the chain wins.'),
+  ];
+  if (campaign.pricing !== 'uniform') {
+    return [
+      ...common,
+      ...fact('Winning bid', 'If your bid wins, the campaign keeps the whole amount you sent; nothing is paid back. Send exactly the amount you mean to bid.'),
+      ...fact('Reserve', 'There is no reserve price: the highest bids win, whatever their amount, as long as each is at least the smallest bid.'),
+    ];
+  }
+  return [
+    ...common,
+    ...fact('Pricing', `Everyone who wins pays the same price: the lowest winning bid. Anything extra you sent comes back to your refund address. Example: 3 items, and bids of 1.0, 0.8, 0.6 and 0.5 ${t}. The three highest win, so the price is 0.6 ${t}. Whoever bid 1.0 pays 0.6 and gets 0.4 back; whoever bid 0.8 pays 0.6 and gets 0.2 back; whoever bid 0.6 pays 0.6. Whoever bid 0.5 did not win and is refunded 0.5 ${t} less the refund fee.`),
+    ...fact('Reserve', `A bid must be at least ${coin(campaign.reserve_zat + campaign.fee_zat)} ${t} to win: the reserve price of ${campaign.reserve} ${t} plus the fee. A bid below that is refunded. If fewer bids reach it than there are items, every winner pays the reserve price plus the fee.`),
+    ...fact('Settlement', `The campaign must settle winners within ${campaign.settle_window} blocks after the deadline (by block ${campaign.settle_by}); after that you can claim your own refund.`),
+  ];
 }
 
 function renderBanners() {
@@ -529,7 +595,7 @@ function renderProgress() {
   renderTicketChecks();
   let note = '';
   if (!t) note = 'After you pay, this usually takes a minute or two. You can leave this page open, or come back later with the same link; your progress is saved in this browser.';
-  else if (tcv === 'pass') note = 'Your refund ticket is saved on this device and passed the checks listed below. If anything goes wrong with the campaign, it lets you get your money back without needing anyone.';
+  else if (tcv === 'pass') note = 'Your refund ticket is saved on this device and passed the checks listed below. While your contribution is unspent, it lets you get your money back without the host: until the deadline, and afterwards unless your contribution is kept.';
   else if (tcv === 'fail') note = 'Your refund ticket did not pass a check (see below). Keep your backup file.';
   else note = 'Your refund ticket is saved on this device. Checking it now…';
   // after paying: the amount that was seen on the network against the amount sealed into the payment code
@@ -578,6 +644,9 @@ function renderProgress() {
   } else { proof.hidden = true; btn.hidden = true; }
 
   $('#backup-done').hidden = !state.backupDownloaded;
+  // once the ticket is here: the refund right lives in this browser and the file; a file saved now also holds the ticket
+  $('#backup-nudge').hidden = !state.ticket;
+  $('#backup3-done').hidden = !state.backupWithTicket;
 
   // refund area
   const mode = refundMode();
@@ -608,6 +677,13 @@ function renderProgress() {
       ? (owedRefund() ? 'The campaign has closed; if your refund does not appear, a button to send it yourself shows here.' : 'The campaign has closed.')
       : `The deadline has passed. If the campaign doesn't wrap up, a refund button will appear here after block ${campaign.deadline_height + campaign.ticket_k}.`;
   } else rr.hidden = true;
+  // taken back, mined, and the campaign still takes payments: offer a new payment code (the old one is kept in the list of earlier codes)
+  const rebid = !!(state.refundSentAt && state.refundTrack && state.refundTrack.status === 'confirmed' && tip != null && !view.entries.some((e) => e.kind === 'close') && tip <= campaign.deadline_height && !tooLateToStart());
+  $('#rebid-row').hidden = !rebid;
+  if (rebid) {
+    $('#rebid').textContent = campaign.mode === 'raise' ? 'Contribute again' : 'Bid again';
+    $('#rebid-text').textContent = `Your ${campaign.mode === 'raise' ? 'contribution' : 'bid'} was taken back. You can make a new one with a new payment code; this one stays in this browser's list of earlier payment codes, so keep its backup file too.`;
+  }
 }
 
 let useLightCode = false; // which code the person chose; kept across refreshes
@@ -645,8 +721,13 @@ function renderAll() {
  *  two to be mined. One mined after the deadline is not counted, not ticketed and not refunded (README, limits). */
 const CUTOFF_BLOCKS = 10;
 const blocksLeft = () => (campaign && tip != null ? campaign.deadline_height - tip : null);
+/** The close height of a fundraiser that closed early (its rules allow it once the goal is met), or null. Payments after it do not count. */
+const closedEarlyAt = () => {
+  const c = campaign && campaign.early_close && view.entries.find((e) => e.kind === 'close');
+  return c && c.close && c.close.close_height <= campaign.deadline_height ? c.close.close_height : null;
+};
 /** Open, but too close to the deadline to start a new payment. */
-const pastDeadline = () => { const b = blocksLeft(); return b != null && b < 0; };
+const pastDeadline = () => { const b = blocksLeft(); return (b != null && b < 0) || closedEarlyAt() != null; };
 const tooLateToStart = () => { const b = blocksLeft(); return b != null && b >= 0 && b < CUTOFF_BLOCKS; };
 
 /** The stepper above the page (a visual aid only): which of the three steps this page is on. */
@@ -709,7 +790,7 @@ function renderNearDeadline() {
   let text = '';
   if (tooLateToStart() && !state) text = `New payments stop ${CUTOFF_BLOCKS} blocks before the deadline, because one mined after it would not count.`;
   else if (tooLateToStart() && state && !state.txid && !state.ticket) text = `The deadline is block ${campaign.deadline_height}; a payment mined after it is not counted or refunded.`;
-  else if (pastDeadline() && state && !state.txid && !state.ticket) text = 'The deadline has passed, so a payment now is not counted or refunded automatically.';
+  else if (pastDeadline() && state && !state.txid && !state.ticket) text = closedEarlyAt() != null ? 'The campaign has closed, so a payment now is not counted or refunded automatically.' : 'The deadline has passed, so a payment now is not counted or refunded automatically.';
   el.textContent = text;
   el.hidden = !text;
   $('#create').disabled = tooLateToStart() && !state;
@@ -728,7 +809,7 @@ function renderAllInner() {
   { const seen = paymentSeen(); $('#edit-box').hidden = seen; $('#edit-locked').hidden = !seen; $('#change-amount').hidden = seen; }
   if (state && !state.ticket) enterPayHistory();
   if (state && !state.ticket) { try { renderPay(paymentFromState()); } catch (e) { $('#banners').append(banner('bad', e.message)); } }
-  const over = campaign && tip != null && tip > campaign.deadline_height;
+  const over = campaign && tip != null && (tip > campaign.deadline_height || closedEarlyAt() != null);
   if (!state && over) {
     // No new contributions, but someone who already contributed must still be able to restore their backup here
     // (their ticket, refund and auction result all depend on it).
@@ -881,13 +962,14 @@ function downloadBackup(st = state) {
     kind: 'contribution-backup', version: 1, campaign: cfg.id, relays: cfg.relays, server: cfg.server,
     seed: st.seed, refundAddress: st.refund, amountZat: st.amountZat, memo: st.memo,
     payment: st.txid || null, ticket: st.ticket || null, savedAt: new Date().toISOString(),
-    note: 'Keep this file private. With it you can get your refund even if this page is gone.',
+    note: 'Keep this file private. With it you can get your refund even if this page is gone. Anyone who has it can send your refund early (the money still goes only to your refund address) and can see your amount, your refund address and your payment. It cannot be used to send your money anywhere else.',
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
   a.download = `contribution-backup-${cfg.id.slice(0, 8)}.json`;
   document.body.append(a); a.click(); a.remove();
-  st.backupDownloaded = true; if (st === state) { save(); renderAll(); }
+  st.backupDownloaded = true; if (st.ticket) st.backupWithTicket = true;
+  if (st === state) { save(); renderAll(); }
 }
 
 async function onCreate(ev) {
@@ -897,6 +979,13 @@ async function onCreate(ev) {
   if (tooLateToStart()) return; // the line above the form says why
   try {
     const zat = parseAmount($('#amount').value);
+    // a hard cap: an amount larger than the room left is refused here (the network would take it, but it could only be refunded at the close)
+    const room = capRoom();
+    if (room != null && zat > room) {
+      throw new Error(room < campaign.min_zat
+        ? 'The hard cap is reached, so this page will not make a new payment. Room frees up only if earlier contributors take their payments back.'
+        : `This is more than the room left under the hard cap (${coin(room)} ${campaign.ticker}). Enter at most that amount.`);
+    }
     const seed = W.generate_seed();
     const p = JSON.parse(W.build_payment(rulesJson, seed, $('#refund').value, zat)); // refuses anything invalid
     state = { seed, refund: $('#refund').value.trim(), amountZat: zat, memo: p.memo, createdAt: Date.now(),
@@ -1122,6 +1211,8 @@ function wire() {
   $('#leave-yes').addEventListener('click', leavePayment);
   $('#leave-no').addEventListener('click', () => { $('#leave-confirm').hidden = true; });
   $('#backup2').addEventListener('click', () => downloadBackup());
+  $('#backup3').addEventListener('click', () => downloadBackup());
+  $('#rebid').addEventListener('click', () => { leaveTo = 'over'; leavePayment(); });
   $('#restore').addEventListener('change', onRestore);
   for (const b of document.querySelectorAll('[data-copy]')) {
     b.addEventListener('click', async () => {

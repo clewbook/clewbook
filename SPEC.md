@@ -32,14 +32,16 @@ Published at creation; immutable. `rules_id = BLAKE2b-256("ledgerlab_rules", can
 | `v` | int | `1` |
 | `network` | string | `"test"` or `"main"` |
 | `mode` | string | `"raise"` or `"auction"` |
-| `goal_zat` | int | raise only: amount that must remain (after early withdrawals) at the deadline |
+| `goal_zat` | int | raise only: amount that must remain (after early withdrawals) at the deadline. With `cap_zat` it is the soft cap, counted on the kept amount only (§4, "Hard cap") |
 | `items` | int | auction only: number of items; the top `items` bids win |
 | `start_height` | int | contributions mined before this height are ignored |
 | `deadline_height` | int | last height at which a contribution counts |
 | `ticket_k` | int | a ticket's ledger entry must exist within K blocks of its contribution. K is chosen when the campaign is created, 10 to 1000 blocks, default 30. It also sets how long after the deadline the host has to close before contributors may claim their own refunds (§4). It is a timing allowance, not a key or a trust assumption: a longer K leaves a contribution without a ticket, and a silent host unaccountable, for longer |
-| `close_grace` | int | blocks after the deadline for the host to sweep or refund before contributor pages self-refund (= K: 10) |
+| `close_grace` | int | kept for compatibility (10): it is part of every campaign's id. It was the close window when K was fixed at 10; the close window is now K itself (deadline + `ticket_k`), for the contribute page, the recount page and the recount alike |
 | `reissue_window` | int | blocks after a network upgrade in which outstanding tickets may be re-issued (20) |
 | `name` | string, optional | a public name chosen by the host, 1 to 60 characters, plain text: no leading, trailing or doubled space, no control, invisible or direction-changing characters, no `<` or `>`. It is part of the signed rules and so of the `rules_id`; it is shown wherever the campaign is shown, in place of the short id. Omitted when not set, and a campaign without it keeps the `rules_id` it always had. Pages show it as plain text only, and a contribute page refuses rules whose name breaks these limits. |
+| `early_close` | bool, optional | fundraiser only, and only ever `true`: the host may close before the deadline once the goal is met (§4, "Early close"). Left out when not allowed, so older campaigns keep their `rules_id`. An auction's rules are refused if they carry it. |
+| `cap_zat` | int, optional | fundraiser only: the hard cap, the most the campaign keeps; at least `goal_zat` and at least `min_contribution_zat` (§4, "Hard cap"). Left out when not set, so older campaigns keep their `rules_id`. An auction's rules are refused if they carry it. A relay or recount built before this field drops it, computes a different id and refuses the campaign |
 | `refund_fee_zat` | int | fee each ticket pays; refund = contribution − fee (10000, the ZIP 317 fee for a 1-in, 1-out Ironwood transaction) |
 | `min_contribution_zat` | int | smaller payments are not contributions (2 × refund fee) |
 | `campaign_ufvk` | string | raise only: the campaign account's unified full viewing key |
@@ -83,6 +85,16 @@ and derives two independent keys from it; one key is never used for both jobs:
 `sign_sk = BLAKE2b-256("ledgerlab_sign", seed)` (Ed25519 secret seed),
 `enc_sk = BLAKE2b-256("ledgerlab_enc", seed)` (X25519 secret key, used directly as the scalar).
 Backing up `seed` backs up all three keys.
+
+**The validity rule** (one rule, `ll_core::payload::check`, used by the host and the recount alike). A payment whose message opens is a
+contribution only if: it is sealed for this campaign; it pays at least the amount sealed in it (version 2); its refund receiver has type
+0x03 (Orchard/Ironwood) and its 43 bytes are a valid address (the check a wallet makes before paying it); and it leaves something to refund
+after the fee. Otherwise the host writes a signed `reject` at once, with the reason in plain words followed by a code in brackets
+(`[other_campaign]`, `[underpaid]`, `[receiver_type]`, `[receiver_bytes]`, `[nothing_to_refund]`, and `[unreadable]` for a message that does not open); it takes no lock, builds no ticket and
+does not try again, so such a payment can never hold up the close. A message that does not open, or opens to a wrong length or version, is
+rejected the same way. The recount upholds every reject that fails this rule even when the payer publishes their secret (R8). Failures on the
+host's side (a wallet that is not synced, a lock, the network) are never rejects: the payment waits for its ticket, and the close refuses
+while it waits.
 
 **Donations.** A payment to the campaign without a valid payload for this `rules_id` has no
 refund address and can never be refunded. It counts toward the totals, is reported separately
@@ -212,6 +224,37 @@ txid) is visible during the auction.
 A later entry for the same `nf` supersedes earlier ones for delivery. On chain, any listed ticket
 for that `nf` is an honest spend (a ticket re-issued within the same upgrade epoch leaves both valid).
 
+### Early close (fundraisers whose rules carry `early_close`)
+
+- The host may write the close entry before the deadline only if the rules carry `early_close` and the goal is met at that moment, counting
+  only contributions not taken back by their tickets; every pending ticket must be issued first (as for any close). The outcome is `goal_met`.
+- The close height then ends the contribution range: payments mined after it are not contributions (like late payments: no ticket, not
+  counted, not refunded by the close). Contributors may take their contribution back with their ticket until the close entry is published;
+  after it the kept contributions are swept as in any goal met close.
+- The recount (`contribution_end`): R2 accepts a close at or before the deadline only for such rules and only with outcome `goal_met`; R7
+  recomputes the goal over the range that ends at the close height; R5 and R6 split spends at the close height instead of the deadline.
+  For every other campaign the range ends at the deadline, so a forged early close fails R2 and changes nothing else.
+- An auction can never close early: its host sees every bid and could pick a convenient moment.
+
+### Hard cap (fundraisers whose rules carry `cap_zat`)
+
+- At the close, the contributions not taken back by their tickets are taken in chain order (height, then position in the block, then txid,
+  then action). Each one that still fits under `cap_zat` is kept and uses up room; one that does not fit is **not** kept and is refunded
+  whole by its own ticket, like any contribution outside the kept set. A ticket cannot split a payment, so there is no partial refund.
+  A payment that does not fit does not stop later, smaller ones that do.
+- The goal (`goal_zat`, the soft cap) is counted on the kept amount only. If it is not reached, nothing is kept and everyone is refunded,
+  as without a cap. An early close needs the same: the soft cap met by what fits under the hard cap.
+- The kept set is decided at the close: a contribution taken back before it frees room for later ones.
+- The host's close needs nothing new: it sweeps the kept set and refunds every other contribution with its stored ticket. The recount's
+  R6 then checks that every payment over the cap left only through its ticket, and R7 that the outcome follows the soft cap on the kept
+  amount. R5 is unchanged.
+- The cap cannot be changed after creation (it is part of the `rules_id`). The program warns, but does not refuse, when `cap_zat` is less
+  than twice `goal_zat`: with little room above the goal, one payment that does not fit can leave the kept amount below the goal even
+  when enough was paid in.
+- The contribute page shows the room left under the cap by replaying this rule over the public list in its order (payments taken back
+  are not visible there, so the real room can only be larger), refuses an amount larger than that room, and says before payment that a
+  payment that does not fit is refunded at the close, minus the refund fee, and stays locked until then.
+
 ## 5. Recount
 
 Inputs: the rules, the ledger, published challenges, and the chain scanned with the campaign's
@@ -230,15 +273,17 @@ A **contribution** is a note received by the campaign account, mined in
 Other received notes in range are **donations**, as are payments with an upheld reject. They are
 listed separately and excluded from the refund rules. A contribution refunded by its own ticket
 at or before the deadline is **withdrawn**. The **kept set** is computed from the contributions
-that were not withdrawn: raise, all of them if their sum reaches `goal_zat`, otherwise none;
-auction, the top `items` by value (ties: lower height, then txid, then action).
+that were not withdrawn: raise, all of them if their sum reaches `goal_zat`, otherwise none; raise with `cap_zat`, in chain order
+each one that still fits under the cap, if their sum reaches `goal_zat`, otherwise none (§4, "Hard cap"); auction, the top `items`
+by value (ties: lower height, then txid, then action).
 
 | # | Rule | Fail means |
 |---|---|---|
 | R1 | `rules_id` matches the published rules; auction: the revealed UFVK matches `ufvk_hash` | wrong rules or key |
 | R2 | Signatures verify, the hash chain has no gaps, at most one close entry, after the deadline | forged, dropped or premature entries |
 | R3 | Every entry points at a real payment with matching details (raise amounts; auction commitments; rejects only for payload-shaped memos; auction entries never show amounts) | fake or leaky entry |
-| R4 | Every contribution has a ticket with `issue_height ≤ height + ticket_k` | missing ticket |
+| R4 | Every contribution has a ticket entry once `tip > height + ticket_k` (inside the window it is pending) | missing ticket |
+| R4b | Every ticket's `issue_height ≤ height + ticket_k`. The issue height is written by the host, so this is the host's report (the title says so) | ticket issued late, by the host's own height |
 | R5 | No contribution is spent at or before `deadline_height` except by one of its listed tickets | early spend (evidence: nf, spending txid, height) |
 | R6 | After the deadline, contributions outside the kept set leave only through their tickets | stolen refund |
 | R7 | The close entry's outcome (raise) or winners (auction) equal the recomputed ones | wrong outcome or winner list |
@@ -246,7 +291,9 @@ auction, the top `items` by value (ties: lower height, then txid, then action).
 
 Totals: `raised` (sum of contributions), `withdrawn` (refunded by ticket before the deadline),
 `refunded` (by ticket after the deadline), `kept` (swept from the kept set), `pending` (unspent),
-and non-refundable `donations`, listed separately.
+and non-refundable `donations`, listed separately. With `cap_zat`: `over_cap` (the contributions that do not fit under the cap,
+their number and amount), and R6 adds one information line, "N payment(s) over the cap, refunded by ticket" (before the close:
+"so far", refunded at the close unless room frees up).
 Output: one line per rule, PASS or FAIL with evidence, and the totals.
 
 **Report hash.** The browser recount prints a hash of its report so two people can compare what they got. It is
@@ -255,7 +302,8 @@ written as 64 lowercase hex characters. *Canonical JSON* means: object keys sort
 anywhere; strings written as `JSON.stringify` writes them; whole numbers in plain decimal; any other number as decimal with exactly
 8 places (the report has none today); arrays kept in the order the report gives them; `null`, `true` and `false` as usual.
 The report is the rule results (id, title, pass/fail, evidence lines), the totals and the warnings, exactly as the page shows them;
-the time the recount ran and the servers' names are not part of it. Two recounts of the same campaign up to the same height give the
+the time the recount ran and the servers' names are not part of it. A campaign with `cap_zat` adds `cap_zat`, `over_cap` and
+`over_cap_zat` to its report; a campaign without one has exactly the report (and so the hash) it had before. Two recounts of the same campaign up to the same height give the
 same hash. A different height gives a different hash, which is correct: the report is about that height.
 
 ## 6. Relay
@@ -397,7 +445,7 @@ entry the host appends one signed **`settle`** entry per winner `{nf, txid, pric
 | R9 | each non-defaulted winner's note is spent by exactly one settlement, mined by `deadline + K`, announced by a matching `settle` entry, whose fee (the transaction's net value balance) is exactly `f`, and in which the treasury (scanned with its public key) received exactly one note of exactly `P` | wrong price, short or over payment, missing/lying entry, late or missing settlement |
 | R10 | the treasury received, from the settlement transactions, exactly (settled winners × `P`) | treasury short or over |
 | R11 | no settlement created a note for the campaign account (nothing back to its change address), has exactly two Ironwood actions, and nothing in the other pools | value diverted to the host, extra outputs |
-| R12 | a winner's delivery proof, when published, holds (8.5) | "excess not delivered", with evidence |
+| R12 | a winner's optional proof that the excess was paid back, when published, holds (8.5); this is about money, not the auctioned item | "excess not delivered", with evidence |
 
 **8.5 What the public can and cannot verify.** From the chain the public can verify: the winners and the price;
 that each winner paid exactly `P` into the public treasury; that nothing came back to the campaign account;

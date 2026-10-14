@@ -13,7 +13,7 @@ The README lists some of these. The ones it leaves out are marked with a star.
 - Python 3 (the page server uses only its standard library).
 - A few gigabytes of free disk for build output. The first build takes a while because the Zcash libraries are large. We did not time it on a clean machine.
 - For the browser module: the WebAssembly target (`rustup target add wasm32-unknown-unknown`), `wasm-bindgen-cli` at exactly version 0.2.129 (`cargo install wasm-bindgen-cli --version 0.2.129`), and **Zig 0.14**. Download Zig from ziglang.org, unpack it, and set the variable `ZIG` to the path of the `zig` program when you run the build script. Zig compiles the one C dependency for the browser.
-- Node 22 only if you want to run the browser tests.
+- Node 22 only if you want to run the browser tests. They also need Chromium: after `cd app/vectors/js && npm ci`, run `npx playwright install chromium`, and on Ubuntu `sudo npx playwright install-deps chromium` for its system libraries (if you cannot use sudo, the four missing ones on a bare WSL Ubuntu were `libnspr4`, `libnss3`, `libnssutil3` and `libasound2`: `apt-get download` them and point `LD_LIBRARY_PATH` at the unpacked folder, as we did).
 - For a real campaign: a machine that stays on and online, a public https address for the relay, and an https address for the pages.
 
 ## 2. Build
@@ -40,11 +40,26 @@ python3 app/web/serve.py 8770
 
 1. Open `http://127.0.0.1:8780`. This is the host dashboard. It only listens on your own computer. Use its set up page to create a campaign. It makes the campaign's wallet and keys inside a new folder under `runs/dashboard`. It needs the testnet chain server to answer.
 2. The dashboard shows a contributor link. Open it in a browser. The pages are served at `http://127.0.0.1:8770`.
-3. To contribute you need testnet coins in a wallet of your own. This repository does not provide any. A public test network faucet exists. We used one during testing and do not name it here.
+3. To contribute you need testnet coins (TAZ, which have no value) in a wallet of your own. This repository does not provide any. The faucet we used during testing is the Zcash Testnet Faucet run by Valar at `https://faucet.testnet.valargroup.dev/`. It is not run by this project; on 14 October 2026 it answered and reported itself ready, paying 0.125 TAZ per address once a day. If it is gone, look for a current Zcash testnet faucet on the Zcash community forum. You can make a wallet for the coins with the wallet tool (see "A campaign from the command line" below for the command; use your own folder name, for example `payer`), and print its address with `./target/release/zcash-devtool wallet -w payer list-addresses`.
 4. Pay from your wallet by scanning the code or copying the address and message. Within a minute or two the page shows a refund ticket. The host must be running (the dashboard runs the watcher) for tickets to be issued.
 5. Close the campaign from the dashboard after its deadline, then open the Recount page from the campaign page and check the result.
 
-Command line alternative for step 1: `cb-host create`. Run `cb-host create --help` for every option, including `--mode auction`, `--items`, `--goal-zat`, `--deadline-in`, `--ticket-k`, `--name` and `--relay`.
+### A campaign from the command line
+
+The dashboard makes a campaign's wallet for you. From the command line you make it yourself first, with the wallet tool, inside the campaign's own folder (the host program refuses a wallet or key file outside it):
+
+```
+mkdir -p runs/my-campaign
+./target/release/zcash-devtool wallet -w runs/my-campaign/wallet1 init --name campaign -i runs/my-campaign/wallet1.age -n test
+./app/target/release/cb-host create --run runs/my-campaign --wallet runs/my-campaign/wallet1 --identity runs/my-campaign/wallet1.age \
+    --goal-zat 5000000 --deadline-in 500 --relay http://127.0.0.1:8787
+./app/target/release/cb-host watch --run runs/my-campaign       # keep this running: it issues the tickets
+```
+
+- `init` needs the testnet chain server; if it stalls, delete the half made folder and try again.
+- `wallet1.age` is the key file that unlocks the wallet's seed. It sits next to the wallet, so the folder as a whole is the key: back it up and keep it private.
+- Run `cb-host create --help` for every option, including `--mode auction`, `--items`, `--goal-zat`, `--deadline-in`, `--ticket-k`, `--early-close`, `--name` and `--relay`.
+- For the main network add `-n main` to `init` and `--network main --confirm-mainnet` to `create`; section 8 applies.
 
 ## 4. Running a relay on a small server
 
@@ -94,7 +109,7 @@ Move the built `cb-relay` to the server. The build machine and the server need c
 - Tell the host which relay to publish to: `cb-host serve --relay https://<your_relay_address>` (repeat the flag for more than one). A campaign created from the command line takes `--relay` the same way. Inside each campaign folder the file `private/relays` lists the relays, one per line, and the host reads it again on every check.
 - Tell the dashboard where your pages live, so the contributor links it builds are right: `--page-base https://<your_pages_address>`. The default is `http://127.0.0.1:8770`, which only works on your own computer.
 - The contribute page needs a chain server for the network. The dashboard option `--server` sets it (default is the testnet server). For mainnet pass `--network main` and the address of a public mainnet chain server.
-- The home page lists campaigns from a file `campaigns.json` next to the pages. Its form is `{"campaigns": [{"id": "<64 hex characters>", "relays": ["https://<your_relay_address>"]}]}`. You maintain it by hand. Campaign, contribute and recount pages work for any campaign from a link, with no list.
+- The home page lists campaigns from a file `campaigns.json` next to the pages. Its form is `{"campaigns": [{"id": "<64 hex characters>", "relays": ["https://<your_relay_address>"]}]}`. You maintain it by hand: start from the empty example, `cp app/web/www/campaigns.example.json app/web/www/campaigns.json`, and add your campaign's id and relays. Without the file the home page lists nothing. Campaign, contribute and recount pages work for any campaign from a link, with no list.
 - Keep the host (`cb-host serve`) running on your own machine until the campaign has closed and refunds are confirmed. The dashboard is for you only and cannot be reached from other devices.
 
 ## 6. The page server
@@ -121,5 +136,13 @@ Testnet campaigns have no restriction. For mainnet, the host program refuses to 
 - **There has been no outside review of the code or of the design.** The tests and evidence in this repository are ours.
 - **The host machine must stay online** from before the first contribution until the campaign is closed and refunds are confirmed. If it is off, new payments get no ticket, and the recount flags it.
 - **The campaign folder is the key.** Back it up before taking any money, keep the backup private, and never share the folder. There is no key import.
-- A payment that arrives after the deadline is not counted and is not refunded automatically. See the README section on late payments.
+- A payment that arrives after the deadline is not counted and is not refunded automatically. See "Late payments" in [PRIVACY.md](PRIVACY.md).
 - The relay holds no secrets, but it is a public service: everything on it is public data.
+
+## 10. Hardening (optional)
+
+None of this is needed to run a campaign. Each step trades some convenience for safety.
+
+- **A sudo password on the server.** If the server's user can run `sudo` without a password, anyone who gets into that account controls the whole machine. Require the password: give the user one (`sudo passwd <user>`) and remove any `NOPASSWD` line for it (edit with `sudo visudo`). Tradeoff: every update or service restart you do by hand then asks for that password, so a script cannot do it unattended. The services still restart by themselves after a crash (`Restart=always` above), because systemd does that, not your user.
+- **A separate deploy user.** Run the relay and the page server as a user that cannot use `sudo`, and do updates as another user that can. A flaw in the relay or the page server then reaches only the files of the service's own user. Tradeoff: one more account to look after, and files you copy in must be handed to the service's user (`chown`).
+- **A passphrase on the host's keys: not available yet.** Today the host reads its keys from the campaign folder without asking for anything (section 9). An optional start up passphrase is planned (see `docs/ROADMAP.md`, "Passphrase flag"). The tradeoff, once it exists: a passphrase protects the keys on a stolen or copied disk, but the host can no longer restart by itself after a crash or a reboot. Someone has to type the passphrase each time, and until they do, new payments get no ticket.

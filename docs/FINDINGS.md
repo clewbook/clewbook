@@ -1,6 +1,6 @@
 # Findings others can reuse
 
-Status: **draft, not published.** Each item says how it was established. "Verified" means we observed it directly
+Each item says how it was established. "Verified" means we observed it directly
 in a test or in code we read; "not verified" means it is reported or reasoned but we did not check it ourselves.
 Other projects are named factually; where something did not work for us, that is a statement about a specific
 version in a specific situation, not about the project.

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contribute</title>
 <link rel="stylesheet" href="ui.css">
@@ -50,9 +50,10 @@
       <label for="amount" id="amount-label">Amount (<span class="ticker">TAZ</span>)</label>
       <div class="amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
       <p class="hint" id="amount-hint"></p>
+      <p class="warnline" id="cap-note" hidden></p>
       <label for="refund">Where should a refund go?</label>
       <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
-      <p class="hint">You only enter this once. It is sealed so that only the campaign can read it, and it is never shown publicly.</p>
+      <p class="hint">You only enter this once. It is sealed so that only the campaign's host can read it. It is not published unless you choose to publish a proof or a challenge.</p>
       <p class="warnline" id="auction-account-note" hidden>For this auction, give a refund address from an account you would be happy to show later.</p>
       <p class="error" id="form-error" role="alert" hidden></p>
       <button type="submit" id="create" class="create">Create my payment</button>
@@ -69,7 +70,7 @@
     <div class="hd"><h2>Pay from your wallet</h2><span class="t-label">Step by step</span></div>
     <p id="edit-locked" class="warnline" hidden>A payment for this code was seen, so its amount can no longer change.</p>
     <ol class="steps">
-      <li><div><p><strong>Save your backup file first.</strong> It lets you get your refund even if you lose this page.</p>
+      <li><div><p><strong>Save your backup file first.</strong> It lets you get your refund even if you lose this page. Keep it private: anyone who has it can send your refund early, though only to your refund address.</p>
         <div class="btns"><button type="button" class="primary" id="backup">Download backup file</button> <span id="backup-done" class="saved" hidden><span aria-hidden="true">✓</span> Saved</span></div></div></li>
       <li><div><p class="warnline" id="pay-warning" role="note">Pay exactly <span id="pay-min"></span> once, from your own wallet's shielded balance, not an exchange or transparent funds.</p>
         <details class="plain why" id="pay-why"><summary>Why?</summary><p class="hint">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details>
@@ -118,6 +119,8 @@
     <p id="paid-warning" class="notice bad risk" hidden></p>
     <p id="ticket-late" class="notice bad risk late" hidden><strong>Your refund ticket has not arrived. Do not rely on this payment until it does.</strong> <span id="ticket-late-detail"></span></p>
     <p id="progress-note" class="pnote"></p>
+    <div id="backup-nudge" class="notice info" hidden><p><strong>Your refund right is kept in this browser and in your backup file.</strong> Download the file now and keep it private. Anyone who has it can send your refund early (the money still goes only to your refund address) and can see your amount, your refund address and your payment. It cannot be used to send your money anywhere else.</p>
+      <div class="btns"><button type="button" class="primary" id="backup3">Download backup file</button> <span id="backup3-done" class="saved" hidden><span aria-hidden="true">✓</span> Saved, with your ticket</span></div></div>
     <p id="format-note" class="warnline" hidden>This older payment code could have been copied by someone who saw it before your payment was mined.</p>
     <p id="over-note" class="notice info" hidden><strong>You paid more than the amount you chose.</strong> The whole payment counts as your contribution, and your refund is the payment minus the fee.</p>
     <div id="ticket-view" class="ticket" hidden>
@@ -154,6 +157,7 @@
       </div>
     </div>
     <p id="refund-result" class="notice" hidden></p>
+    <div id="rebid-row" hidden><p class="hint" id="rebid-text"></p><div class="btns"><button type="button" class="secondary" id="rebid">Bid again</button></div></div>
     <details class="plain">
       <summary>Know your payment's transaction ID?</summary>
       <p class="hint">Optional. If you paste it, this page can check that the campaign accepted your payment.</p>

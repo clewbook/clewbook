@@ -1,4 +1,4 @@
-//! Recount (SPEC §5): checks R1 to R8 from the rules, the ledger, published challenges and
+//! Recount (SPEC §5): checks R1 to R8 and R4b from the rules, the ledger, published challenges and
 //! the notes a viewing key finds on chain. `analyze` is shared with the host app, so the
 //! host's close decisions and the public recount are computed by the same code.
 
@@ -81,6 +81,9 @@ pub struct Analysis {
     pub plan: Option<AuctionPlan>,
     /// Payments that repeated the sealed message of an earlier payment (SPEC §2): never contributions, always donations.
     pub replayed: Vec<ChainNote>,
+    /// A fundraiser with a hard cap: the contributions not taken back that do not fit under the cap (chain order), refunded whole by their
+    /// own ticket at the close. Empty for every campaign without a cap.
+    pub over_cap: Vec<ChainNote>,
 }
 
 /// Uniform auction (SPEC §8), computed from public data by the host and the recount alike.
@@ -98,7 +101,12 @@ pub struct AuctionPlan {
 /// Payments (txid, action) in the contribution window that repeat the sealed message of an earlier payment (chain order).
 /// Shared by the host (which rejects them) and the recount (which sets them aside as donations).
 pub fn replayed_keys(rules: &Rules, notes: &[ChainNote], rejected: &BTreeSet<String>) -> BTreeSet<(String, u32)> {
-    let in_range = |n: &ChainNote| n.height.is_some_and(|h| h >= rules.start_height && h <= rules.deadline_height);
+    replayed_keys_until(rules, rules.deadline_height, notes, rejected)
+}
+
+/// `replayed_keys` for payments up to `end` (the deadline, or an early close: see `contribution_end`).
+pub fn replayed_keys_until(rules: &Rules, end: u32, notes: &[ChainNote], rejected: &BTreeSet<String>) -> BTreeSet<(String, u32)> {
+    let in_range = |n: &ChainNote| n.height.is_some_and(|h| h >= rules.start_height && h <= end);
     let mut keys = BTreeSet::new();
     let mut order: Vec<&ChainNote> = notes.iter().filter(|n| !n.is_change && in_range(n) && n.memo_text.as_deref().is_some_and(is_payload_shaped)).collect();
     order.sort_by(|x, y| x.height.cmp(&y.height).then(x.tx_index.cmp(&y.tx_index)).then(x.txid.cmp(&y.txid)).then(x.action.cmp(&y.action)));
@@ -117,16 +125,27 @@ pub fn replayed_keys(rules: &Rules, notes: &[ChainNote], rejected: &BTreeSet<Str
     keys
 }
 
+/// The last height whose payments count as contributions: the deadline, or the close height of a fundraiser that allows closing early
+/// and was closed early (SPEC §4). For every other campaign, including one whose host wrote an early close it was not allowed (R2
+/// fails then), it is the deadline, so nothing else about such a campaign changes.
+pub fn contribution_end(rules: &Rules, ledger: &[Entry]) -> u32 {
+    match close_entry(ledger) {
+        Some(c) if rules.allows_early_close() && c.close_height <= rules.deadline_height => c.close_height,
+        _ => rules.deadline_height,
+    }
+}
+
 pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNote], challenges: &[Challenge]) -> Analysis {
     let mut a = Analysis::default();
+    let end = contribution_end(rules, ledger);
     let in_range = |n: &ChainNote| {
-        n.height.is_some_and(|h| h >= rules.start_height && h <= rules.deadline_height)
+        n.height.is_some_and(|h| h >= rules.start_height && h <= end)
     };
 
     let rejected: BTreeSet<&str> =
         ledger.iter().filter(|e| e.kind == "reject").filter_map(Entry::nf).collect();
     let rejected_nfs: BTreeSet<String> = rejected.iter().map(|x| x.to_string()).collect();
-    let replay_keys = replayed_keys(rules, notes, &rejected_nfs);
+    let replay_keys = replayed_keys_until(rules, end, notes, &rejected_nfs);
     for e in ledger.iter().filter(|e| e.ticket.is_some()) {
         let (Some(nf), Some(t)) = (e.nf(), &e.ticket) else { continue };
         a.tickets.entry(nf.into()).or_default().insert(t.txid.clone());
@@ -159,7 +178,9 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
             let p = Payload::open_challenged(n.memo_text.as_deref()?, &payload_pk, &esk).ok()?;
             // a payload smaller than... : a payment below the amount sealed in its message is not a contribution (SPEC §2), so a
             // reject for that reason is justified, not false
-            (hex::encode(p.rules_id) == rules_id && p.amount_zat.is_none_or(|amt| n.value_zat >= amt)).then_some(p)
+            // ...and the same goes for every other part of the one validity rule the host applies (`payload::check`): a reject for a
+            // refund address that cannot be paid, or for nothing left after the fee, is justified too
+            crate::payload::check(&p, rules_id, n.value_zat, rules.refund_fee_zat).is_ok().then_some(p)
         });
         match proven {
             Some(_) => {
@@ -201,7 +222,7 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
     for n in &a.contributions {
         let (Some(nf), Some(s)) = (&n.nf, &n.spent_by) else { continue };
         let by_ticket = a.tickets.get(nf).is_some_and(|t| t.contains(&s.txid));
-        if by_ticket && s.height.is_some_and(|h| h <= rules.deadline_height) {
+        if by_ticket && s.height.is_some_and(|h| h <= end) {
             a.withdrawn.insert(nf.clone());
         }
     }
@@ -249,6 +270,26 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
             a.keep = winners.iter().cloned().collect();
             a.winners = Some(winners);
         }
+    } else if let Some(cap) = rules.cap_zat {
+        // A hard cap (SPEC §4): in chain order, keep each contribution that still fits under the cap; one that does not fit is refunded whole by
+        // its own ticket (a ticket cannot split a payment). A large payment that does not fit does not stop later ones that do. The goal (the
+        // soft cap) is counted on the kept amount only.
+        active.sort_by(|x, y| x.height.cmp(&y.height).then(x.tx_index.cmp(&y.tx_index)).then(x.txid.cmp(&y.txid)).then(x.action.cmp(&y.action)));
+        let mut room = cap;
+        let mut kept: Vec<&ChainNote> = vec![];
+        for n in active {
+            if n.value_zat <= room {
+                room -= n.value_zat;
+                kept.push(n);
+            } else {
+                a.over_cap.push(n.clone());
+            }
+        }
+        let met = cap - room >= rules.goal_zat.unwrap_or(u64::MAX);
+        a.goal_met = Some(met);
+        if met {
+            a.keep = kept.iter().filter_map(|n| n.nf.clone()).collect();
+        }
     } else {
         let net: u64 = active.iter().map(|n| n.value_zat).sum();
         let met = net >= rules.goal_zat.unwrap_or(u64::MAX);
@@ -266,6 +307,9 @@ pub struct RuleResult {
     pub title: &'static str,
     pub pass: bool,
     pub details: Vec<String>,
+    /// The check could not run yet (an auction before its close: the viewing key is not published). `pass` stays true so that
+    /// verdicts do not change, but the text output says WAIT, not PASS.
+    pub waiting: bool,
 }
 
 #[derive(Debug, Default)]
@@ -278,6 +322,9 @@ pub struct Totals {
     pub pending_zat: u64,
     pub donations_zat: u64,
     pub donations: usize,
+    /// A fundraiser with a hard cap: the contributions that do not fit under it (refunded by ticket at the close), and their amount.
+    pub over_cap: usize,
+    pub over_cap_zat: u64,
 }
 
 /// Facts about a full transaction that the compact blocks do not show.
@@ -351,7 +398,7 @@ impl Report {
 
 fn rule(id: &'static str, title: &'static str, fails: Vec<String>, info: Vec<String>) -> RuleResult {
     let pass = fails.is_empty();
-    RuleResult { id, title, pass, details: if pass { info } else { fails } }
+    RuleResult { id, title, pass, details: if pass { info } else { fails }, waiting: false }
 }
 
 pub fn close_entry(ledger: &[Entry]) -> Option<&Close> {
@@ -436,28 +483,65 @@ pub fn recount_with(
     }
     if let Some(c) = close {
         if c.close_height <= rules.deadline_height {
-            r2.push(format!("closed at {} before the deadline {}", c.close_height, rules.deadline_height));
+            // early: only a fundraiser whose rules allow it, and only as "goal met" (R7 checks the goal really was met by then)
+            if !rules.allows_early_close() {
+                r2.push(format!("closed at {} before the deadline {}", c.close_height, rules.deadline_height));
+            } else if c.outcome != "goal_met" {
+                r2.push(format!("closed early at {} (before the deadline {}) with outcome {:?}; an early close is allowed only once the goal is met", c.close_height, rules.deadline_height, c.outcome));
+            }
         }
     }
-    results.push(rule("R2", "ledger is signed, chained, gap-free, closed at most once after the deadline", r2, vec![]));
+    let info2 = match close {
+        Some(c) if rules.allows_early_close() && c.close_height <= rules.deadline_height => vec![format!(
+            "closed early at {} ({} blocks before the deadline), which this campaign's rules allow once the goal is met; payments after block {} do not count",
+            c.close_height, rules.deadline_height - c.close_height, c.close_height
+        )],
+        _ => vec![],
+    };
+    results.push(rule("R2", "ledger is signed, chained, gap-free, closed at most once after the deadline", r2, info2));
 
-    let closed = tip > rules.deadline_height;
+    // a fundraiser closed early (allowed by its rules) is closed from its close height on; payments after it do not count
+    let end = contribution_end(rules, ledger);
+    let early_closed = rules.allows_early_close() && close.is_some_and(|c| c.close_height <= rules.deadline_height);
+    let closed = tip > rules.deadline_height || early_closed;
     let phase = if closed { "closed" } else { "open" };
     if !chain_visible {
         for (id, title) in [
             ("R3", "every ledger entry is a real payment"),
-            ("R4", "every contribution has a ticket within K blocks"),
+            ("R4", "every contribution has a ticket once K blocks have passed"),
+            ("R4b", "each ticket was issued within K blocks (host reported height)"),
             ("R5", "no contribution spent before the deadline except by its ticket"),
             ("R6", "contributions not kept leave only through their tickets"),
             ("R7", "the declared outcome is what the rules select"),
             ("R8", "every reject is justified"),
         ] {
-            results.push(rule(id, title, vec![], vec!["waiting for the viewing key to be revealed".into()]));
+            results.push(RuleResult { waiting: true, ..rule(id, title, vec![], vec!["waiting for the viewing key to be revealed".into()]) });
         }
         return Report { tip, phase, results, totals: Totals::default(), winners: None, goal_met: None, warnings: vec![], auction: None };
     }
 
     let a = analyze(rules, &rid, ledger, notes, challenges);
+
+    // An early close height is written by the host (docs/THREAT_MODEL.md threat 26). Payments that look like contributions and were mined
+    // after it, up to the sweep of the kept contributions, are listed under R2 (information only: an honest early close can have them too).
+    if let Some(c) = close.filter(|c| rules.allows_early_close() && c.close_height <= rules.deadline_height) {
+        let swept = a.contributions.iter().filter(|n| n.nf.as_ref().is_some_and(|nf| a.keep.contains(nf))).filter_map(|n| n.spent_by.as_ref()?.height).min();
+        let until = swept.unwrap_or(tip).min(rules.deadline_height);
+        let after: Vec<String> = notes
+            .iter()
+            .filter(|n| !n.is_change && n.value_zat >= rules.min_contribution_zat && n.memo_text.as_deref().is_some_and(is_payload_shaped))
+            .filter(|n| n.height.is_some_and(|h| h > c.close_height && h <= until))
+            .map(|n| format!("{}:{} (block {})", n.txid, n.action, n.height.unwrap_or(0)))
+            .collect();
+        if let Some(r) = results.iter_mut().find(|r| r.id == "R2" && r.pass).filter(|_| !after.is_empty()) {
+            r.details.push(format!(
+                "{} payment(s) that look like contributions were mined after the close height and {}: {}. They are not counted. An honest early close can have such payments too, but a host could also write an early close height to leave out a payment whose ticket it held back; their senders can ask the host to return them",
+                after.len(),
+                if swept.is_some() { format!("before the kept contributions were swept (block {until})") } else { format!("up to block {until}") },
+                after.join(", ")
+            ));
+        }
+    }
     let by_nf: BTreeMap<&str, &ChainNote> =
         notes.iter().filter_map(|n| n.nf.as_deref().map(|nf| (nf, n))).collect();
     let contribution_nfs: BTreeSet<&str> = a.contributions.iter().filter_map(|n| n.nf.as_deref()).collect();
@@ -512,21 +596,27 @@ pub fn recount_with(
     }
     results.push(rule("R3", "every ledger entry is a real payment", r3, vec![]));
 
-    // R4: tickets within K blocks.
+    // R4 (completeness): every contribution has a ticket entry once K blocks have passed; inside the window it is pending.
+    // R4b (timeliness): each ticket's issue height is at most the payment's height + K. That height is written by the host, so R4b
+    // shows what the host reports and nothing more (docs/THREAT_MODEL.md threat 22). Together they are the former single R4: it
+    // passed exactly when both pass.
     let mut r4 = vec![];
+    let mut r4b = vec![];
     let mut pending = 0;
     for n in &a.contributions {
         let h = n.height.unwrap_or(0);
         let due = h + rules.ticket_k;
         match n.nf.as_deref().and_then(|nf| a.first_issue.get(nf)) {
             Some(issued) if *issued <= due => {}
-            Some(issued) => r4.push(format!("{}:{} ticketed at {issued}, due by {due}", n.txid, n.action)),
+            Some(issued) => r4b.push(format!("{}:{} ticketed at {issued} (the height the host reports), due by {due}", n.txid, n.action)),
             None if tip <= due => pending += 1,
             None => r4.push(format!("{}:{} (height {h}) has no ticket, due by {due}", n.txid, n.action)),
         }
     }
     let info4 = if pending > 0 { vec![format!("{pending} contribution(s) still inside the K-block window")] } else { vec![] };
-    results.push(rule("R4", "every contribution has a ticket within K blocks", r4, info4));
+    results.push(rule("R4", "every contribution has a ticket once K blocks have passed", r4, info4));
+    let info4b = if a.first_issue.is_empty() { vec![] } else { vec!["issue heights are reported by the host; the recount cannot check them".into()] };
+    results.push(rule("R4b", "each ticket was issued within K blocks (host reported height)", r4b, info4b));
 
     // R5 and R6: spends.
     let mut totals = Totals { contributions: a.contributions.len(), ..Default::default() };
@@ -543,7 +633,7 @@ pub fn recount_with(
         };
         let by_ticket = a.tickets.get(&nf).is_some_and(|t| t.contains(&s.txid));
         let evidence = format!("nullifier {nf} spent by {} at height {h}, not by its ticket", s.txid);
-        match (h <= rules.deadline_height, by_ticket) {
+        match (h <= end, by_ticket) {
             (true, true) => totals.withdrawn_zat += n.value_zat,
             (true, false) => r5.push(evidence),
             (false, true) => totals.refunded_zat += n.value_zat,
@@ -558,6 +648,14 @@ pub fn recount_with(
     } else if awaiting > 0 {
         let note = if tip > rules.self_refund_after() { "contributors may self-refund now" } else { "host is inside its close window" };
         info6.push(format!("{awaiting} contribution(s) awaiting refund; {note}"));
+    }
+    if !a.over_cap.is_empty() {
+        let n = a.over_cap.len();
+        info6.push(if closed {
+            format!("{n} payment(s) over the cap, refunded by ticket")
+        } else {
+            format!("{n} payment(s) over the cap so far: each is refunded by its own ticket at the close, unless earlier contributions are taken back first")
+        });
     }
     results.push(rule("R6", "contributions not kept leave only through their tickets", r6, info6));
 
@@ -599,6 +697,8 @@ pub fn recount_with(
     results.push(rule("R8", "every reject is justified", a.false_rejects.clone(), info8));
 
     totals.donations = a.donations.len();
+    totals.over_cap = a.over_cap.len();
+    totals.over_cap_zat = a.over_cap.iter().map(|n| n.value_zat).sum();
     totals.donations_zat = a.donations.iter().map(|n| n.value_zat).sum();
 
     // Warn when the host moved a payment it rejected: that is its right if the reject was
@@ -649,7 +749,7 @@ pub fn render(report: &Report, rules: &Rules) -> String {
     let mut o = String::new();
     let _ = writeln!(o, "Recount at height {} (campaign {}, deadline {})", report.tip, report.phase, rules.deadline_height);
     for r in &report.results {
-        let _ = writeln!(o, "  {} {}  {}", r.id, if r.pass { "PASS" } else { "FAIL" }, r.title);
+        let _ = writeln!(o, "  {} {}  {}", r.id, if r.waiting { "WAIT" } else if r.pass { "PASS" } else { "FAIL" }, r.title);
         for d in &r.details {
             let _ = writeln!(o, "       - {d}");
         }
@@ -667,9 +767,15 @@ pub fn render(report: &Report, rules: &Rules) -> String {
             zec(t.pending_zat)
         );
         match (rules.goal_zat, report.goal_met, &report.winners) {
-            (Some(g), Some(met), _) => {
-                let _ = writeln!(o, "          goal {} ({})", zec(g), if met { "met" } else { "missed" });
-            }
+            (Some(g), Some(met), _) => match rules.cap_zat {
+                None => {
+                    let _ = writeln!(o, "          goal {} ({})", zec(g), if met { "met" } else { "missed" });
+                }
+                Some(c) => {
+                    let _ = writeln!(o, "          soft cap {} ({}), hard cap {}", zec(g), if met { "met" } else { "missed" }, zec(c));
+                    let _ = writeln!(o, "          over the hard cap {} in {} payment(s), refunded by ticket at the close", zec(t.over_cap_zat), t.over_cap);
+                }
+            },
             (_, _, Some(w)) => {
                 let _ = writeln!(o, "          winners (best first): {w:?}");
             }
@@ -685,7 +791,13 @@ pub fn render(report: &Report, rules: &Rules) -> String {
     for w in &report.warnings {
         let _ = writeln!(o, "  WARNING: {w}");
     }
-    let _ = writeln!(o, "RESULT: {}", if report.all_pass() { "PASS" } else { "FAIL" });
+    let waiting: Vec<&str> = report.results.iter().filter(|r| r.waiting).map(|r| r.id).collect();
+    if report.all_pass() && !waiting.is_empty() {
+        let ran: Vec<&str> = report.results.iter().filter(|r| !r.waiting).map(|r| r.id).collect();
+        let _ = writeln!(o, "RESULT: PASS for {} only; {} have not run (the viewing key is published at the close)", ran.join(", "), waiting.join(", "));
+    } else {
+        let _ = writeln!(o, "RESULT: {}", if report.all_pass() { "PASS" } else { "FAIL" });
+    }
     o
 }
 

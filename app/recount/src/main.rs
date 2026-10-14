@@ -1,4 +1,4 @@
-//! Recount: checks R1 to R8 (plus R9 to R12 for a uniform-price auction) using only public data (rules, ledger) and a view-only wallet
+//! Recount: checks R1 to R8 and R4b (plus R9 to R12 for a uniform-price auction) using only public data (rules, ledger) and a view-only wallet
 //! that scanned the chain with the campaign's full viewing key.
 
 use std::{fs, path::PathBuf, process::ExitCode};
@@ -15,7 +15,7 @@ use ll_core::{
 };
 
 #[derive(Parser)]
-#[command(name = "cb-recount", about = "Recount a campaign: R1 to R8, plus R9 to R12 for a uniform-price auction; PASS or FAIL")]
+#[command(name = "cb-recount", about = "Recount a campaign: R1 to R8 and R4b, plus R9 to R12 for a uniform-price auction; PASS or FAIL")]
 struct Cli {
     /// Rules JSON file; with --relay it can be omitted (fetched, and checked against --rules-id)
     #[arg(long)]

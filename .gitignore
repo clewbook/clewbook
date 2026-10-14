@@ -49,4 +49,3 @@ target-drop/
 
 # The list of campaigns shown on the home page: real campaign numbers, kept by hand, never committed
 /app/web/www/campaigns.json
-/app/web/next/campaigns.json

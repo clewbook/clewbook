@@ -8,7 +8,7 @@
 #   many-met     the same mix, goal reached: all five must be swept
 # Usage: app/e2e-unticketed.sh <missed|met|auction|many-missed|many-met> [new|before]      (from the repository root; plays with testnet money from the `bidder` wallet)
 #   new     the host program as built now (close first issues the missing tickets, late)
-#   before  the host program as it was before this change (app/target-before; see docs/RUNNING.md): shows what close used to do
+#   before  the host program as it was before this change (app/target-before: a build of the host program from before this change): shows what close used to do
 # Nothing is published to a relay and no watcher runs at any point before the close: that is the point. Output: runs/unticketed-<scenario>-<which>/
 set -uo pipefail
 S=${1:?usage: e2e-unticketed.sh missed|met|auction [new|before]}; WHICH=${2:-new}
@@ -109,10 +109,10 @@ print(("PASS" if ok else "FAIL") + f"  five contributions, each with a ticket en
 print(("PASS" if not left else "FAIL") + f"  no contribution is left in the campaign wallet ({'all refunded' if s == 'many-missed' else 'all swept'}); unspent: {left}")
 rc = open(os.path.join(os.path.dirname(run), "recount.txt")).read() if os.path.exists(os.path.join(os.path.dirname(run), "recount.txt")) else ""
 import re
-fails = re.findall(r"^  (R\d+) FAIL", rc, re.M)
+fails = re.findall(r"^  (R\d+b?) FAIL", rc, re.M)
 named = re.findall(r"^\s+- ([0-9a-f]{64}:\d+) ticketed at", rc, re.M)
-ok = rc and fails == (["R4"] if late else []) and len(named) == len(late)
-print(("PASS" if ok else "FAIL") + f"  the recount from the chain passes every check, except that R4 names exactly the tickets issued more than K blocks after their payment ({len(late)} such; fails: {fails}, named: {len(named)})")
+ok = rc and fails == (["R4b"] if late else []) and len(named) == len(late)
+print(("PASS" if ok else "FAIL") + f"  the recount from the chain passes every check, except that R4b (ticket timing, host reported) names exactly the tickets issued more than K blocks after their payment ({len(late)} such; fails: {fails}, named: {len(named)})")
 PY
 ;; esac
 say "done"

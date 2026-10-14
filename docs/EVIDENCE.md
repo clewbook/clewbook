@@ -1,6 +1,6 @@
 # Evidence log
 
-Status: **draft, not published.** Every row says what is claimed, what shows it, on which network, and how a reader
+Every row says what is claimed, what shows it, on which network, and how a reader
 can check it for themselves. Where something was observed once and cannot be re-run by a reader, the row says so.
 Transaction ids are shown in full where they were recorded; a few early experiment ids were only recorded in part
 and are marked "partial". "Testnet" means the public Zcash test network after the NU7 upgrade (consensus branch

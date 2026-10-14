@@ -63,6 +63,7 @@ pub fn campaign_summary(rules_json: &str, rules_id: &str) -> Result<String, JsEr
         "min_zat": rules.min_contribution_zat, "min": zat_to_coin(rules.min_contribution_zat),
         "fee_zat": rules.refund_fee_zat, "fee": zat_to_coin(rules.refund_fee_zat),
         "pay_to": rules.pay_to, "campaign_ufvk": rules.campaign_ufvk,
+        "early_close": rules.allows_early_close(), "cap_zat": rules.cap_zat, "cap": rules.cap_zat.map(zat_to_coin),
         "pricing": rules.pricing, "settle_by": rules.settle_by(), "settle_window": rules.settle_window.unwrap_or(rules.ticket_k), "reserve_zat": rules.reserve_zat, "reserve": rules.reserve_zat.map(zat_to_coin), "treasury_address": rules.treasury_address,
     })
     .to_string())
@@ -90,7 +91,7 @@ pub fn check_refund_address(network: &str, address: &str) -> Result<(), JsError>
     if address.is_empty() {
         return Err(plain("Please enter the address where your refund should go."));
     }
-    let (net, _) = orchard_receiver(address).map_err(|e| {
+    let (net, raw) = orchard_receiver(address).map_err(|e| {
         let m = e.to_string();
         if m.contains("no Orchard") {
             plain("This address can't receive the refund. Please use a full shielded address (the long one) from your wallet.")
@@ -98,6 +99,10 @@ pub fn check_refund_address(network: &str, address: &str) -> Result<(), JsError>
             plain("That doesn't look like a valid refund address. Please copy it again from your wallet.")
         }
     })?;
+    // the same check the campaign's host makes (ll_core::payload::check): a receiver no wallet can pay would get no refund ticket
+    if !ll_core::receiver::valid_orchard_receiver(&raw) {
+        return Err(plain("That doesn't look like a valid refund address. Please copy it again from your wallet."));
+    }
     let wanted = network_type(network).map_err(|_| plain("Unknown network."))?;
     if net != wanted {
         let which = if network == "main" { "the main network" } else { "the test network" };

@@ -13,7 +13,7 @@
 
 /* stepper: 01 Amount, 02 Pay, 03 Where things stand (not clickable) */
 .stepper { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 14px 0 0; }
-.stepper li { font: 500 14px/1.3 var(--body); color: #868C86; padding: 6px 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+.stepper li { font: 500 14px/1.3 var(--body); color: var(--tail); padding: 6px 0; border-bottom: 2px solid transparent; white-space: nowrap; }
 .stepper li .n { font: 400 12.5px var(--mono); margin-right: 4px; }
 .stepper li.done { color: var(--ink3); }
 .stepper li.now { color: var(--ink); border-bottom-color: var(--persimmon); }
@@ -69,7 +69,7 @@
 .risk { font-size: 15px; margin-top: 18px; }
 .risk:before { display: block; content: "✕"; font: 700 14px/1.4 var(--body); color: var(--bad-ink); margin-bottom: 2px; }
 .risk.late { border-color: var(--warning); background: var(--warn-box); }
-.risk.late:before { content: "!"; color: #7A4F0E; }
+.risk.late:before { content: "!"; color: var(--warn-k); }
 
 /* the refund ticket */
 .ticket { position: relative; overflow: hidden; margin-top: 20px; background: var(--linen); border: 1px solid var(--ink); border-radius: 6px; }
@@ -88,7 +88,7 @@
 .tk-gl { font-size: 13.5px; color: var(--slate); margin-top: 16px; }
 .tk-amount { font: 500 clamp(28px, 4.4vw, 38px)/1.1 var(--mono); letter-spacing: -.02em; }
 .tk-amount .amt { font-weight: 500; }
-.tk-amount .amt .z { color: #A3A8A2; }
+.tk-amount .amt .z { color: var(--zero-ink); }
 .tk-amount .amt .u { font-size: .5em; }
 .tk-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 16px; margin-top: 14px; border-top: 1px solid var(--line2); font-size: 14px; }
 .tk-dl dt { color: var(--slate); padding: 9px 0; border-bottom: 1px solid var(--line2); }

@@ -20,7 +20,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-tbR7f3dzTMcosXeYlerpxrjuAGprJzX+Z+ggCw7dHKI='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
         }
       ]
     },
@@ -29,7 +29,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'"
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-tbR7f3dzTMcosXeYlerpxrjuAGprJzX+Z+ggCw7dHKI='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src *; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'"
         }
       ]
     },

@@ -32,6 +32,20 @@ fn js_err(e: impl std::fmt::Display) -> JsError {
     JsError::new(&e.to_string())
 }
 
+/// An auction before its close: its viewing key is sealed, so only R1 (the rules) and R2 (the signed list) can run, and every other check
+/// waits for the key, as the command line recount shows them. Returns `{"all_pass":..,"rules":[{"id","title","pass","waiting","details"}]}`.
+#[wasm_bindgen]
+pub fn report_sealed(rules_json: &str, rules_id: &str, ledger_json: &str) -> Result<String, JsError> {
+    let rules: Rules = serde_json::from_str(rules_json).map_err(js_err)?;
+    let ledger: Vec<Entry> = serde_json::from_str(ledger_json).map_err(js_err)?;
+    let r = ll_core::recount::recount(&rules, rules_id, &ledger, &[], &[], 0, false);
+    Ok(serde_json::json!({
+        "all_pass": r.all_pass(),
+        "rules": r.results.iter().map(|x| serde_json::json!({"id": x.id, "title": x.title, "pass": x.pass, "waiting": x.waiting, "details": x.details})).collect::<Vec<_>>(),
+    })
+    .to_string())
+}
+
 /// Builds a GetBlockRange request (inclusive range).
 #[wasm_bindgen]
 pub fn block_range_request(start: u32, end: u32) -> Vec<u8> {
@@ -274,7 +288,7 @@ impl Recount {
         fp_lines.extend(self.facts.iter().map(|f| format!("F {}|{}|{}|{}{}{}", f.txid, f.fee_zat, f.ironwood_actions, f.has_orchard, f.has_sapling, f.has_transparent)));
         fp_lines.sort();
         let fingerprint = hex::encode(ll_core::hash(b"LL fingerprint2", format!("{}\n{}", self.fingerprint(), fp_lines.join("\n")).as_bytes()));
-        Ok(serde_json::json!({
+        let mut out = serde_json::json!({
             "tip": r.tip, "phase": r.phase, "all_pass": r.all_pass(),
             "rules": r.results.iter().map(|x| serde_json::json!({"id": x.id, "title": x.title, "pass": x.pass, "details": x.details})).collect::<Vec<_>>(),
             "totals": {
@@ -286,8 +300,14 @@ impl Recount {
             "goal_zat": rules.goal_zat, "goal_met": r.goal_met, "winners": r.winners, "warnings": r.warnings,
             "auction": auction,
             "fingerprint": fingerprint,
-        })
-        .to_string())
+        });
+        // a fundraiser with a hard cap only: the cap and what is over it (a report without a cap stays exactly as before, and so does its hash)
+        if let Some(cap) = rules.cap_zat {
+            out["cap_zat"] = cap.into();
+            out["over_cap"] = t.over_cap.into();
+            out["over_cap_zat"] = t.over_cap_zat.into();
+        }
+        Ok(out.to_string())
     }
 
     /// For each uniform-auction winner who published a viewing key (SPEC §8.5): does it derive the refund

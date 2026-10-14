@@ -16,7 +16,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
     const ids = await p.evaluate(() => [...document.querySelectorAll('#rules .chk .cid')].map((e) => e.firstChild.textContent));
     if (tag === '390') {
       check('auction recount: the verdict is a pass or a limited pass', kind === 'pass' || kind === 'partial', kind);
-      check('auction recount: R1 to R12 are all listed', Array.from({ length: 12 }, (_, i) => `R${i + 1}`).every((r) => ids.includes(r)), ids.join(' '));
+      check('auction recount: R1 to R12 and R4b are all listed', [...Array.from({ length: 12 }, (_, i) => `R${i + 1}`), 'R4b'].every((r) => ids.includes(r)), ids.join(' '));
       check('auction recount: the auction totals are shown (clearing price, treasury)', /Clearing price/.test(await txt(p, '#totals')) && /treasury/i.test(await txt(p, '#totals')));
       await p.click('#rules .chk:has(.cid:text-is("R11")) .cid'); await p.waitForTimeout(200);
       check('auction recount: tapping R11 shows its name and sentence', /Nothing diverted/.test(await txt(p, '#rules .chk:has(.cid:text-is("R11")) .tip')));

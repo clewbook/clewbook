@@ -20,6 +20,12 @@ pub fn orchard_receiver(ua: &str) -> Result<(NetworkType, [u8; 43])> {
     bail!("the refund address has no Orchard/Ironwood receiver")
 }
 
+/// Whether 43 raw bytes are a valid Orchard/Ironwood address: the check a wallet makes before it can pay them. Bytes that fail it
+/// can never receive a refund (the wallet refuses with "Invalid Orchard receiver").
+pub fn valid_orchard_receiver(raw: &[u8; 43]) -> bool {
+    Option::<orchard::Address>::from(orchard::Address::from_raw_address_bytes(raw)).is_some()
+}
+
 /// Encodes an Orchard receiver as a single-receiver Unified Address.
 pub fn encode_orchard(net: NetworkType, raw: [u8; 43]) -> Result<String> {
     let addr = unified::Address::try_from_items(

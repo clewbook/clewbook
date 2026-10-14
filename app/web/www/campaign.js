@@ -51,7 +51,11 @@ async function main() {
 
   const facts = $('#facts');
   fact(facts, 'Type', c.mode === 'auction' ? 'Auction' : 'Fundraiser');
-  if (c.goal) fact(facts, 'Goal', `${c.goal} ${c.ticker}`);
+  // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
+  if (c.goal && c.cap) {
+    fact(facts, 'Soft cap', `${c.goal} ${c.ticker}: the least it must keep at the deadline, or everyone is refunded`);
+    fact(facts, 'Hard cap', `${c.cap} ${c.ticker}: the most it keeps; at the close, a payment that does not fit is refunded whole by its own ticket, minus the fee`);
+  } else if (c.goal) fact(facts, 'Goal', `${c.goal} ${c.ticker}`);
   if (c.items) fact(facts, 'Items for sale', String(c.items));
   fact(facts, 'Smallest contribution', `${c.min} ${c.ticker}`);
   fact(facts, 'Status', status);
@@ -62,14 +66,15 @@ async function main() {
     fact(facts, 'Settlement', `the host must settle every winner by block ${c.settle_by} (${c.settle_window} blocks after the deadline); after that winners can claim their own refund`);
   }
   fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}: each contribution gets its refund ticket within this window, and if the host has not closed this long after the deadline, contributors may claim their own refunds`);
-  fact(facts, 'Refund promise', 'Every contribution comes with a signed refund ticket that never expires.');
+  if (c.early_close) fact(facts, 'Early close', 'Allowed: the host may close this fundraiser before the deadline once the ' + (c.cap ? 'soft cap' : 'goal') + ' is met. Contributions can be taken back with their tickets only until it closes, and payments after the close do not count. The close height is the host\'s own statement; the recount lists payments made just after it.');
+  fact(facts, 'Refund promise', 'Every contribution gets a signed refund ticket with no expiry height. It works without the host while the contribution is unspent: until the deadline, and afterwards unless the contribution is kept.');
   $('#about').hidden = false; $('#take').hidden = false;
   $('#title').textContent = c.mode === 'auction' ? 'Auction' : 'Fundraiser';
   $('#display-name').textContent = c.name || `${c.mode === 'auction' ? 'Auction' : 'Fundraiser'} ${cfg.id.slice(0, 8)}…`;
   $('#display-name').hidden = false;
   $('#status-line').hidden = false;
   $('#status-chip').innerHTML = closed ? '<span class="chip closed">Closed</span>' : left == null ? '<span class="chip warn">Unknown</span>' : left > 0 ? '<span class="chip open">Open</span>' : '<span class="chip warn">Wrapping up</span>';
-  $('#status-text').textContent = c.goal ? `Goal ${c.goal} ${c.ticker}` : `${c.items} ${c.items === 1 ? 'item' : 'items'} for sale`;
+  $('#status-text').textContent = c.goal ? (c.cap ? `Soft cap ${c.goal} ${c.ticker}, hard cap ${c.cap} ${c.ticker}` : `Goal ${c.goal} ${c.ticker}`) : `${c.items} ${c.items === 1 ? 'item' : 'items'} for sale`;
 
   const count = (k) => j.entries.filter((e) => e.kind === k).length;
   const lf = $('#list-facts');

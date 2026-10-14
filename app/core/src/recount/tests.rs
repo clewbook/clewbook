@@ -28,7 +28,7 @@ fn fx(mode: &str) -> Fx {
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000,
         campaign_ufvk: (!auction).then(|| UFVK.into()), ufvk_hash: auction.then(|| ufvk_hash(UFVK)),
-        pay_to: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
+        pay_to: None, early_close: None, cap_zat: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
         name: None,
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
@@ -40,7 +40,7 @@ impl Fx {
     /// A real payload memo for this campaign, sealed with `seed`'s one-time key.
     fn memo(&self, seed: u8, rules_id: [u8; 32]) -> String {
         let k = ContributorKeys { seed: [seed; 32] };
-        Payload { rules_id, sign_pubkey: [0; 32], enc_pubkey: [0; 32], refund_typecode: 3, refund_receiver: [0; 43], amount_zat: self.amount }
+        Payload { rules_id, sign_pubkey: [0; 32], enc_pubkey: [0; 32], refund_typecode: 3, refund_receiver: valid_receiver(), amount_zat: self.amount }
             .to_memo(&hex32(&self.rules.payload_pubkey).unwrap(), &k.memo_ephemeral_key())
             .unwrap()
     }
@@ -100,6 +100,12 @@ impl Fx {
     }
 }
 
+/// A valid Orchard/Ironwood receiver (a refund address a wallet can pay).
+pub(super) fn valid_receiver() -> [u8; 43] {
+    let sk: orchard::keys::SpendingKey = Option::from(orchard::keys::SpendingKey::from_bytes([7; 32])).expect("a valid spending key");
+    orchard::keys::FullViewingKey::from(&sk).address_at(0u32, orchard::keys::Scope::External).to_raw_address_bytes()
+}
+
 fn spent(mut n: ChainNote, txid: &str, h: u32) -> ChainNote {
     n.spent_by = Some(Spend { txid: txid.into(), height: Some(h) });
     n
@@ -107,6 +113,11 @@ fn spent(mut n: ChainNote, txid: &str, h: u32) -> ChainNote {
 
 fn ticket_of(n: &ChainNote) -> String {
     format!("ticket-{}", n.txid)
+}
+
+/// A check's result by its id (positions move when a check is added).
+pub(super) fn by_id<'a>(r: &'a Report, id: &str) -> &'a RuleResult {
+    r.results.iter().find(|x| x.id == id).unwrap_or_else(|| panic!("no check {id}"))
 }
 
 fn failing(r: &Report) -> Vec<&'static str> {
@@ -254,7 +265,7 @@ fn false_reject_is_exposed_by_the_contributor_secret() {
     // With the contributor's published secret, anyone can see the payload was valid.
     let r = f.run(&l, &[a.clone()], &[challenge(&a, 7)], 115);
     assert_eq!(failing(&r), vec!["R8"]);
-    assert!(r.results[7].details[0].contains("opens a valid payload"));
+    assert!(by_id(&r, "R8").details[0].contains("opens a valid payload"));
     // ...and once K blocks pass without a ticket, R4 fails too.
     assert_eq!(failing(&f.run(&l, &[a.clone()], &[challenge(&a, 7)], 121)), vec!["R4", "R8"]);
 }
@@ -536,4 +547,346 @@ fn the_ticket_window_is_a_per_campaign_setting_within_bounds() {
     let a = { r.ticket_k = 10; r.id().unwrap() };
     let b = { r.ticket_k = 30; r.id().unwrap() };
     assert_ne!(a, b);
+}
+
+/// A hand made payment message with any refund receiver (the page and cb-contrib only make valid Orchard ones).
+fn hand_made(f: &Fx, seed: u8, typecode: u8, receiver: [u8; 43]) -> String {
+    let k = ContributorKeys { seed: [seed; 32] };
+    Payload { rules_id: hex32(&f.id).unwrap(), sign_pubkey: [0; 32], enc_pubkey: [0; 32], refund_typecode: typecode, refund_receiver: receiver, amount_zat: None }
+        .to_memo(&hex32(&f.rules.payload_pubkey).unwrap(), &k.memo_ephemeral_key())
+        .unwrap()
+}
+
+#[test]
+fn a_challenge_cannot_revive_a_reject_for_a_refund_the_host_cannot_pay() {
+    // docs/THREAT_MODEL.md threat 25, fixed: the host rejects a payment whose refund receiver cannot be paid (a type that is not Orchard,
+    // or bytes that are not a valid address), and the payer's published secret does not make that reject look false. Before the fix the
+    // first case turned R8 (and after K blocks R4) red for an honest host.
+    let f = fx("raise");
+    for (i, (typecode, receiver)) in [(2u8, valid_receiver()), (3u8, [0xff; 43]), (3u8, [0; 43])].into_iter().enumerate() {
+        let seed = 30 + i as u8;
+        let a = f.note(1, 1_000_000, 110, hand_made(&f, seed, typecode, receiver));
+        let l = f.ledger(vec![f.entry("reject", &a)]);
+        for tip in [115, 150, 100_000] {
+            let r = f.run(&l, &[a.clone()], &[challenge(&a, seed)], tip);
+            assert!(r.all_pass(), "type {typecode}, tip {tip}: {:?}", failing(&r));
+            assert_eq!(r.totals.contributions, 0, "a justified reject is a donation: R4 asks no ticket for it");
+        }
+    }
+    // ...while the same challenge still exposes a false reject of a payment whose refund can be paid
+    let ok = f.note(1, 1_000_000, 110, hand_made(&f, 40, 3, valid_receiver()));
+    let l = f.ledger(vec![f.entry("reject", &ok)]);
+    assert_eq!(failing(&f.run(&l, &[ok.clone()], &[challenge(&ok, 40)], 115)), vec!["R8"]);
+}
+
+#[test]
+fn the_validity_rule_names_each_problem_with_a_code() {
+    use crate::payload::{Invalid, check};
+    let f = fx("raise");
+    let p = |typecode, receiver, amount| Payload { rules_id: hex32(&f.id).unwrap(), sign_pubkey: [0; 32], enc_pubkey: [0; 32], refund_typecode: typecode, refund_receiver: receiver, amount_zat: amount };
+    assert_eq!(check(&p(3, valid_receiver(), None), &f.id, 50_000, 10_000), Ok(()));
+    assert_eq!(check(&p(3, valid_receiver(), None), &"ab".repeat(32), 50_000, 10_000), Err(Invalid::OtherCampaign));
+    assert_eq!(check(&p(3, valid_receiver(), Some(60_000)), &f.id, 50_000, 10_000), Err(Invalid::Underpaid { paid: 50_000, promised: 60_000 }));
+    assert_eq!(check(&p(2, valid_receiver(), None), &f.id, 50_000, 10_000), Err(Invalid::ReceiverType(2)));
+    assert_eq!(check(&p(3, [0xff; 43], None), &f.id, 50_000, 10_000), Err(Invalid::ReceiverBytes));
+    assert_eq!(check(&p(3, valid_receiver(), None), &f.id, 10_000, 10_000), Err(Invalid::NothingToRefund { paid: 10_000, fee: 10_000 }));
+    // the reason starts with plain words (the contribute page matches "underpaid" at the start) and ends with the code
+    let u = Invalid::Underpaid { paid: 1, promised: 2 }.reason();
+    assert!(u.starts_with("underpaid:") && u.ends_with("[underpaid]"), "{u}");
+}
+
+#[test]
+fn the_self_refund_hint_uses_deadline_plus_k() {
+    // a goal missed fundraiser that the host has not closed; K 30 and close_grace 10 differ on purpose
+    let mut f = fx("raise");
+    f.rules.ticket_k = 30;
+    f.id = hex::encode(f.rules.id().unwrap());
+    let a = f.note(1, 1_000_000, 110, f.good_memo(7));
+    let l = f.ledger(vec![f.entry("issue", &a)]);
+    let r6 = |tip| f.run(&l, &[a.clone()], &[], tip).results.iter().find(|x| x.id == "R6").unwrap().details.join(" ");
+    assert!(r6(215).contains("host is inside its close window"), "{}", r6(215)); // past deadline + close_grace, not past deadline + K
+    assert!(r6(231).contains("contributors may self-refund now"), "{}", r6(231));
+}
+
+// ---- early close of a fundraiser (SPEC §4) ----
+
+/// A fundraiser that allows closing early (goal 2,000,000; deadline 200; K 10).
+fn early_fx() -> Fx {
+    let mut f = fx("raise");
+    f.rules.early_close = Some(true);
+    f.id = hex::encode(f.rules.id().unwrap());
+    f
+}
+
+fn close_at(f: &Fx, height: u32, outcome: &str) -> Entry {
+    let mut e = f.close(outcome, None);
+    e.close.as_mut().unwrap().close_height = height;
+    e
+}
+
+#[test]
+fn an_early_close_once_the_goal_is_met_passes_and_later_payments_do_not_count() {
+    let f = early_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 600_000, 120, f.good_memo(2));
+    let late = f.note(3, 700_000, 160, f.good_memo(3)); // after the early close at 150, before the deadline
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), close_at(&f, 150, "goal_met")]);
+    // before the sweep, and after it (the sweep spends both kept notes after the close height)
+    for notes in [vec![a.clone(), b.clone(), late.clone()], vec![spent(a.clone(), "sweep", 152), spent(b.clone(), "sweep", 152), late.clone()]] {
+        let r = f.run(&l, &notes, &[], 155);
+        assert!(r.all_pass(), "{:?}", failing(&r));
+        assert_eq!(r.phase, "closed", "closed from the early close on, although the deadline has not come");
+        assert_eq!(r.totals.contributions, 2, "the payment after the close height is not counted");
+        assert_eq!(r.totals.donations, 0, "and it is not a donation either: it is a late payment");
+        assert!(r.results[1].details.iter().any(|d| d.contains("closed early at 150")), "{:?}", r.results[1].details);
+    }
+}
+
+#[test]
+fn an_early_close_on_a_campaign_whose_rules_do_not_allow_it_fails_r2() {
+    let f = fx("raise"); // no early_close in the rules
+    let a = f.note(1, 2_500_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "goal_met")]);
+    let r = f.run(&l, &[spent(a.clone(), "sweep", 152)], &[], 155);
+    assert!(failing(&r).contains(&"R2"), "{:?}", failing(&r));
+    assert!(r.results[1].details[0].contains("before the deadline"), "{:?}", r.results[1].details);
+}
+
+#[test]
+fn an_early_close_before_the_goal_is_met_fails_r7_and_one_that_refunds_fails_r2() {
+    let f = early_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 600_000, 160, f.good_memo(2)); // would have met the goal, but only after the close height
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), close_at(&f, 150, "goal_met")]);
+    assert_eq!(failing(&f.run(&l, &[a.clone(), b.clone()], &[], 155)), vec!["R3", "R7"], "b's entry is now outside the range (R3), and the goal was not met at 150 (R7)");
+    let l2 = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "goal_missed")]);
+    assert!(failing(&f.run(&l2, &[a.clone()], &[], 155)).contains(&"R2"));
+}
+
+#[test]
+fn a_withdrawal_before_the_early_close_lowers_the_net_raise() {
+    let f = early_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 600_000, 120, f.good_memo(2));
+    // b took its contribution back with its own ticket at 140, so at the close height 150 the goal (2,000,000) is not met
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), close_at(&f, 150, "goal_met")]);
+    let r = f.run(&l, &[a.clone(), spent(b.clone(), &ticket_of(&b), 140)], &[], 155);
+    assert_eq!(failing(&r), vec!["R7"], "{:?}", failing(&r));
+}
+
+#[test]
+fn early_close_is_for_fundraisers_only_and_leaves_older_ids_unchanged() {
+    let f = fx("raise");
+    let before = f.rules.id().unwrap();
+    let json = serde_json::to_string(&f.rules).unwrap();
+    assert!(!json.contains("early_close"), "no key when unset: {json}");
+    let mut r = f.rules.clone();
+    r.early_close = Some(true);
+    assert!(r.validate().is_ok());
+    assert_ne!(r.id().unwrap(), before, "a campaign that allows it is a different campaign");
+    r.early_close = Some(false);
+    assert!(r.validate().is_err(), "false is written by leaving the key out");
+    let mut auction = fx("auction").rules;
+    auction.early_close = Some(true);
+    assert!(auction.validate().is_err(), "an auction can never close early");
+    assert!(!auction.allows_early_close());
+}
+
+// ---- R4 (completeness) and R4b (timeliness, host reported) ----
+
+/// An issue entry whose ticket the host says it issued at `issued`.
+fn issued_at(f: &Fx, n: &ChainNote, issued: u32) -> Entry {
+    let mut e = f.entry("issue", n);
+    e.ticket.as_mut().unwrap().issue_height = issued;
+    e
+}
+
+#[test]
+fn a_ticket_issued_late_but_honestly_fails_r4b_only() {
+    let f = fx("raise"); // K 10
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![issued_at(&f, &a, 125)]); // due by 120
+    let r = f.run(&l, &[a.clone()], &[], 150);
+    assert_eq!(failing(&r), vec!["R4b"]);
+    assert!(by_id(&r, "R4b").details[0].contains("ticketed at 125 (the height the host reports), due by 120"), "{:?}", by_id(&r, "R4b").details);
+    assert!(by_id(&r, "R4b").title.contains("host reported"));
+}
+
+#[test]
+fn a_backdated_issue_height_passes_r4b_the_known_weakness() {
+    // the host issued the ticket late but wrote an earlier height: nothing on the chain contradicts it (docs/THREAT_MODEL.md threat 22)
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![issued_at(&f, &a, 111)]);
+    let r = f.run(&l, &[a.clone()], &[], 150);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert!(by_id(&r, "R4b").details.iter().any(|d| d.contains("reported by the host")), "the pass says whose word it rests on");
+}
+
+#[test]
+fn a_missing_ticket_fails_r4_after_the_window_and_is_pending_inside_it() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let inside = f.run(&[], &[a.clone()], &[], 120); // due by 120: still inside
+    assert!(inside.all_pass(), "{:?}", failing(&inside));
+    assert!(by_id(&inside, "R4").details[0].contains("still inside the K-block window"));
+    let after = f.run(&[], &[a.clone()], &[], 121);
+    assert_eq!(failing(&after), vec!["R4"], "missing is completeness, not timeliness");
+}
+
+#[test]
+fn the_former_r4_passes_exactly_when_r4_and_r4b_pass() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let b = f.note(2, 1_000_000, 112, f.good_memo(2));
+    for (entries, tip) in [(vec![], 115), (vec![], 130), (vec![issued_at(&f, &a, 111)], 130), (vec![issued_at(&f, &a, 140)], 150), (vec![issued_at(&f, &a, 140), issued_at(&f, &b, 113)], 150)] {
+        let l = f.ledger(entries);
+        let r = f.run(&l, &[a.clone(), b.clone()], &[], tip);
+        let old_r4 = r.all_pass() || !failing(&r).iter().any(|id| *id == "R4" || *id == "R4b");
+        assert_eq!(old_r4, by_id(&r, "R4").pass && by_id(&r, "R4b").pass);
+    }
+}
+
+#[test]
+fn payments_between_an_early_close_and_its_sweep_are_listed_under_r2_without_failing() {
+    // docs/THREAT_MODEL.md threat 26: the early close height is the host's statement; a payment mined after it and before the sweep is
+    // left out, as a late payment, which an honest close can also have. Shown, not failed.
+    let f = early_fx();
+    let a = f.note(1, 2_500_000, 110, f.good_memo(1));
+    let p = f.note(2, 300_000, 152, f.good_memo(2)); // after the close height 150, before the sweep at 155
+    let late = f.note(3, 300_000, 170, f.good_memo(3)); // after the sweep: an ordinary late payment
+    let l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "goal_met")]);
+    let r = f.run(&l, &[spent(a.clone(), "sweep", 155), p.clone(), late.clone()], &[], 180);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    let d = by_id(&r, "R2").details.join(" ");
+    assert!(d.contains("1 payment(s) that look like contributions") && d.contains(&format!("{}:0 (block 152)", p.txid)) && !d.contains(&late.txid), "{d}");
+}
+
+// ---- hard cap (SPEC §4): kept in chain order while it fits, the rest refunded whole by its own ticket; the goal counts the kept amount ----
+
+fn cap_fx(cap: u64) -> Fx {
+    let mut f = fx("raise"); // goal 2,000,000
+    f.rules.cap_zat = Some(cap);
+    f.id = hex::encode(f.rules.id().unwrap());
+    f
+}
+
+#[test]
+fn a_cap_below_the_goal_at_the_close_refunds_everyone() {
+    let f = cap_fx(5_000_000);
+    let (a, b) = (f.note(1, 600_000, 110, f.good_memo(1)), f.note(2, 600_000, 111, f.good_memo(2)));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.close("goal_missed", None)]);
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 206), spent(b.clone(), &ticket_of(&b), 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.goal_met, r.totals.refunded_zat, r.totals.over_cap), (Some(false), 1_200_000, 0));
+}
+
+#[test]
+fn between_the_soft_and_the_hard_cap_everything_is_kept() {
+    let f = cap_fx(5_000_000);
+    let (a, b) = (f.note(1, 1_500_000, 110, f.good_memo(1)), f.note(2, 1_000_000, 111, f.good_memo(2)));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.close("goal_met", None)]);
+    let r = f.run(&l, &[spent(a, "sweep", 206), spent(b, "sweep", 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.kept_zat, r.totals.over_cap), (2_500_000, 0));
+}
+
+#[test]
+fn a_payment_that_crosses_the_cap_is_refunded_whole_by_its_ticket() {
+    let f = cap_fx(3_000_000);
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 1_000_000, 111, f.good_memo(2)); // 2,500,000 so far: 500,000 of room left
+    let c = f.note(3, 800_000, 112, f.good_memo(3)); // does not fit
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.entry("issue", &c), f.close("goal_met", None)]);
+    // before the close the R6 line says what will happen
+    let open = f.run(&f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.entry("issue", &c)]), &[a.clone(), b.clone(), c.clone()], &[], 150);
+    assert!(open.all_pass(), "{:?}", failing(&open));
+    assert!(by_id(&open, "R6").details.iter().any(|d| d.starts_with("1 payment(s) over the cap so far")), "{:?}", by_id(&open, "R6").details);
+    let r = f.run(&l, &[spent(a, "sweep", 206), spent(b, "sweep", 206), spent(c.clone(), &ticket_of(&c), 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.kept_zat, r.totals.refunded_zat, r.totals.over_cap, r.totals.over_cap_zat), (2_500_000, 800_000, 1, 800_000));
+    assert!(by_id(&r, "R6").details.contains(&"1 payment(s) over the cap, refunded by ticket".to_string()), "{:?}", by_id(&r, "R6").details);
+}
+
+#[test]
+fn a_large_payment_that_does_not_fit_does_not_stop_later_ones_that_do() {
+    let f = cap_fx(3_000_000);
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let big = f.note(2, 2_000_000, 111, f.good_memo(2)); // 1,500,000 of room: does not fit
+    let c = f.note(3, 700_000, 112, f.good_memo(3)); // fits
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &big), f.entry("issue", &c), f.close("goal_met", None)]);
+    let r = f.run(&l, &[spent(a, "sweep", 206), spent(big.clone(), &ticket_of(&big), 206), spent(c, "sweep", 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.kept_zat, r.totals.over_cap_zat), (2_200_000, 2_000_000));
+}
+
+#[test]
+fn a_withdrawal_after_the_cap_is_reached_lets_a_later_payment_in() {
+    let f = cap_fx(3_000_000);
+    let a = f.note(1, 2_000_000, 110, f.good_memo(1));
+    let b = f.note(2, 1_000_000, 111, f.good_memo(2)); // the cap is reached
+    let c = f.note(3, 900_000, 112, f.good_memo(3)); // over the cap, for now
+    let open = f.run(&f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.entry("issue", &c)]), &[a.clone(), b.clone(), c.clone()], &[], 150);
+    assert_eq!(open.totals.over_cap, 1);
+    // b takes its contribution back with its own ticket before the deadline: c now fits and is kept
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.entry("issue", &c), f.close("goal_met", None)]);
+    let r = f.run(&l, &[spent(a, "sweep", 206), spent(b.clone(), &ticket_of(&b), 160), spent(c, "sweep", 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.kept_zat, r.totals.withdrawn_zat, r.totals.over_cap), (2_900_000, 1_000_000, 0));
+}
+
+#[test]
+fn an_early_close_with_a_payment_over_the_cap_refunds_it_and_later_payments_do_not_count() {
+    let mut f = cap_fx(3_000_000);
+    f.rules.early_close = Some(true);
+    f.id = hex::encode(f.rules.id().unwrap());
+    let a = f.note(1, 2_500_000, 110, f.good_memo(1));
+    let over = f.note(2, 600_000, 120, f.good_memo(2));
+    let late = f.note(3, 300_000, 160, f.good_memo(3)); // after the early close at 150
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &over), close_at(&f, 150, "goal_met")]);
+    let r = f.run(&l, &[spent(a, "sweep", 152), spent(over.clone(), &ticket_of(&over), 152), late], &[], 155);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.contributions, r.totals.kept_zat, r.totals.refunded_zat, r.totals.over_cap), (2, 2_500_000, 600_000, 1));
+}
+
+#[test]
+fn a_host_that_keeps_a_payment_over_the_cap_fails_r6() {
+    let f = cap_fx(3_000_000);
+    let (a, b) = (f.note(1, 2_500_000, 110, f.good_memo(1)), f.note(2, 800_000, 111, f.good_memo(2)));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.close("goal_met", None)]);
+    let r = f.run(&l, &[spent(a, "sweep", 206), spent(b, "sweep", 206)], &[], 210);
+    assert_eq!(failing(&r), vec!["R6"], "{:?}", failing(&r));
+}
+
+#[test]
+fn the_goal_counts_only_what_fits_under_the_cap() {
+    // 2,700,000 was paid, but only 300,000 fits under a cap of 2,200,000 after the large payment is set aside: the goal (2,000,000) is missed
+    let f = cap_fx(2_200_000);
+    let (a, big) = (f.note(1, 300_000, 110, f.good_memo(1)), f.note(2, 2_400_000, 111, f.good_memo(2)));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &big), f.close("goal_met", None)]);
+    let r = f.run(&l, &[spent(a.clone(), "sweep", 206), spent(big.clone(), &ticket_of(&big), 206)], &[], 210);
+    assert_eq!(failing(&r), vec!["R6", "R7"], "declaring goal_met and keeping a fails: {:?}", failing(&r));
+    let honest = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &big), f.close("goal_missed", None)]);
+    let r = f.run(&honest, &[spent(a.clone(), &ticket_of(&a), 206), spent(big.clone(), &ticket_of(&big), 206)], &[], 210);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!(r.goal_met, Some(false));
+}
+
+#[test]
+fn a_cap_is_for_fundraisers_only_at_least_the_goal_and_leaves_older_ids_unchanged() {
+    let f = fx("raise");
+    let before = f.rules.id().unwrap();
+    assert!(!serde_json::to_string(&f.rules).unwrap().contains("cap_zat"), "no key when unset");
+    let mut r = f.rules.clone();
+    r.cap_zat = Some(4_000_000);
+    assert!(r.validate().is_ok());
+    assert_ne!(r.id().unwrap(), before, "a capped campaign is a different campaign");
+    assert_eq!(r.cap_warning(), None, "twice the goal: no warning");
+    r.cap_zat = Some(3_999_999);
+    assert!(r.cap_warning().is_some_and(|w| w.contains("less than twice the soft cap")));
+    r.cap_zat = Some(1_999_999);
+    assert!(r.validate().is_err(), "below the goal");
+    let mut auction = fx("auction").rules;
+    auction.cap_zat = Some(4_000_000);
+    assert!(auction.validate().is_err(), "an auction has items, not a cap");
 }

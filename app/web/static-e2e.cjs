@@ -11,11 +11,13 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  
 const REMOTE = (process.env.BASE_URL || '').replace(/\/+$/, '');
 const BASE = REMOTE || `http://127.0.0.1:${PORT}`;
 const CASES = [
-  ['uniform-price auction', '5eda2e8a7cff9e282c4ca67d1938ea85535f9df40349e73c1ceb8864a26431eb', 'pass', 12, 0],
-  ['fundraiser, closed and refunded', '48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e152133615f', 'pass', 8, 0],
-  ['fundraiser, 40 contributions', '47751309982e515bfb23989030eeac353ccfdc2bda0a0bed56ff2d943c5605da', 'pass', 8, 0],
-  ['fundraiser with a name chosen by its host', 'f6737fbc462e75508d424f0612a1ce5ea3df24c5cc1b550074821ccdea5e237a', 'pass', 8, 0],
-  ['failing fixture (late settlement)', '32ea71afc470d77909a1b7b4a1fdaba36f0612df3a973df0ce1410c5ca16467a', 'fail', 11, 1],
+  ['uniform-price auction', '5eda2e8a7cff9e282c4ca67d1938ea85535f9df40349e73c1ceb8864a26431eb', 'pass', 13, 0],
+  ['fundraiser, closed and refunded', '48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e152133615f', 'pass', 9, 0],
+  ['fundraiser, 40 contributions', '47751309982e515bfb23989030eeac353ccfdc2bda0a0bed56ff2d943c5605da', 'pass', 9, 0],
+  ['fundraiser with a name chosen by its host', 'f6737fbc462e75508d424f0612a1ce5ea3df24c5cc1b550074821ccdea5e237a', 'pass', 9, 0],
+  ['failing fixture (late settlement)', '32ea71afc470d77909a1b7b4a1fdaba36f0612df3a973df0ce1410c5ca16467a', 'fail', 12, 1, 'R9'],
+  ['hard cap: one payment did not fit and was refunded by its ticket', '0e87fe135cb3dd2486efa0809534718bf62ebd3df733d903008550c4c202aef5', 'pass', 9, 0],
+  ['caught: a host kept a payment over the hard cap', 'bc66ccca21ec5a3059e03326ec7abbf54fa55c45102a6037cf27f600273addb1', 'fail', 8, 1, 'R6'],
 ];
 (async () => {
   const srv = REMOTE ? { kill() {} } : spawn('python3', ['-m', 'http.server', PORT, '--bind', '127.0.0.1', '--directory', DIR], { stdio: 'ignore' });
@@ -40,7 +42,7 @@ const CASES = [
       const hd = (await fetch(`${BASE}/index.html`)).headers;
       check('the deployed pages carry the security headers (nosniff, no-referrer, a content security policy) and set no cookie', hd.get('x-content-type-options') === 'nosniff' && hd.get('referrer-policy') === 'no-referrer' && /default-src 'self'/.test(hd.get('content-security-policy') || '') && !hd.get('set-cookie'), JSON.stringify([...hd.keys()].filter((k) => /policy|options|cookie|vercel/.test(k))));
     } else check('the folder holds no relay program or page server program, only files', require('fs').readdirSync(DIR).every((f) => !/^ll-|\.py$|\.sh$/.test(f)));
-    for (const [name, id, kind, pass, fail] of CASES) {
+    for (const [name, id, kind, pass, fail, fails = ''] of CASES) {
       // a public chain server that does not answer in time makes the result "limited" (only one server); that says nothing about the files, so try again (at most 3 times)
       let p, got, failing;
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -52,7 +54,7 @@ const CASES = [
         if (!(oneServer && got.kind !== kind) || attempt === 3) break;
         await p.close();
       }
-      check(`${name}: the recount from plain files gives ${kind} (${pass} pass, ${fail} fail${fail ? ', R9' : ''})`, got.kind === kind && got.pass === pass && got.fail === fail && (!fail || failing.join() === 'R9'), JSON.stringify(got) + ' ' + failing.join());
+      check(`${name}: the recount from plain files gives ${kind} (${pass} pass, ${fail} fail${fail ? `, ${fails}` : ''})`, got.kind === kind && got.pass === pass && got.fail === fail && (!fail || failing.join() === fails), JSON.stringify(got) + ' ' + failing.join());
       // the recount page says when the list ended: the deadline block always, and the close block when the campaign was closed
       const rules = await (await fetch(`${BASE}/relays/a/v1/campaigns/${id}`)).json();
       const led = await (await fetch(`${BASE}/relays/a/v1/campaigns/${id}/ledger?from=0`)).json();
@@ -75,14 +77,14 @@ const CASES = [
     const id = CASES[0][1], q = `c=${id}&relay=${BASE}/relays/a&relay=${BASE}/relays/b`;
     const card = await open(`${BASE}/card.html#${q}`);
     await card.waitForSelector('#card:not([hidden])', { timeout: 90000 });
-    check('the capability card draws from the files (R1 to R12 for the auction)', (await card.locator('#checks .chk').count()) === 12);
+    check('the capability card draws from the files (R1 to R12 with R4b for the auction)', (await card.locator('#checks .chk').count()) === 13);
     await card.screenshot({ path: `${SHOTS}/static-card-1000.png`, fullPage: true }); await card.close();
     const camp = await open(`${BASE}/campaign.html#${q}`);
     await camp.waitForSelector('#links:not([hidden])', { timeout: 90000 });
     check('the campaign page lists the ledger entries from the files', (await camp.locator('#entries tr').count()) === 6);
     await camp.close();
     const idx = await open(`${BASE}/proofs/`);
-    check('the proofs page builds its links from wherever it is served', (await idx.locator('#list a').count()) === 15 && /relays\/a/.test(await idx.locator('#list a').first().getAttribute('href')));
+    check('the proofs page builds its links from wherever it is served', (await idx.locator('#list a').count()) === 39 && /relays\/a/.test(await idx.locator('#list a').first().getAttribute('href')));
     await idx.close();
     check('nothing was requested from a relay program, a page server program or any other site (only the folder and the public chain servers)', other.length === 0, other.slice(0, 3).join(' '));
     check('no errors in the browser console', errors.length === 0, errors.join(' | ').slice(0, 200));

@@ -8,6 +8,9 @@ export const NOT_CHECKED = [
   ['the proof inside each refund ticket', 'it is checked only on a contributor\'s own device, when they press "Check the proof too"'],
   ['Ticket anchors', "whether each ticket's chain anchor is still valid is not checked"],
   ['Ledger anchoring', "the host's ledger fingerprint is not yet published anywhere public"],
+  ['When each ticket was issued', "the issue height in the list is the host's own statement; the recount cannot check it"],
+  ['Whether the host spent a contribution first', 'nothing prevents it; R5 and R6 show such a spend after it happens'],
+  ['This page', "its code is served by the project's own server; the command line recount can be built from the source instead"],
 ];
 
 /** The ticket checks, by level (SPEC section 3.1). `when` says when the contributor's page runs the level. */
@@ -24,10 +27,10 @@ export const LEVELS = [
 
 const NET = { test: { label: 'Test network', money: 'no real money', ticker: 'TAZ' }, main: { label: 'Main network', money: 'real money', ticker: 'ZEC' } };
 
-/** Which recount checks apply to this campaign, from its rules: R1 to R8 always, R9 to R12 for a uniform-price auction. */
+/** Which recount checks apply to this campaign, from its rules: R1 to R8 and R4b always, R9 to R12 for a uniform-price auction. */
 export function appliesTo(rules) {
   const uniform = rules.mode === 'auction' && rules.pricing === 'uniform';
-  return { uniform, checks: [...Array.from({ length: 8 }, (_, i) => `R${i + 1}`), ...(uniform ? ['R9', 'R10', 'R11', 'R12'] : [])] };
+  return { uniform, checks: ['R1', 'R2', 'R3', 'R4', 'R4b', 'R5', 'R6', 'R7', 'R8', ...(uniform ? ['R9', 'R10', 'R11', 'R12'] : [])] };
 }
 
 /** The values the card prints, all taken from the rules. `secondsPerBlock` is a measurement or null. */
@@ -37,7 +40,11 @@ export function cardModel(summary, rules, secondsPerBlock = null) {
   const terms = [
     ['Type', rules.mode === 'auction' ? (uniform ? 'Auction, one price for every winner' : 'Auction') : 'Fundraiser'],
     ['Network', `${net.label} (${net.money})`],
-    ...(rules.mode === 'raise' ? [['Goal', { amount: summary.goal_zat, ticker: net.ticker }]] : [['Items for sale', String(summary.items)]]),
+    // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
+    ...(rules.mode !== 'raise' ? [['Items for sale', String(summary.items)]] : summary.cap_zat == null ? [['Goal', { amount: summary.goal_zat, ticker: net.ticker }]] : [
+      ['Soft cap', { amount: summary.goal_zat, ticker: net.ticker }],
+      ['Hard cap (payments over it are refunded at the close)', { amount: summary.cap_zat, ticker: net.ticker }],
+    ]),
     ...(uniform ? [['Reserve price', { amount: summary.reserve_zat, ticker: net.ticker }]] : []),
     ['Smallest contribution', { amount: summary.min_zat, ticker: net.ticker }],
     ['Refund fee kept', { amount: summary.fee_zat, ticker: net.ticker }],
@@ -47,6 +54,6 @@ export function cardModel(summary, rules, secondsPerBlock = null) {
     ...(uniform ? [['Settlement window', { blocks: summary.settle_window, seconds: secondsPerBlock ? summary.settle_window * secondsPerBlock : null }]] : []),
   ];
   const notChecked = [...NOT_CHECKED];
-  if (rules.mode === 'auction') notChecked.splice(1, 0, ['Your amount (on the ticket check)', 'bids are hidden in an auction, so the list cannot show the amount you meant to pay']);
+  if (rules.mode === 'auction') notChecked.splice(1, 0, ['Your amount (on the ticket check)', 'in an auction, bid amounts are not on the public list before the close, so the list cannot show the amount you meant to pay']);
   return { net, terms, checks, uniform, notChecked, levels: LEVELS };
 }

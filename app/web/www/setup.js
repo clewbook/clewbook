@@ -23,6 +23,7 @@ function toZat(text, what) {
   return Number(whole) * 1e8 + Number(frac.padEnd(8, '0'));
 }
 const mode = () => document.querySelector('input[name=mode]:checked').value;
+const pricing = () => document.querySelector('input[name=pricing]:checked').value;
 
 function renderTerms() {
   const ticker = config ? config.ticker : 'TAZ';
@@ -30,18 +31,35 @@ function renderTerms() {
   const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
   let goal = '';
   try { goal = mode() === 'raise' ? ($('#goal').value.trim() ? amountHTML(toZat($('#goal').value, 'the goal'), ticker) : '<span class="dim">not entered yet</span>') : `${Number($('#items').value) || '<span class="dim">not entered yet</span>'}`; } catch { goal = '<span class="dim">not a number yet</span>'; }
+  // an optional hard cap: the goal is then shown as the soft cap
+  let cap = null;
+  try { cap = mode() === 'raise' && !$('#cap-row').hidden && $('#cap').value.trim() ? toZat($('#cap').value, 'the hard cap') : null; } catch { cap = null; }
   let min = '';
   try { min = amountHTML(toZat($('#minimum').value, 'the smallest contribution'), ticker); } catch { min = '<span class="dim">not a number yet</span>'; }
   const time = Number.isInteger(n) && n > 0 ? (etaText(n, measured.secondsPerBlock) || 'the length of a block could not be measured') : '';
   $('#terms').innerHTML = [
     row('Type', mode() === 'raise' ? 'Fundraiser' : 'Auction'),
-    row(mode() === 'raise' ? 'Goal' : 'Items for sale', goal),
+    row(mode() === 'raise' ? (cap != null ? 'Soft cap' : 'Goal') : 'Items for sale', goal),
+    ...(cap != null ? [row('Hard cap', amountHTML(cap, ticker))] : []),
+    ...(mode() === 'raise' ? [row('Early close', $('#early-close').checked ? 'Allowed once the goal is met' : 'Not allowed: the campaign closes after the deadline')] : []),
+    ...(mode() === 'auction' ? [row('How winners pay', pricing() === 'uniform' ? 'Everyone who wins pays the same price (the lowest winning bid); the rest comes back' : 'Each winner pays their own bid')] : []),
     row('Smallest contribution', min),
     row('Deadline', Number.isInteger(n) && n > 0 ? `${measured.tip != null ? `about block ${(measured.tip + n).toLocaleString('en-US')} (now ${measured.tip.toLocaleString('en-US')}, plus ${n.toLocaleString('en-US')})` : `${n.toLocaleString('en-US')} blocks from now`}${time ? `, ${time} from now` : ''}` : '<span class="dim">not entered yet</span>'),
     row('Ticket window', Number.isInteger(Number($('#ticketk').value)) && Number($('#ticketk').value) > 0 ? `${Number($('#ticketk').value).toLocaleString('en-US')} blocks${etaText(Number($('#ticketk').value), measured.secondsPerBlock) ? `, ${etaText(Number($('#ticketk').value), measured.secondsPerBlock)}` : ''}` : '<span class="dim">not entered yet</span>'),
     row('Network', config ? (config.network === 'main' ? 'Main network (real money)' : 'Test network (no real money)') : ''),
   ].join('');
   decorateAmounts($('#terms'));
+}
+
+/** The hard cap's warning, as the program gives it: allowed, but with little room above the goal the campaign can miss its goal. */
+function capWarn() {
+  let goal = null, cap = null;
+  try { goal = toZat($('#goal').value, 'the goal'); cap = $('#cap').value.trim() ? toZat($('#cap').value, 'the hard cap') : null; } catch { /* not numbers yet */ }
+  const w = $('#cap-warn');
+  w.textContent = cap == null || goal == null ? ''
+    : cap < goal ? 'The hard cap must be at least the goal.'
+      : cap < 2 * goal ? 'The hard cap is less than twice the soft cap: a payment that does not fit under the hard cap is refunded, so the campaign can miss its soft cap even when enough was paid in.' : '';
+  w.hidden = !w.textContent;
 }
 
 function deadlineHint() {
@@ -81,8 +99,16 @@ async function onCreate(ev) {
     };
     const nm = $('#campaign-name').value.trim();
     if (nm) body.name = nm;
-    if (m === 'raise') body.goal_zat = toZat($('#goal').value, 'the goal');
-    else body.items = Number($('#items').value);
+    if (m === 'raise') {
+      body.goal_zat = toZat($('#goal').value, 'the goal');
+      if ($('#early-close').checked) body.early_close = true;
+      if (!$('#cap-row').hidden && $('#cap').value.trim()) body.cap_zat = toZat($('#cap').value, 'the hard cap');
+    }
+    else {
+      body.items = Number($('#items').value);
+      body.pricing = pricing();
+      if (body.pricing === 'uniform' && $('#reserve').value.trim()) body.reserve_zat = toZat($('#reserve').value, 'the reserve price'); // empty: the program says what is missing, after the items
+    }
     btn.disabled = true; btn.textContent = 'Creating… this can take a minute';
     if (config && config.network === 'main') body.confirm_mainnet = $('#confirm-mainnet').checked;
     await api('campaigns', body);
@@ -104,6 +130,8 @@ async function main() {
     return;
   }
   for (const el of document.querySelectorAll('.ticker')) el.textContent = config.ticker;
+  // the hard cap field only when this host program knows the hard cap (an older one would ignore it and make a campaign without one)
+  $('#cap-row').hidden = config.hard_cap !== true;
   if (config.network === 'main') {
     $('#mainnet-banner').hidden = false; $('#confirm-row').hidden = false; $('#create-btn').disabled = true;
     $('#nu7-note').textContent = config.nu7_mainnet_height
@@ -116,7 +144,10 @@ async function main() {
   if (config.relays && config.relays.length) $('#relays').placeholder = config.relays.join('\n');
   $('#setup-form').addEventListener('submit', onCreate);
   for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListener('change', modeChanged);
-  for (const id of ['#goal', '#items', '#minimum', '#deadline', '#ticketk']) $(id).addEventListener('input', () => { deadlineHint(); ticketHint(); renderTerms(); });
+  $('#early-close').addEventListener('change', renderTerms);
+  for (const r of document.querySelectorAll('input[name=pricing]')) r.addEventListener('change', () => { $('#reserve-row').hidden = pricing() !== 'uniform'; renderTerms(); });
+  for (const id of ['#goal', '#cap']) $(id).addEventListener('input', capWarn);
+  for (const id of ['#goal', '#cap', '#items', '#minimum', '#deadline', '#ticketk']) $(id).addEventListener('input', () => { deadlineHint(); ticketHint(); renderTerms(); });
   modeChanged(); deadlineHint(); ticketHint(); decorateAmounts(document.querySelector('main'));
   measured = await measureBlocks(config.network);
   deadlineHint(); ticketHint(); renderTerms(); decorateAmounts(document.querySelector('main'));

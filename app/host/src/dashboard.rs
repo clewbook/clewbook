@@ -153,10 +153,15 @@ fn run_with_timeout(mut cmd: Command, secs: u64) -> bool {
 /// Makes the campaign's own wallet (a new account used for this campaign only). The public test
 /// server stalls now and then, so each attempt gets a fresh folder and a time limit.
 fn init_wallet(devtool: &Path, run_dir: &Path, network: &str) -> Result<PathBuf> {
+    init_named_wallet(devtool, run_dir, network, "wallet", "campaign")
+}
+
+/// A new wallet `<folder><n>` (with its key file `<folder><n>.age`) inside the campaign folder, named `name` inside the wallet tool.
+fn init_named_wallet(devtool: &Path, run_dir: &Path, network: &str, folder: &str, name: &str) -> Result<PathBuf> {
     for n in 1..=4 {
-        let w = run_dir.join(format!("wallet{n}"));
+        let w = run_dir.join(format!("{folder}{n}"));
         let mut cmd = Command::new(devtool);
-        cmd.args(["wallet", "-w"]).arg(&w).args(["init", "--name", "campaign", "-i"]).arg(run_dir.join(format!("wallet{n}.age"))).args(["-n", if network == "main" { "main" } else { "test" }]);
+        cmd.args(["wallet", "-w"]).arg(&w).args(["init", "--name", name, "-i"]).arg(run_dir.join(format!("{folder}{n}.age"))).args(["-n", if network == "main" { "main" } else { "test" }]);
         if run_with_timeout(cmd, 45) && w.join("data.sqlite").exists() {
             return Ok(w);
         }
@@ -231,13 +236,40 @@ fn create_campaign(st: &State, body: &Value) -> Result<Value> {
     crate::make_private_dir(&dir)?; // created closed (700) before the wallet tool writes the wallet and its key file into it
     let wallet = init_wallet(&st.cfg.devtool, &dir, &st.cfg.network)?;
     let identity = PathBuf::from(format!("{}.age", wallet.display()));
-    let cfg = RunConfig { backend: st.cfg.backend.clone(), devtool: st.cfg.devtool.clone(), wallet, identity };
-    create(&dir, cfg, &st.cfg.network, &mode, goal, items, deadline_in, &relays, Some(min), None, ticket_k, crate::MainnetCheck { confirmed, nu7_height: st.cfg.nu7_mainnet_height }, name)
+    let cfg = RunConfig { backend: st.cfg.backend.clone(), devtool: st.cfg.devtool.clone(), wallet, identity, min_confirmations: None };
+    // fundraisers only: the host may close before the deadline once the goal is met (an auction never can)
+    let early_close = mode == "raise" && body["early_close"].as_bool() == Some(true);
+    // fundraisers only: an optional hard cap, at least the goal (checked before anything is created; a cap below twice the goal is allowed, with a warning)
+    let cap_zat = match (mode.as_str(), body.get("cap_zat")) {
+        (_, None | Some(Value::Null)) => None,
+        ("raise", Some(v)) => match v.as_u64() {
+            Some(c) if goal.is_none_or(|g| c >= g) => Some(c),
+            _ => bail!("The hard cap must be a whole amount at least as large as the soft cap (the goal)."),
+        },
+        _ => bail!("Only a fundraiser can have a hard cap."),
+    };
+    // an auction: "uniform" (every winner pays the lowest winning bid, the rest goes back) when the request says so, which the set-up
+    // page does by default; a request without it makes a pay-your-bid auction, as before. The winners' payments go to a treasury: a
+    // wallet of its own made here, inside the campaign folder, because its viewing key is published for the recount (R9 to R11).
+    let uniform = match (mode.as_str(), body["pricing"].as_str()) {
+        ("auction", Some("uniform")) => {
+            let reserve_zat = body["reserve_zat"].as_u64().filter(|r| *r > 0).ok_or_else(|| anyhow!("Please enter a reserve price above zero for a uniform price auction."))?;
+            let tw = init_named_wallet(&st.cfg.devtool, &dir, &st.cfg.network, "treasury", "treasury")?;
+            let ti = PathBuf::from(format!("{}.age", tw.display()));
+            let account = crate::libs::LibsBackend::new(tw, ti)?.account()?;
+            Some(crate::Uniform { reserve_zat, treasury_address: account.address, treasury_ufvk: account.ufvk })
+        }
+        ("auction", None | Some("pay_your_bid")) => None,
+        ("auction", Some(other)) => bail!("Unknown auction pricing {other:?}."),
+        _ => None,
+    };
+    create(&dir, cfg, &st.cfg.network, &mode, goal, items, deadline_in, &relays, Some(min), uniform, ticket_k, crate::MainnetCheck { confirmed, nu7_height: st.cfg.nu7_mainnet_height }, name, early_close, cap_zat)
         .map_err(|e| anyhow!("The campaign could not be created: {}", plain_error(&e)))?;
     let c = load_campaign(&dir)?;
     let id = c.id.clone();
+    let warning = c.run.rules.cap_warning();
     lock(&st.campaigns).push(c);
-    Ok(json!({ "ok": true, "id": id }))
+    Ok(json!({ "ok": true, "id": id, "warning": warning }))
 }
 
 /// The exact command that points a campaign folder at the relay address the dashboard runs with (no restart is needed: the host reads the file on every check).
@@ -250,12 +282,24 @@ fn relay_fix_hint(current: Option<&str>, folder: &Path) -> String {
 
 /// The note about payments that have no refund ticket yet, before the campaign is closed: none, a quiet "waiting" note (normal for a minute), or a
 /// warning when the allowed window has passed. `late`: payments more than `k` blocks old without a ticket; `waiting`: newer ones.
+/// The warning for a payment the program has failed to ticket many checks in a row (a failure on the host's side).
+pub(crate) fn skip_warning(key: &str, value_zat: Option<u64>, passes: u64, reason: &str) -> String {
+    let amount = value_zat.map(|v| format!(", {}.{:08}", v / 100_000_000, v % 100_000_000)).unwrap_or_default();
+    format!(
+        "The payment {key}{amount} has had no refund ticket for the last {passes} checks in a row. The reason each time: {reason}. \
+         What you can do: check that this computer can reach the network (the last network check above should be recent); stopping and \
+         starting this program is safe. If the same reason keeps coming back, this program cannot build a ticket for that payment: do not \
+         close yet (the close would stop anyway), keep the program running, and send the reason to the Clewbook project. Do not move this \
+         payment out of the wallet by hand."
+    )
+}
+
 fn ticket_note(late: usize, waiting: usize, k: u64, closed: bool) -> Option<(&'static str, String)> {
     if closed {
         return None;
     }
     if late > 0 {
-        return Some(("bad", format!("{late} payment(s) have no refund ticket, although more than {k} blocks have passed. The public check will flag them (R4: late). Check that this program is running and its \"last network check\" is recent. When you close the campaign it first tries to issue these tickets (late) and then refunds or sweeps as usual; if it cannot, it stops before writing anything and lists the payments, so nothing is left in the wallet without a way to refund it. Do not close from another program meanwhile.")));
+        return Some(("bad", format!("{late} payment(s) have no refund ticket, although more than {k} blocks have passed. The public check will flag them (R4: no ticket). Check that this program is running and its \"last network check\" is recent. When you close the campaign it first tries to issue these tickets (late) and then refunds or sweeps as usual; if it cannot, it stops before writing anything and lists the payments, so nothing is left in the wallet without a way to refund it. Do not close from another program meanwhile.")));
     }
     if waiting > 0 {
         return Some(("info", format!("{waiting} payment(s) are waiting for their refund ticket; the program issues them on its next check (normally within a minute). Wait for this note to go before closing.")));
@@ -272,7 +316,7 @@ fn shell_word(a: &str) -> String {
 fn restart_hint(args: &[String], pid: u32, campaign: &Path) -> String {
     let cmd = args.iter().map(|a| shell_word(a)).collect::<Vec<_>>().join(" ");
     format!(
-        "To restart it (this program also watches the campaign folder {}): in the project folder run `./run.sh restart dashboard`, or by hand stop it (`kill {pid}`) and start it again with exactly this command: {cmd}. Then reload this page: \"Last network check\" should say a few seconds ago and this warning should be gone.",
+        "To restart it (this program also watches the campaign folder {}): if you started it with the project's helper, run `./run.sh restart dashboard` in the project folder; otherwise stop it (`kill {pid}`) and start it again with exactly this command: {cmd}. Then reload this page: \"Last network check\" should say a few seconds ago and this warning should be gone.",
         campaign.display()
     )
 }
@@ -339,6 +383,12 @@ fn status(st: &State, c: &Campaign) -> Value {
             w.push(warn(level, text));
         }
     }
+    if closed.is_none() {
+        for (key, passes, reason) in crate::long_skips(&c.run) {
+            let value = notes.iter().find(|n| format!("{}:{}", n.txid, n.action) == key).map(|n| n.value_zat);
+            w.push(warn("bad", skip_warning(&key, value, passes, &reason)));
+        }
+    }
     if held < unspent.len() {
         w.push(warn("bad", format!("{} ticketed contribution(s) are not protected by the wallet lock. An ordinary payment from this wallet could spend them. Do not use this wallet for other payments.", unspent.len() - held)));
     }
@@ -370,9 +420,10 @@ fn status(st: &State, c: &Campaign) -> Value {
     if !failing.is_empty() {
         w.push(warn("bad", format!("The public self-check fails on {}. Someone verifying your campaign would see this.", failing.join(", "))));
     }
-    let late = crate::late_payments(rules, &notes).len();
+    let late = crate::late_payments(rules, &entries, &notes).len();
     if late > 0 {
-        w.push(warn("warn", format!("{late} payment(s) arrived after the deadline; they are not counted and stay in the wallet (cb-host late lists them).")));
+        let after = if ll_core::recount::contribution_end(rules, &entries) < rules.deadline_height { "the early close" } else { "the deadline" };
+        w.push(warn("warn", format!("{late} payment(s) arrived after {after}; they are not counted and stay in the wallet (cb-host late lists them).")));
     }
     if rejects > 0 {
         w.push(warn("warn", format!("{rejects} payment(s) were set aside because their message could not be opened. They count as donations; their senders can still prove they were valid.")));
@@ -395,6 +446,12 @@ fn status(st: &State, c: &Campaign) -> Value {
         "start_height": rules.start_height, "deadline_height": rules.deadline_height, "ticket_k": rules.ticket_k,
         "pay_to": rules.pay_to, "tip": tip, "blocks_left": blocks_left,
         "phase": phase, "outcome": closed.as_ref().map(|c| c.outcome.clone()),
+        "early_close": rules.allows_early_close(),
+        "cap_zat": rules.cap_zat, "over_cap": a.over_cap.len(), "over_cap_zat": a.over_cap.iter().map(|n| n.value_zat).sum::<u64>(),
+        "pricing": rules.pricing.clone().unwrap_or_else(|| if rules.is_auction() { "pay_your_bid".into() } else { String::new() }),
+        "closed_early": closed.as_ref().is_some_and(|c| c.close_height <= rules.deadline_height),
+        "can_close_early": rules.allows_early_close() && closed.is_none() && tip.is_some_and(|t| t <= rules.deadline_height && crate::may_close(rules, &a, t).is_ok()),
+        "close_early_reason": tip.filter(|t| rules.allows_early_close() && closed.is_none() && *t <= rules.deadline_height).and_then(|t| crate::may_close(rules, &a, t).err()),
         "contribute_link": format!("{}/contribute.html#c={}{}&server={}", st.cfg.page_base, c.id, relays_q, st.cfg.server),
         "counts": {
             "contributions": a.contributions.len(), "raised_zat": raised, "tickets_issued": a.tickets.len(), "reissues": reissues,
@@ -441,7 +498,11 @@ fn close_campaign(c: &Campaign, body: &Value) -> Result<Value> {
         fs::read_to_string(c.run.dir.join("private").join("sweep_to")).map(|t| t.trim().to_string()).unwrap_or_default()
     } else {
         crate::mainnet::require_confirmation(&c.run.rules.network, body["confirm_mainnet"].as_bool() == Some(true))?;
-        let sweep_to = body["sweep_to"].as_str().unwrap_or("").trim().to_string();
+        let mut sweep_to = body["sweep_to"].as_str().unwrap_or("").trim().to_string();
+        if c.run.rules.is_uniform() {
+            // a uniform price auction pays each winner's price into its treasury; nothing is swept, so the treasury address stands in
+            sweep_to = c.run.rules.treasury_address.clone().unwrap_or_default();
+        }
         if sweep_to.is_empty() {
             bail!("Please enter the address that should receive the money the campaign keeps.");
         }
@@ -452,8 +513,8 @@ fn close_campaign(c: &Campaign, body: &Value) -> Result<Value> {
         let deadline = c.run.rules.deadline_height as u64;
         match tip {
             None => bail!("The program has not yet seen the network. Please wait a moment and try again."),
-            Some(t) if (t as u64) <= deadline => bail!("The deadline has not passed yet. You can close after block {deadline} (in {} blocks).", deadline + 1 - t as u64),
-            _ => {}
+            Some(t) if (t as u64) <= deadline && !c.run.rules.allows_early_close() => bail!("The deadline has not passed yet. You can close after block {deadline} (in {} blocks).", deadline + 1 - t as u64),
+            _ => {} // a fundraiser that allows an early close: the close itself checks that the goal is met, before it writes anything
         }
         sweep_to
     };
@@ -568,7 +629,7 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
         match (method, parts.as_slice()) {
             (tiny_http::Method::Get, ["config"]) => json_response(200, json!({
                 "ok": true, "network": st.cfg.network, "ticker": if st.cfg.network == "main" { "ZEC" } else { "TAZ" },
-                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000,
+                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true,
             })),
             (tiny_http::Method::Get, ["campaigns"]) => {
                 let list: Vec<Value> = lock(&st.campaigns).iter().rev().map(|c| {

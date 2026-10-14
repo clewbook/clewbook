@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Helper for starting, stopping and checking the programs on this machine. Run it from the project folder:
+# It is the helper this project uses on its own machine: the folder names, ports and tunnel names below are that machine's choices (none is a
+# secret).
+# Someone hosting their own campaign can use it as an example, or follow docs/HOSTING.md instead. The practice-* names are a sandbox that
+# some tests use.
 #   ./run.sh status                  what is running, on which port, and which campaign folders nobody is watching
 #   ./run.sh start   <name> [...]    start a program (nothing happens if it is already running)
 #   ./run.sh stop    <name> [--yes]  stop a program (the ones that touch the real network need --yes)
@@ -7,18 +11,18 @@
 #   ./run.sh command <name>          print the exact command a program is started with
 #   ./run.sh logs    <name>          print where its log is, and its last lines
 #   ./run.sh names                   list the names
-#   ./run.sh stable-config           print the tunnel configuration for the stable address (see docs/STABLE_ADDRESS.md)
+#   ./run.sh stable-config           print the tunnel configuration for the stable address (a Cloudflare named tunnel; see the tunnel program's own documentation)
 #   ./run.sh set-relay <address> <campaign folder | --all> [--replace <old address> | --add] [--yes]
 #                                    point campaigns at a relay address that works (shows what it would change; --yes applies it)
 # Names: pageserver, tunnel-stable (the permanent address; needs runs/stable-address.conf), relay-testnet-1, relay-testnet-2, relay-demo, relay-mainnet, tunnel-page, tunnel-demo, tunnel-mainnet, dashboard,
 #        watcher <campaign folder>, and practice-relay, practice-page, practice-dashboard (a sandbox on other ports, safe to start and stop).
-# See docs/RUNNING.md (also: what to do when an address changes). This script never touches a campaign's files; it only starts and stops programs.
+# This script never touches a campaign's files; it only starts and stops programs.
 set -uo pipefail
 cd "$(dirname "$0")"
 BIN=./app/target/release
 LOGS=runs/logs; TUN=runs/pilot-tunnels
 CLOUDFLARED=${CLOUDFLARED:-$(command -v cloudflared || echo "$HOME/.local/bin/cloudflared")}   # the tunnel program
-# The permanent address, when there is one, lives in ONE file (see docs/STABLE_ADDRESS.md). When it exists, everything below (the dashboard's command,
+# The permanent address, when there is one, lives in ONE file (runs/stable-address.conf, never committed). When it exists, everything below (the dashboard's command,
 # the status check) uses its addresses instead of the free tunnels' random ones.
 STABLE_CONF=${RUNSH_STABLE_CONF:-runs/stable-address.conf}
 CF_CONFIG=${RUNSH_CF_CONFIG:-$HOME/.cloudflared/config.yml}
@@ -91,8 +95,8 @@ do_start() {
   esac
   case $n in
     tunnel-stable)
-      stable || { echo "no permanent address is set: write $STABLE_CONF first (docs/STABLE_ADDRESS.md, step 6)"; return 1; }
-      [ -f "$CF_CONFIG" ] || { echo "no tunnel configuration at $CF_CONFIG: run ./run.sh stable-config and save its output there (docs/STABLE_ADDRESS.md, step 7)"; return 1; }
+      stable || { echo "no permanent address is set: write $STABLE_CONF first (it names the tunnel and the two public addresses)"; return 1; }
+      [ -f "$CF_CONFIG" ] || { echo "no tunnel configuration at $CF_CONFIG: run ./run.sh stable-config and save its output there (the file the tunnel program reads)"; return 1; }
       : > "$log"; ( setsid nohup $(cmd_of $n) > "$log" 2>&1 & )
       echo "starting $n ..."
       for i in $(seq 1 40); do grep -q -i 'registered tunnel connection' "$log" && break; sleep 1; done
@@ -300,9 +304,9 @@ case $cmd in
   set-relay) do_set_relay "${@:1}" $([ $yes = 1 ] && echo --yes);;
   names) echo $NAMES watcher; ;;
   stable-config)
-    stable || { echo "no permanent address is set: write $STABLE_CONF first (see docs/STABLE_ADDRESS.md, step 6)"; exit 2; }
+    stable || { echo "no permanent address is set: write $STABLE_CONF first (it names the tunnel and the two public addresses)"; exit 2; }
     cred=$(ls -t "$HOME"/.cloudflared/*.json 2>/dev/null | head -1)
-    echo "# Save this as $CF_CONFIG (docs/STABLE_ADDRESS.md, step 7)"
+    echo "# Save this as $CF_CONFIG (the file the tunnel program reads)"
     echo "tunnel: $TUNNEL_NAME"
     echo "credentials-file: ${cred:-$HOME/.cloudflared/<tunnel id>.json}"
     echo "ingress:"

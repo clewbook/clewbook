@@ -119,7 +119,7 @@ There are no patches to any library. The whole difference is 49 files, most of i
 
 ## What was proven, and where
 
-Evidence is in `docs/EVIDENCE.md` (numbered sections) and the test table in the README ("Tested behaviour"). Short version:
+Evidence is in `docs/EVIDENCE.md` (numbered sections) and the test table in [TESTS.md](TESTS.md). Short version:
 
 - **On the test network:**
   - A ticket signed before a network upgrade is rejected after it, and re issuing under the new version works (section 1).
@@ -140,7 +140,7 @@ Evidence is in `docs/EVIDENCE.md` (numbered sections) and the test table in the 
 - Keys live in plain files on the host's own machine. There has been no outside review of the code or the design. See `docs/HOSTING.md`.
 - The host must stay online until the campaign closes. If it is off, new payments get no ticket.
 - The relay accepts campaign registrations from anyone, so a public relay needs size limits.
-- Amounts in a fundraiser, block times and the funding source of a payment can still help someone who already knows a person's payment. The privacy section of the README lists what is hidden and what is not.
+- Amounts in a fundraiser, block times and the funding source of a payment can still help someone who already knows a person's payment. [PRIVACY.md](PRIVACY.md) lists what is hidden and what is not.
 - Tested on Ubuntu under WSL only. A clean machine build has not been tried by anyone but the author.
 - Dependencies are pinned to NU7 prerelease versions, which may change before release.
 

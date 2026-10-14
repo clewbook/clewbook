@@ -51,7 +51,7 @@ const link = (id) => `${BASE}/contribute.html#c=${id}&relay=${RELAY1}&relay=${RE
     tip = hb.height + Math.max(40, rules.ticket_k);
     p = await open(ID);
     n = await note(p);
-    check('stale: one plain grey line (no box) says when the host was last seen and that the ticket may come late', n.state === 'stale' && n.cls === 'warnline' && /^The host was last seen .*, so your refund ticket may come late\.$/.test(n.text), JSON.stringify(n).slice(0, 200));
+    check('stale: one plain grey line (no box) says when the host was last seen and that the ticket waits for the host', n.state === 'stale' && n.cls === 'warnline' && /^The host was last seen .*; if you pay now, your ticket waits until the host returns\.$/.test(n.text), JSON.stringify(n).slice(0, 200));
     check('  ... in one sentence of at most 20 words (the longer explanation is in the README)', n.text.split(/\s+/).length <= 20, n.text);
     check('  ... in plain words: no alarm words', !/danger|scam|lost|stolen|fraud|warning!|urgent/i.test(n.text), n.text);
     await p.screenshot({ path: `${SHOTS}/heartbeat-stale.png`, fullPage: true });

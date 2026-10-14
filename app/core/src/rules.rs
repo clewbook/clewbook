@@ -56,6 +56,15 @@ pub struct Rules {
     /// whose rules and ids are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Fundraiser only: the host may close before the deadline once the goal is met (SPEC §4). Written only as `true`; left out of
+    /// older campaigns (and of any campaign that does not allow it), whose rules and ids are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub early_close: Option<bool>,
+    /// Fundraiser only: the hard cap, the most the campaign keeps (SPEC §4). At the close, the contributions not taken back are kept in chain
+    /// order while they fit under it; a payment that does not fit is refunded whole, by its own ticket. The goal (the soft cap) is counted on the
+    /// kept amount. Left out of every campaign without one, whose rules and ids are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cap_zat: Option<u64>,
     pub ledger_pubkey: String,
     pub payload_pubkey: String,
 }
@@ -105,9 +114,25 @@ impl Rules {
     }
 
     /// After this height a contributor's page may broadcast their own ticket if the host has
-    /// not closed (deadline + K).
+    /// not closed: deadline + K (`ticket_k`). The contribute page, the recount page and the recount's
+    /// hint all use this one rule. `close_grace` is kept in the rules (it is part of every campaign's
+    /// id) but no longer decides anything: it was equal to K when K was fixed at 10.
     pub fn self_refund_after(&self) -> u32 {
-        self.deadline_height + self.close_grace
+        self.deadline_height + self.ticket_k
+    }
+
+    /// Whether the host may close this campaign before its deadline (a fundraiser whose rules say so, once the goal is met).
+    pub fn allows_early_close(&self) -> bool {
+        self.mode == "raise" && self.early_close == Some(true)
+    }
+
+    /// A plain warning when a fundraiser's hard cap is less than twice its goal (allowed, but risky): a payment that does not fit under the cap
+    /// is refunded, so with little room above the goal the campaign can miss its goal even when enough was paid in.
+    pub fn cap_warning(&self) -> Option<String> {
+        let (cap, goal) = (self.cap_zat?, self.goal_zat?);
+        (cap < goal.saturating_mul(2)).then(|| {
+            "The hard cap is less than twice the soft cap: a payment that does not fit under the hard cap is refunded, so the campaign can miss its soft cap even when enough was paid in.".to_string()
+        })
     }
 
     pub fn is_auction(&self) -> bool {
@@ -144,6 +169,22 @@ impl Rules {
                 bail!("the settlement window must be between {} (K) and {MAX_SETTLE_WINDOW} blocks, not {w}", self.ticket_k);
             }
         }
+        if let Some(cap) = self.cap_zat {
+            if self.mode != "raise" {
+                bail!("only a fundraiser can have a hard cap; an auction has its number of items instead");
+            }
+            if self.goal_zat.is_some_and(|g| cap < g) {
+                bail!("the hard cap must be at least the goal (the soft cap)");
+            }
+            if cap < self.min_contribution_zat {
+                bail!("the hard cap must be at least the smallest contribution");
+            }
+        }
+        match self.early_close {
+            Some(true) if self.mode != "raise" => bail!("only a fundraiser can allow closing early; an auction never can"),
+            Some(false) => bail!("leave early_close out instead of setting it to false"),
+            _ => {}
+        }
         match self.mode.as_str() {
             "raise" if self.goal_zat.is_some() && self.campaign_ufvk.is_some() => Ok(()),
             "auction" if self.items.is_some_and(|n| n > 0) && self.ufvk_hash.is_some() => Ok(()),
@@ -158,6 +199,13 @@ mod name_tests {
 
     fn base() -> Rules {
         serde_json::from_str(r#"{"v":1,"network":"test","mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":200,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,"campaign_ufvk":"uvftest1x","ledger_pubkey":"aa","payload_pubkey":"bb"}"#).unwrap()
+    }
+
+    #[test]
+    fn contributors_may_self_refund_after_deadline_plus_k_not_close_grace() {
+        // the same rule as the contribute page (`refundMode`) and the recount page: deadline + ticket_k
+        let r = base(); // K 30, close_grace 10
+        assert_eq!(r.self_refund_after(), 230);
     }
 
     #[test]

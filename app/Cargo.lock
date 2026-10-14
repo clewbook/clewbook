@@ -2211,6 +2211,7 @@ dependencies = [
  "crypto_box",
  "ed25519-dalek",
  "hex",
+ "orchard",
  "rand_core 0.6.4",
  "rusqlite",
  "serde",

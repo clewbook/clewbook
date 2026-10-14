@@ -24,7 +24,7 @@ function card(item, info, status) {
   if (info) head.append(chip(info.network));
   d.append(head);
   const what = document.createElement('p'); what.className = 'muted';
-  what.textContent = info ? `${info.mode === 'auction' ? `Auction, ${info.items} ${info.items === 1 ? 'item' : 'items'}` : `Fundraiser, goal ${info.goal} ${info.ticker}`}` : '';
+  what.textContent = info ? `${info.mode === 'auction' ? `Auction, ${info.items} ${info.items === 1 ? 'item' : 'items'}` : info.cap ? `Fundraiser, soft cap ${info.goal} ${info.ticker}, hard cap ${info.cap} ${info.ticker}` : `Fundraiser, goal ${info.goal} ${info.ticker}`}` : '';
   if (info) d.append(what);
   const st = document.createElement('p'); st.className = 'status'; st.textContent = status; d.append(st);
   const base = { id: item.id, relays: item.relays, endpoints: [], server: '' };
@@ -60,7 +60,10 @@ async function main() {
   // chain server never keeps the page empty.
   const order = (s) => (s.info && s.info.network === 'main' ? 0 : 1);
   shown.sort((a, b) => order(a) - order(b));
-  const closedText = (s) => `Closed: ${({ goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' }[s.entries.find((e) => e.kind === 'close').close.outcome] || 'finished')}.`;
+  const closedText = (s) => {
+    const g = s.info && s.info.cap ? 'soft cap' : 'goal'; // a fundraiser with a hard cap says "soft cap"
+    return `Closed: ${({ goal_met: `${g} met`, goal_missed: `${g} missed`, auction: 'auction settled' }[s.entries.find((e) => e.kind === 'close').close.outcome] || 'finished')}.`;
+  };
   let live = 0, closed = 0;
   for (const s of shown) {
     const isClosed = !!(s.info && s.closed);

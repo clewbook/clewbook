@@ -34,7 +34,21 @@ echo "$H" | grep -qi '^set-cookie'; [ $? = 1 ]; check "no cookie is set" $? "$H"
 echo "$H" | grep -i '^content-security-policy:' | grep -q "frame-ancestors 'self'"; check "an ordinary page may not be shown inside another site's page (frame-ancestors 'self')" $? "$H"
 echo "$H" | grep -i '^content-security-policy:' | sed 's/.*script-src//; s/;.*//' | grep -q "unsafe-inline"; [ $? = 1 ]; check "pages allow no inline script (no 'unsafe-inline' for scripts)" $? "$H"
 H=$(h /demo/badge.html); echo "$H" | grep -i '^content-security-policy:' | grep -q "frame-ancestors \*"; check "the badge, made to be embedded, may be shown inside any site's page" $? "$H"
-INL=$(grep -l -E '<script>|<script type="module">' "$DIR"/demo/*.html "$DIR"/demo/proofs/*.html || true); [ -z "$INL" ]; check "no page of the folder has an inline script (so none is needed)" $? "$INL"
+# the one inline script allowed is the small theme script at the top of each page (it sets the theme before the page is drawn): the same
+# script on every page, and the served policy allows exactly it by its hash (no other inline script would run)
+INL=$(python3 - "$DIR" <<'PY'
+import sys, re, glob, hashlib, base64
+bodies = set()
+for f in glob.glob(sys.argv[1] + '/demo/*.html') + glob.glob(sys.argv[1] + '/demo/proofs/*.html'):
+    for attrs, body in re.findall(r'<script([^>]*)>(.*?)</script>', open(f).read(), re.S):
+        if 'src=' not in attrs: bodies.add(body)
+if len(bodies) == 1 and next(iter(bodies)).startswith("(function(){var c='system';try{c=localStorage.getItem('cb-theme')"):
+    print("'sha256-" + base64.b64encode(hashlib.sha256(next(iter(bodies)).encode()).digest()).decode() + "'")
+else: print('other', len(bodies))
+PY
+)
+case "$INL" in "'sha256-"*) for pg in /demo/recount.html /demo/badge.html; do h $pg | grep -i '^content-security-policy:' | grep -qF "$INL" || INL="not allowed on $pg: $INL"; done ;; esac
+case "$INL" in "'sha256-"*) R=0 ;; *) R=1 ;; esac; check "the only inline script on any page is the theme script, and the served policy allows exactly it by its hash" $R "$INL"
 ATTR=$(grep -l -E ' on[a-z]+="' "$DIR"/demo/*.html "$DIR"/demo/proofs/*.html || true); [ -z "$ATTR" ]; check "no page has an inline event handler" $? "$ATTR"
 H=$(h /demo/fonts/$(ls "$DIR/demo/fonts" | head -1)); echo "$H" | grep -qi '^cache-control: public, max-age=31536000, immutable'; check "fonts are cached for a long time" $? "$H"
 R=$(find "$DIR/demo/relays/a" -name ledger | head -1 | sed "s|$DIR||"); H=$(h "$R"); echo "$H" | grep -qi '^access-control-allow-origin: \*'; check "the example relay files can be read from other pages (CORS)" $? "$H"
@@ -46,6 +60,6 @@ if [ -f app/web/vercel-old-paths.txt ]; then
   BAD=$(while read -r f; do c=$(curl -s -L -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/$f"); [ "$c" = 200 ] || echo "$c /$f"; done < app/web/vercel-old-paths.txt | head -5)
   [ -z "$BAD" ]; check "every path the hosted copy answered before ($(wc -l < app/web/vercel-old-paths.txt) files) still answers, at the same place or by redirect to /demo" $? "$BAD"
 fi
-PROOFS=$(grep -c 'proofs' "$DIR/demo/proofs/index.html"); [ -f "$DIR/demo/proofs/examples.js" ] && [ "$(grep -c "'[0-9a-f]\{64\}'" "$DIR/demo/proofs/examples.js")" = 5 ]; check "the tested milestones page lists all five finished test campaigns" $? ""
+PROOFS=$(grep -c 'proofs' "$DIR/demo/proofs/index.html"); [ -f "$DIR/demo/proofs/examples.js" ] && [ "$(grep -c "'[0-9a-f]\{64\}'" "$DIR/demo/proofs/examples.js")" = 13 ]; check "the tested milestones page lists all eleven finished test campaigns" $? ""
 kill $SRV 2>/dev/null
 [ $failed = 0 ] && echo "ALL PASS" || echo "$failed FAILED"; exit $failed

@@ -25,7 +25,7 @@ select { width: 100%; min-height: 44px; border: 1px solid var(--edge); border-ra
 .mainnet { border-width: 2px; border-left-width: 6px; margin-top: var(--s4); }
 .mainnet .k { font-size: .875rem; }
 /* neutral grey for the real network (not the red used for errors); label #44444A on #E6E6E8 is about 7:1 */
-.notice.mainnet { border-color: #808084; background: #E6E6E8; }
-.notice.mainnet .k { color: #44444A; }
+.notice.mainnet { border-color: var(--mainnet-note-edge); background: var(--mainnet-note-bg); }
+.notice.mainnet .k { color: var(--mainnet-note-k); }
 .confirm-line { display: flex; gap: var(--s2); align-items: center; font-weight: 700; margin: var(--s3) 0; }
 .confirm-line input { width: 20px; min-height: 20px; }

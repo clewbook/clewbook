@@ -47,7 +47,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   check('recount notes that both testnet servers share hosting', /same hosting/.test(await txt(p, '#banners')));
   const rules = await txt(p, '#rules');
   const rows = await p.evaluate(() => [...document.querySelectorAll('#rules .chk')].map((d) => ({ id: d.querySelector('.id').textContent.replace(/\s+/g, ' ').trim().split(' ')[0], pass: d.classList.contains('pass'), chip: d.querySelector('.chip').textContent.trim() })));
-  check('recount: R1 to R8 each shown as PASS', ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8'].every((r) => rows.some((x) => x.id.startsWith(r) && x.pass && /PASS/.test(x.chip))), rules.slice(0, 100));
+  check('recount: R1 to R8 and R4b each shown as PASS', ['R1', 'R2', 'R3', 'R4', 'R4b', 'R5', 'R6', 'R7', 'R8'].every((r) => rows.some((x) => x.id.startsWith(r) && x.pass && /PASS/.test(x.chip))), rules.slice(0, 100));
   check('recount: R9 to R12 (auction checks) are not shown for a fundraiser', !rows.some((x) => /^R(9|10|11|12)/.test(x.id)), JSON.stringify(rows.map((x) => x.id)));
   check('recount: the Checked / Not checked lines, the run log and the report hash are shown', /R1/.test(await txt(p, '#checked-line')) && /one-time secret/.test(await txt(p, '#notchecked-line')) && /Checked against 2 servers on \d+ apparent hosting/.test(await txt(p, '#coverage-line')) && (await p.locator('#rf-hash .h-s').textContent()).length > 10 && /\d/.test(await txt(p, '#rf-height')));
   await p.click('#rules .chk:first-child .cid'); await p.waitForTimeout(200);

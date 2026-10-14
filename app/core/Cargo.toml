@@ -23,3 +23,5 @@ serde.workspace = true
 serde_json.workspace = true
 zcash_address.workspace = true
 zcash_protocol.workspace = true
+# Only to check that a refund receiver is a valid Orchard/Ironwood address (the same check the wallet makes when it pays it).
+orchard.workspace = true

@@ -1,5 +1,6 @@
 // The new home page, the network bars, the recount buttons, the recount page's upload mode and the contribute page's network rules, in a real browser,
-// on a folder built by make-next.sh and served on a spare port. A mainnet page is read from the real public relay (read only); testnet pages are
+// on a copy of app/web/www served on a spare port, with a campaign list that names at least one live campaign (make it with: cp -r app/web/www
+// runs/site-next && cp runs/campaigns.json runs/site-next/campaigns.json, the hand kept list; the former make-next.sh and app/web/next are gone). A mainnet page is read from the real public relay (read only); testnet pages are
 // read from the example campaigns (as files, through a stand-in relay), with a stand-in chain server. No payment is made.
 // Env: SITE (folder, default runs/site-next), PORT (default 8776, the server is started by this test), SHOTS (screenshots; keep them outside the repo),
 //      EXAMPLES (default runs/static-polish/relays/a), SAVED (a saved copy of a testnet campaign, default runs/final-test/good.json).

@@ -14,7 +14,7 @@ use crate::{
 
 fn rule(id: &'static str, title: &'static str, fails: Vec<String>, info: Vec<String>) -> RuleResult {
     let pass = fails.is_empty();
-    RuleResult { id, title, pass, details: if pass { info } else { fails } }
+    RuleResult { id, title, pass, details: if pass { info } else { fails }, waiting: false }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -218,7 +218,7 @@ pub fn check_uniform(
         }
     }
     if report.proofs_ok == 0 && r12.is_empty() && report.settled > 0 {
-        i12.push("no winner has published a delivery proof: where each excess went cannot be seen from the chain".into());
+        i12.push("no winner has published a proof that their excess was paid back: where each excess went cannot be seen from the chain".into());
     }
     let unproven = report.settled.saturating_sub(report.proofs_ok);
     if report.settled > 0 && unproven > 0 && !r12.is_empty() {
@@ -229,7 +229,7 @@ pub fn check_uniform(
         rule("R9", "each winner paid exactly the clearing price into the treasury, with the exact fee", r9, i9),
         rule("R10", "the treasury received exactly the sum of the clearing prices", r10, i10),
         rule("R11", "settlements returned no value to the campaign account and have no other outputs", r11, i11.drain(..).collect()),
-        rule("R12", "winners' proofs of delivery hold", r12, i12),
+        rule("R12", "winners' optional proofs that their excess was paid back hold", r12, i12),
     ];
     (results, report, warnings)
 }

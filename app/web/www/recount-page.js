@@ -54,9 +54,14 @@ function showTotals(r, ticker, final) {
     fact(dl, 'Winners', `${a.winners}; settled ${a.settled}${a.awaiting ? `, waiting ${a.awaiting}` : ''}${a.defaulted.length ? `, defaulted ${a.defaulted.length} (item unsold)` : ''}`);
     fact(dl, 'Received by the treasury', z(a.treasury_total_zat));
     fact(dl, 'Sent back to winners as excess', z(a.excess_zat));
-    fact(dl, 'Winners who proved delivery', `${a.proofs_ok} of ${a.settled}${a.complaints ? `; ${a.complaints} unverified complaint(s)` : ''}`);
+    fact(dl, 'Winners who proved their excess was paid back', `${a.proofs_ok} of ${a.settled}${a.complaints ? `; ${a.complaints} unverified complaint(s)` : ''}`);
   }
-  if (r.goal_zat != null && r.goal_met != null) fact(dl, 'Goal', `${z(r.goal_zat)}: ${final ? (r.goal_met ? 'met' : 'missed') : (r.goal_met ? 'reached so far' : 'not reached yet')} ${final ? '' : '(the deadline has not passed)'}`.trim());
+  // a fundraiser with a hard cap says "soft cap" and "hard cap" (the soft cap counts only what fits under the hard cap); one without keeps "goal"
+  if (r.goal_zat != null && r.goal_met != null) fact(dl, r.cap_zat != null ? 'Soft cap' : 'Goal', `${z(r.goal_zat)}: ${final ? (r.goal_met ? 'met' : 'missed') : (r.goal_met ? 'reached so far' : 'not reached yet')} ${final ? '' : '(the deadline has not passed)'}`.trim());
+  if (r.cap_zat != null) {
+    fact(dl, 'Hard cap', z(r.cap_zat));
+    fact(dl, 'Over the hard cap', `${z(r.over_cap_zat)} in ${r.over_cap} payment(s), ${final ? 'refunded by their own tickets' : 'refunded by their own tickets at the close unless room frees up'}`);
+  }
   if (r.winners) fact(dl, 'Winners (best first)', r.winners.join(', ') || 'none');
   $('#totals-card').hidden = false;
   decorateAmounts($('#totals'));
@@ -67,12 +72,14 @@ function showRules(r) {
   box.replaceChildren();
   for (const x of r.rules) {
     const d = document.createElement('details');
-    d.className = `chk ${x.pass ? 'pass' : 'fail'}`;
-    if (!x.pass) d.open = true; // a failed check opens by itself, with its evidence
+    // a check that cannot run yet (an auction before its close) shows WAIT, with the neutral "not checked" look
+    const st = x.waiting ? 'nc' : x.pass ? 'pass' : 'fail';
+    d.className = `chk ${st}`;
+    if (st === 'fail') d.open = true; // a failed check opens by itself, with its evidence
     const sum = document.createElement('summary');
     const id = document.createElement('span'); id.className = 'id'; id.append(cidEl(x.id));
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = x.title;
-    const chip = document.createElement('span'); chip.innerHTML = chipHTML(x.pass ? 'pass' : 'fail', x.pass ? 'PASS' : 'FAIL');
+    const chip = document.createElement('span'); chip.innerHTML = chipHTML(st, x.waiting ? 'WAIT' : x.pass ? 'PASS' : 'FAIL');
     sum.append(id, nm, chip.firstChild);
     d.append(sum);
     if (x.details.length) {
@@ -146,7 +153,14 @@ async function recount() {
   setNetwork(c.network);
   const closeEntry = j.entries.find((e) => e.kind === 'close');
   const ufvk = rules.campaign_ufvk || closeEntry?.close?.ufvk;
-  if (!ufvk) return verdict('cannot', 'Not yet possible', 'This is an auction that has not closed. Its viewing key stays sealed until the close, so the chain checks cannot run yet. The signed list itself is intact. Come back after it closes.');
+  if (!ufvk) {
+    // an auction before its close: its viewing key is sealed, so R1 and R2 run and every other check waits, as the command line shows them
+    const s = JSON.parse(W.report_sealed(j.rules, cfg.id, JSON.stringify(j.entries)));
+    showRules(s);
+    return s.all_pass
+      ? verdict('cannot', 'Not yet possible', 'This is an auction that has not closed. R1 and R2 pass: the rules match the campaign and the signed list is intact. The other checks wait for the viewing key, which is published at the close. Come back after it closes.')
+      : verdict('fail', 'Some checks FAIL', 'This is an auction that has not closed, and R1 or R2 fails: see the evidence under the check. The other checks wait for the viewing key, which is published at the close.');
+  }
 
   // servers named in the link replace the defaults; adding a server below keeps the defaults and puts the new one first
   network = c.network;
@@ -186,7 +200,7 @@ async function recount() {
   $('#tl-closed-t').hidden = $('#tl-closed').hidden = closedAt == null;
   if (closedAt != null) {
     const after = closedAt - rules.deadline_height;
-    $('#tl-closed').textContent = `block ${nf(closedAt)} (${after >= 0 ? `${nf(after)} block${after === 1 ? '' : 's'} after the deadline` : `${nf(-after)} blocks before the deadline`}), outcome: ${({ goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' })[closeEntry.close.outcome] || closeEntry.close.outcome}`;
+    $('#tl-closed').textContent = `block ${nf(closedAt)} (${after > 0 ? `${nf(after)} block${after === 1 ? '' : 's'} after the deadline` : `${nf(-after)} block${after === -1 ? '' : 's'} before the deadline`}), outcome: ${({ goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' })[closeEntry.close.outcome] || closeEntry.close.outcome}${after <= 0 && rules.early_close ? '. Closed early, which this campaign\'s rules allow once the goal is met: payments after this block do not count, and contributions could be taken back only until it' : ''}`;
   }
   showRules(r);
   // past the deadline and never closed: say so, as a rule of the campaign (the recount does not check that any refund was claimed)

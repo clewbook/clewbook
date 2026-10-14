@@ -96,7 +96,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.goto(link(AUCTION));
     await p.waitForSelector('#form-title', { timeout: 60000 });
     await p.waitForFunction(() => /Your bid/.test(document.querySelector('#form-title').textContent), null, { timeout: 60000 });
-    check('auction page, open: the form says "Your bid" and that bids stay private', /bids stay private/.test(await text(p, '#form-intro')) && /Your bid/.test(await text(p, '#form-title')));
+    check('auction page, open: the form says "Your bid" and that bid amounts stay off the public record', /off the public record/.test(await text(p, '#form-intro')) && /Your bid/.test(await text(p, '#form-title')));
     await p.context().close();
 
     p = await newPage();

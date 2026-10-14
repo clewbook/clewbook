@@ -8,7 +8,7 @@ bounded number of requests at a time. SERVE_DEV=1 also serves the developer file
 current.json) for tests on this computer; never set it for a server that is reachable from outside."""
 import http.client, http.server, os, re, ssl, sys, threading
 
-ROOT = os.environ.get("SERVE_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")  # SERVE_ROOT: a folder built to be served instead (make-next.sh)
+ROOT = os.environ.get("SERVE_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")  # SERVE_ROOT: a folder built to be served instead (for example a copy of www)
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
 BIND = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
 DEV = os.environ.get("SERVE_DEV") == "1"
@@ -42,7 +42,8 @@ def allowed(rel):
 def csp(rel):
     # the same policy as the hosted copy: only the badge may be shown inside another site's page
     frame = "*" if rel == "badge.html" else "'self'"
-    script = "'self' 'wasm-unsafe-eval'" + (" 'unsafe-inline'" if DEV else "")
+    # the one inline script every page carries: it applies the saved theme before the page is drawn (its hash, so no other inline script runs)
+    script = "'self' 'wasm-unsafe-eval' 'sha256-tbR7f3dzTMcosXeYlerpxrjuAGprJzX+Z+ggCw7dHKI='" + (" 'unsafe-inline'" if DEV else "")
     return (f"default-src 'self'; script-src {script}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; "
             f"connect-src *; worker-src 'self' blob:; frame-ancestors {frame}; base-uri 'none'; form-action 'none'")
 

@@ -60,7 +60,7 @@ async function main() {
   }
   mountHash($('#rules-id'), cfg.id, 8);
   $('#auction-note').hidden = rules.mode !== 'auction';
-  $('#checks-label').textContent = m.uniform ? 'R1 to R12' : 'R1 to R8';
+  $('#checks-label').textContent = m.uniform ? 'R1 to R12, with R4b' : 'R1 to R8, with R4b';
   $('#checks').replaceChildren(...m.checks.map((id) => row({ id: cidEl(id), name: CHECKS[id][0], small: CHECKS[id][1], chip: 'yes', word: 'Every recount' })));
   $('#not-checked').replaceChildren(...m.notChecked.map(([what, why]) => row({ name: what[0].toUpperCase() + what.slice(1), small: why, chip: 'nc', word: 'Not checked' })));
   $('#levels').replaceChildren(...m.levels.map((l) => row({ id: `L${l.level}`, name: l.what, small: `Runs: ${l.when}`, chip: l.chip === 'nc' ? 'nc' : 'yes', word: l.chip === 'nc' ? 'Not built' : l.level === 3 ? 'On request' : 'Automatic', idsLine: l.ids })));

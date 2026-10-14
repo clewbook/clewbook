@@ -104,7 +104,12 @@ function render(s) {
     ['Status', PHASE[s.phase] + (s.outcome ? ` (${s.outcome.replace('_', ' ')})` : '')],
     ['Deadline', `block ${s.deadline_height}` + (leftPhrase ? ` (${leftPhrase})` : '')],
     ...(left > 0 && measured.secondsPerBlock ? [['Block time', `about ${Math.round(measured.secondsPerBlock)} seconds, measured over the last ${measured.spanBlocks} blocks`]] : []),
-    ...(s.mode === 'raise' ? [['Goal', `${coin(s.goal_zat)} ${ticker}`]] : [['Items', String(s.items)]]),
+    // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
+    ...(s.mode !== 'raise' ? [['Items', String(s.items)]] : s.cap_zat == null ? [['Goal', `${coin(s.goal_zat)} ${ticker}`]] : [
+      ['Soft cap', `${coin(s.goal_zat)} ${ticker}`],
+      ['Hard cap', `${coin(s.cap_zat)} ${ticker}`],
+      ...(s.over_cap ? [['Over the hard cap', `${coin(s.over_cap_zat)} ${ticker} in ${s.over_cap} payment(s), refunded by their own tickets at the close unless room frees up`]] : []),
+    ]),
     ['Raised so far', `${coin(s.counts.raised_zat)} ${ticker}`],
     ['Ticket window', `${s.ticket_k} blocks`],
     ['Smallest contribution', `${coin(s.min_zat)} ${ticker}`],
@@ -152,15 +157,27 @@ function render(s) {
     // a close whose later steps did not all finish: one sentence, and the same button finishes them (nothing is sent twice)
     explain.textContent = left.length ? `Closed, but ${left.join(', ')} did not finish yet.` : 'This campaign is closed.';
     btn.hidden = !left.length; btn.disabled = s.closing; btn.textContent = 'Try again';
+  } else if (s.phase === 'open' && s.can_close_early) {
+    btn.textContent = 'Close early';
+    explain.textContent = (s.cap_zat == null
+      ? 'The goal is met, and this campaign\'s rules allow closing early. Closing now keeps the contributions and sends them to your address;'
+      : 'The soft cap is met, and this campaign\'s rules allow closing early. Closing now keeps the contributions that fit under the hard cap and sends them to your address, and refunds any payment over it;') + ' contributors can no longer take theirs back, and payments after the close do not count.';
+    btn.hidden = false; btn.disabled = s.closing;
   } else if (s.phase === 'open') {
     btn.textContent = 'Close the campaign';
-    explain.textContent = `You can close the campaign after the deadline (block ${s.deadline_height}${leftPhrase ? `, ${leftPhrase}` : ''}).`;
+    explain.textContent = s.early_close && s.close_early_reason
+      ? `This campaign may close early once its ${s.cap_zat == null ? 'goal' : 'soft cap'} is met. Not yet: ${s.close_early_reason}.`
+      : `You can close the campaign after the deadline (block ${s.deadline_height}${leftPhrase ? `, ${leftPhrase}` : ''}).`;
     btn.hidden = false; btn.disabled = true;
   } else {
     btn.textContent = 'Close the campaign';
     explain.textContent = s.mode === 'raise'
-      ? 'If the goal was reached, the money is sent to your address and nothing else changes. If not, every contributor is refunded.'
-      : 'The winning bids are sent to your address and everyone else is refunded. The viewing key is revealed so anyone can check the result.';
+      ? (s.cap_zat == null
+        ? 'If the goal was reached, the money is sent to your address and nothing else changes. If not, every contributor is refunded.'
+        : 'If the soft cap was reached, the contributions that fit under the hard cap are sent to your address and any payment over it is refunded by its own ticket. If not, every contributor is refunded.')
+      : s.pricing === 'uniform'
+        ? 'Each winner pays the price into this campaign\'s treasury wallet (a folder whose name starts with treasury, inside the campaign folder) and gets the rest back; everyone else is refunded. The viewing key is revealed so anyone can check the result. No address is needed below.'
+        : 'The winning bids are sent to your address and everyone else is refunded. The viewing key is revealed so anyone can check the result.';
     btn.hidden = false; btn.disabled = s.closing;
   }
   list($('#close-log'), s.close_log || []);

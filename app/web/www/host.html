@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Host</title>
 <link rel="stylesheet" href="ui.css">
@@ -25,7 +25,7 @@
     <div class="hd"><h2>Which kind</h2></div>
     <ul class="plainlist">
       <li><strong>Fundraiser.</strong> People contribute toward a goal. If the goal is reached by the deadline, you keep the money. If not, everyone is refunded.</li>
-      <li><strong>Auction.</strong> People bid for a number of items. Bids stay sealed until you close. The highest bids win and are paid to your address; everyone else is refunded. A uniform-price auction, where every winner pays the same price and gets the rest of their bid back, is set up from the command line instead of the dashboard.</li>
+      <li><strong>Auction.</strong> People bid for a number of items. Bid amounts stay off the public record until you close; you see each bid as it arrives. The highest bids win; everyone else is refunded. The set up page offers two ways for winners to pay. The first, chosen unless you change it: everyone who wins pays the same price, the lowest winning bid, and gets back anything extra they sent; the payments go to a treasury wallet made for the campaign. The second: each winner pays their own bid, and it is sent to your address.</li>
     </ul>
   </section>
 

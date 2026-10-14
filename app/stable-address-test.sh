@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ./run.sh with a permanent address, tested with a stand-in for the tunnel program (no account, no domain, no network): the one file the addresses are
 # read from, the dashboard command that uses them, the printed tunnel configuration, start / stop, the refusals, and the status line that says an
-# address is NOT ANSWERING. What this cannot show: that a real named tunnel connects (see docs/STABLE_ADDRESS.md). From the repository root.
+# address is NOT ANSWERING. What this cannot show: that a real named tunnel connects (that needs a real tunnel account). From the repository root.
 set -uo pipefail
 T=runs/stable-address-test; failed=0
 check() { if [ "$2" = 0 ]; then echo "PASS  $1"; else echo "FAIL  $1  $3"; failed=$((failed+1)); fi; }

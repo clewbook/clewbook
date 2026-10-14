@@ -8,7 +8,7 @@ const p = new URLSearchParams(location.hash.slice(1));
 const id = (p.get('c') || '').toLowerCase(), relays = p.getAll('relay').map((u) => u.replace(/\/$/, ''));
 
 async function main() {
-  setup('Recount badge', { netbar: false });
+  setup('Recount badge', { netbar: false, themeControl: false }); // a badge shown inside other sites: it follows the theme, without its own control
   if (!/^[0-9a-f]{64}$/.test(id)) { $('#badge-name').textContent = 'Campaign (incomplete link)'; return; }
   // the recount page that sits next to this badge, with the same campaign, relays and servers
   const q = [`c=${id}`, ...relays.map((r) => `relay=${r}`), ...p.getAll('endpoint').map((e) => `endpoint=${e}`), ...(p.get('server') ? [`server=${p.get('server')}`] : [])];
