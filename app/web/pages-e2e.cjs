@@ -27,7 +27,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   await p.waitForSelector('#links:not([hidden])', { timeout: 60000 });
   const facts = await txt(p, '#about'); // design round 2: the stat tiles (goal, deadline) and the RULES column together
   check('campaign page shows type, goal, status, deadline', /Fundraiser/.test(facts) && /Goal/.test(facts) && /Status/.test(facts) && /Deadline/.test(facts), facts.slice(0, 120));
-  check('campaign page shows the ticket window in blocks, with what it means', /Ticket window\d+ blocks/.test(facts) && /claim their own refunds/.test(facts), facts.slice(facts.indexOf('Ticket window'), facts.indexOf('Ticket window') + 120));
+  check('campaign page shows the ticket window in blocks, with what it means', /Ticket window\d+ blocks/.test(facts) && /Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund\./.test(facts), facts.slice(facts.indexOf('Ticket window'), facts.indexOf('Ticket window') + 120));
   const lf = await txt(p, '#list-facts');
   check('campaign page counts the public list and tickets', /Entries in the public list\s*[1-9]/.test(lf) && /Refund tickets issued\s*[1-9]/.test(lf), lf);
   check('campaign page links to contribute and recount', /contribute\.html#c=/.test(await p.getAttribute('#contribute-link', 'href')) && /recount\.html#c=/.test(await p.getAttribute('#recount-link', 'href')));

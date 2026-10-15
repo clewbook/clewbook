@@ -114,21 +114,20 @@ async function main() {
     fact(facts, 'Smallest bid', amt(c.min));
   } else {
     if (c.cap) {
-      fact(facts, 'Soft cap', amt(c.goal), 'the least it must keep at the deadline, or everyone is refunded');
-      fact(facts, 'Hard cap', amt(c.cap), 'the most it keeps; at the close, a payment that does not fit is refunded whole by its own ticket, minus the fee');
+      fact(facts, 'Soft cap', amt(c.goal));
+      fact(facts, 'Hard cap', amt(c.cap));
     }
     fact(facts, c.cap ? 'Soft cap missed' : 'Goal missed', 'all refunded');
     fact(facts, 'Smallest', amt(c.min));
   }
   fact(facts, 'Refund fee', amt(c.fee));
-  fact(facts, auction ? 'Bid amounts' : 'Amounts', auction ? 'public at the close' : 'public');
-  fact(facts, 'Who paid', 'off the record');
+  if (auction) fact(facts, 'Bid amounts', 'public at the close');
   fact(facts, 'Status', status);
   if (left != null && left > 0 && secPerBlock) fact(facts, 'Block time', `about ${Math.round(secPerBlock)} seconds`, 'measured over the last 100 blocks');
-  fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}`, 'each contribution gets its refund ticket within this window, and if the host has not closed this long after the deadline, contributors may claim their own refunds');
+  fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}`, 'Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund.');
   if (uniform) fact(facts, 'Settlement window', `${c.settle_window} blocks`, `the host must settle every winner by block ${c.settle_by}; after that winners can claim their own refund`);
-  if (c.early_close) fact(facts, 'Early close', 'allowed', 'the host may close this fundraiser before the deadline once the ' + (c.cap ? 'soft cap' : 'goal') + ' is met. Contributions can be taken back with their tickets only until it closes, and payments after the close do not count. The close height is the host\'s own statement.');
-  fact(facts, 'Refund promise', 'a signed ticket', 'every contribution gets a refund ticket with no expiry height. It works without the host while the contribution is unspent: until the deadline, and afterwards unless the contribution is kept.');
+  if (c.early_close) fact(facts, 'Early close', 'allowed', 'the host may close this fundraiser before the deadline once the ' + (c.cap ? 'soft cap' : 'goal') + ' is met.');
+  fact(facts, 'Refund promise', 'a signed ticket', 'Every contribution gets a ticket that works without the host while it is unspent.');
   if (uniform) { $('#rule-note').textContent = 'A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.'; $('#rule-note').hidden = false; }
   for (const [what, why] of NOT_CHECKED) { const li = document.createElement('li'); li.textContent = `– ${what}: ${why}`; $('#nc-list').append(li); }
   $('#about').hidden = false;

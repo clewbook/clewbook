@@ -48,10 +48,8 @@
       <label for="amount" id="amount-label">Amount (<span class="ticker">TAZ</span>)</label>
       <div class="amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
       <p class="hint" id="amount-hint"></p>
-      <p class="warnline" id="cap-note" hidden></p>
       <label for="refund">Refund address · sealed to the host</label>
       <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
-      <p class="hint">You only enter this once. It is sealed so that only the campaign's host can read it. It is not published unless you choose to publish a proof or a challenge.</p>
       <p class="warnline" id="auction-account-note" hidden>For this auction, give a refund address from an account you would be happy to show later.</p>
       <p class="error" id="form-error" role="alert" hidden></p>
       <div class="btns"><button type="submit" id="create" class="create">Create my payment</button></div>
@@ -78,7 +76,7 @@
       <div class="btns"><button type="button" id="leave-yes" class="ink">Yes, leave this payment code</button> <button type="button" id="leave-no" class="link">Keep it</button></div>
     </div>
     <div class="pay-main" id="pay-main" hidden>
-      <h2 class="flow-h pay-h"><span id="pay-warning" class="warnline payline" role="note">Pay exactly <span id="pay-min" class="acc"></span> once, from your own wallet's shielded balance, not an exchange or transparent funds.</span></h2>
+      <h2 class="flow-h pay-h"><span id="pay-warning" class="warnline payline" role="note">Pay exactly <span id="pay-min" class="acc"></span> once, from a shielded address.</span></h2>
       <details class="plain why" id="pay-why"><summary>Why?</summary><p class="hint">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details>
       <div class="qrrow">
           <div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div><span class="c1"></span><span class="c2"></span></div>
@@ -153,7 +151,7 @@
     </div>
     <p id="refund-result" class="notice" hidden></p>
     <div id="rebid-row" hidden><p class="hint" id="rebid-text"></p><div class="btns"><button type="button" class="secondary" id="rebid">Bid again</button></div></div>
-    <details class="plain more" id="pay-more"><summary>More</summary>
+    <div class="paymore" id="pay-more">
       <details class="plain">
       <summary>Know your payment's transaction ID?</summary>
       <p class="hint">Optional. If you paste it, this page can check that the campaign accepted your payment.</p>
@@ -162,7 +160,7 @@
       <div id="leave-box">
         <div class="btns"><button type="button" class="secondary" id="change-amount">Back to the amount</button> <button type="button" class="secondary" id="start-over">Start over</button></div>
       </div>
-    </details>
+    </div>
     <button type="button" class="secondary" id="backup2">Download backup file</button>
     <p class="tk-back"><a class="pill-back big" id="tk-back" href="#" hidden>← Back to the campaign</a></p>
   </section>

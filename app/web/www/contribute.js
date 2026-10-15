@@ -445,7 +445,7 @@ function renderAbout() {
   $('#contrib-name').textContent = campaignName();
   $('#contrib-to').hidden = $('#contrib-name').hidden = false;
   $('#about-text').textContent = raise
-    ? `This is a fundraiser with ${capped ? `a soft cap of ${campaign.goal} ${campaign.ticker} and a hard cap of ${campaign.cap} ${campaign.ticker}` : `a goal of ${campaign.goal} ${campaign.ticker}`}. If the ${gw} isn't reached by the deadline, everyone is refunded. ${capped ? 'At most the hard cap is kept: at the close, contributions are counted in the order they reached the chain, and a payment that does not fit under the hard cap is refunded whole by its own ticket, minus the refund fee. ' : ''}${campaign.early_close ? `The host may close this campaign early once the ${gw} is met; contributions are then kept, and you can take yours back with your ticket only until it closes. ` : ''}You keep a refund ticket that only you can use. It works without the host while your contribution is unspent: until the deadline${campaign.early_close ? ' or an early close' : ''}, and afterwards unless the ${gw} is reached and your contribution is kept.`
+    ? `This is a fundraiser with ${capped ? `a soft cap of ${campaign.goal} ${campaign.ticker} and a hard cap of ${campaign.cap} ${campaign.ticker}` : `a goal of ${campaign.goal} ${campaign.ticker}`}.${capped ? ' At the close, contributions are counted in the order they reached the chain, and a payment that does not fit under the hard cap is refunded whole by its own ticket, minus the refund fee.' : ''}${campaign.early_close ? ` The host may close this campaign early once the ${gw} is met.` : ''}`
     : `This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. The whole amount you send is your bid. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. If you don't win, you are refunded. You keep a refund ticket that only you can use. It works without the host while your bid is unspent: until the deadline, and afterwards unless your bid wins.`;
   // the words follow the campaign type: a fundraiser takes contributions, an auction takes bids
   $('#crumb').textContent = $('#page-title').textContent = raise ? 'Fundraiser' : 'Auction';
@@ -462,7 +462,7 @@ function renderAbout() {
   let status = 'Checking…', left = '';
   if (tip != null) {
     if (closed) status = closedEarlyAt() != null ? `Closed early at block ${closedEarlyAt()}, once the ${gw} was met. Contributions until then are kept${capped ? ' up to the hard cap' : ''}; payments after it do not count.` : 'Closed';
-    else if (tip <= campaign.deadline_height) { status = 'Open for contributions'; left = eta(campaign.deadline_height - tip) ? `${eta(campaign.deadline_height - tip)} left (block ${campaign.deadline_height})` : `${campaign.deadline_height - tip} blocks left (block ${campaign.deadline_height}); the length of a block has not been measured yet`; }
+    else if (tip <= campaign.deadline_height) { status = 'Open'; left = eta(campaign.deadline_height - tip) ? `${eta(campaign.deadline_height - tip)} left (block ${campaign.deadline_height})` : `${campaign.deadline_height - tip} blocks left (block ${campaign.deadline_height}); the length of a block has not been measured yet`; }
     else status = 'The deadline has passed; the campaign is wrapping up';
   }
   $('#status-line').hidden = tip == null;
@@ -477,16 +477,16 @@ function renderAbout() {
   dl.replaceChildren(
     ...fact('Type', raise ? 'Fundraiser' : 'Auction'),
     ...(raise ? (capped ? [
-      ...fact('Soft cap', `${campaign.goal} ${campaign.ticker}: the least the campaign must keep at the deadline, or everyone is refunded`),
-      ...fact('Hard cap', `${campaign.cap} ${campaign.ticker}: the most the campaign keeps; a payment that does not fit is refunded whole at the close, minus the fee`),
-      ...fact('Room left under the hard cap', `${zat8(room)} ${campaign.ticker}, counting every payment on the public list, including any taken back (so there may be a little more)`),
+      ...fact('Soft cap', `${campaign.goal} ${campaign.ticker}`),
+      ...fact('Hard cap', `${campaign.cap} ${campaign.ticker}`),
+      ...fact('Room left under the hard cap', `${zat8(room)} ${campaign.ticker}`),
     ] : fact('Goal', `${campaign.goal} ${campaign.ticker}`)) : fact('Items', String(campaign.items))),
     ...fact('Status', status),
     ...(left ? fact('Time left', left) : []),
     ...(raise ? [] : auctionRules()),
-    ...(left && secPerBlock ? fact('Block time', `about ${Math.round(secPerBlock)} seconds, measured over the last ${blockTimeSpan} blocks`) : []),
+    ...(left && secPerBlock ? fact('Block time', `about ${Math.round(secPerBlock)} seconds`) : []),
     ...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`),
-    ...(raise && campaign.early_close ? fact('Early close', 'Allowed: the host may close this campaign before the deadline once the ' + gw + ' is met. You can take your contribution back with your ticket only until it closes. The close height is the host\'s own statement: if you pay and your ticket has not arrived when the campaign closes, keep your backup file and ask the host to return your payment.') : []),
+    ...(raise && campaign.early_close ? fact('Early close', 'Allowed') : []),
     ...fact(raise ? 'Smallest contribution' : 'Smallest bid', `${campaign.min} ${campaign.ticker}`),
     ...fact('Refund fee', `${campaign.fee} ${campaign.ticker}`),
   );
@@ -507,9 +507,6 @@ function renderAbout() {
   if (campaign.network !== 'main') dl.append(...fact('Network', 'Test network: no real money'));
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
   $('#amount-hint').textContent = `At least ${campaign.min} ${campaign.ticker}${raise ? '' : ' for a bid'}. About ${campaign.fee} ${campaign.ticker} of it is kept if you get a refund.`;
-  // before paying: what the hard cap means for this payment
-  $('#cap-note').hidden = !(capped && !closed);
-  if (capped) $('#cap-note').textContent = `This campaign keeps at most ${campaign.cap} ${campaign.ticker}; room left now: ${zat8(room)} ${campaign.ticker}. A payment that does not fit under the hard cap when the campaign closes is refunded at the close, minus the refund fee of ${campaign.fee} ${campaign.ticker}, and that money stays locked until then.`;
 }
 
 /** The bid page's rules text (an auction only): what a bid is, ties, the reserve, and what happens to an overpaid bid in each kind of auction. */
@@ -626,7 +623,7 @@ function renderProgress() {
   renderTicketView(tcv);
   renderTicketChecks();
   let note = '';
-  if (!t) note = 'After you pay, this usually takes a minute or two. You can leave this page open, or come back later with the same link; your progress is saved in this browser.';
+  if (!t) note = 'This usually takes a minute or two; you can leave and come back with the same link.';
   else if (tcv === 'pass') note = 'Your refund ticket is saved on this device and passed the checks listed below. While your contribution is unspent, it lets you get your money back without the host: until the deadline, and afterwards unless your contribution is kept.';
   else if (tcv === 'fail') note = 'Your refund ticket did not pass a check (see below). Keep your backup file.';
   else note = 'Your refund ticket is saved on this device. Checking it now…';

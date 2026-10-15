@@ -55,7 +55,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       check(`${label}: on the backup step, a "← Back" button that goes back to the amount is visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /←\s*Back/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
       check(`${label}: the backup step comes first, with its download button, before the code is shown`, (await p.isVisible('#backup')) && /Save your backup file first/.test(await text(p, '#pay-card')) && (await p.isHidden('#qr svg')));
       await p.tap('#to-pay');
-      check(`${label}: "Continue to pay" shows the warning and the code`, /^Pay exactly 0\.01\d* TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(await text(p, '#pay-warning')) && (await p.isVisible('#pay-warning')) && (await p.isVisible('#qr svg')));
+      check(`${label}: "Continue to pay" shows the warning and the code`, /^Pay exactly 0\.01\d* TAZ once, from a shielded address\.$/.test(await text(p, '#pay-warning')) && (await p.isVisible('#pay-warning')) && (await p.isVisible('#qr svg')));
       await p.tap('#back-to-backup');
       check(`${label}: "← Back" on the payment step returns to the backup step`, (await p.isVisible('#backup')) && (await p.isHidden('#qr svg')));
       await p.screenshot({ path: `${SHOTS}/back-${label}-pay.png` });

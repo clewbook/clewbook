@@ -241,7 +241,7 @@ async function recount() {
   $('#tl-closed-t').hidden = $('#tl-closed').hidden = closedAt == null;
   if (closedAt != null) {
     const after = closedAt - rules.deadline_height;
-    $('#tl-closed').textContent = `block ${nf(closedAt)} (${after > 0 ? `${nf(after)} block${after === 1 ? '' : 's'} after the deadline` : `${nf(-after)} block${after === -1 ? '' : 's'} before the deadline`}), outcome: ${({ goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' })[closeEntry.close.outcome] || closeEntry.close.outcome}${after <= 0 && rules.early_close ? '. Closed early, which this campaign\'s rules allow once the goal is met: payments after this block do not count, and contributions could be taken back only until it' : ''}`;
+    $('#tl-closed').textContent = `block ${nf(closedAt)} (${after > 0 ? `${nf(after)} block${after === 1 ? '' : 's'} after the deadline` : `${nf(-after)} block${after === -1 ? '' : 's'} before the deadline`})${after <= 0 && rules.early_close ? '. Closed early, which this campaign\'s rules allow once the goal is met: payments after this block do not count, and contributions could be taken back only until it' : ''}`;
   }
   showRules(r);
   // past the deadline and never closed: say so, as a rule of the campaign (the recount does not check that any refund was claimed)

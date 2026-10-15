@@ -29,9 +29,8 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   let f = await facts(p, '#about-facts');
   check('contribute: "Soft cap", "Hard cap" and the room left are shown, and no "Goal"', /^0\.00200000 TAZ/.test(f['Soft cap'] || '') && /^0\.00300000 TAZ/.test(f['Hard cap'] || '') && /^0\.00300000 TAZ/.test(f['Room left under the hard cap'] || '') && !('Goal' in f), JSON.stringify(f).slice(0, 300));
   check('contribute: the status line names both caps', (await p.textContent('#status-text')).trim() === 'Fundraiser, soft cap 0.00200000 TAZ, hard cap 0.00300000 TAZ', await p.textContent('#status-text'));
-  const note = (await p.textContent('#cap-note')).trim();
-  check('contribute: before paying, the page says a payment that does not fit is refunded at the close minus the fee, locked until then', await p.isVisible('#cap-note') && /refunded at the close, minus the refund fee of 0\.00010000 TAZ/.test(note) && /stays locked until then/.test(note) && /room left now: 0\.00300000 TAZ/.test(note), note);
-  check('contribute: the about text and the cap note have no hyphens or dashes', noDash(note) && noDash(await p.textContent('#about-text')));
+  check('contribute: no cap note before paying (owner decision: the paragraph is removed)', (await p.locator('#cap-note').count()) === 0);
+  check('contribute: the about text has no hyphens or dashes', noDash(await p.textContent('#about-text')));
   await p.fill('#amount', '0.0031'); await p.fill('#refund', E.REFUND); await p.click('#create');
   await p.waitForTimeout(500);
   const err = (await p.textContent('#form-error')).trim();

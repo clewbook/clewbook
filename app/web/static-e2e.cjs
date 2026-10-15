@@ -64,7 +64,7 @@ const CASES = [
       check(`${name}: the page shows the deadline block (${nfm(rules.deadline_height)})`, (await p.textContent('#tl-deadline')).trim() === `block ${nfm(rules.deadline_height)}`);
       if (closeE) {
         const t = ((await p.textContent('#tl-closed')) || '').replace(/\s+/g, ' ');
-        check(`${name}: "Closed at block ${nfm(closeE.close.close_height)}" is shown, with how long after the deadline and the outcome`, await p.isVisible('#tl-closed') && (await p.textContent('#tl-closed-t')).trim() === 'Closed at' && t.startsWith(`block ${nfm(closeE.close.close_height)} (`) && /after the deadline\)/.test(t) && t.includes('outcome:'), t);
+        check(`${name}: "Closed at block ${nfm(closeE.close.close_height)}" is shown, with how long after the deadline and no outcome words (the Goal row says it)`, await p.isVisible('#tl-closed') && (await p.textContent('#tl-closed-t')).trim() === 'Closed at' && t.startsWith(`block ${nfm(closeE.close.close_height)} (`) && /after the deadline\)/.test(t) && !t.includes('outcome'), t);
       } else check(`${name}: not closed, so no "Closed at" line`, await p.isHidden('#tl-closed') && await p.isHidden('#tl-closed-t'));
       if (kind === 'pass') check(`${name}: the report hash is shown (the page can hash on a plain static host)`, /^[0-9a-f]{64}$/.test(await p.locator('#rf-hash').getAttribute('data-h')));
       await p.close();

@@ -26,6 +26,7 @@
 .caside { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
 .cflow:not([data-stage="amount"]) .caside { max-width: 780px; padding-top: 22px; border-top: 1px solid var(--cb-border); }
 .cflow:not([data-stage="amount"]) .before { display: none; }
+.cflow[data-stage="backup"] .caside { display: none; } /* the backup step shows only the backup; the campaign details are on the amount step */
 .flow-h { font: 700 40px/1.05 var(--cb-font-display); letter-spacing: -.03em; margin: 0; }
 .intro { color: var(--cb-ink-2); margin-top: 12px; max-width: 62ch; }
 .eyebrow-k { font: 500 13px var(--cb-font-body); color: var(--cb-accent-text); letter-spacing: .02em; }
@@ -101,7 +102,8 @@
 .risk:before { display: block; content: "✕"; font: 700 14px/1.4 var(--cb-font-display); color: var(--cb-fail); margin-bottom: 2px; }
 .risk.late { border-color: var(--warn-edge); background: var(--warn-box); }
 .risk.late:before { content: "!"; color: var(--cb-wait); }
-.more > summary { font-size: 14px; }
+.paymore { display: flex; flex-direction: column; gap: 10px; } /* the transaction ID check and the two buttons, always shown (the "More" fold is gone) */
+.paymore .btns { margin: 0; }
 .confirmrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; padding: 14px 16px; border: 1px solid var(--cb-border); border-radius: 14px; background: var(--cb-surface); }
 .confirmrow > p { flex: 1 1 260px; color: var(--cb-ink-2); }
 .earlier { margin: 12px 0; }

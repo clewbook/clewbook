@@ -24,7 +24,7 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   await page.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
   await page.screenshot({ path: `${SHOTS}/01-open.png`, fullPage: true });
   const facts = await page.textContent('#about-facts');
-  check('shows type, goal, status and time left', /Fundraiser/.test(facts) && /Goal/.test(facts) && /Open for contributions/.test(facts) && /Time left/.test(facts), facts.replace(/\s+/g, ' ').slice(0, 140));
+  check('shows type, goal, status and time left', /Fundraiser/.test(facts) && /Goal/.test(facts) && /StatusOpenTime left/.test(facts) && /Time left/.test(facts), facts.replace(/\s+/g, ' ').slice(0, 140));
   check('no horizontal scrolling on a phone', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
 
   // --- refusals ---
@@ -63,7 +63,7 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   await page.click('#manual summary');
   const payTo = (await page.textContent('#pay-to')).trim();
   check('memo is the sealed message, payload version 2 with the amount (LL1:, 267 characters)', memo.startsWith('LL1:') && memo.length === 267, `${memo.length} chars`);
-  check('one line before payment: pay exactly the amount, once, from your own shielded balance', /Pay exactly 0\.01000000 TAZ once, from your own wallet's shielded balance/.test(await page.textContent('#pay-warning')) && await page.isVisible('#pay-warning'));
+  check('one line before payment: pay exactly the amount, once, from a shielded address', /Pay exactly 0\.01000000 TAZ once, from a shielded address\./.test(await page.textContent('#pay-warning')) && await page.isVisible('#pay-warning'));
   check('a new payment code is not labelled old-format', await page.isHidden('#format-note'));
   check('payment address comes from the committed rules', payTo.length > 100);
   const href = await page.getAttribute('#paylink', 'href');

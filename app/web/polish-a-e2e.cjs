@@ -123,13 +123,12 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
     });
-    check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(18, 21, 26)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
+    check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(18, 21, 26)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from a shielded address\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
 
     // ---------- 4. back and start over ----------
-    await p.click('#pay-more summary'); // design round 2: these two sit under "More" on the payment step
     check('the payment step offers "Back to the amount" and "Start over"', (await p.isVisible('#change-amount')) && (await p.isVisible('#start-over')));
     await p.click('#change-amount');
     check('leaving asks first, in one sentence: stay if you already paid, otherwise nothing is lost and the code is kept', await p.isVisible('#leave-confirm') && (await text(p, '#leave-text')) === 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.');
@@ -149,7 +148,6 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.evaluate((id) => { const s = JSON.parse(localStorage.getItem(`ll:${id}`)); s.txid = 'ab'.repeat(32) + ':0'; s.paidZat = 1000000; localStorage.setItem(`ll:${id}`, JSON.stringify(s)); }, RAISE.id);
     await p.reload();
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 60000 });
-    await p.click('#pay-more summary');
     await p.click('#start-over');
     const strong = await text(p, '#leave-text');
     check('starting over after a payment was seen says a new code would make a second contribution', strong === 'This payment was seen, so paying again with a new code makes a second contribution; download your backup first.', strong.slice(0, 80));
