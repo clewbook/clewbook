@@ -226,6 +226,9 @@
 .dcard.first { border-color: color-mix(in srgb, var(--cb-action) 45%, transparent); }
 .dk { font: 600 12px var(--cb-font-body); color: var(--cb-accent-text); letter-spacing: .12em; }
 .dcard h2 { font: 700 22px var(--cb-font-display); letter-spacing: -.01em; }
+.dcard { min-width: 0; }
+/* the card's button stays inside the card at every width: as wide as the card at most, its words may wrap onto two lines */
+.dact .btn { box-sizing: border-box; max-width: 100%; min-height: 52px; height: auto; padding-top: 10px; padding-bottom: 10px; white-space: normal; text-align: center; }
 .dcard .muted { color: var(--cb-ink-2); } /* body text on the card: 7:1 needs ink-2 (muted ink-3 is 6.95:1 on the card) */
 .dact { margin-top: auto; padding-top: 6px; }
 .dact .btn { margin: 0; }

@@ -126,8 +126,8 @@ async function main() {
   if (left != null && left > 0 && secPerBlock) fact(facts, 'Block time', `≈${Math.round(secPerBlock)} seconds`);
   fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}`, 'Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund.');
   if (uniform) fact(facts, 'Settlement window', `${c.settle_window} blocks`, `the host must settle every winner by block ${c.settle_by}; after that winners can claim their own refund`);
-  if (c.early_close) fact(facts, 'Early close', 'allowed', 'the host may close this fundraiser before the deadline once the ' + (c.cap ? 'soft cap' : 'goal') + ' is met.');
-  fact(facts, 'Refund promise', 'a signed ticket', 'Every contribution gets a ticket that works without the host while it is unspent.');
+  if (c.early_close) fact(facts, 'Early close', 'allowed');
+  fact(facts, 'Refund promise', 'a signed ticket');
   if (uniform) { $('#rule-note').textContent = 'A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.'; $('#rule-note').hidden = false; }
   for (const [what, why] of NOT_CHECKED) { const li = document.createElement('li'); li.textContent = `– ${what}: ${why}`; $('#nc-list').append(li); }
   $('#about').hidden = false;

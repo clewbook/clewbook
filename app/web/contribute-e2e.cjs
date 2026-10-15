@@ -32,12 +32,12 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
     await page.fill('#amount', amount); await page.fill('#refund', addr);
     await page.click('#create');
     await page.waitForTimeout(300);
-    return { error: (await page.textContent('#form-error')).trim(), payVisible: await page.isVisible('#pay-card') };
+    return { error: (await page.textContent('#form-error')).trim(), amountError: (await page.textContent('#amount-error')).trim(), payVisible: await page.isVisible('#pay-card') };
   };
   let r = await tryCreate('', REFUND_ADDR);
-  check('refuses a missing amount', /amount/i.test(r.error) && !r.payVisible, r.error);
+  check('refuses a missing amount, saying so under the amount box', /amount/i.test(r.amountError) && !r.payVisible, r.amountError);
   r = await tryCreate('0.00001', REFUND_ADDR);
-  check('refuses an amount below the minimum', /smallest amount/i.test(r.error) && !r.payVisible, r.error);
+  check('refuses an amount below the minimum, saying so under the amount box (not under the address)', /smallest amount/i.test(r.amountError) && !/amount/i.test(r.error) && !r.payVisible, r.amountError);
   r = await tryCreate('0.01', 'not an address');
   check('refuses an invalid refund address', /valid refund address/i.test(r.error) && !r.payVisible, r.error);
   r = await tryCreate('0.01', '');
@@ -95,15 +95,16 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
 
   // --- the page watches ---
   const t0 = Date.now();
-  await page.waitForSelector('#s-ticket.done', { timeout: 600000 });
+  await page.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 600000 }); // the status rows show on the Pay step only
   log(`ticket received and checked ${Math.round((Date.now() - t0) / 1000)} s after paying`);
   await page.screenshot({ path: `${SHOTS}/04-secured.png`, fullPage: true });
   check('"Contribution received" shown', await page.evaluate(() => document.querySelector('#s-received').classList.contains('done')));
   check('the ticket is shown as received and passing the listed checks (level 1)', await page.evaluate(() => document.querySelector('#s-ticket').classList.contains('done')) && /passed the checks below/.test(await page.textContent('#s-ticket')));
   const tcs = ((await page.textContent('#tc-summary')) || '').replace(/\s+/g, ' ');
-  check('the page lists only the checks that ran: signatures, network version, coin, fee, no expiry', /Checked: .*its signatures are valid.*it is for the network version in use now.*it never expires.*the fee is what the rules say.*it spends your contribution/.test(tcs), tcs.slice(0, 220));
+  const [ck, nck = ''] = tcs.split('Not checked:'); // one check per line: those that ran, then the ones not checked
+  check('the page lists only the checks that ran: signatures, network version, coin, fee, no expiry', /Its signatures are valid\..*It is for the network version in use now\..*It never expires\..*The fee is what the rules say\..*It spends your contribution/.test(ck), tcs.slice(0, 220));
   // Level 2: a ticket issued now (format version 2) is checked for "it pays you"; only the proof and the chain state stay unchecked
-  check('it lists "it pays you" and "the list shows the amount you meant to pay" as checked, and the proof and the anchor as not checked', /Checked: .*the list shows the amount you meant to pay.*it pays you \(its refund output pays the address you gave\)/.test(tcs) && /Not checked: [^.]*the proof; its chain state/.test(tcs) && !/Not checked: [^.]*that it pays you/.test(tcs), tcs.slice(-200));
+  check('it lists "it pays you" and "the list shows the amount you meant to pay" as checked, and the proof and the anchor as not checked', /The list shows the amount you meant to pay\..*It pays you \(its refund output pays the address you gave\)\./.test(ck) && /The proof\.\s?Its chain state\./.test(nck) && !/That it pays you/.test(nck), tcs.slice(-200));
   check('no red notice for a good ticket', await page.isHidden('#tc-bad'));
   check('payment form is gone once the ticket is received', !(await page.isVisible('#pay-card')) && !(await page.isVisible('#form-card')));
   const seenText = await page.textContent('#s-seen .state');
@@ -113,7 +114,7 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   // --- progress survives a reload ---
   await page.reload();
   await page.waitForSelector('#progress-card:not([hidden])', { timeout: 30000 });
-  await page.waitForSelector('#s-ticket.done', { timeout: 30000 });
+  await page.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 30000 });
   check('progress survives closing and reopening the page', true);
 
   // --- refund ---

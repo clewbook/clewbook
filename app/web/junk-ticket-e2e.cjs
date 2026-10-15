@@ -4,6 +4,7 @@ const { chromium } = require('./../vectors/js/node_modules/playwright');
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };
 const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' ').trim();
+const parts = (s) => { const [ck, nck = ''] = s.split('Not checked:'); return [ck, nck]; }; // the ticket checks: one per line, then "Not checked:" and those lines
 const EXPECT = {
   badsig: /its signatures are valid/, wrongversion: /it is for the network version in use now.*must re-issue it/,
   payshost: /it pays you/, badproof: /its proof does not verify/, mismatch: /it pays you/, spent: /not used by anything else.*already spent/, othercoin: /it spends your contribution/,
@@ -29,7 +30,7 @@ function fakeLightdInfo() {
     if (mode === 'proof' || mode === 'cancel' || mode === 'badproof') {
       // level 3: the proof is checked only when asked, in the background, and can be cancelled
       await page.waitForFunction(() => /passed the checks below/.test(document.querySelector('#s-ticket').textContent), null, { timeout: 240000 });
-      check(`${mode}: before pressing, the proof is listed as not checked, with no red notice`, /Not checked: [^.]*the proof/.test(await txt(page, '#tc-summary')) && await page.isHidden('#tc-bad'), (await txt(page, '#tc-summary')).slice(-160));
+      check(`${mode}: before pressing, the proof is listed as not checked, with no red notice`, /(^|\.)\s?The proof\./.test(parts(await txt(page, '#tc-summary'))[1]) && await page.isHidden('#tc-bad'), (await txt(page, '#tc-summary')).slice(-160));
       check(`${mode}: the button "Check the proof too" is offered`, await page.isVisible('#proof-btn'));
       const before = await page.evaluate(() => performance.getEntriesByType('resource').filter((r) => /ll_proofcheck/.test(r.name)).length);
       check(`${mode}: the proof checker is NOT downloaded before the button is pressed`, before === 0);
@@ -39,13 +40,13 @@ function fakeLightdInfo() {
       if (mode === 'cancel') {
         await page.waitForTimeout(1500);
         await page.click('#proof-cancel');
-        check('cancel: it says it stopped and the proof stays "not checked"', /Stopped/.test(await txt(page, '#proof-progress')) && /Not checked: [^.]*the proof/.test(await txt(page, '#tc-summary')));
+        check('cancel: it says it stopped and the proof stays "not checked"', /Stopped/.test(await txt(page, '#proof-progress')) && /(^|\.)\s?The proof\./.test(parts(await txt(page, '#tc-summary'))[1]));
         check('cancel: the button is offered again and no red notice appeared', await page.isVisible('#proof-btn') && await page.isHidden('#tc-bad'));
         continue;
       }
       if (mode === 'proof') {
-        await page.waitForFunction(() => /Checked: [^.]*the proof is valid/.test(document.querySelector('#tc-summary').textContent), null, { timeout: 300000 });
-        check('proof: after a pass it says "Checked: the proof is valid" and the proof is no longer listed as not checked', !/Not checked: [^.]*the proof[;.]/.test(((await txt(page, '#tc-summary')).split('Not checked:')[1]) || '') && await page.isHidden('#tc-bad') && await page.isHidden('#proof-btn'), (await txt(page, '#tc-summary')).slice(0, 400));
+        await page.waitForFunction(() => /(^|\.)\s?The proof is valid\./.test(document.querySelector('#tc-summary').textContent.replace(/\s+/g, ' ').split('Not checked:')[0]), null, { timeout: 300000 });
+        check('proof: after a pass it says "Checked: the proof is valid" and the proof is no longer listed as not checked', !/(^|\.)\s?The proof\./.test(parts(await txt(page, '#tc-summary'))[1]) && await page.isHidden('#tc-bad') && await page.isHidden('#proof-btn'), (await txt(page, '#tc-summary')).slice(0, 400));
         const after = await page.evaluate(() => performance.getEntriesByType('resource').filter((r) => /ll_proofcheck/.test(r.name)).map((r) => ({ name: r.name.split('/').pop(), bytes: r.transferSize || r.encodedBodySize })));
         console.log('proof module loaded only now:', JSON.stringify(after));
         await page.screenshot({ path: `${process.env.SHOTS || 'runs/page/shots'}/63-proof-valid.png`, fullPage: true });
@@ -64,7 +65,7 @@ function fakeLightdInfo() {
       await page.waitForFunction(() => /passed the checks below/.test(document.querySelector('#s-ticket').textContent), null, { timeout: 240000 });
       const sum = await txt(page, '#tc-summary');
       check('oldformat: no red notice, passes its other checks', await page.isHidden('#tc-bad'));
-      check('oldformat: says "Not checked: that it pays you" (never a failure, never "it pays you" as checked)', /Not checked: .*that it pays you/.test(sum) && !/Checked: [^.]*it pays you \(/.test(sum), sum.slice(0, 300));
+      check('oldformat: says "Not checked: that it pays you" (never a failure, never "it pays you" as checked)', /That it pays you/.test(parts(sum)[1]) && !/(^|\.)\s?It pays you \(/.test(parts(sum)[0]), sum.slice(0, 300));
       await page.screenshot({ path: `${process.env.SHOTS || 'runs/page/shots'}/62-oldformat.png`, fullPage: true });
       continue;
     }
@@ -84,7 +85,7 @@ function fakeLightdInfo() {
       await page.waitForFunction(() => /passed the checks below/.test(document.querySelector('#s-ticket').textContent), null, { timeout: 240000 });
       const sum = await txt(page, '#tc-summary');
       check('good: a valid ticket is shown as passing the listed checks, with no red notice', await page.isHidden('#tc-bad'));
-      check('good: a version 2 ticket lists "it pays you" as checked, and still lists the proof and the anchor as not checked', /Checked: .*its signatures are valid.*it pays you \(its refund output pays the address you gave\).*Not checked: .*the proof.*its chain state/.test(sum) && !/Not checked: [^.]*that it pays you/.test(sum), sum.slice(0, 300));
+      check('good: a version 2 ticket lists "it pays you" as checked, and still lists the proof and the anchor as not checked', /Its signatures are valid\..*It pays you \(its refund output pays the address you gave\)\./.test(parts(sum)[0]) && /The proof\..*Its chain state\./.test(parts(sum)[1]) && !/That it pays you/.test(parts(sum)[1]), sum.slice(0, 300));
       await page.screenshot({ path: `${process.env.SHOTS || 'runs/page/shots'}/61-good.png`, fullPage: true });
       continue;
     }

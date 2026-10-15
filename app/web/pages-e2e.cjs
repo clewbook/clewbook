@@ -111,7 +111,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   p = await open(process.env.LINK);
   await p.waitForSelector('#about-facts dt', { timeout: 60000 }); await p.waitForTimeout(3000);
   const about = await txt(p, '#about-facts');
-  check('contribute page: the count is labelled "on the public list, including any taken back" with a link to the recount', /On the public list, including any taken back/.test(about) && !/Listed so far/.test(about) && /recount\.html#c=/.test(await p.getAttribute('#about-facts a', 'href')), about.slice(0, 160));
+  check('contribute page: the count is labelled "Public list", with "taken back included" after the value, and a link to the recount', /Public list\d+ contributions?, [\d.]+ TAZ taken back included/.test(about) && !/Listed so far/.test(about) && /recount\.html#c=/.test(await p.getAttribute('#about-facts a', 'href')), about.slice(0, 160));
 
   // ---- relays disagree: one relay is behind (shorter list) -> cannot conclude, never a pass ----
   const { spawn, spawnSync } = require('child_process');

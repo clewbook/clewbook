@@ -437,16 +437,25 @@ const campaignName = () => campaign.name || `${campaign.mode === 'raise' ? 'Fund
 
 function renderAbout() {
   if (!campaign) return;
-  $('#about').hidden = false;
+  $('#about').hidden = !!state; // "About this campaign" belongs to the amount step only (before a payment code exists)
   setCampaignLabel(cfg.id, campaign.name, 'Campaign ');
   const raise = campaign.mode === 'raise';
   // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
   const capped = raise && campaign.cap_zat != null, gw = capped ? 'soft cap' : 'goal', room = capRoom();
   $('#contrib-name').textContent = campaignName();
   $('#contrib-to').hidden = $('#contrib-name').hidden = false;
-  $('#about-text').textContent = raise
-    ? `This is a fundraiser with ${capped ? `a soft cap of ${campaign.goal} ${campaign.ticker} and a hard cap of ${campaign.cap} ${campaign.ticker}` : `a goal of ${campaign.goal} ${campaign.ticker}`}.${capped ? ' At the close, contributions are counted in the order they reached the chain, and a payment that does not fit under the hard cap is refunded whole by its own ticket, minus the refund fee.' : ''}${campaign.early_close ? ` The host may close this campaign early once the ${gw} is met.` : ''}`
-    : `This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. The whole amount you send is your bid. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. If you don't win, you are refunded. You keep a refund ticket that only you can use. It works without the host while your bid is unspent: until the deadline, and afterwards unless your bid wins.`;
+  // up to three short paragraphs, one idea each, from the campaign's rules
+  const early = campaign.early_close ? `The host may close this campaign early once the ${gw} is met.` : '';
+  const paras = raise
+    ? (capped
+      ? [`This is a fundraiser with a soft cap of ${campaign.goal} ${campaign.ticker} and a hard cap of ${campaign.cap} ${campaign.ticker}.`,
+        'At the close, contributions are counted in the order they reached the chain. A payment that would go over the hard cap is refunded whole by its own ticket, minus the refund fee.',
+        early]
+      : [`This is a fundraiser with a goal of ${campaign.goal} ${campaign.ticker}.${early ? ` ${early}` : ''}`])
+    : [`This is an auction for ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}. The whole amount you send is your bid.`,
+      "Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. If you don't win, you are refunded.",
+      'You keep a refund ticket that only you can use. It works without the host while your bid is unspent: until the deadline, and afterwards unless your bid wins.'];
+  $('#about-text').replaceChildren(...paras.filter(Boolean).map((t) => Object.assign(document.createElement('p'), { textContent: t })));
   // the words follow the campaign type: a fundraiser takes contributions, an auction takes bids
   $('#crumb').textContent = $('#page-title').textContent = raise ? 'Fundraiser' : 'Auction';
   document.title = `${raise ? 'Fundraiser' : 'Auction'} · ${document.title.split(' · ').pop()}`;
@@ -485,7 +494,6 @@ function renderAbout() {
     ...(left ? fact('Time left', left) : []),
     ...(raise ? [] : auctionRules()),
     ...(left && secPerBlock ? fact('Block time', `≈${Math.round(secPerBlock)} seconds`) : []),
-    ...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`),
     ...(raise && campaign.early_close ? fact('Early close', 'Allowed') : []),
     ...fact(raise ? 'Smallest contribution' : 'Smallest bid', `${campaign.min} ${campaign.ticker}`),
     ...fact('Refund fee', `${campaign.fee} ${campaign.ticker}`),
@@ -494,7 +502,10 @@ function renderAbout() {
     const seen = new Map();
     for (const e of view.entries) if (e.ticket && e.contribution && e.contribution.value_zat != null) seen.set(e.contribution.nf, e.contribution.value_zat);
     const total = [...seen.values()].reduce((a, b) => a + b, 0);
-    dl.append(...fact('On the public list, including any taken back', `${seen.size} ${seen.size === 1 ? 'contribution' : 'contributions'}, ${coin(total)} ${campaign.ticker}`));
+    // every listed contribution with a ticket, also those taken back later (a withdrawal does not remove the entry)
+    const [pdt, pdd] = fact('Public list', `${seen.size} ${seen.size === 1 ? 'contribution' : 'contributions'}, ${coin(total)} ${campaign.ticker}`);
+    pdd.append(' ', Object.assign(document.createElement('span'), { className: 'dim', textContent: 'taken back included' }));
+    dl.append(pdt, pdd);
     const dd = document.createElement('dd');
     const a = document.createElement('a');
     a.href = `recount.html#c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
@@ -505,8 +516,10 @@ function renderAbout() {
     dl.append(dt, dd);
   }
   if (campaign.network !== 'main') dl.append(...fact('Network', 'Test network: no real money'));
+  dl.append(...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`)); // always the last row
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
   $('#amount-hint').textContent = `At least ${campaign.min} ${campaign.ticker}${raise ? '' : ' for a bid'}. About ${campaign.fee} ${campaign.ticker} of it is kept if you get a refund.`;
+  if (!state) showAmountProblem(amountProblem()); // the room under a hard cap can change while the page is open
 }
 
 /** The bid page's rules text (an auction only): what a bid is, ties, the reserve, and what happens to an overpaid bid in each kind of auction. */
@@ -624,7 +637,7 @@ function renderProgress() {
   renderTicketChecks();
   let note = '';
   if (!t) note = 'This usually takes a minute or two; you can leave and come back with the same link.';
-  else if (tcv === 'pass') note = 'Your refund ticket is saved on this device and passed the checks listed below. While your contribution is unspent, it lets you get your money back without the host: until the deadline, and afterwards unless your contribution is kept.';
+  else if (tcv === 'pass') note = '';
   else if (tcv === 'fail') note = 'Your refund ticket did not pass a check (see below). Keep your backup file.';
   else note = 'Your refund ticket is saved on this device. Checking it now…';
   // after paying: the amount that was seen on the network against the amount sealed into the payment code
@@ -1005,20 +1018,46 @@ function downloadBackup(st = state) {
   if (st === state) { save(); renderAll(); }
 }
 
+/** What is wrong with the amount typed, or null: not a number, below the smallest contribution, above the room left under a hard cap.
+ *  An empty field is fine while typing and is "not a number" when the payment is made. */
+function amountProblem(onSubmit = false) {
+  const t = $('#amount').value.trim();
+  if (!campaign || (!t && !onSubmit)) return null;
+  let zat;
+  try { zat = parseAmount(t); } catch (e) { return e.message; }
+  if (zat < campaign.min_zat) return `The smallest amount this campaign accepts is ${campaign.min} ${campaign.ticker}.`;
+  // a hard cap: an amount larger than the room left is refused here (the network would take it, but it could only be refunded at the close)
+  const room = capRoom();
+  if (room != null && zat > room) {
+    return room < campaign.min_zat
+      ? 'The hard cap is reached, so this page will not make a new payment. Room frees up only if earlier contributors take their payments back.'
+      : `This is more than the room left under the hard cap (${coin(room)} ${campaign.ticker}). Enter at most that amount.`;
+  }
+  return null;
+}
+/** The amount's message sits directly under the amount box, in place of the grey hint, and the box glows red while it shows. */
+function showAmountProblem(msg) {
+  const inp = $('#amount'), e = $('#amount-error');
+  e.textContent = msg || ''; e.hidden = !msg; $('#amount-hint').hidden = !!msg;
+  $('.amountbox').classList.toggle('bad', !!msg);
+  if (msg) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', 'amount-error'); }
+  else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'amount-hint'); }
+}
+
 async function onCreate(ev) {
   ev.preventDefault();
-  const err = $('#form-error');
-  say(err, '');
+  const err = $('#form-error'), gen = $('#create-error');
+  say(err, ''); say(gen, '');
   if (tooLateToStart()) return; // the line above the form says why
+  const amountMsg = amountProblem(true);
+  let addrMsg = null;
+  try { W.check_refund_address(campaign.network, $('#refund').value); } catch (e) { addrMsg = e.message || String(e); }
+  showAmountProblem(amountMsg);
+  say(err, addrMsg || ''); // the message under the refund address is only ever about the address
+  if (amountMsg) { $('#amount').focus(); return; }
+  if (addrMsg) { $('#refund').focus(); return; }
   try {
     const zat = parseAmount($('#amount').value);
-    // a hard cap: an amount larger than the room left is refused here (the network would take it, but it could only be refunded at the close)
-    const room = capRoom();
-    if (room != null && zat > room) {
-      throw new Error(room < campaign.min_zat
-        ? 'The hard cap is reached, so this page will not make a new payment. Room frees up only if earlier contributors take their payments back.'
-        : `This is more than the room left under the hard cap (${coin(room)} ${campaign.ticker}). Enter at most that amount.`);
-    }
     const seed = W.generate_seed();
     const p = JSON.parse(W.build_payment(rulesJson, seed, $('#refund').value, zat)); // refuses anything invalid
     state = { seed, refund: $('#refund').value.trim(), amountZat: zat, memo: p.memo, createdAt: Date.now(),
@@ -1030,7 +1069,7 @@ async function onCreate(ev) {
     $('#pay-card').scrollIntoView({ behavior: 'smooth' });
     refresh();
   } catch (e) {
-    say(err, e.message || String(e));
+    say(gen, e.message || String(e));
   }
 }
 
@@ -1182,10 +1221,16 @@ function renderTicketChecks() {
   box.hidden = !(state && state.ticket);
   if (box.hidden) return;
   const bad = $('#tc-bad');
-  if (!ticketCheck) { bad.hidden = true; $('#tc-summary').textContent = 'Checking your ticket…'; $('#tc-list').replaceChildren(); return; }
+  if (!ticketCheck) { bad.hidden = true; $('#tc-summary').textContent = 'Checking your ticket…'; $('#tc-count').textContent = ''; $('#tc-list').replaceChildren(); return; }
   const by = (s) => ticketCheck.checks.filter((x) => x.status === s);
   const pass = by('pass'), fail = by('fail'), not = by('not_checked');
-  $('#tc-summary').textContent = `Checked: ${pass.map((x) => x.label).join('; ') || 'nothing yet'}.` + (not.length ? ` Not checked: ${not.map((x) => x.label).join('; ')}.` : '');
+  // one check per line, as a sentence; then, under a thin line, what was not checked
+  const sentence = (t) => `${t.charAt(0).toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}`;
+  const lines = (items, cls) => { const ul = document.createElement('ul'); ul.className = cls; ul.append(...items.map((x) => Object.assign(document.createElement('li'), { textContent: sentence(x.label) }))); return ul; };
+  const parts = [pass.length ? lines(pass, 'tc-ok') : Object.assign(document.createElement('p'), { textContent: 'Nothing checked yet.' })];
+  if (not.length) { const nb = document.createElement('div'); nb.className = 'tc-not'; nb.append(Object.assign(document.createElement('p'), { className: 'tc-not-k', textContent: 'Not checked:' }), lines(not, 'tc-nc')); parts.push(nb); }
+  $('#tc-summary').replaceChildren(...parts);
+  $('#tc-count').textContent = `${pass.length} ${pass.length === 1 ? 'check' : 'checks'}`;
   if (fail.length) {
     bad.hidden = false;
     const special = fail.find((x) => x.id === 'network_version') ? ' This ticket is for an older network version; the campaign must reissue it.'
@@ -1227,7 +1272,7 @@ function onRestore(ev) {
       startHeight: Math.max(0, (tip ?? 0) - 1000), txid: b.payment || null, manualTxid: null, ticket: b.ticket || null,
       challenge: null, refundSentAt: null, backupDownloaded: true };
     save(); renderAll(); refresh();
-  }).catch((e) => say($('#form-error'), e.message || 'That file could not be read.'));
+  }).catch((e) => say($('#restore-error'), e.message || 'That file could not be read.'));
 }
 
 function wire() {
@@ -1237,6 +1282,7 @@ function wire() {
   $('#proof-publish').addEventListener('click', () => publishDisclosure(false));
   $('#proof-complain').addEventListener('click', () => publishDisclosure(true));
   $('#form').addEventListener('submit', onCreate);
+  $('#amount').addEventListener('input', () => showAmountProblem(amountProblem())); // at once, on every keystroke
   $('#backup').addEventListener('click', () => downloadBackup());
   $('#to-pay').addEventListener('click', () => { payStage = 'pay'; renderAll(); $('#cflow').scrollIntoView({ block: 'start' }); });
   $('#back-to-backup').addEventListener('click', () => { payStage = 'backup'; renderAll(); });

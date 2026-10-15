@@ -36,17 +36,21 @@
 
 /* 1 · amount */
 #form-card form { display: flex; flex-direction: column; }
-.amountbox { display: flex; align-items: center; border-radius: 14px; border: 2px solid var(--cb-border-strong); background: var(--cb-surface); min-height: 64px; padding: 0 18px; transition: border-color .2s; }
+.amountbox { display: flex; align-items: center; border-radius: 14px; border: 2px solid var(--cb-border-strong); background: var(--cb-surface); min-height: 64px; padding: 0 18px; }
 .amountbox:focus-within { border-color: var(--cb-accent-text); outline: 2px solid var(--cb-focus); outline-offset: 2px; }
 .amountbox input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font: 700 30px var(--cb-font-display); min-height: 60px; padding: 0; font-variant-numeric: tabular-nums; }
 .amountbox input:focus-visible { outline: 0; }
 .amountbox .tk { font: 500 13px var(--cb-font-body); color: var(--cb-ink-3); }
+/* an amount the campaign would refuse: a red edge and a soft red ring at once, and its message right under the box (no animation) */
+.amountbox.bad, .amountbox.bad:focus-within { border-color: var(--cb-fail); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cb-fail) 20%, transparent); }
+.amount-error { margin-top: 8px; }
 #refund { min-height: 88px; border-radius: 14px; padding: 14px; resize: none; }
-#form-error { margin-top: 8px; }
+#form-error, #create-error, #restore-error { margin-top: 8px; }
 #form-card .btns { margin-top: 18px; }
 .page button.create { min-height: 52px; margin: 0; }
 .before { display: flex; flex-direction: column; border-left: 1px solid var(--cb-border); padding-left: 26px; font: 400 15px/1.55 var(--cb-font-body); color: var(--cb-ink-2); }
 .before .t-k { padding-bottom: 10px; }
+.cmain .before { border-left: 0; padding-left: 0; margin-top: 8px; } /* "Before you pay" sits under "I have a backup file" in the left column */
 .before-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-top: 1px solid var(--cb-rule); }
 .bm.pub { color: var(--cb-pass); } .bm.host { color: var(--cb-info); } .bm.you { color: var(--cb-accent-text); } .bm.warn { color: var(--cb-wait); }
 
@@ -73,18 +77,29 @@
 #pay-min .amt .z { color: inherit; opacity: .75; }
 .why summary { font-size: 14px; color: var(--cb-info); }
 .qrrow { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.qrcol { display: inline-flex; flex-direction: column; gap: 10px; max-width: 100%; }
+.qrcol .payhint { width: 0; min-width: 100%; } /* wraps to the width of the code box above it */
 .qrinfo { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .qrinfo .t-sub { margin-bottom: 0; }
 .kv.qc { grid-template-columns: 78px minmax(0, 1fr); background: transparent; }
 .kv.qc dt, .kv.qc dd { padding: 10px 0; font-size: 14px; }
 .kv.qc dd { font: 400 13px var(--cb-font-body); }
+.kv.qc .hash { flex-wrap: wrap; }
+.kv.qc .hash .h-s { flex-basis: 100%; } /* the value on its own line, then Expand and Copy together under it */
+.kv.qc .hash .h-b { white-space: nowrap; flex: none; }
 .payhint { margin: 0; }
+/* "Show payment details" sits 16px under "Code hard to scan?": the margins that stacked up there (the hint line's, the button's and the fold's,
+   46px with the column gap) are gone, and the line is not drawn at all when there is no simpler code */
+#pay-main > p.hint:has(> #qr-toggle) { margin: 0 0 -2px; }
+#pay-main > p.hint:has(> #qr-toggle[hidden]) { display: none; }
+.page #qr-toggle { margin: 0; }
+#manual { margin: 0; }
 .copyhd { margin: 12px 0 4px; }
 #manual pre.copybox { max-height: 7rem; }
 .pay-back { margin-top: 8px; }
 /* the payment code stays at least 280 px wide so a long payment link still scans (tested in contribute-e2e) */
 .qr .code { width: 290px; max-width: 100%; box-sizing: content-box; scroll-margin-top: 96px; } /* never under the sticky header when brought into view */
-@media (max-width: 639px) { .qrrow .qr { width: 100%; } .qr .code { width: calc(100% - 36px); max-width: 320px; } }
+@media (max-width: 639px) { .qrrow .qrcol, .qrrow .qr { width: 100%; } .qr .code { width: calc(100% - 36px); max-width: 320px; } }
 
 /* where things stand (beside the code), then the ticket */
 #progress-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -95,6 +110,7 @@
 .progress li { grid-template-columns: 18px minmax(0, 1fr) auto; }
 .progress li .state { text-align: right; }
 .cflow[data-stage="ticket"] .stand { order: 5; }
+.cflow:not([data-stage="pay"]) .stand > .stand-k, .cflow:not([data-stage="pay"]) .stand > .progress { display: none; }
 #host-seen { font-size: 13px; color: var(--cb-ink-3); }
 .pnote { font-size: 14px; color: var(--cb-ink-2); }
 .pnote:empty { display: none; }
@@ -144,6 +160,11 @@
 .tl-s { font-size: 13px; color: var(--cb-ink-3); margin-top: 2px; }
 #ticket-checks .subhd { font-size: 16px; }
 .summary { font-size: 14px; color: var(--cb-ink-2); margin-bottom: 8px; overflow-wrap: anywhere; }
+.tc-lines { margin: 0; padding-bottom: 12px; }
+.tc-lines ul { display: flex; flex-direction: column; gap: 4px; }
+.tc-not { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cb-rule); color: var(--cb-ink-3); }
+.tc-not-k { margin-bottom: 4px; }
+#ticket-checks .tk-fold + .tk-fold { border-top: 0; }
 .devchecks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 20px; border-top: 0; }
 .devchecks .chk { border-bottom: 0; border-top: 1px solid var(--cb-rule); background: transparent; }
 .devchecks .chk > .row, .devchecks .chk.stack > .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm chip"; padding: 8px 0; min-height: 0; }
@@ -196,4 +217,25 @@
   .pay-backup .flow-h { font-size: 32px; }
   .ticket { padding: 20px; }
   .tk-dl { grid-template-columns: 96px minmax(0, 1fr); }
+  /* the ticket step on a phone: heading and ticket, the backup box, the refund, the closed folds with the proof button, the transaction id,
+     and Start over last; 24px between sections and a thin line above each; the back link is the one at the top of the page */
+  .cflow[data-stage="ticket"] #progress-card { display: flex; flex-direction: column; align-items: stretch; gap: 24px; } /* every section as wide as the screen allows */
+  .cflow[data-stage="ticket"] #ticket-h { order: 1; }
+  .cflow[data-stage="ticket"] #ticket-view { order: 2; }
+  .cflow[data-stage="ticket"] #stand { order: 3; }
+  .cflow[data-stage="ticket"] #proof { order: 4; }
+  .cflow[data-stage="ticket"] #refund-area { order: 5; }
+  .cflow[data-stage="ticket"] #refund-result { order: 6; }
+  .cflow[data-stage="ticket"] #rebid-row { order: 7; }
+  .cflow[data-stage="ticket"] #tk-when { order: 8; }
+  .cflow[data-stage="ticket"] #ticket-checks { order: 9; margin-top: -24px; } /* the folds sit together as one group */
+  .cflow[data-stage="ticket"] #unconfirmed { order: 10; }
+  .cflow[data-stage="ticket"] #pay-more { order: 11; }
+  .cflow[data-stage="ticket"] #tk-when + #ticket-checks .tk-fold:first-of-type { border-top: 0; }
+  .cflow[data-stage="ticket"] #stand:not(:empty), .cflow[data-stage="ticket"] #refund-area, .cflow[data-stage="ticket"] #pay-more { border-top: 1px solid var(--cb-border); padding-top: 24px; }
+  .cflow[data-stage="ticket"] #backup2, .cflow[data-stage="ticket"] .tk-back { display: none; } /* the same download is in the backup box; the back link is at the top */
+  .cflow[data-stage="ticket"] #progress-card #backup3, .cflow[data-stage="ticket"] #refund-btn, .cflow[data-stage="ticket"] #proof-btn, .cflow[data-stage="ticket"] #start-over { width: 100%; min-height: 52px; margin: 0; }
+  .cflow[data-stage="ticket"] #backup-nudge .btns, .cflow[data-stage="ticket"] #leave-box .btns { flex-direction: column; align-items: stretch; gap: 10px; }
+  .cflow[data-stage="ticket"] .proofrow { flex-direction: column; align-items: stretch; }
+  .cflow[data-stage="ticket"] .proofrow .hint { flex: none; } /* its 200px basis is a width in a row, but would be a height in this column */
 }

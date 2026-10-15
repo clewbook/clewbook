@@ -109,16 +109,35 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     // ---------- 3. the boxed notice ----------
     const addr = (await p.evaluate(async (id) => (await (await fetch(`/relays/a/v1/campaigns/${id}`)).json()).pay_to, RAISE.id));
     // ---------- 2b. an amount below the campaign's smallest contribution makes no payment code ----------
-    await p.fill('#amount', '0.0001'); await p.fill('#refund', addr); await p.click('#create');
-    await p.waitForSelector('#form-error:not([hidden])', { timeout: 10000 });
-    check('below the smallest contribution: no payment code, and the message shows the minimum', /smallest amount this campaign accepts is 0\.0002 TAZ/.test(await text(p, '#form-error')) && (await p.isHidden('#pay-card')) && (await p.evaluate((id) => localStorage.getItem(`ll:${id}`), RAISE.id)) === null);
+    const amountState = () => p.evaluate(() => { const e = document.querySelector('#amount-error'), box = document.querySelector('.amountbox'), cs = getComputedStyle(box), inp = document.querySelector('#amount');
+      return { shown: !e.hidden, text: e.textContent, under: box.nextElementSibling === e, hintHidden: document.querySelector('#amount-hint').hidden, bad: box.classList.contains('bad'), border: cs.borderTopColor, ring: cs.boxShadow, inv: inp.getAttribute('aria-invalid'), desc: inp.getAttribute('aria-describedby'), live: e.getAttribute('aria-live'), addrMsg: document.querySelector('#form-error').hidden ? '' : document.querySelector('#form-error').textContent, focus: document.activeElement && document.activeElement.id }; });
+    await p.fill('#amount', '0.0001'); // typing only, no click
+    let am = await amountState();
+    check('typing an amount below the minimum: at once a red edge and ring on the amount box and the message directly under it, in place of the hint', am.shown && am.under && am.hintHidden && am.bad && /^The smallest amount this campaign accepts is 0\.0002 TAZ\.$/.test(am.text) && am.border === 'rgb(179, 38, 30)' && /3px/.test(am.ring) && am.inv === 'true' && am.desc === 'amount-error' && am.live === 'polite' && am.addrMsg === '', JSON.stringify(am));
+    await p.fill('#refund', addr); await p.click('#create');
+    am = await amountState();
+    check('below the smallest contribution: no payment code, the message stays under the amount box, nothing about the amount under the address, focus on the amount', /smallest amount this campaign accepts is 0\.0002 TAZ/.test(am.text) && am.shown && am.addrMsg === '' && am.focus === 'amount' && (await p.isHidden('#pay-card')) && (await p.evaluate((id) => localStorage.getItem(`ll:${id}`), RAISE.id)) === null, JSON.stringify(am));
     await p.fill('#amount', '0.00019999'); await p.click('#create');
-    check('one unit below the minimum is refused too', /0\.0002 TAZ/.test(await text(p, '#form-error')) && (await p.isHidden('#pay-card')));
+    check('one unit below the minimum is refused too', /0\.0002 TAZ/.test(await text(p, '#amount-error')) && (await p.isHidden('#pay-card')));
+    await p.fill('#amount', '');
+    am = await amountState();
+    check('emptying the amount clears the red edge and the message at once, and the grey hint comes back', !am.shown && !am.bad && !am.hintHidden && am.inv === null && am.desc === 'amount-hint', JSON.stringify(am));
+    await p.fill('#amount', '0.0002'); await p.fill('#refund', ''); await p.click('#create');
+    am = await amountState();
+    check('a blank refund address: its message under the address box, nothing under the amount', /enter the address where your refund should go/i.test(am.addrMsg) && !am.shown && (await p.isHidden('#pay-card')), JSON.stringify(am));
+    await p.fill('#refund', 'not an address'); await p.click('#create');
+    am = await amountState();
+    check('a wrong refund address: its message under the address box, nothing under the amount', /valid refund address/i.test(am.addrMsg) && !am.shown && (await p.isHidden('#pay-card')), JSON.stringify(am));
+    await p.fill('#amount', '0.0001'); await p.click('#create');
+    am = await amountState();
+    check('a wrong amount and a wrong address together: each message under its own box (never an amount message under the address), focus on the amount', am.shown && /smallest amount/.test(am.text) && /valid refund address/i.test(am.addrMsg) && !/amount/i.test(am.addrMsg) && am.focus === 'amount', JSON.stringify(am));
+    await p.fill('#refund', addr);
     await p.fill('#amount', '0.0002'); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
     check('exactly the minimum is accepted', (await text(p, '#pay-min')).startsWith('0.0002'));
     await p.evaluate((id) => localStorage.removeItem(`ll:${id}`), RAISE.id); await p.reload(); await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
     const create = async (amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); }; // design round 2: Continue to pay after the Backup step
     await create('0.01');
+    check('pay step: "Where things stand" is shown, "About this campaign" is not', (await p.isVisible('.stand-k')) && (await p.isVisible('#s-ticket')) && (await p.isHidden('#about')));
     const box = await p.evaluate(() => {
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
@@ -177,6 +196,9 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     check('late notice: not shown for an underpaid payment (that has its own, different notice)', !(await lateShown(H + 500)));
     await setPaid({ ticket: { nf: 'x', entry: { seq: 0, contribution: { height: H } } }, paidZat: 2000000, paidHeight: H });
     check('late notice: not shown once a ticket is held', !(await lateShown(H + 500)));
+    const tk = await p.evaluate(() => ({ stage: document.querySelector('#cflow').dataset.stage, about: !!document.querySelector('#about').offsetParent, stand: !!document.querySelector('.stand-k').offsetParent || !!document.querySelector('#s-ticket').offsetParent,
+      open: [...document.querySelectorAll('#progress-card details')].filter((d) => d.open).map((d) => d.id || d.querySelector('summary').textContent), n: document.querySelectorAll('#progress-card details').length }));
+    check('ticket step: no "About this campaign", no "Where things stand", and every disclosure closed on load', tk.stage === 'ticket' && !tk.about && !tk.stand && tk.open.length === 0 && tk.n >= 4, JSON.stringify(tk));
     await p.context().close();
 
     // ---------- narrow phone width ----------

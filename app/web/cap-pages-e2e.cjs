@@ -33,8 +33,8 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   check('contribute: the about text has no hyphens or dashes', noDash(await p.textContent('#about-text')));
   await p.fill('#amount', '0.0031'); await p.fill('#refund', E.REFUND); await p.click('#create');
   await p.waitForTimeout(500);
-  const err = (await p.textContent('#form-error')).trim();
-  check('contribute: an amount larger than the room left is refused, saying the room', /more than the room left under the hard cap \(0\.003 TAZ\)/.test(err) && await p.isHidden('#pay-card'), err);
+  const err = (await p.textContent('#amount-error')).trim();
+  check('contribute: an amount larger than the room left is refused, saying the room under the amount box', /more than the room left under the hard cap \(0\.003 TAZ\)/.test(err) && await p.isHidden('#pay-card'), err);
   await p.fill('#amount', '0.003'); await p.click('#create');
   await p.waitForSelector('#pay-card:not([hidden])', { timeout: 20000 }).catch(() => {});
   check('contribute: an amount that fits makes a payment code', await p.isVisible('#pay-card'));

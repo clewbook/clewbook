@@ -24,7 +24,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
   // A. lost the page: restore from the backup file taken before paying
   await page.click('#form-card details summary');
   await page.setInputFiles('#restore', BACKUP);
-  await page.waitForSelector('#s-ticket.done', { timeout: 60000 });
+  await page.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 60000 }); // the status rows show on the Pay step only
   check('restoring the backup finds the ticket again from the public lists', true);
   await page.waitForSelector('#refund-result:not([hidden])', { timeout: 30000 });
   const rr = await text(page, '#refund-result');

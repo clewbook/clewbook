@@ -120,6 +120,9 @@ function mountChrome({ host }) {
   const open = () => {
     panel = document.createElement('div'); panel.className = 'menu-panel';
     for (const a of nav.querySelectorAll('a')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    // "Replay intro", where the footer has it: the menu item hands the click to the footer's own control, so both do exactly the same
+    const replay = document.getElementById('replay-intro');
+    if (replay) { const r = document.createElement('a'); r.className = 'replay'; r.href = replay.getAttribute('href'); r.textContent = 'Replay intro'; r.addEventListener('click', (e) => { e.preventDefault(); replay.click(); }); panel.append(r); }
     const demo = document.createElement('a'); demo.className = 'demo'; demo.href = DEMO_URL; demo.textContent = '▲ Try the testnet demo →'; panel.append(demo);
     if (document.getElementById('theme-ctl')) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row); }
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';

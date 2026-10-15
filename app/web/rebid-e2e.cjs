@@ -61,7 +61,7 @@ const visible = async (p) => {
   await page.click('#backup'); // the page asks for this first
   result.first_payment = pay(first.payTo, first.memo);
   check('first payment sent', result.first_payment.length === 64, result.first_payment);
-  await page.waitForSelector('#s-ticket.done', { timeout: 900000 });
+  await page.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 900000 });
   check('first payment: the ticket arrived', true);
   result.steps.push({ after: 'first ticket', visible: await visible(page) });
 
@@ -100,7 +100,7 @@ const visible = async (p) => {
     await page.click('#backup');
     result.second_payment = pay(second.payTo, second.memo);
     check('second payment sent', result.second_payment.length === 64, result.second_payment);
-    await page.waitForSelector('#s-ticket.done', { timeout: 900000 });
+    await page.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 900000 });
     check('second payment: its own ticket arrived', true);
     const st = await page.evaluate((k) => JSON.parse(localStorage.getItem(`ll:${k}`)), id);
     result.second_ticket = st.ticket && st.ticket.entry.ticket.txid;

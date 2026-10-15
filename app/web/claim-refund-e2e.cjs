@@ -38,7 +38,7 @@ const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g
       if (!txid) await sleep(15000);
     }
     check('payment of 0.001 TAZ sent from the page\'s payment code', txid.length === 64, txid);
-    await p.waitForSelector('#s-ticket.done', { timeout: 900000 });
+    await p.waitForSelector('#s-ticket.done', { state: 'attached', timeout: 900000 }); // the status rows show on the Pay step only
     const st = await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => /^ll:[0-9a-f]{64}$/.test(k)))));
     const ticketTxid = st.ticket.entry.ticket.txid, nf = st.ticket.nf;
     check('the ticket arrived and passed its checks', /passed the checks/.test(await text(p, '#s-ticket')), ticketTxid);

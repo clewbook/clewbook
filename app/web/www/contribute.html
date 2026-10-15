@@ -46,19 +46,26 @@
     <p class="intro" id="form-intro"></p>
     <form id="form" novalidate>
       <label for="amount" id="amount-label">Amount (<span class="ticker">TAZ</span>)</label>
-      <div class="amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
+      <div class="amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" aria-describedby="amount-hint"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
+      <p class="error amount-error" id="amount-error" aria-live="polite" hidden></p>
       <p class="hint" id="amount-hint"></p>
-      <label for="refund">Refund address · sealed to the host</label>
+      <label for="refund">Refund address</label>
       <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
       <p class="warnline" id="auction-account-note" hidden>For this auction, give a refund address from an account you would be happy to show later.</p>
       <p class="error" id="form-error" role="alert" hidden></p>
+      <p class="error" id="create-error" role="alert" hidden></p>
       <div class="btns"><button type="submit" id="create" class="create">Create my payment</button></div>
     </form>
     <details class="plain">
       <summary>I have a backup file</summary>
       <p class="hint">Restore a contribution you started earlier, on this or another device.</p>
       <input type="file" id="restore" accept="application/json,.json">
+      <p class="error" id="restore-error" role="alert" hidden></p>
     </details>
+    <section class="before" id="before">
+      <span class="t-k" id="before-h">BEFORE YOU PAY</span>
+      <ul class="before-list" id="before-list"></ul>
+    </section>
   </section>
 
   <section class="stepsec" id="pay-card" hidden>
@@ -79,7 +86,10 @@
       <h2 class="flow-h pay-h"><span id="pay-warning" class="warnline payline" role="note">Pay exactly <span id="pay-min" class="acc"></span> once, from a shielded address.</span></h2>
       <details class="plain why" id="pay-why"><summary>Why?</summary><p class="hint">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details>
       <div class="qrrow">
-          <div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div><span class="c1"></span><span class="c2"></span></div>
+          <div class="qrcol">
+            <div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div><span class="c1"></span><span class="c2"></span></div>
+            <p class="hint payhint">You pay <strong id="pay-amount"></strong>. A refund returns <strong id="pay-refund"></strong> after a small fee.</p>
+          </div>
           <div class="qrinfo">
             <p class="t-sub">This code contains</p>
             <dl class="kv pl qc" id="qr-contains">
@@ -89,7 +99,6 @@
             </dl>
           </div>
         </div>
-      <p class="hint payhint">Paying <strong id="pay-amount"></strong>. You can get back <strong id="pay-refund"></strong> if you change your mind (a small fee is kept).</p>
       <p class="hint"><button type="button" class="link" id="qr-toggle" hidden>Code hard to scan? Show a simpler code</button></p>
       <details id="manual" class="plain">
           <summary>Show payment details</summary>
@@ -130,10 +139,11 @@
     </div>
     <details class="fold tk-fold" id="tk-when"><summary>When does it work?<span class="dim fold-n">4 conditions</span></summary><div id="ticket-ledger" class="tledger" hidden></div></details>
     <div id="ticket-checks" hidden>
-      <h3 class="subhd">Ticket checks</h3>
       <p id="tc-bad" class="notice bad risk" hidden></p>
-      <p id="tc-summary" class="summary"></p>
-      <details id="tc-details" class="plain" open><summary>What was checked, in detail</summary><div id="tc-list" class="checks devchecks"></div></details>
+      <details class="fold tk-fold" id="tc-fold"><summary>Ticket checks<span class="dim fold-n" id="tc-count"></span></summary>
+        <div id="tc-summary" class="summary tc-lines"></div>
+      </details>
+      <details id="tc-details" class="fold tk-fold"><summary>What was checked, in detail</summary><div id="tc-list" class="checks devchecks"></div></details>
       <p id="proof-row" class="proofrow" hidden><button type="button" class="teal" id="proof-btn">Check the proof too</button> <button type="button" class="teal" id="proof-cancel" hidden>Cancel</button> <span class="hint">Downloads a second module and runs in this browser.</span></p>
       <p id="proof-progress" class="muted" hidden></p>
     </div>
@@ -183,13 +193,9 @@
   </div>
 
   <aside class="caside col-b">
-  <section class="before" id="before">
-    <span class="t-k" id="before-h">BEFORE YOU PAY</span>
-    <ul class="before-list" id="before-list"></ul>
-  </section>
   <section class="aside-sect" id="about" hidden>
     <h2 class="subhd">About this campaign</h2>
-    <p id="about-text" class="t-sm"></p>
+    <div id="about-text" class="t-sm"></div>
     <dl id="about-facts" class="kv pl short"></dl>
     <div class="savebox">
       <p class="t-sm">The list is public, but a server can stop showing part of it. A copy you keep can be loaded on the recount page to compare it later.</p>
