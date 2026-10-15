@@ -60,6 +60,7 @@ const CASES = [
       const led = await (await fetch(`${BASE}/relays/a/v1/campaigns/${id}/ledger?from=0`)).json();
       const closeE = led.find((e) => e.kind === 'close');
       const nfm = (n) => Number(n).toLocaleString('en-US');
+      await p.click('#tab-totals'); // design round 2: the totals (deadline and close blocks) and the sources are on the TOTALS tab
       check(`${name}: the page shows the deadline block (${nfm(rules.deadline_height)})`, (await p.textContent('#tl-deadline')).trim() === `block ${nfm(rules.deadline_height)}`);
       if (closeE) {
         const t = ((await p.textContent('#tl-closed')) || '').replace(/\s+/g, ' ');

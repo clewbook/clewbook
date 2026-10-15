@@ -10,7 +10,7 @@ Clewbook is licensed under the MIT licence or the Apache License 2.0, at your op
 - Every licence listed is permissive, or offers a permissive choice. One needs a note: mozjpeg (IJG licence) asks that a program shipping it say it is based in part on the work of the Independent JPEG Group. It is in the wallet tool's lock file only through an optional feature and is not compiled into the wallet tool as this repository builds it.
 - The licences below mostly require that the copyright notice and licence text stay with copies of the code. The source packages carry them. The browser module (`pkg/` and `proof/`, built from the libraries in the first table) is served to visitors without a separate notice page, which is a gap we know about.
 - Zig (the build tool for the browser module's one C dependency) and Python (the page server) are not part of the shipped code. The test tools in `app/vectors/js` are not shipped either (Playwright 1.63.0, Apache-2.0; libsodium-wrappers-sumo 0.7.16, ISC; jsqr 1.4.0, Apache-2.0; pngjs 7.0.0, MIT; qrcode 1.5.4, MIT; @noble/hashes 1.8.0, MIT, all as declared in their installed packages).
-- Fonts served by the pages: Newsreader, Geist, Geist Mono and Atkinson Hyperlegible, under the SIL Open Font License 1.1. Their licence files are in `app/web/www/fonts/`.
+- Fonts served by the pages: Archivo (The Archivo Project Authors), Chivo Mono (The Chivo Project Authors), Unbounded (The Unbounded Project Authors) and Sora (The Sora Project Authors), under the SIL Open Font License 1.1, taken from the @fontsource npm packages 5.3.0. Their licence files are in `app/web/www/fonts/`.
 
 ## 1. Programs and browser module in `app/` (469 libraries)
 

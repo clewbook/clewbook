@@ -9,7 +9,8 @@ const fs = require('fs');
   await p.goto(process.env.LINK);
   await p.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
   await p.fill('#amount', '0.01'); await p.fill('#refund', process.env.REFUND_ADDR);
-  await p.click('#create'); await p.waitForSelector('#qr svg');
+  await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); // design round 2: Continue to pay after the Backup step
+  await p.waitForSelector('#qr svg');
   const href = await p.getAttribute('#paylink', 'href');
   const box = await p.locator('#qr svg').boundingBox();
   const modules = await p.evaluate(() => { const v = document.querySelector('#qr svg').getAttribute('viewBox').split(' '); return Number(v[2]); });

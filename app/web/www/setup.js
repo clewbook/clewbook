@@ -1,6 +1,6 @@
 // Set-up page: sends the same request the dashboard always sent (mode, goal or items, deadline, smallest contribution, relays) and then
 // goes to the dashboard. Function only: the look is in ui.css and setup.css. Every refusal is a calm notice, never a raw error.
-import { setup, decorateAmounts, amountHTML, etaText, markReady } from './ui.js';
+import { setup, setNetwork, decorateAmounts, amountHTML, etaText, markReady } from './ui.js';
 import { measureBlocks } from './blocktime.js';
 
 const $ = (s) => document.querySelector(s);
@@ -120,15 +120,17 @@ async function onCreate(ev) {
 }
 
 async function main() {
-  setup('New campaign'); markReady();
+  setup('New campaign', { host: true }); markReady(); // a page on this computer: no intro to replay
   try {
     config = await api('config');
   } catch {
     $('#banner').textContent = "This page can't reach the host program right now. Start it with: cb-host serve";
     $('#banner').hidden = false;
     $('#create-btn').disabled = true;
+    setNetwork('unknown'); // design round 2: the network bar says it cannot tell, instead of checking for ever
     return;
   }
+  setNetwork(config.network); // design round 2: the TESTNET bar from the network the host program reported (on main the bar hides; the MAINNET banner below stays)
   for (const el of document.querySelectorAll('.ticker')) el.textContent = config.ticker;
   // the hard cap field only when this host program knows the hard cap (an older one would ignore it and make a campaign without one)
   $('#cap-row').hidden = config.hard_cap !== true;

@@ -30,7 +30,7 @@ const post = (body) => fetch(`${BASE}/api/campaigns`, { method: 'POST', headers:
     await page.waitForSelector('#mainnet-banner:not([hidden])', { timeout: 20000 });
     if (tag === '1280') {
       const banner = await text(page, '#mainnet-banner');
-      check('the set-up page opens with a loud MAINNET banner that says real money and names the NU7 rule', /MAINNET: real money/.test(banner) && /real ZEC/.test(banner) && /5 November 2026/.test(banner), banner.slice(0, 200));
+      check('the set-up page opens with a loud MAINNET banner that says real money and names the NU7 rule', /MAINNET: real money/.test(banner) && /Everything created here runs on Zcash Mainnet, and a mistake can lose real money\./.test(banner) && /5 November 2026/.test(banner), banner.slice(0, 200));
       check('the Create button is disabled until the real-money box is ticked', await page.isDisabled('#create-btn') && await page.isVisible('#confirm-row'));
       await page.fill('#goal', '0.001'); await page.fill('#deadline', '60000');
       await page.check('#confirm-mainnet');
@@ -50,7 +50,7 @@ const post = (body) => fetch(`${BASE}/api/campaigns`, { method: 'POST', headers:
   dash.on('pageerror', (e) => errors.push(String(e)));
   await dash.goto(BASE);
   await dash.waitForSelector('#mainnet-banner:not([hidden])', { timeout: 20000 });
-  check('the dashboard carries the MAINNET banner too: label ZCASH MAINNET, the sentence unchanged, and no "Main network: real money." line under the heading', (await text(dash, '#mainnet-banner .k')) === 'ZCASH MAINNET' && /Everything here uses real ZEC\. Closing a campaign moves real money and cannot be undone\./.test(await text(dash, '#mainnet-banner')) && (await dash.locator('#net-note').count()) === 0 && !/Main network: real money/.test(await text(dash, 'main')));
+  check('the dashboard carries the MAINNET banner too: label ZCASH MAINNET, the sentence unchanged, and no "Main network: real money." line under the heading', (await text(dash, '#mainnet-banner .k')) === 'ZCASH MAINNET' && /Everything here runs on Zcash Mainnet\. Closing a campaign moves real money and cannot be undone\./.test(await text(dash, '#mainnet-banner')) && (await dash.locator('#net-note').count()) === 0 && !/Main network: real money/.test(await text(dash, 'main')));
   const look = await dash.evaluate(() => { const b = document.querySelector('#mainnet-banner'), k = b.querySelector('.k'), c = getComputedStyle(b); return { border: c.borderLeftColor, bg: c.backgroundColor, label: getComputedStyle(k).color, ink: getComputedStyle(b.querySelector('p')).color }; });
   check('the mainnet banner is neutral grey (border #808084, light grey background, darker grey label) with dark body text, no red', look.border === 'rgb(128, 128, 132)' && look.bg === 'rgb(230, 230, 232)' && look.label === 'rgb(68, 68, 74)' && look.ink === 'rgb(28, 27, 24)', JSON.stringify(look));
   check('closing needs the confirmation: the Close now button starts disabled on mainnet', await dash.isDisabled('#close-yes'));

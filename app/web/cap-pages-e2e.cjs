@@ -53,7 +53,7 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   p = await open(link('campaign.html', E.CAPPED));
   await p.waitForFunction(() => /Hard cap/.test(document.body.textContent), null, { timeout: 120000 }).catch(() => {});
   const body = (await p.textContent('body')).replace(/\s+/g, ' ');
-  check('campaign page: soft cap and hard cap, with what each means', /Soft cap ?0\.00200000 TAZ: the least it must keep/.test(body) && /Hard cap ?0\.00300000 TAZ: the most it keeps/.test(body) && /Soft cap 0\.00200000 TAZ, hard cap 0\.00300000 TAZ/.test(body), body.slice(0, 200));
+  check('campaign page: soft cap and hard cap, with what each means', /Soft cap0\.00200000 TAZthe least it must keep/.test(body) && /Hard cap0\.00300000 TAZthe most it keeps/.test(body) && /Soft cap 0\.00200000 TAZ, hard cap 0\.00300000 TAZ/.test(body), body.slice(0, 200));
   await p.close();
   p = await open(link('card.html', E.CAPPED));
   await p.waitForSelector('#card:not([hidden])', { timeout: 120000 }).catch(() => {});

@@ -57,7 +57,7 @@ const link = (id) => `${BASE}/contribute.html#c=${id}&relay=${RELAY1}&relay=${RE
     await p.screenshot({ path: `${SHOTS}/heartbeat-stale.png`, fullPage: true });
     // it also shows on the payment step
     await p.fill('#amount', (Number(rules.min_contribution_zat) / 1e8 + 0.0001).toFixed(8)); await p.fill('#refund', rules.pay_to);
-    await p.click('#create').catch(() => {}); await p.waitForTimeout(800);
+    await p.click('#create').catch(() => {}); await p.waitForTimeout(800); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); // design round 2: Continue to pay after the Backup step
     check('  ... it stays visible on the payment step before anything is paid', (await note(p)).state === 'stale' && await p.isVisible('#host-seen'));
     // paid (state with a payment seen): no note any more
     await p.evaluate(([id]) => { const s = JSON.parse(localStorage.getItem(`ll:${id}`)); if (s) { s.txid = 'ab'.repeat(32) + ':0'; localStorage.setItem(`ll:${id}`, JSON.stringify(s)); } }, [ID]);

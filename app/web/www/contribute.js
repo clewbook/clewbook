@@ -373,7 +373,7 @@ function refundMode() {
   // uniform auction: a winner the host has not settled by the settlement deadline may claim their own refund
   if (closed && campaign.pricing === 'uniform' && tip > campaign.settle_by && coinUnspent) return 'silent';
   // the close says this contribution is refunded, but no refund appeared within the ticket window after it: the contributor may send their own
-  // ticket. The campaign's refund is this very ticket (the same pre-signed transaction), so the two cannot both pay out.
+  // ticket. The campaign's refund is this very ticket (the same presigned transaction), so the two cannot both pay out.
   if (closed && owedRefund() && tip > closeHeight() + campaign.ticket_k && coinUnspent) return 'late';
   return null;
 }
@@ -414,6 +414,25 @@ function fact(label, value) {
 }
 
 /** The campaign's own name (from the checked rules), else its type and short id. */
+/** BEFORE YOU PAY (or BID): who sees what, and the deadline, before a payment code is made. */
+function renderBefore(raise) {
+  $('#before-h').textContent = raise ? 'BEFORE YOU PAY' : 'BEFORE YOU BID';
+  const uniform = campaign.pricing === 'uniform';
+  const rows = raise ? [
+    ['●', 'pub', 'Public: your amount.'],
+    ['○', 'host', 'Host only: your refund address.'],
+    ['◆', 'you', 'Only you: your secret.'],
+    ['!', 'warn', `Paid after block ${campaign.deadline_height.toLocaleString('en-US')}: not counted, not refunded.`],
+  ] : [
+    ['●', 'pub', "The whole amount you send is your bid. If you don't win, you are refunded."],
+    ['●', 'pub', uniform ? 'If you win, you pay the lowest winning bid, and anything extra you sent comes back.' : 'If you win, you pay your whole bid.'],
+    ...(uniform ? [['●', 'pub', `Reserve ${campaign.reserve} ${campaign.ticker}. If fewer bids reach it than there are items, every winner pays the reserve.`]] : []),
+    ['●', 'pub', 'Ties: equal bids are ordered by when they were mined; the one earlier in the chain wins.'],
+    ['◆', 'you', 'Your ticket works without the host while your bid is unspent: until the deadline, and afterwards unless your bid wins.'],
+    ['!', 'warn', `Paid after block ${campaign.deadline_height.toLocaleString('en-US')}: not counted, not refunded.`],
+  ];
+  $('#before-list').replaceChildren(...rows.map(([m, cls, t]) => { const li = document.createElement('li'); const mk = document.createElement('span'); mk.className = `bm ${cls}`; mk.setAttribute('aria-hidden', 'true'); mk.textContent = m; const tx = document.createElement('span'); tx.textContent = t; li.append(mk, tx); return li; }));
+}
 const campaignName = () => campaign.name || `${campaign.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${cfg.id.slice(0, 8)}…`;
 
 function renderAbout() {
@@ -433,8 +452,10 @@ function renderAbout() {
   document.title = `${raise ? 'Fundraiser' : 'Auction'} · ${document.title.split(' · ').pop()}`;
   if (!(state === null && tip != null && tip > campaign.deadline_height)) $('#form-title').textContent = raise ? 'Your contribution' : 'Your bid';
   $('#form-intro').textContent = raise
-    ? 'Your refund address and amount stay in this browser. We never ask for your name.'
+    ? ''
     : 'Your refund address and your bid are kept in this browser. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. We never ask for your name.';
+  $('#form-intro').hidden = raise;
+  renderBefore(raise);
   $('#amount-label').innerHTML = `${raise ? 'Amount' : 'Your bid'} (<span class="ticker">${campaign.ticker}</span>)`;
   $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
   const closed = view.entries.some((e) => e.kind === 'close');
@@ -449,7 +470,7 @@ function renderAbout() {
     const closeE = view.entries.find((e) => e.kind === 'close');
     const rt = state && state.refundTrack;
     const refunding = !!closeE && closeE.close && closeE.close.outcome === 'goal_missed' && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
-    $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding });
+    $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding, soft: campaign.mode === 'raise' && campaign.cap_zat != null }); // a capped fundraiser says soft cap, as on the campaign page
     $('#status-text').textContent = raise ? (capped ? `Fundraiser, soft cap ${campaign.goal} ${campaign.ticker}, hard cap ${campaign.cap} ${campaign.ticker}` : `Fundraiser, goal ${campaign.goal} ${campaign.ticker}`) : `Auction, ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}`;
   }
   const dl = $('#about-facts');
@@ -583,7 +604,18 @@ function renderProgress() {
   $('#form-card').hidden = has || !campaign;
   $('#pay-card').hidden = !has || !!(state && state.ticket);
   $('#progress-card').hidden = !has;
+  if (!has) payStage = null;
+  else if (!state.ticket && !payStage) payStage = paymentSeen() || state.backupDownloaded ? 'pay' : 'backup';
+  const inBackup = has && !state.ticket && payStage === 'backup';
+  $('#pay-backup').hidden = !inBackup; $('#pay-main').hidden = inBackup;
+  if (inBackup) $('#progress-card').hidden = true;
+  $('#cflow').dataset.stage = !has ? 'amount' : state.ticket ? 'ticket' : payStage;
+  $('#ticket-h').hidden = !(has && state.ticket);
+  $('#tk-when').hidden = !(has && state.ticket); // the ticket's conditions only once there is a ticket
+  $('#tk-back').hidden = !(has && state.ticket);
   if (!has) return;
+  $('#backup-saved').checked = !!state.backupDownloaded || savedTick;
+  setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet');
   const t = !!state.ticket;
   setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : 'waiting for you to pay');
   setStep('#s-received', t, t ? 'done' : 'waiting');
@@ -687,6 +719,8 @@ function renderProgress() {
 }
 
 let useLightCode = false; // which code the person chose; kept across refreshes
+let payStage = null; // 'backup' | 'pay' while the payment card is shown (presentation only; the backup stays optional)
+let savedTick = false; // the person ticked "Saved" by hand (presentation only)
 
 function renderPay(p) {
   const tog = $('#qr-toggle');
@@ -697,7 +731,7 @@ function renderPay(p) {
     $('#paylink').href = light ? p.uri_light : p.uri;
     tog.textContent = light ? 'Show the full code again' : 'Code hard to scan? Show a simpler code';
   };
-  tog.onclick = () => { useLightCode = !useLightCode; showCode(); };
+  tog.onclick = () => { useLightCode = !useLightCode; showCode(); $('#qr').scrollIntoView({ block: 'nearest' }); }; // the whole code in view, below the header
   showCode(); // the choice survives the page's regular refresh
   $('#pay-amount').textContent = `${p.amount} ${p.ticker}`;
   $('#pay-min').textContent = `${p.amount} ${p.ticker}`;
@@ -730,12 +764,13 @@ const closedEarlyAt = () => {
 const pastDeadline = () => { const b = blocksLeft(); return (b != null && b < 0) || closedEarlyAt() != null; };
 const tooLateToStart = () => { const b = blocksLeft(); return b != null && b >= 0 && b < CUTOFF_BLOCKS; };
 
-/** The stepper above the page (a visual aid only): which of the three steps this page is on. */
+/** The stepper above the page (a visual aid only): Amount, Backup, Pay, Ticket, Done. */
 function renderStepper() {
   const el = $('#stepper');
   el.hidden = !!refused || !campaign;
-  const now = !state ? 'amount' : !state.ticket && !state.txid ? 'pay' : 'stand';
-  const order = ['amount', 'pay', 'stand'];
+  const done = !!(state && state.ticket && ((state.refundTrack && state.refundTrack.status === 'confirmed') || view.entries.some((e) => e.kind === 'close')));
+  const now = !state ? 'amount' : state.ticket ? (done ? 'done' : 'ticket') : (payStage || 'backup');
+  const order = ['amount', 'backup', 'pay', 'ticket', 'done'];
   for (const li of el.children) {
     const i = order.indexOf(li.dataset.step), at = order.indexOf(now);
     li.className = i === at ? 'now' : i < at ? 'done' : '';
@@ -752,7 +787,8 @@ function renderTicketView(tcv) {
   const rf = state.refundTrack || {};
   $('#tk-name').textContent = campaignName();
   $('#tk-entry').textContent = `#${e.seq}`;
-  const chip = rf.status === 'confirmed' ? ['refunded', 'Refunded'] : tcv === 'pass' ? ['pass', 'Passed the checks'] : tcv === 'fail' ? ['fail', 'Did not pass a check'] : ['nc', 'Checking'];
+  const nPass = ticketCheck ? ticketCheck.checks.filter((x) => x.status === 'pass').length : 0;
+  const chip = rf.status === 'confirmed' ? ['refunded', 'Refunded'] : tcv === 'pass' ? ['pass', `✓ Held · ${nPass} checks`] : tcv === 'fail' ? ['fail', '✕ Did not pass a check'] : ['nc', 'Checking'];
   $('#tk-chip').innerHTML = `<span class="chip ${chip[0]}">${chip[1]}</span>`;
   const back = c.value_zat != null ? c.value_zat - campaign.fee_zat : null; // what the ticket pays: the listed contribution minus the refund fee
   $('#tk-amount-box').hidden = back == null;
@@ -761,7 +797,7 @@ function renderTicketView(tcv) {
   const st = (id) => (checks.find((x) => x.id === id) || {}).status;
   const rows = [];
   if (st('pays_you') === 'pass') rows.push(['Pays', 'Your refund address, sealed so only the campaign could read it']);
-  if (st('no_expiry') === 'pass') rows.push(['Expires', 'Never']);
+  if (st('no_expiry') === 'pass') rows.push(['Expires', 'No expiry height; it is valid for this network version and is issued again after an upgrade']);
   if (c.value_zat != null || c.height != null) rows.push(['Contribution', [c.value_zat != null ? `${coin(c.value_zat)} ${campaign.ticker}` : '', c.height != null ? `block ${c.height.toLocaleString('en-US')}` : ''].filter(Boolean).join(' · ')]);
   rows.push(['Kept where', storageOk ? 'This browser; with your backup file this page can fetch it again from a relay' : 'With your backup file this page can fetch it again from a relay']);
   $('#tk-facts').replaceChildren(...rows.flatMap(([k, v]) => fact(k, v)));
@@ -1053,7 +1089,7 @@ async function trackRefund() {
   } catch { /* the network server may be busy; look again next time */ }
 }
 
-/** Uniform auction: is this contributor's coin still unspent? (A winner may self-refund only if the campaign did
+/** Uniform auction: is this contributor's coin still unspent? (A winner may self refund only if the campaign did
  *  not settle them within the settlement window and the coin is still unspent.) */
 async function scanCoin() {
   if (!state || !state.ticket || tip == null) return;
@@ -1089,8 +1125,8 @@ function startProofCheck() {
     const txid = state.ticket.entry.ticket.txid;
     if (e.data.type === 'result') {
       proofResults.set(txid, e.data.ok
-        ? { id: 'proof', status: 'pass', label: 'the proof is valid', detail: 'the zero-knowledge proof of this ticket verifies' }
-        : { id: 'proof', status: 'fail', label: 'its proof does not verify', detail: 'the zero-knowledge proof of this ticket does not verify, so the network would refuse the ticket' });
+        ? { id: 'proof', status: 'pass', label: 'the proof is valid', detail: 'the zero knowledge proof of this ticket verifies' }
+        : { id: 'proof', status: 'fail', label: 'its proof does not verify', detail: 'the zero knowledge proof of this ticket does not verify, so the network would refuse the ticket' });
     } else progress.textContent = `The proof could not be checked (${e.data.text}). It stays "not checked".`;
     finish();
     if (e.data.type === 'result') checkTicket().then(renderAll);
@@ -1155,7 +1191,7 @@ function renderTicketChecks() {
   $('#tc-summary').textContent = `Checked: ${pass.map((x) => x.label).join('; ') || 'nothing yet'}.` + (not.length ? ` Not checked: ${not.map((x) => x.label).join('; ')}.` : '');
   if (fail.length) {
     bad.hidden = false;
-    const special = fail.find((x) => x.id === 'network_version') ? ' This ticket is for an older network version; the campaign must re-issue it.'
+    const special = fail.find((x) => x.id === 'network_version') ? ' This ticket is for an older network version; the campaign must reissue it.'
       : fail.find((x) => x.id === 'coin_unspent') ? ` ${fail.find((x) => x.id === 'coin_unspent').detail}.` : '';
     bad.textContent = `Your ticket did not pass a check: ${fail.map((x) => x.label).join('; ')}. Don't rely on it yet. Keep your backup file.${special}`;
   } else bad.hidden = true;
@@ -1205,6 +1241,9 @@ function wire() {
   $('#proof-complain').addEventListener('click', () => publishDisclosure(true));
   $('#form').addEventListener('submit', onCreate);
   $('#backup').addEventListener('click', () => downloadBackup());
+  $('#to-pay').addEventListener('click', () => { payStage = 'pay'; renderAll(); $('#cflow').scrollIntoView({ block: 'start' }); });
+  $('#back-to-backup').addEventListener('click', () => { payStage = 'backup'; renderAll(); });
+  $('#backup-saved').addEventListener('change', (e) => { savedTick = e.target.checked; renderAll(); });
   $('#change-amount').addEventListener('click', () => askLeave('amount'));
   $('#edit-amount').addEventListener('click', () => askLeave('amount'));
   $('#start-over').addEventListener('click', () => askLeave('over'));
@@ -1244,6 +1283,8 @@ async function main() {
   const rb = $('#recount-btn');
   rb.href = `recount.html#c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`; // from what this page already holds: no pasting
   rb.hidden = false;
+  $('#nav-recount').href = rb.href; // the Recount item of the header points at this campaign's recount too
+  $('#flow-back').href = $('#tk-back').href = rb.href.replace(/^recount\.html/, 'campaign.html');
   await init();
   wire();
   wireSaveCopy();

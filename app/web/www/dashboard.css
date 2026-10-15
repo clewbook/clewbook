@@ -1,7 +1,8 @@
-/* Host dashboard: only what is specific to it (the shared look is in ui.css). */
+/* Host dashboard: only what is specific to it (the shared look is in ui.css). Design round 2: a heading row with the campaign chooser and a
+   small network tag, four tiles, the relays and the transactions sent, and a NEXT ACTION panel; every detail stays below. */
 .dash-cols { max-width: none; }
 @media (min-width: 900px) { .dash-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-select { width: 100%; min-height: 44px; border: 1px solid var(--edge); border-radius: 2px; background: var(--surface); padding: 0 var(--s3); font: 500 1rem var(--mono); color: var(--ink); }
+select { min-height: 44px; border: 1px solid var(--cb-border); border-radius: 999px; background: var(--cb-surface-2); padding: 0 16px; font: 500 15px var(--cb-font-body); color: var(--cb-ink); max-width: 100%; }
 .plainlist { margin-top: var(--s3); font-size: .9375rem; }
 .plainlist li { padding: var(--s1) 0; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
 .runlog { counter-reset: r; border-top: 1px solid var(--ink); }
@@ -9,7 +10,7 @@ select { width: 100%; min-height: 44px; border: 1px solid var(--edge); border-ra
 .runlog li:before { content: counter(r, decimal-leading-zero); color: var(--muted); }
 .runlog li.bad { background: var(--fail-bg); }
 /* the progress rows double as to-do and transaction rows */
-.progress li .what { font-weight: 700; overflow-wrap: anywhere; }
+.progress li .what { font-weight: 600; overflow-wrap: anywhere; }
 .progress li.todo .dot { border-style: dashed; }
 .progress li.bc-sent, .progress li.bc-resent { border-left-color: var(--warn); }
 .progress li.bc-dead, .progress li.bc-superseded { border-left-color: var(--fail); }
@@ -27,5 +28,66 @@ select { width: 100%; min-height: 44px; border: 1px solid var(--edge); border-ra
 /* neutral grey for the real network (not the red used for errors); label #44444A on #E6E6E8 is about 7:1 */
 .notice.mainnet { border-color: var(--mainnet-note-edge); background: var(--mainnet-note-bg); }
 .notice.mainnet .k { color: var(--mainnet-note-k); }
-.confirm-line { display: flex; gap: var(--s2); align-items: center; font-weight: 700; margin: var(--s3) 0; }
+.confirm-line { display: flex; gap: var(--s2); align-items: center; font-weight: 600; margin: var(--s3) 0; }
 .confirm-line input { width: 20px; min-height: 20px; }
+
+/* design round 2 */
+.dash { padding-top: 32px; }
+.dhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 24px; }
+.dh-l { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-width: 0; }
+.dhead .t-h1 { font-size: 28px; letter-spacing: -.02em; }
+#chooser { min-width: 0; max-width: 100%; }
+#no-campaigns { color: var(--cb-ink-2); }
+.dh-where { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 400 13px var(--cb-font-body); letter-spacing: .04em; text-transform: uppercase; color: var(--cb-ink-3); }
+.net-tag { padding: 2px 9px; border-radius: 999px; font: 600 11px var(--cb-font-body); letter-spacing: .04em; }
+.net-tag.test { background: var(--cb-testnet); color: var(--cb-testnet-ink); }
+.net-tag.main { background: var(--cb-ink); color: var(--cb-on-ink); }
+#net-note { margin-top: 6px; font-size: 13px; }
+#mainnet-banner { margin-top: 12px; padding: 10px 14px; border-width: 1px; border-left-width: 1px; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+#mainnet-banner h3, #mainnet-banner p { font-size: 13px; margin: 0; }
+#warnings-section { margin-top: 16px; }
+#warning-list { display: flex; flex-direction: column; gap: 8px; }
+#warning-list .notice { margin: 0; border-radius: 12px; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+#warning-list .notice .k { margin: 0; }
+#warning-list .notice.warn-bad { background: var(--cb-fail-bg); border: 1px solid var(--cb-fail); }
+#warning-list .notice.warn-bad .k::before { content: "✕ "; }
+#warning-list .notice.warn-bad .k, #warning-list .notice.warn-bad p { font-weight: 600; color: var(--cb-ink); }
+
+.dgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 16px; align-items: start; }
+@media (min-width: 900px) { .dgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.dmain { min-width: 0; }
+#live { display: flex; flex-direction: column; gap: 12px; }
+#live[hidden] { display: none; }
+.dtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.dtile { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dtile .tk { font: 400 12px var(--cb-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--cb-ink-3); }
+.dtile .tv { font: 700 20px/1.2 var(--cb-font-display); overflow-wrap: anywhere; }
+.dtile.met .tv, .dtile.good .tv { color: var(--cb-pass); }
+.dtile.bad .tv { color: var(--cb-fail); }
+.dtile.ph-deadline_passed .tv { color: var(--cb-wait); }
+.dcard { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 18px 22px; }
+.dcard > h2 { font: 700 16px var(--cb-font-display); padding-bottom: 10px; border-bottom: 1px solid var(--cb-border); }
+.dcard .runlog { border-top: 0; }
+.dcard .progress { border-top: 0; }
+.dcard > .muted { margin: 10px 0 4px; }
+.dnote { font-size: 13px; color: var(--cb-ink-3); }
+
+.dnext { background: var(--cb-surface-2); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 12px; color: var(--cb-ink); min-width: 0; }
+#close-section { display: flex; flex-direction: column; gap: 12px; }
+#close-section[hidden] { display: none; }
+.dn-k { font: 500 12px var(--cb-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--cb-ink-3); }
+.dn-h { font: 700 24px/1.2 var(--cb-font-display); letter-spacing: -.02em; }
+#close-explain { font-size: 15px; color: var(--cb-ink-2); }
+.dnext button { margin: 0; align-self: flex-start; }
+.dnext #close-confirm { background: transparent; border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.dnext #close-confirm[hidden] { display: none; }
+.dnext #close-confirm label { margin: 4px 0 0; }
+.dnext textarea { background: var(--cb-surface); }
+.dn-danger { font: 600 15px var(--cb-font-body); color: var(--cb-fail); }
+.dnext .do { display: flex; flex-wrap: wrap; gap: 10px; }
+.dn-new { margin: 4px 0 0; width: 100%; justify-content: flex-start; }
+.dn-how { min-height: 44px; display: inline-flex; align-items: center; color: var(--cb-info); align-self: flex-start; }
+
+.dmore { margin-top: 36px; }
+.dtile .tv .amt { white-space: normal; overflow-wrap: anywhere; font: inherit; }
+.dtile .tv .amt .u { font: 700 .8em var(--cb-font-display); color: var(--cb-ink-2); } /* the unit as on the campaign tiles */

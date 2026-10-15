@@ -12,7 +12,10 @@
 <link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
 </head>
 <body>
-<header class="bar"><a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a><nav class="nav" aria-label="Main"><a href="components.html" aria-current="page">Components</a></nav></header>
+<header class="bar">
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="components.html" aria-current="page">Components</a></nav>
+</header>
 <main class="page">
   <div class="crumb">Shared components</div>
   <h1 class="t-h1">Components in use</h1>
@@ -54,6 +57,7 @@
     <p class="t-sm dim" style="text-align:center;margin-top:8px">A pattern for the frame only; it is not a payment code.</p>
   </section>
 </main>
+<footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script type="module">
 import { setup, chipHTML, amountHTML, mountHash, checkRow, cidEl } from './ui.js';
 const $ = (s) => document.querySelector(s);

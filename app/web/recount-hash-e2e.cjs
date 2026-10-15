@@ -9,6 +9,7 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  
     const p = await (await browser.newContext({ viewport: { width: 900, height: 900 } })).newPage();
     await p.goto(url);
     await p.waitForFunction(() => document.querySelector('#verdict').dataset.kind && document.querySelector('#verdict').dataset.kind !== 'working', null, { timeout: 300000 });
+    await p.click('#tab-totals'); // design round 2: the sources (with the report hash) are on the TOTALS tab
     await p.waitForSelector('#rf-hash .h-s', { timeout: 30000 });
     return p;
   };
@@ -40,6 +41,7 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  
     last = `${r1.height}/${r2.height} ${String(r1.h).slice(0, 12)}/${String(r2.h).slice(0, 12)}`;
     if (r1.height === r2.height) { check('two recounts of the same campaign at the same height give the same hash', r1.h && r1.h === r2.h && /^[0-9a-f]{64}$/.test(r1.h), last); same = true;
       // 3. running it again on the same page, at the same height, keeps the hash
+      await p1.click('#tab-recount'); // design round 2: "Run it again" is on the RECOUNT tab
       await p1.click('#again'); await p1.waitForFunction(() => document.querySelector('#verdict').dataset.kind === 'working', null, { timeout: 20000 }).catch(() => {});
       await p1.waitForFunction(() => document.querySelector('#verdict').dataset.kind !== 'working', null, { timeout: 300000 });
       await p1.waitForTimeout(1000); const r3 = await read(p1);

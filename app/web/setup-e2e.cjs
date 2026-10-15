@@ -22,10 +22,10 @@ fs.mkdirSync(SHOTS, { recursive: true });
     return page;
   };
   let page = await open(1280, 900);
-  check('the page uses the shared look: self-hosted fonts load', await page.evaluate(async () => { await document.fonts.ready; return ['Newsreader', 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible Mono'].every((f) => document.fonts.check(`16px "${f}"`)); }));
+  check('the page uses the shared look: self-hosted fonts load', await page.evaluate(async () => { await document.fonts.ready; return ['700 16px "Archivo"', '400 16px "Chivo Mono"'].every((f) => document.fonts.check(f)); })); // design round 2 fonts
   // real fields only
   const fields = await page.evaluate(() => [...document.querySelectorAll('#setup-form input, #setup-form textarea')].map((e) => e.id || e.name).filter((n) => n !== 'confirm-mainnet')); // the real-money box exists only on the main network
-  check('only the fields the engine supports: name, type, goal, early close, items, how winners pay, reserve, smallest contribution, deadline, ticket window, relays', JSON.stringify(fields.sort()) === JSON.stringify(['campaign-name', 'deadline', 'early-close', 'goal', 'items', 'minimum', 'mode', 'mode', 'pricing', 'pricing', 'relays', 'reserve', 'ticketk']), fields.join(','));
+  check('only the fields the engine supports: name, type, goal, hard cap, early close, items, how winners pay, reserve, smallest contribution, deadline, ticket window, relays', JSON.stringify(fields.sort()) === JSON.stringify(['campaign-name', 'cap', 'deadline', 'early-close', 'goal', 'items', 'minimum', 'mode', 'mode', 'pricing', 'pricing', 'relays', 'reserve', 'ticketk']), fields.join(','));
   check('a fundraiser offers "Allow closing early once the goal is met", off unless ticked', await page.isVisible('#early-close') && !(await page.isChecked('#early-close')) && /Allow closing early once the goal is met/.test(await text(page, '#early-row')));
   check('a fundraiser shows the goal and hides the items', await page.isVisible('#goal') && await page.isHidden('#items'));
   check('the smallest contribution hint is the engine\'s floor with 8 decimals', /0\.00020000 TAZ/.test(await text(page, '#minimum-hint')), await text(page, '#minimum-hint'));

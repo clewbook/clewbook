@@ -39,7 +39,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
   };
   const text = async (p, sel) => (await p.textContent(sel)).replace(/\s+/g, ' ').trim();
   const addrOf = (p, c) => p.evaluate(async (id) => (await (await fetch(`/relays/a/v1/campaigns/${id}`)).json()).pay_to, c.id);
-  const create = async (p, addr, amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); await p.waitForSelector('#qr svg'); };
+  const create = async (p, addr, amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); await p.waitForSelector('#qr svg', { state: 'attached' }); }; // design round 2: Create opens the Backup step; the code is drawn and shown after Continue to pay
   const qrOf = (p) => p.evaluate(() => document.querySelector('#qr').innerHTML.length + ':' + document.querySelector('#qr').innerHTML.slice(0, 400));
   const memoOf = async (p) => { await p.evaluate(() => (document.querySelector('#manual').open = true)); return (await text(p, '#memo')); };
   const inView = (p, sel) => p.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; }, sel);
@@ -52,8 +52,12 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       const memo1 = await memoOf(p), qr1 = await qrOf(p);
       await p.evaluate(() => window.scrollTo(0, 0));
       const box = await p.locator('#edit-amount').boundingBox();
-      check(`${label}: an "Edit amount" button with an arrow is at the top of the payment step, visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /←\s*Edit amount/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
-      check(`${label}: the existing backup step and the warning are still there`, (await p.isVisible('#backup')) && /^Pay exactly 0\.01\d* TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(await text(p, '#pay-warning')) && /Save your backup file first/.test(await text(p, '#pay-card')));
+      check(`${label}: on the backup step, a "← Back" button that goes back to the amount is visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /←\s*Back/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
+      check(`${label}: the backup step comes first, with its download button, before the code is shown`, (await p.isVisible('#backup')) && /Save your backup file first/.test(await text(p, '#pay-card')) && (await p.isHidden('#qr svg')));
+      await p.tap('#to-pay');
+      check(`${label}: "Continue to pay" shows the warning and the code`, /^Pay exactly 0\.01\d* TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(await text(p, '#pay-warning')) && (await p.isVisible('#pay-warning')) && (await p.isVisible('#qr svg')));
+      await p.tap('#back-to-backup');
+      check(`${label}: "← Back" on the payment step returns to the backup step`, (await p.isVisible('#backup')) && (await p.isHidden('#qr svg')));
       await p.screenshot({ path: `${SHOTS}/back-${label}-pay.png` });
       await p.tap('#edit-amount');
       check(`${label}: tapping it asks first, and the question is on screen where the tap was`, (await p.isVisible('#leave-confirm')) && (await inView(p, '#leave-confirm')));
@@ -108,12 +112,14 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     let p = await newPage(RAISE, { blocked: true });
     const addr = await addrOf(p, RAISE);
     await create(p, addr, '0.01');
+    await p.tap('#to-pay');
     check('blocked storage: the payment step works and the existing warning says the browser will not keep the secret', (await p.isVisible('#qr svg')) && (await text(p, '#banners')) === 'This browser cannot save your secret, so download your backup file now.');
     const mb = await memoOf(p);
     await p.goBack();
     await p.waitForTimeout(800);
     check('blocked storage: the back gesture does not drop the only copy of the secret: it stays and asks for the backup file first', (await p.isVisible('#pay-card')) && /cannot keep your secret/.test(await text(p, '#leave-text')));
     await p.tap('#leave-no');
+    await p.tap('#back-to-backup');
     const dlP = p.waitForEvent('download', { timeout: 10000 });
     await p.tap('#backup');
     const dl0 = await dlP;

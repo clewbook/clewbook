@@ -45,7 +45,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.waitForSelector('#status-chip .sbadge', { timeout: 60000 });
     check('badge, open: the word OPEN', (await text(p, '#status-chip')) === 'OPEN');
     const open = await p.evaluate(() => { const b = document.querySelector('#status-chip .sbadge'), d = b.querySelector('.sdot'); return { color: getComputedStyle(b).color, anim: getComputedStyle(d).animationName, g: getComputedStyle(b).color }; });
-    check('badge, open: green and pulsing (motion allowed)', open.anim === 'pulse' && /^rgb\(20, 92, 78\)$/.test(open.color), JSON.stringify(open));
+    check('badge, open: green and pulsing (motion allowed)', open.anim === 'cb-pulse' && /^rgb\(28, 122, 74\)$/.test(open.color), JSON.stringify(open));
     await p.screenshot({ path: `${SHOTS}/polish-a-open.png` });
     await p.context().close();
 
@@ -67,21 +67,21 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.goto(link(MISSED));
     await p.waitForFunction(() => /CLOSED/.test(document.querySelector('#status-chip').textContent), null, { timeout: 60000 });
     const closed = await p.evaluate(() => ({ words: document.querySelector('#status-chip').textContent, red: getComputedStyle(document.querySelector('#status-chip .sbadge.closed')).color, still: document.querySelector('#status-chip .sdot') === null }));
-    check('badge, closed: the word CLOSED, static, in ink', /CLOSED/.test(closed.words) && closed.red === 'rgb(32, 43, 41)' && closed.still, JSON.stringify(closed));
-    check('badge, closed with the goal missed: FAILED', /FAILED/.test(closed.words) && !/SUCCEEDED/.test(closed.words));
+    check('badge, closed: the word CLOSED, static, in neutral grey (decision 4)', /CLOSED/.test(closed.words) && closed.red === 'rgb(82, 90, 104)' && closed.still, JSON.stringify(closed));
+    check('badge, closed with the goal missed: GOAL MISSED, not FAILED (decision 4)', /GOAL MISSED/.test(closed.words) && !/FAILED|SUCCEEDED/.test(closed.words));
     await p.context().close();
 
     p = await newPage();
     tip = AUCTION.deadline + 5;
     await p.goto(link(AUCTION));
     await p.waitForFunction(() => /CLOSED/.test(document.querySelector('#status-chip').textContent), null, { timeout: 60000 });
-    check('badge, closed auction: CLOSED and SUCCEEDED', /CLOSED/.test(await text(p, '#status-chip')) && /SUCCEEDED/.test(await text(p, '#status-chip')));
+    check('badge, closed auction: CLOSED · AUCTION SETTLED', /CLOSED · AUCTION SETTLED/.test(await text(p, '#status-chip')));
     const states = await p.evaluate(async () => {
       const m = await import('./ui.js');
       return ['open', 'ended', 'closed', 'x'].map((k) => m.statusBadgeHTML({ phase: k })).concat([m.statusBadgeHTML({ phase: 'closed', outcome: 'goal_missed', refunding: true }), m.statusBadgeHTML({ phase: 'closed', outcome: 'goal_met' })]);
     });
     const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    check('badge states: refunding, failed, succeeded each have their own word', strip(states[4]) === 'CLOSED FAILED REFUNDING' && strip(states[5]) === 'CLOSED SUCCEEDED' && strip(states[0]) === 'OPEN' && strip(states[1]) === 'DEADLINE PASSED', states.map(strip).join(' | '));
+    check('badge states: refunding, goal missed, goal met each have their own words', strip(states[4]) === 'CLOSED · GOAL MISSED REFUNDING' && strip(states[5]) === 'CLOSED · GOAL MET' && strip(states[0]) === 'OPEN' && strip(states[1]) === 'DEADLINE PASSED', states.map(strip).join(' | '));
     // the dashboard uses the very same function (its page needs a live host, so that is covered by dashboard-view-e2e)
     check('the host dashboard draws its status with the same badge function', /statusBadgeHTML/.test(require('fs').readFileSync(`${DIR}/ui.js`, 'utf8')) && /statusBadgeHTML/.test(require('fs').readFileSync('app/web/www/dashboard.js', 'utf8')));
 
@@ -117,18 +117,19 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.fill('#amount', '0.0002'); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
     check('exactly the minimum is accepted', (await text(p, '#pay-min')).startsWith('0.0002'));
     await p.evaluate((id) => localStorage.removeItem(`ll:${id}`), RAISE.id); await p.reload(); await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
-    const create = async (amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); };
+    const create = async (amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); }; // design round 2: Continue to pay after the Backup step
     await create('0.01');
     const box = await p.evaluate(() => {
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
     });
-    check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(32, 43, 41)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
+    check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(18, 21, 26)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from your own wallet's shielded balance, not an exchange or transparent funds\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
 
     // ---------- 4. back and start over ----------
+    await p.click('#pay-more summary'); // design round 2: these two sit under "More" on the payment step
     check('the payment step offers "Back to the amount" and "Start over"', (await p.isVisible('#change-amount')) && (await p.isVisible('#start-over')));
     await p.click('#change-amount');
     check('leaving asks first, in one sentence: stay if you already paid, otherwise nothing is lost and the code is kept', await p.isVisible('#leave-confirm') && (await text(p, '#leave-text')) === 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.');
@@ -148,6 +149,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.evaluate((id) => { const s = JSON.parse(localStorage.getItem(`ll:${id}`)); s.txid = 'ab'.repeat(32) + ':0'; s.paidZat = 1000000; localStorage.setItem(`ll:${id}`, JSON.stringify(s)); }, RAISE.id);
     await p.reload();
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 60000 });
+    await p.click('#pay-more summary');
     await p.click('#start-over');
     const strong = await text(p, '#leave-text');
     check('starting over after a payment was seen says a new code would make a second contribution', strong === 'This payment was seen, so paying again with a new code makes a second contribution; download your backup first.', strong.slice(0, 80));
@@ -185,7 +187,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.goto(link(RAISE));
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
     await p.fill('#amount', '0.01'); await p.fill('#refund', addr); await p.click('#create');
-    await p.waitForSelector('#pay-card:not([hidden])');
+    await p.waitForSelector('#pay-card:not([hidden])'); await p.click('#to-pay');
     check('390 px wide: no sideways scrolling, notice and buttons fit', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll('#pay-warning, #leave-box')].every((e) => e.getBoundingClientRect().right <= innerWidth)));
     await p.screenshot({ path: `${SHOTS}/polish-a-390.png`, fullPage: true });
     await p.context().close();

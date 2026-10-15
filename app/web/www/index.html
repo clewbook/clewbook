@@ -19,44 +19,44 @@
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
-  <nav class="nav" aria-label="Main"><a href="./" aria-current="page">Home</a><a href="recount.html">Recount</a><a href="host.html">Host</a></nav>
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./" aria-current="page">Campaigns</a><a href="recount.html">Recount</a><a href="host.html">Host</a></nav>
 </header>
+<div class="aurora" aria-hidden="true"><div></div></div>
 <main class="page home">
-  <h1 class="t-homeh">Private Markets. Public Accounting.</h1>
-  <p class="t-lead home-lead">Contributions off the public record. Verifiable records. Refund tickets.</p>
-
-  <section class="sect" id="live-card">
-    <div class="hd"><h2>Live campaigns</h2></div>
-    <div id="live" class="cards"><p class="muted" id="loading">Looking for campaigns…</p></div>
-  </section>
-
-  <section class="sect" id="closed-card" hidden>
-    <div class="hd"><h2>Closed campaigns</h2></div>
-    <div id="closed" class="cards"></div>
-  </section>
-
-  <div class="grid2 start-cols">
-  <div>
-  <section class="sect">
-    <div class="hd"><h2>Check any campaign</h2></div>
-    <p class="muted">Have a saved copy of a campaign's list? Open the recount page, load the file, and see for yourself whether the books match the chain.</p>
-    <p class="actrow"><a class="btn" href="recount.html">Open the recount page</a></p>
-  </section>
-  </div>
-  <div>
-  <section class="sect">
-    <div class="hd"><h2>Host your campaign</h2></div>
-    <p class="muted">Run an auction or a fundraiser of your own. You run the host program on your own computer; this page explains what you need.</p>
-    <p class="actrow"><a class="btn sec" href="host.html">How to host</a></p>
-  </section>
-  </div>
+  <div class="intro" id="intro" hidden>
+    <section class="scene s1" data-scene="0"><div class="bg crowd" aria-hidden="true"></div><div class="glow"></div>
+      <h1 class="t-intro">Your name stays<br><span class="b">off the record.</span></h1>
+      <p class="d">Pay anonymously on Zcash.</p><span class="dots"><i class="on"></i><i></i><i></i></span><span class="hint">scroll ↓</span></section>
+    <section class="scene s2" data-scene="1"><div class="bg rings" aria-hidden="true"></div><div class="glow"></div>
+      <h2 class="t-intro">Hold a<br><span class="b">refund ticket.</span></h2>
+      <p class="d">Signed in advance by the host. It returns your money without them, while unspent.</p><span class="dots"><i></i><i class="on"></i><i></i></span><span class="hint">↓</span></section>
+    <section class="scene s3" data-scene="2"><div class="bg ledger" aria-hidden="true"></div><div class="glow"></div>
+      <h2 class="t-intro">Recount<br><span class="b">anytime.</span></h2>
+      <p class="d">Anyone can check the books against the chain, in their own browser.</p><span class="dots"><i></i><i></i><i class="on"></i></span><span class="hint">open campaigns ↓</span></section>
   </div>
 
-  <section class="sect">
-    <div class="hd"><h2>Try it with test money</h2></div>
-    <p class="muted">The Zcash test network's coins have no value, so you can try a campaign without risking anything.</p>
-    <p class="actrow"><a class="btn sec" href="https://clewbook.xyz/demo">Try it with test money</a></p>
+  <section class="live" id="live-card">
+    <div class="live-glow" aria-hidden="true"></div>
+    <div class="live-head">
+      <span class="eyebrow"><span class="live-dot"></span>LIVE CAMPAIGNS</span>
+      <div class="live-row">
+        <h2 class="live-title">Live campaigns</h2>
+        <div class="live-ctl">
+          <input id="search" type="search" placeholder="Search by name" aria-label="Search campaigns" autocomplete="off" spellcheck="false">
+          <button type="button" class="layout-btn" id="layout-btn" aria-label="Layout: 4 columns. Tap to change." title="Layout: 4 columns. Tap to change.">▦</button>
+        </div>
+      </div>
+    </div>
+    <div id="live" class="cards v4"><p class="muted" id="loading">Looking for campaigns…</p></div>
+
+    <details class="closed-box" id="closed-card" open hidden>
+      <summary><span class="cl-l"><span class="cl-arrow" aria-hidden="true"></span><span class="cl-title">Closed campaigns</span><span class="cl-count" id="closed-count"></span></span><span class="cl-hint">tap a row to open</span></summary>
+      <div class="cl-head" aria-hidden="true"><span>CAMPAIGN</span><span>TYPE</span><span>TERMS</span><span>OUTCOME</span><span></span></div>
+      <div id="closed" class="closed-list"></div>
+      <button type="button" class="pill-more" id="closed-more" hidden>Show older</button>
+      <p class="cl-none" id="closed-none" hidden>No closed campaign matches.</p>
+    </details>
   </section>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>

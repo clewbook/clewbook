@@ -1,157 +1,197 @@
-/* Contribute page: only what is specific to it (the shared look is in ui.css). */
-.cpage { padding-top: clamp(24px, 4vw, 44px); }
+/* Contribute and bid (design round 2): a flow bar with the five steps, then one step at a time: Amount, Backup, Pay, Ticket. The shared look is
+   in ui.css. The step shown follows the page's own state (#cflow data-stage, set by contribute.js); nothing here hides a red notice. */
+.cpage { padding-top: 0; }
 
-/* top bar: "Contributing to", the campaign name, the kind and status; Recount on the right */
-.ctop { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-.ctop-l { min-width: 0; }
-.ctop .t-sub { font: 500 13.5px/1.3 var(--body); }
-.cname { font-size: 26px; line-height: 1.15; margin-top: 2px; overflow-wrap: anywhere; }
-.kick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
-.kick-type { font: 600 14px/1.3 var(--body); color: var(--slate); }
-.status-line { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.recount-row { margin: 0; }
+/* the flow bar: back to the campaign, the stepper */
+.flowbar { padding: 20px 0 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.flow-back { font: 400 15px var(--cb-font-body); color: var(--cb-ink-3); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-back:hover { color: var(--cb-ink); }
+.flow-back > span[aria-hidden] { margin-right: .5ch; }
+.flow-back #campaign-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stepper { display: flex; gap: 4px; font: 500 13px var(--cb-font-body); flex-wrap: wrap; margin: 0; }
+.stepper li { white-space: nowrap; padding: 8px 12px; border-radius: 999px; color: var(--cb-ink-3); transition: background .3s, color .3s; }
+.stepper li.now { background: var(--cb-ink); color: var(--cb-on-ink); }
+.stepper li.done { color: var(--cb-ink-2); }
+.stepper li.done .n { font-size: 0; }
+.stepper li.done .n::before { content: "✓"; font-size: 13px; }
+.status-line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.status-line .sbadge { margin-right: 0; }
+#banners { margin-top: 14px; }
 
-/* stepper: 01 Amount, 02 Pay, 03 Where things stand (not clickable) */
-.stepper { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 14px 0 0; }
-.stepper li { font: 500 14px/1.3 var(--body); color: var(--tail); padding: 6px 0; border-bottom: 2px solid transparent; white-space: nowrap; }
-.stepper li .n { font: 400 12.5px var(--mono); margin-right: 4px; }
-.stepper li.done { color: var(--ink3); }
-.stepper li.now { color: var(--ink); border-bottom-color: var(--persimmon); }
-
-/* main column and aside */
-.cflow { display: flex; flex-wrap: wrap; gap: 40px 64px; margin-top: 8px; align-items: flex-start; }
-.cmain { flex: 1 1 520px; max-width: 680px; min-width: 0; }
-.caside { flex: 1 1 280px; max-width: 400px; min-width: 0; margin-top: 40px; }
-.stepsec { margin-top: 36px; }
-.stepsec > .hd { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 24px; margin-bottom: 14px; }
-.stepsec > .hd h2 { font: 600 clamp(24px, 3.4vw, 30px)/1.2 var(--body); letter-spacing: -.015em; }
-.intro { color: var(--ink2); margin-bottom: 4px; }
-.subhd { font: 600 17px/1.35 var(--body); margin: 0 0 8px; }
+/* the layout of each step */
+.cflow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px 48px; padding: 30px 0 24px; align-items: start; }
+.cflow[data-stage="amount"] { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
+.cmain { min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+.cflow[data-stage="pay"] .cmain { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 32px 48px; align-items: start; }
+.caside { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.cflow:not([data-stage="amount"]) .caside { max-width: 780px; padding-top: 22px; border-top: 1px solid var(--cb-border); }
+.cflow:not([data-stage="amount"]) .before { display: none; }
+.flow-h { font: 700 40px/1.05 var(--cb-font-display); letter-spacing: -.03em; margin: 0; }
+.intro { color: var(--cb-ink-2); margin-top: 12px; max-width: 62ch; }
+.eyebrow-k { font: 500 13px var(--cb-font-body); color: var(--cb-accent-text); letter-spacing: .02em; }
+.lead { color: var(--cb-ink-2); max-width: 62ch; }
 .mt2 { margin-top: 8px; }
+.subhd { font: 700 17px/1.35 var(--cb-font-display); margin: 0 0 8px; }
 
-/* amount step */
-.amountbox { display: flex; align-items: stretch; max-width: 320px; height: 52px; border: 1px solid var(--edge-strong); border-radius: 4px; background: var(--linen); }
-.amountbox:focus-within { outline: 2px solid var(--teal); outline-offset: 1px; }
-.amountbox input { border: 0; background: transparent; height: 100%; font: 400 20px var(--mono); font-variant-numeric: tabular-nums; min-width: 0; }
+/* 1 · amount */
+#form-card form { display: flex; flex-direction: column; }
+.amountbox { display: flex; align-items: center; border-radius: 14px; border: 2px solid var(--cb-border-strong); background: var(--cb-surface); min-height: 64px; padding: 0 18px; transition: border-color .2s; }
+.amountbox:focus-within { border-color: var(--cb-accent-text); outline: 2px solid var(--cb-focus); outline-offset: 2px; }
+.amountbox input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font: 700 30px var(--cb-font-display); min-height: 60px; padding: 0; font-variant-numeric: tabular-nums; }
 .amountbox input:focus-visible { outline: 0; }
-.amountbox .tk { display: flex; align-items: center; padding: 0 14px; border-left: 1px solid var(--line); font: 400 14px var(--mono); color: var(--slate); }
-#refund { min-height: 88px; }
+.amountbox .tk { font: 500 13px var(--cb-font-body); color: var(--cb-ink-3); }
+#refund { min-height: 88px; border-radius: 14px; padding: 14px; resize: none; }
 #form-error { margin-top: 8px; }
-.page button.create { min-height: 50px; margin-top: 16px; }
+#form-card .btns { margin-top: 18px; }
+.page button.create { min-height: 52px; margin: 0; }
+.before { display: flex; flex-direction: column; border-left: 1px solid var(--cb-border); padding-left: 26px; font: 400 15px/1.55 var(--cb-font-body); color: var(--cb-ink-2); }
+.before .t-k { padding-bottom: 10px; }
+.before-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-top: 1px solid var(--cb-rule); }
+.bm.pub { color: var(--cb-pass); } .bm.host { color: var(--cb-info); } .bm.you { color: var(--cb-accent-text); } .bm.warn { color: var(--cb-wait); }
 
-/* pay step */
-.editrow { margin-bottom: 4px; }
-.editrow .link { padding-left: 0; }
-#pay-card .steps li > div > p:first-child { margin-bottom: 10px; }
-.saved { color: var(--success); font-weight: 600; }
-#pay-warning { color: var(--ink); font: 600 17px/1.5 var(--body); margin: 0; }
-#pay-min { background: var(--persimmon-tint); padding: 1px 6px; border-radius: 3px; }
-#pay-min .amt { font-weight: 500; }
-.why summary { font-size: 14px; color: var(--slate); }
-.qrrow { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; margin: 4px 0 12px; }
-.qrinfo { flex: 1 1 220px; min-width: 0; }
-.qrinfo .t-sub { margin-bottom: 6px; }
-.kv.qc { grid-template-columns: 76px minmax(0, 1fr); }
-.kv.qc dt, .kv.qc dd { padding: 8px 0; font-size: 13px; }
-.kv.qc dd { font: 400 12.5px var(--mono); }
+/* 2 · backup */
+.pay-backup { max-width: 660px; display: flex; flex-direction: column; gap: 20px; }
+.pay-backup .flow-h { font-size: 42px; }
+.pay-backup .btns { gap: 12px; }
+.pay-backup .btns button { margin: 0; }
+.savedbox { display: inline-flex; gap: 10px; align-items: center; min-height: 44px; margin: 0; align-self: flex-start; font: 500 15px var(--cb-font-body); text-transform: none; letter-spacing: 0; color: var(--cb-ink); cursor: pointer; }
+.savedbox input { width: 22px; height: 22px; min-height: 0; margin: 0; }
+.saved { color: var(--cb-pass); font-weight: 600; }
+.savedbox #backup-done:not([hidden]) + .saved-off { display: none; }
+.editrow { margin-top: 8px; }
+.page .pill-step { min-height: 44px; padding: 0 18px; border: 1px solid var(--cb-border-strong); border-radius: 999px; background: transparent; color: var(--cb-ink-2); font: 500 15px var(--cb-font-body); }
+/* the Back control keeps a full-size target (44 x 120 px at least) */
+#edit-amount { min-width: 128px; justify-content: center; }
+
+/* 3 · pay */
+.pay-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.pay-h { font-size: clamp(24px, 3.6vw, 34px); line-height: 1.25; letter-spacing: -.02em; }
+#pay-warning { color: var(--cb-ink); font: inherit; margin: 0; }
+#pay-min { color: var(--cb-accent-text); }
+#pay-min .amt, #pay-min .amt .u { font: inherit; color: inherit; }
+#pay-min .amt .z { color: inherit; opacity: .75; }
+.why summary { font-size: 14px; color: var(--cb-info); }
+.qrrow { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.qrinfo { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.qrinfo .t-sub { margin-bottom: 0; }
+.kv.qc { grid-template-columns: 78px minmax(0, 1fr); background: transparent; }
+.kv.qc dt, .kv.qc dd { padding: 10px 0; font-size: 14px; }
+.kv.qc dd { font: 400 13px var(--cb-font-body); }
+.payhint { margin: 0; }
 .copyhd { margin: 12px 0 4px; }
 #manual pre.copybox { max-height: 7rem; }
-#leave-box { margin-top: 24px; }
-.leave-q { color: var(--ink2); margin-bottom: 4px; }
-.confirmrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.confirmrow > p { flex: 1 1 260px; color: var(--ink2); }
+.pay-back { margin-top: 8px; }
+/* the payment code stays at least 280 px wide so a long payment link still scans (tested in contribute-e2e) */
+.qr .code { width: 290px; max-width: 100%; box-sizing: content-box; scroll-margin-top: 96px; } /* never under the sticky header when brought into view */
+@media (max-width: 639px) { .qrrow .qr { width: 100%; } .qr .code { width: calc(100% - 36px); max-width: 320px; } }
+
+/* where things stand (beside the code), then the ticket */
+#progress-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.cflow[data-stage="pay"] #progress-card { border-left: 1px solid var(--cb-border); padding-left: 30px; }
+.stand { display: flex; flex-direction: column; gap: 6px; }
+.stand-k { margin: 0 0 6px; font-family: var(--cb-font-display); font-weight: 700; } /* an h3: headings are Archivo */
+.progress { border-top: 1px solid var(--cb-rule); }
+.progress li { grid-template-columns: 18px minmax(0, 1fr) auto; }
+.progress li .state { text-align: right; }
+.cflow[data-stage="ticket"] .stand { order: 5; }
+#host-seen { font-size: 13px; color: var(--cb-ink-3); }
+.pnote { font-size: 14px; color: var(--cb-ink-2); }
+.pnote:empty { display: none; }
+.risk { font-size: 15px; }
+.risk:before { display: block; content: "✕"; font: 700 14px/1.4 var(--cb-font-display); color: var(--cb-fail); margin-bottom: 2px; }
+.risk.late { border-color: var(--warn-edge); background: var(--warn-box); }
+.risk.late:before { content: "!"; color: var(--cb-wait); }
+.more > summary { font-size: 14px; }
+.confirmrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; padding: 14px 16px; border: 1px solid var(--cb-border); border-radius: 14px; background: var(--cb-surface); }
+.confirmrow > p { flex: 1 1 260px; color: var(--cb-ink-2); }
 .earlier { margin: 12px 0; }
 .earlier .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+#leave-box { margin-top: 8px; }
+#backup2 { align-self: flex-start; }
 
-/* where things stand */
-.pnote { margin-top: 18px; font-size: 16px; color: var(--ink2); }
-.pnote:empty { display: none; }
-.risk { font-size: 15px; margin-top: 18px; }
-.risk:before { display: block; content: "✕"; font: 700 14px/1.4 var(--body); color: var(--bad-ink); margin-bottom: 2px; }
-.risk.late { border-color: var(--warning); background: var(--warn-box); }
-.risk.late:before { content: "!"; color: var(--warn-k); }
-
-/* the refund ticket */
-.ticket { position: relative; overflow: hidden; margin-top: 20px; background: var(--linen); border: 1px solid var(--ink); border-radius: 6px; }
-.tk-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 16px; padding: 18px 24px; background: var(--stub); }
-.tk-kicker { font: 600 11.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--persimmon-ink); }
-.tk-name { font-size: 18px; line-height: 1.25; margin-top: 4px; overflow-wrap: anywhere; }
-.tk-entry { text-align: right; }
-.tk-elabel { font-size: 12.5px; color: var(--slate); }
-.tk-eno { font: 500 30px/1.05 var(--mono); letter-spacing: -.03em; }
-.tk-perf { position: relative; height: 0; border-top: 2px dashed var(--edge); }
-.tk-perf:before, .tk-perf:after { content: ""; position: absolute; top: -12px; width: 22px; height: 22px; border-radius: 50%; background: var(--paper); border: 1px solid var(--ink); }
-.tk-perf:before { left: -12px; } .tk-perf:after { right: -12px; }
-.tk-body { padding: 20px 24px; }
-.tk-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
-.tk-signed { font-size: 13px; color: var(--slate); }
-.tk-gl { font-size: 13.5px; color: var(--slate); margin-top: 16px; }
-.tk-amount { font: 500 clamp(28px, 4.4vw, 38px)/1.1 var(--mono); letter-spacing: -.02em; }
-.tk-amount .amt { font-weight: 500; }
-.tk-amount .amt .z { color: var(--zero-ink); }
-.tk-amount .amt .u { font-size: .5em; }
-.tk-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 16px; margin-top: 14px; border-top: 1px solid var(--line2); font-size: 14px; }
-.tk-dl dt { color: var(--slate); padding: 9px 0; border-bottom: 1px solid var(--line2); }
-.tk-dl dd { padding: 9px 0; border-bottom: 1px solid var(--line2); min-width: 0; overflow-wrap: anywhere; }
-.tk-dl dt:nth-last-child(2), .tk-dl dd:last-child { border-bottom: 0; }
-.chip.refunded { color: var(--ink3); }
-
-/* the four facts under the ticket */
-.tledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 16px; margin-top: 28px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); }
-.tledger > div { padding: 12px 0 14px; }
-.tl-l { font-size: 13px; color: var(--slate); }
-.tl-v { font: 600 15px/1.35 var(--body); margin-top: 2px; }
-.tl-v.ok { color: var(--success); } .tl-v.bad { color: var(--error); } .tl-v.warn { color: var(--warning); } .tl-v.teal { color: var(--teal); }
-.tl-s { font-size: 13px; color: var(--slate); margin-top: 2px; }
-
-/* checks on this device: a compact grid of the same check rows */
-#ticket-checks { margin-top: 28px; }
-.summary { font-size: 14px; color: var(--ink3); margin-bottom: 8px; overflow-wrap: anywhere; }
-#tc-details > summary { margin-bottom: 4px; }
+/* 4 · the refund ticket */
+.cflow[data-stage="ticket"] #progress-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 18px 48px; align-items: start; }
+.cflow[data-stage="ticket"] #progress-card > * { grid-column: 1; }
+.cflow[data-stage="ticket"] #progress-card > #refund-area, .cflow[data-stage="ticket"] #progress-card > #refund-result, .cflow[data-stage="ticket"] #progress-card > #rebid-row, .cflow[data-stage="ticket"] #progress-card > .tk-back { grid-column: 2; }
+@media (max-width: 999px) { .cflow[data-stage="ticket"] #progress-card > * { grid-column: 1 !important; } }
+.ticket-h { font-size: clamp(34px, 5vw, 46px); }
+.ticket { background: linear-gradient(160deg, var(--cb-yours-bg), var(--cb-yours-bg-2)); border: 1px solid color-mix(in srgb, var(--cb-action) 45%, transparent); border-radius: 18px; padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; }
+.tk-head { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.tk-kicker { font: 400 12.5px var(--cb-font-body); color: var(--cb-ink-3); letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.tk-head .chip { text-transform: uppercase; }
+.tk-amount { font: 700 clamp(34px, 5vw, 46px)/1.1 var(--cb-font-display); letter-spacing: -.02em; }
+.tk-amount .amt { font: inherit; }
+.tk-amount .amt .z { color: var(--cb-ink-4); }
+.tk-amount .amt .u { font: 700 .6em var(--cb-font-display); color: var(--cb-ink-2); } /* the unit is part of the amount figure (Archivo), as on the stat tiles */
+.tk-sub { color: var(--cb-ink-2); }
+.tk-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 16px; margin-top: 8px; font-size: 13px; }
+.tk-dl dt { color: var(--cb-ink-3); padding: 8px 0; border-top: 1px solid var(--cb-rule); }
+.tk-dl dd { padding: 8px 0; border-top: 1px solid var(--cb-rule); min-width: 0; overflow-wrap: anywhere; color: var(--cb-ink-2); }
+.chip.refunded { color: var(--cb-ink-3); }
+.fold { border-top: 1px solid var(--cb-rule); border-bottom: 1px solid var(--cb-rule); }
+.fold > summary { cursor: pointer; list-style: none; min-height: 52px; display: flex; align-items: center; gap: 6px; font: 700 16px var(--cb-font-display); }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▸"; }
+.fold[open] > summary::before { content: "▾"; }
+.fold-n { margin-left: auto; font: 400 13px var(--cb-font-body); }
+.tledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 16px; padding-bottom: 12px; }
+.tledger > div { padding: 10px 0; }
+.tl-l { font-size: 13px; color: var(--cb-ink-3); }
+.tl-v { font: 600 15px/1.35 var(--cb-font-body); margin-top: 2px; }
+.tl-v.ok { color: var(--cb-pass); } .tl-v.bad { color: var(--cb-fail); } .tl-v.warn { color: var(--cb-wait); } .tl-v.teal { color: var(--cb-accent-text); }
+.tl-s { font-size: 13px; color: var(--cb-ink-3); margin-top: 2px; }
+#ticket-checks .subhd { font-size: 16px; }
+.summary { font-size: 14px; color: var(--cb-ink-2); margin-bottom: 8px; overflow-wrap: anywhere; }
 .devchecks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 20px; border-top: 0; }
-.devchecks .chk { border-bottom: 0; border-top: 1px solid var(--line2); background: transparent; }
-.devchecks .chk > .row, .devchecks .chk.stack > .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm chip"; padding: 8px 0; min-height: 0; gap: 8px; align-items: baseline; }
+.devchecks .chk { border-bottom: 0; border-top: 1px solid var(--cb-rule); background: transparent; }
+.devchecks .chk > .row, .devchecks .chk.stack > .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm chip"; padding: 8px 0; min-height: 0; }
 .devchecks .chk .id { display: none; }
-.devchecks .chk .nm { font: 400 14px/1.4 var(--body); }
+.devchecks .chk .nm { font: 400 14px/1.4 var(--cb-font-body); }
 .devchecks .chk .nm small { font-size: 12.5px; }
-.devchecks .chk .row > .chip { font: 400 12.5px/1.4 var(--body); letter-spacing: 0; text-transform: none; }
+.devchecks .chk .row > .chip { font: 400 12.5px/1.4 var(--cb-font-body); letter-spacing: 0; text-transform: none; background: transparent; border: 0; padding: 0; }
 .devchecks .chk .row > .chip svg { display: none; }
-.devchecks .chk .nm:before { display: inline-block; width: 18px; font-weight: 700; }
-.devchecks .chk.pass .nm:before { content: "✓"; color: var(--success); }
-.devchecks .chk.fail .nm:before { content: "✕"; color: var(--error); }
-.devchecks .chk.nc .nm:before { content: "○"; color: var(--slate); }
+.devchecks .chk .nm:before { display: inline-block; width: 18px; font-weight: 600; }
+.devchecks .chk.pass .nm:before { content: "✓"; color: var(--cb-pass); }
+.devchecks .chk.fail .nm:before { content: "✕"; color: var(--cb-fail); }
+.devchecks .chk.nc .nm:before { content: "○"; color: var(--cb-ink-3); }
 .devchecks .chk.fail { background: transparent; }
-.devchecks .chk.fail .nm { color: var(--error); }
-.proofrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 16px 0; }
+.devchecks .chk.fail .nm { color: var(--cb-fail); }
+.proofrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 0; }
 .proofrow .hint { margin: 0; flex: 1 1 200px; }
-
-/* refund, published proof: an ink-ruled section with one button */
-.rsect { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--ink); }
-.rsect > p { margin-bottom: 12px; }
-.rsect.warn > p { color: var(--ink); }
-#refund-result { margin-top: 16px; }
-#refund-result[data-state] { border: 0; background: transparent; padding: 0; color: var(--ink2); font-size: 15px; }
+.rsect { display: flex; flex-direction: column; gap: 12px; }
+.rsect > p { margin: 0; color: var(--cb-ink-2); }
+.rsect.warn > p { color: var(--cb-ink); }
+#refund-area .subhd { font: 700 13px var(--cb-font-display); color: var(--cb-ink-3); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
+#refund-btn { align-self: flex-start; background: rgba(var(--cb-overlay-rgb), .10); border-color: transparent; color: var(--cb-ink); min-height: 50px; padding: 0 24px; font-weight: 600; }
+#refund-result { margin: 0; }
+#refund-result[data-state] { border: 0; background: transparent; padding: 0; color: var(--cb-ink-2); font-size: 15px; }
 #refund-result[data-state]:before { display: inline-block; margin-right: 8px; }
-#refund-result[data-state="sent"]:before, #refund-result[data-state="resent"]:before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--warning); }
-#refund-result[data-state="confirmed"]:before { content: "✓"; color: var(--success); font-weight: 700; }
-@media (prefers-reduced-motion: no-preference) { #refund-result[data-state="sent"]:before, #refund-result[data-state="resent"]:before { animation: pulse 1.4s ease-in-out infinite; } }
-#backup2 { margin-top: 12px; }
+#refund-result[data-state="sent"]:before, #refund-result[data-state="resent"]:before { content: "↗"; color: var(--cb-wait); }
+#refund-result[data-state="confirmed"]:before { content: "✓"; color: var(--cb-pass); font-weight: 600; }
+.tk-back { margin: 8px 0 0; }
+.pill-back.big { min-height: 48px; padding: 0 22px; border: 1.5px solid var(--cb-ink); color: var(--cb-ink); font-weight: 600; gap: 10px; }
+.pill-back.big:hover { gap: 14px; }
 
-/* aside */
+/* the aside: About this campaign (always visible), the recount link, the footer line */
 .aside-sect .subhd { padding-bottom: 8px; }
-#about-text { color: var(--ink3); margin-bottom: 12px; max-width: 62ch; }
-.savebox { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--ink); }
+#about-text { color: var(--cb-ink-2); margin-bottom: 12px; max-width: 62ch; font-size: 14px; }
+.savebox { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--cb-rule); }
 .savebox p + p { margin-top: 10px; }
-.afoot { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--slate); }
+.aside-recount { margin: 0; }
+.link-arrow { color: var(--cb-accent-text); text-decoration: none; font-weight: 500; min-height: 44px; display: inline-flex; align-items: center; }
+.link-arrow:hover { color: var(--cb-ink); }
+.afoot { padding-top: 16px; border-top: 1px solid var(--cb-rule); font-size: 13px; color: var(--cb-ink-3); }
 
+@media (max-width: 999px) {
+  .cflow[data-stage="pay"] #progress-card { border-left: 0; padding-left: 0; border-top: 1px solid var(--cb-border); padding-top: 22px; }
+  .before { border-left: 0; padding-left: 0; }
+}
 @media (max-width: 639px) {
-  .caside { margin-top: 8px; }
-  .ctop { align-items: flex-start; }
-  .tk-head, .tk-body { padding-left: 18px; padding-right: 18px; }
+  .flowbar { gap: 8px; }
+  .stepper { gap: 2px; font-size: 12px; }
+  .stepper li { padding: 6px 9px; }
+  .flow-h { font-size: 32px; }
+  .pay-backup .flow-h { font-size: 32px; }
+  .ticket { padding: 20px; }
   .tk-dl { grid-template-columns: 96px minmax(0, 1fr); }
 }
-/* the Edit amount control keeps a full-size target (44 x 120 px at least) */
-#edit-amount { min-width: 128px; justify-content: flex-start; }
-/* the payment code stays at least 280 px wide so a long payment link still scans (tested in contribute-e2e); the design's 200 px box is too small */
-.qr .code { width: min(100%, 320px); }
-@media (max-width: 639px) { .qrrow .qr { width: 100%; } .qr .code { width: 100%; max-width: 320px; } }

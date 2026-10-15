@@ -14,40 +14,40 @@
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
-  <nav class="nav" aria-label="Main"><a id="nav-campaign" href="#">Campaign</a><a class="self" href="#" aria-current="page">Capability card</a><a id="nav-recount" href="#">Recount</a></nav>
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a></nav>
 </header>
 <main class="page cardpage">
+  <div class="back-row"><a class="pill-back" id="nav-campaign" href="#">← Campaign</a></div>
   <div class="cardtop">
     <div class="cardtop-l">
-      <div class="crumb">Campaign <span id="campaign-id"></span></div>
+      <div class="crumb t-label">CAMPAIGN · <span id="campaign-id"></span></div>
       <h1 class="t-cardh">Capability card</h1>
       <p class="cardlead">What this campaign promises, what a recount checks and what it does not. Every value below comes from the campaign's committed rules, which this page checked against the campaign id before drawing them.</p>
     </div>
-    <p class="cardtop-r"><a class="btn recount-btn" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
+    <p class="cardtop-r"><a class="btn primary" id="recount-btn" href="#" hidden>Recount this campaign</a></p>
   </div>
   <div id="banners"></div>
 
   <div id="card" hidden>
-  <div class="grid2 card-cols">
-  <div>
+  <div class="card-cols">
+  <div class="ccol">
     <section class="csect">
       <div class="hd"><h2>Terms</h2><span class="t-label" id="net-label"></span></div>
       <dl class="kv pl" id="terms"></dl>
       <div class="fprow"><p class="fp-l">Rules fingerprint (the campaign id)</p><span id="rules-id"></span></div>
     </section>
+    <section class="csect ncbox">
+      <div class="hd"><h2>Not checked</h2><span class="t-label">by a recount</span></div>
+      <div class="checks capchecks dash" id="not-checked"></div>
+    </section>
   </div>
 
-  <div>
+  <div class="ccol">
     <section class="csect">
       <div class="hd"><h2>What a recount checks</h2><span class="t-label" id="checks-label"></span></div>
       <div class="checks capchecks" id="checks"></div>
       <p class="muted t-sm" id="auction-note" hidden>An auction's viewing key is not published until it closes, so before the close only R1 and R2 can run; the rest run after it.</p>
-    </section>
-
-    <section class="csect">
-      <div class="hd"><h2>Not checked</h2><span class="t-label">by a recount</span></div>
-      <div class="checks capchecks dash" id="not-checked"></div>
     </section>
 
     <section class="csect">
@@ -56,6 +56,17 @@
     </section>
   </div>
   </div>
+
+  <section class="csect badgesect" id="badge-card" hidden>
+    <div class="hd"><h2>Badge for your own site</h2></div>
+    <div class="badgegrid">
+      <div>
+        <p class="dim">Paste this into a web page. It shows a small card that names this campaign and sends readers to its live recount. It does not claim any result by itself.</p>
+        <div class="copyrow"><pre id="badge-code" class="copybox"></pre><button type="button" class="secondary" id="badge-copy">Copy</button></div>
+      </div>
+      <div><p class="t-sub prev-l">How it looks</p><div id="badge-preview"></div></div>
+    </div>
+  </section>
 
   <p class="mt5"><a id="campaign-link" href="#">Back to the campaign page</a> · <a id="recount-link" href="#">Run the recount</a></p>
   </div>

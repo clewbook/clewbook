@@ -25,15 +25,19 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   // ---- campaign page ----
   let p = await open(`${base}campaign.html${tail}`);
   await p.waitForSelector('#links:not([hidden])', { timeout: 60000 });
-  const facts = await txt(p, '#facts');
+  const facts = await txt(p, '#about'); // design round 2: the stat tiles (goal, deadline) and the RULES column together
   check('campaign page shows type, goal, status, deadline', /Fundraiser/.test(facts) && /Goal/.test(facts) && /Status/.test(facts) && /Deadline/.test(facts), facts.slice(0, 120));
   check('campaign page shows the ticket window in blocks, with what it means', /Ticket window\d+ blocks/.test(facts) && /claim their own refunds/.test(facts), facts.slice(facts.indexOf('Ticket window'), facts.indexOf('Ticket window') + 120));
   const lf = await txt(p, '#list-facts');
   check('campaign page counts the public list and tickets', /Entries in the public list\s*[1-9]/.test(lf) && /Refund tickets issued\s*[1-9]/.test(lf), lf);
   check('campaign page links to contribute and recount', /contribute\.html#c=/.test(await p.getAttribute('#contribute-link', 'href')) && /recount\.html#c=/.test(await p.getAttribute('#recount-link', 'href')));
-  const snippet = await txt(p, '#badge-code');
+  // design round 2 (owner decision): the badge box moved from the campaign page to the capability card page
+  const cp = await open(`${base}card.html${tail}`);
+  await cp.waitForSelector('#badge-card:not([hidden])', { timeout: 60000 });
+  const snippet = await txt(cp, '#badge-code');
   check('badge snippet is a small iframe of the badge page, with a plain link to the recount as its fallback, and claims nothing', /<iframe src="[^"]*badge\.html#c=/.test(snippet) && /recount\.html#c=/.test(snippet) && !/verified|secure|audited/i.test(snippet), snippet.slice(0, 160));
-  check('badge preview is the badge page', /badge\.html#c=/.test(await p.getAttribute('#badge-preview iframe', 'src')));
+  check('badge preview is the badge page', /badge\.html#c=/.test(await cp.getAttribute('#badge-preview iframe', 'src')));
+  await cp.close();
   check('no horizontal scrolling on a phone (campaign page)', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await p.screenshot({ path: `${SHOTS}/30-campaign.png`, fullPage: true });
   const recountHref = await p.getAttribute('#recount-link', 'href');
@@ -64,6 +68,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
     const end = Number((await txt(p, '#rf-height')).replace(/,/g, ''));
     const expectNote = end > rl.deadline_height && !led.some((e) => e.kind === 'close');
     const note = await txt(p, '#open-note');
+    await p.click('#tab-totals'); // design round 2: the totals (with the open note) and the sources are on the TOTALS tab
     check(`recount: a campaign past its deadline and not closed gets a plain note (expected here: ${expectNote ? 'yes' : 'no'}), which claims no check`, (await p.isVisible('#open-note')) === expectNote && (!expectNote || (/not been closed/.test(note) && /claim refunds with their own tickets/.test(note) && /does not check whether any were claimed/.test(note) && !/verified|checked that/.test(note))), note.slice(0, 120));
   }
   const totals = await txt(p, '#totals');

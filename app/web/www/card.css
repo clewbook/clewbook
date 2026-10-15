@@ -1,39 +1,53 @@
-/* Capability card: only what is specific to it (the shared look is in ui.css). */
-.cardpage { padding-top: clamp(24px, 4vw, 48px); }
-.cardtop { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 40px; }
-.cardtop-l { flex: 1 1 520px; min-width: 0; max-width: 680px; }
+/* Capability card (design round 2): terms and what is not checked on the left (that list keeps a yellow edge so it stays in view), the checks and
+   the ticket check levels on the right. The shared look is in ui.css. */
+.cardpage { padding-top: 0; }
+.cardtop { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 40px; padding-top: 24px; }
+.cardtop-l { flex: 1 1 520px; min-width: 0; max-width: 760px; }
 .cardtop .crumb { margin-bottom: 8px; }
-.t-cardh { font: 600 clamp(28px, 4vw, 38px)/1.15 var(--body); letter-spacing: -.02em; }
-.cardlead { margin-top: 12px; color: var(--ink2); max-width: 62ch; }
+.cardtop .crumb #campaign-id { text-transform: none; letter-spacing: 0; }
+.t-cardh { font: 700 clamp(34px, 5vw, 52px)/1.05 var(--cb-font-display); letter-spacing: -.03em; }
+.cardlead { margin-top: 12px; color: var(--cb-ink-2); max-width: 66ch; }
 .cardtop-r { margin: 0; }
-.card-cols { margin-top: 40px; }
-.csect + .csect { margin-top: 44px; }
-.csect > .hd { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--ink); }
-.csect > .hd h2 { font: 600 19px/1.3 var(--body); }
-.csect > .kv { border-top: 0; }
-#terms dd { font-family: var(--mono); font-size: 14px; }
-.fprow { display: grid; grid-template-columns: minmax(110px, 170px) minmax(0, 1fr); gap: 0 20px; padding: 13px 0; border-bottom: 1px solid var(--line); }
-.fp-l { font-size: 14px; font-weight: 500; color: var(--slate); }
-#rules-id .h-s { font-size: 12.5px; color: var(--ink); }
+.card-cols { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 32px 48px; align-items: start; }
+.ccol { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.csect { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 20px 24px; }
+.csect > .hd { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; padding-bottom: 12px; }
+.csect > .hd h2 { font: 700 20px/1.3 var(--cb-font-display); }
+.ncbox { border: 2px solid var(--cb-wait); }
+#terms dd { font-size: 14px; color: var(--cb-ink); }
+.fprow { display: grid; grid-template-columns: minmax(110px, 190px) minmax(0, 1fr); gap: 0 20px; padding: 12px 0; border-top: 1px solid var(--cb-rule); }
+.fp-l { font-size: 14px; color: var(--cb-ink-3); }
+#rules-id .h-s { font-size: 13px; color: var(--cb-ink); }
 
 /* rows: id, then the name in bold followed by its sentence; the column heading already says what applies */
 .capchecks { border-top: 0; }
-.capchecks .chk > .row, .capchecks .chk.stack > .row { grid-template-columns: 50px minmax(0, 1fr); grid-template-areas: none; padding: 12px 0; min-height: 0; align-items: start; cursor: default; }
+.capchecks .chk { border-bottom: 0; border-top: 1px solid var(--cb-rule); background: transparent; }
+.capchecks .chk > .row, .capchecks .chk.stack > .row { grid-template-columns: 50px minmax(0, 1fr); grid-template-areas: none; padding: 12px 0; min-height: 0; align-items: start; }
 .capchecks .chk.stack > .row > .id, .capchecks .chk.stack > .row > .nm { grid-area: auto; }
 .capchecks .chk .row > .chip { display: none; }
-.capchecks .chk { background: transparent; }
-.capchecks .chk .id { font-size: 13px; padding-top: 2px; }
-.capchecks .chk .nm { font-weight: 600; font-size: 15px; }
-.capchecks .chk .nm small { display: inline; font-size: 14.5px; color: var(--ink3); margin: 0 0 0 4px; }
-.capchecks .chk .nm small:before { content: ". "; margin-left: -4px; color: var(--ink); font-weight: 600; }
+.capchecks .chk .id { padding-top: 2px; }
+.capchecks .chk .nm { font: 600 15px/1.45 var(--cb-font-body); }
+.capchecks .chk .nm small { display: inline; font: 400 14px/1.5 var(--cb-font-body); color: var(--cb-ink-2); margin: 0 0 0 4px; }
+.capchecks .chk .nm small:before { content: ". "; margin-left: -4px; color: var(--cb-ink); font-weight: 600; }
 .capchecks.dash .chk > .row { grid-template-columns: 20px minmax(0, 1fr); }
-.capchecks.dash .chk .id:before { content: "–"; color: var(--slate); }
-.capchecks.lv .chk .row > .chip { display: inline-flex; grid-column: 2; justify-self: start; margin-top: 4px; }
-.capchecks.lv .chk .nm small { display: block; margin: 2px 0 0; }
-.capchecks.lv .chk .nm small:before { content: none; }
-.capchecks .chk .body { padding: 0 0 12px 62px; }
-.chk .ids { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.mt5 { margin-top: 40px; }
-@media (max-width: 639px) { .fprow { grid-template-columns: minmax(96px, 120px) minmax(0, 1fr); gap: 0 14px; } }
+.capchecks.dash .chk .id:before { content: "–"; color: var(--cb-ink-3); }
 .capchecks.dash .chk .nm small { display: block; margin: 2px 0 0; font-weight: 400; }
 .capchecks.dash .chk .nm small:before { content: none; }
+.capchecks.lv .chk .row > .chip { display: inline-flex; grid-column: 2; justify-self: start; margin-top: 6px; }
+.capchecks.lv .chk .nm small { display: block; margin: 2px 0 0; }
+.capchecks.lv .chk .nm small:before { content: none; }
+.capchecks.lv .chk .nm { font: 400 14px/1.55 var(--cb-font-body); }
+.capchecks.lv .chk .row > .chip { text-transform: none; letter-spacing: 0; }
+.capchecks .chk .body { padding: 0 0 12px 62px; }
+.chk .ids { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.mt5 { margin-top: 36px; }
+@media (max-width: 639px) { .fprow { grid-template-columns: minmax(96px, 120px) minmax(0, 1fr); gap: 0 14px; } .csect { padding: 16px 18px; } }
+
+/* the badge box (moved from the campaign page, owner decision): the snippet and a preview of the 300 by 160 badge */
+.badgesect { margin-top: 32px; }
+.badgegrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px 32px; padding-top: 14px; }
+.badgesect .dim { margin-bottom: 14px; max-width: 52ch; color: var(--cb-ink-2); }
+.badgesect .copyrow { align-items: flex-start; }
+.badgesect .copyrow .copybox { max-height: none; }
+.prev-l { margin-bottom: 8px; }
+.badge-frame { border: 0; max-width: 100%; display: block; }

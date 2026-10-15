@@ -10,9 +10,9 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:|about:)/;
 (async () => {
   const browser = await chromium.launch();
   const errors = [], outside = [];
-  // 1. the campaign page hands the host a snippet; paste it into a stand-in host page
+  // 1. the capability card page hands the host a snippet; paste it into a stand-in host page
   let p = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-  await p.goto(`${base}campaign.html${tail}`);
+  await p.goto(`${base}card.html${tail}`); // design round 2 (owner decision): the badge box is on the capability card page
   await p.waitForSelector('#badge-card:not([hidden])', { timeout: 60000 });
   const snippet = await p.textContent('#badge-code');
   check('the snippet is one small iframe of the badge page with a plain-link fallback', /^<iframe src="[^"]*badge\.html#c=[0-9a-f]{64}/.test(snippet) && /width="300" height="160"/.test(snippet) && /<a href="[^"]*recount\.html#c=/.test(snippet));
@@ -35,7 +35,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:|about:)/;
       check('it links to this campaign\'s live recount page', /recount\.html#c=[0-9a-f]{64}/.test(await frame.locator('#badge').getAttribute('href')) && (await frame.locator('#badge').getAttribute('target')) === '_top');
       const box = await host.locator('iframe').boundingBox();
       check('it is small and capped: at most 300 by 160 pixels', box.width <= 300 && box.height <= 160, `${Math.round(box.width)}x${Math.round(box.height)}`);
-      check('the badge uses the shared look: self-hosted fonts load', await frame.locator('body').evaluate(async () => { await document.fonts.ready; return document.fonts.check('16px "Geist"') && document.fonts.check('16px "Geist Mono"'); }));
+      check('the badge uses the shared look: self-hosted fonts load', await frame.locator('body').evaluate(async () => { await document.fonts.ready; return document.fonts.check('700 16px Archivo') && document.fonts.check('16px "Chivo Mono"'); }));
       const inner = await frame.locator('#badge').boundingBox();
       check('the whole card fits in the frame (nothing cut off)', inner.height <= 160 && inner.width <= 300, `${Math.round(inner.width)}x${Math.round(inner.height)}`);
     }

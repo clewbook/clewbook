@@ -1,7 +1,7 @@
 // The capability card: reads the campaign's rules from a relay, lets the WebAssembly module check them against the campaign id, and prints what
 // they say (see capabilities.js). Nothing here is typed in by hand except the descriptions of the engine's own checks.
 import init, * as W from './pkg/ll_web.js';
-import { linkParams, readRelay, sibling, observedBlockSeconds, DEFAULT_ENDPOINTS } from './public.js';
+import { linkParams, readRelay, sibling, observedBlockSeconds, badgeSnippet, badgeSrc, DEFAULT_ENDPOINTS } from './public.js';
 import { setNetwork, setup, decorateAmounts, amountHTML, mountHash, cidEl, chipHTML, CHECKS, etaText, setCampaignLabel, markReady } from './ui.js';
 import { cardModel } from './capabilities.js';
 
@@ -17,7 +17,7 @@ const row = ({ id, name, small, chip, word, body, idsLine }) => {
   const idc = document.createElement('span'); idc.className = 'id'; if (id) idc.append(typeof id === 'string' ? document.createTextNode(id) : id);
   const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = name;
   if (small) { const s = document.createElement('small'); s.textContent = small; nm.append(s); }
-  const c = document.createElement('span'); c.innerHTML = chip === 'nc' ? chipHTML('nc', word) : `<span class="chip open">${word || 'Yes'}</span>`;
+  const c = document.createElement('span'); c.innerHTML = chip === 'nc' ? chipHTML('nc', word) : `<span class="chip ${word === 'On request' ? 'info' : 'open'}">${word || 'Yes'}</span>`; // on request: blue (design round 2)
   r.append(idc, nm, c.firstChild); d.append(r);
   if (body || idsLine) {
     const b = document.createElement('div'); b.className = 'body';
@@ -67,6 +67,17 @@ async function main() {
   const base = { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server };
   $('#campaign-link').href = $('#nav-campaign').href = sibling('campaign', base);
   $('#recount-link').href = $('#nav-recount').href = sibling('recount', base);
+  // the badge box (moved here from the campaign page in design round 2, owner decision): the snippet a host pastes, and a preview
+  const links = { contribute: sibling('contribute', { ...base, endpoints: [] }), recount: sibling('recount', base) };
+  const snippet = badgeSnippet(links);
+  $('#badge-code').textContent = snippet;
+  const preview = document.createElement('iframe');
+  preview.src = badgeSrc(links.recount); preview.title = 'Recount badge preview'; preview.width = '300'; preview.height = '160'; preview.className = 'badge-frame';
+  $('#badge-preview').replaceChildren(preview);
+  $('#badge-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(snippet); $('#badge-copy').textContent = 'Copied'; } catch { $('#badge-copy').textContent = 'Select the text and copy it'; }
+  });
+  $('#badge-card').hidden = false;
   $('#card').hidden = false;
   decorateAmounts(document.querySelector('main'));
 }

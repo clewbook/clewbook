@@ -49,7 +49,7 @@ const CAUTIONS = () => {
   };
   const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g, ' ').trim();
   const addrOf = (p) => p.evaluate(async (id) => (await (await fetch(`/relays/a/v1/campaigns/${id}`)).json()).pay_to, RAISE.id);
-  const create = async (p, a, amount) => { await p.fill('#amount', amount); await p.fill('#refund', a); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); await p.waitForTimeout(600); };
+  const create = async (p, a, amount) => { await p.fill('#amount', amount); await p.fill('#refund', a); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); await p.waitForTimeout(600); }; // design round 2: Continue to pay after the Backup step
   const rules = (name, list, { max = Infinity } = {}) => {
     check(`${name}: ${list.length} caution line(s) visible${max < Infinity ? `, at most ${max}` : ''}`, list.length <= max, JSON.stringify(list.map((x) => x.text)));
     check(`${name}: each is one sentence of at most 20 words, grey, not boxed, not red`, list.every((x) => x.text.split(/\s+/).length <= 20 && (x.text.match(/[.;?!](\s|$)/g) || []).length <= 2 && !x.red && !x.boxed), JSON.stringify(list));
@@ -65,7 +65,7 @@ const CAUTIONS = () => {
     check('payment step: "Why?" is closed and holds one sentence', (await p.evaluate(() => !document.querySelector('#pay-why').open)) && (await text(p, '#pay-why p')).split(/\.\s/).length === 1);
     await p.screenshot({ path: `${SHOTS}/stage-h-payment.png`, fullPage: true });
     // changed amount
-    await p.click('#edit-amount'); await p.click('#leave-yes'); await p.waitForSelector('#form-card:not([hidden])'); await p.waitForTimeout(500);
+    await p.click('#back-to-backup'); await p.click('#edit-amount'); await p.click('#leave-yes'); await p.waitForSelector('#form-card:not([hidden])'); await p.waitForTimeout(500); // design round 2: Back to the Backup step, then Back to the amount
     const changed = await p.evaluate(CAUTIONS);
     rules('amount step, after the amount was changed', changed, { max: 1 });
     check('  ... the one line says not to pay the previous code', changed.length === 1 && /^Do not pay the previous code/.test(changed[0].text));

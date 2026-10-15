@@ -8,7 +8,8 @@ const dec = (f) => { const png = PNG.sync.read(fs.readFileSync(f)); const r = js
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 })).newPage();
   await p.goto(process.env.LINK); await p.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
   await p.fill('#amount', '0.01'); await p.fill('#refund', process.env.REFUND_ADDR);
-  await p.click('#create'); await p.waitForSelector('#qr svg');
+  await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); // design round 2: Continue to pay after the Backup step
+  await p.waitForSelector('#qr svg');
   const full = await p.getAttribute('#paylink', 'href');
   const box = await p.locator('#qr svg').boundingBox();
   await p.locator('#qr').screenshot({ path: `${process.env.OUT}/qr-full.png` });

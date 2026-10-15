@@ -19,6 +19,7 @@ const relays = ['http://127.0.0.1:8787', 'http://127.0.0.1:8788'];
   await page.fill('#amount', '0.01'); await page.fill('#refund', REFUND_ADDR);
   await page.click('#create');
   await page.waitForSelector('#pay-card:not([hidden])');
+  if (await page.isVisible('#to-pay')) await page.click('#to-pay'); // design round 2: Continue to pay after the Backup step
   await page.click('#manual summary');
   const memo = (await page.textContent('#memo')).trim(), payTo = (await page.textContent('#pay-to')).trim();
   let txid = '';

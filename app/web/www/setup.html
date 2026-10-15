@@ -14,16 +14,19 @@
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="/"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
+  <a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
   <nav class="nav" aria-label="Main"><a href="/">Dashboard</a><a href="/setup.html" aria-current="page">New campaign</a></nav>
 </header>
 <main class="page">
-  <div class="crumb">Host / New campaign</div>
+  <div class="back-row"><a class="pill-back" href="/">← Dashboard</a></div>
+  <div class="su-head">
+  <p class="t-label su-k">Host · New campaign · Your computer</p>
   <h1 class="t-h1">Set up a campaign</h1>
-  <p class="t-lead" style="margin-top:12px;max-width:62ch">Choose what you are running and when it ends. Every contributor gets a signed refund ticket that never expires, whatever happens to you afterwards.</p>
+  <p class="t-lead">Choose what you are running and when it ends. Every contributor gets a signed refund ticket with no expiry height, whatever happens to you afterwards.</p>
   <p class="muted" id="net-note"></p>
+  </div>
   <div id="banner" class="notice bad" hidden></div>
-  <div id="mainnet-banner" class="notice bad mainnet" hidden><div class="k">MAINNET: real money</div><h3>This program is set to the real Zcash network</h3><p>Everything created here uses real ZEC, and a mistake can lose it. Contributors will pay real money into this campaign.</p><p id="nu7-note"></p></div>
+  <div id="mainnet-banner" class="notice bad mainnet" hidden><div class="k">MAINNET: real money</div><h3>This program is set to the real Zcash network</h3><p>Everything created here runs on Zcash Mainnet, and a mistake can lose real money. Contributors will pay real money into this campaign.</p><p id="nu7-note"></p></div>
 
   <form id="setup-form" novalidate>
   <div class="cols setup-cols">
@@ -86,24 +89,23 @@
     </section>
   </div>
 
-  <div>
-    <section class="sect">
-      <div class="hd"><h2>What you are about to publish</h2></div>
+  <div class="su-side">
+    <section class="su-sum">
+      <h2>What you are about to publish</h2>
       <dl class="kv pl" id="terms"></dl>
     </section>
 
-    <section class="sect">
-      <div class="hd"><h2>Your campaign key</h2></div>
-      <div class="notice info"><div class="k">Note</div><h3>Back up the campaign folder</h3><p>Creating a campaign makes a new wallet and key for it on this computer. They are not sent anywhere. Without them you cannot close the campaign or send refunds, so keep a copy of the campaign's folder (in this program's runs folder) somewhere safe. Contributors can still refund themselves with their tickets.</p></div>
+    <section class="su-key">
+      <div class="notice info"><div class="k">Your campaign key</div><h3>Back up the campaign folder</h3><p>Creating a campaign makes a new wallet and key for it on this computer. They are not sent anywhere. Without them you cannot close the campaign or send refunds, so keep a copy of the campaign's folder (in this program's runs folder) somewhere safe. Contributors can still refund themselves with their tickets.</p></div>
     </section>
 
-    <section class="sect">
-      <div class="hd"><h2>Create</h2></div>
+    <section class="su-create">
+      <h2 class="sr">Create</h2>
       <label class="choice confirm" id="confirm-row" hidden><input type="checkbox" id="confirm-mainnet"><span><b>I understand this is real money</b><small>I have read the MAINNET notice above and want to create this campaign on the real network.</small></span></label>
       <div id="setup-error" class="notice bad" role="alert" hidden></div>
-      <div class="btns stack">
+      <div class="btns su-btns">
         <button type="submit" class="btn" id="create-btn">Create campaign</button>
-        <a class="btn sec" id="cancel-btn" href="/">Cancel</a>
+        <a class="btn outline" id="cancel-btn" href="/">Cancel</a>
       </div>
       <p class="hint" id="create-hint">Creating a campaign needs the public network server and can take a minute.</p>
     </section>
@@ -111,6 +113,7 @@
   </div>
   </form>
 </main>
+<footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>
 <script type="module" src="setup.js"></script>
 </body>

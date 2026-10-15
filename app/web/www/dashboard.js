@@ -1,7 +1,7 @@
 // Host dashboard: function only. It shows what the host program reports and sends the two requests a host
 // can make from here (watch, close); setting up a campaign is on its own page (setup.html). It never sets
 // styles: it only toggles the `hidden` attribute and class names, and every look lives in ui.css and dashboard.css.
-import { setup, decorateAmounts, checkRow, chipHTML, etaText, statusBadgeHTML, markReady } from './ui.js';
+import { setup, setNetwork, decorateAmounts, checkRow, chipHTML, etaText, statusBadgeHTML, outcomeWords, markReady } from './ui.js';
 import { measureBlocks } from './blocktime.js';
 
 const $ = (s) => document.querySelector(s);
@@ -52,6 +52,24 @@ const PHASE = {
   closed: 'Closed', unknown: 'Starting up',
 };
 const KICKER = { bad: 'Needs action', warn: 'Needs attention', info: 'Note' };
+// design round 2: the four tiles at the top say the phase in two or three words (the full sentence stays in the Status details below)
+const TILE_PHASE = { open: 'Open', deadline_passed: 'Deadline passed', closed: 'Closed', unknown: 'Starting up' };
+
+/** Design round 2: the tiles (status, raised, goal or items, self-check), from the same report the details below show. */
+function tiles(s) {
+  const t = (k, v, cls = '') => { const d = document.createElement('div'); d.className = `dtile ${cls}`; const a = document.createElement('span'); a.className = 'tk'; a.textContent = k; const b = document.createElement('span'); b.className = 'tv'; b.textContent = v; d.append(a, b); return d; };
+  const raised = s.counts.raised_zat;
+  const res = s.self_check ? s.self_check.results : null;
+  const fails = res ? res.filter((r) => !r.pass).length : 0;
+  $('#dtiles').replaceChildren(
+    t('Status', TILE_PHASE[s.phase] + (s.outcome ? ` · ${outcomeWords(s.outcome, s.mode === 'raise' && s.cap_zat != null)}` : ''), `ph-${s.phase}`),
+    t('Raised', `${coin(raised)} ${s.ticker}`),
+    s.mode === 'raise'
+      ? t(s.cap_zat == null ? 'Goal' : 'Soft cap', `${coin(s.goal_zat)} ${s.ticker}${raised >= s.goal_zat ? ' · met' : ''}`, raised >= s.goal_zat ? 'met' : '')
+      : t('Items', String(s.items)),
+    t('Self check', res ? (fails ? `${fails} ✕` : `${res.length} ✓`) : 'waiting', res ? (fails ? 'bad' : 'good') : ''),
+  );
+}
 const CLASS = { bad: 'bad', warn: 'warn', info: 'info' };
 
 /** The real next steps for the host, from what the program reports: nothing here is guessed. */
@@ -92,12 +110,13 @@ function render(s) {
     d.append(k, p);
     return d;
   }));
-  $('#live').hidden = false;
+  $('#live').hidden = false; $('#dmore').hidden = false;
+  tiles(s);
   const left = s.blocks_left;
   const leftText = left > 0 ? etaText(left, measured.secondsPerBlock) : null;
   const leftPhrase = left > 0 ? (leftText ? `${leftText} left` : `${left} blocks left; the length of a block has not been measured yet`) : '';
   const pendingBc = (s.broadcasts || []).some((b) => b.status !== 'confirmed' && b.status !== 'superseded');
-  $('#status-chip').innerHTML = statusBadgeHTML({ phase: s.phase === 'deadline_passed' ? 'ended' : s.phase, outcome: s.outcome, refunding: s.phase === 'closed' && s.outcome === 'goal_missed' && pendingBc });
+  $('#status-chip').innerHTML = statusBadgeHTML({ phase: s.phase === 'deadline_passed' ? 'ended' : s.phase, outcome: s.outcome, refunding: s.phase === 'closed' && s.outcome === 'goal_missed' && pendingBc, soft: s.mode === 'raise' && s.cap_zat != null }); // a capped fundraiser says soft cap
   rows($('#facts'), [
     ['Campaign', s.name ? `${s.name} (${s.short}…)` : s.short + '…'],
     ['Type', s.mode === 'raise' ? 'Fundraiser' : 'Auction'],
@@ -120,7 +139,7 @@ function render(s) {
   const settle = (s.broadcasts || []).filter((b) => b.kind === 'settlement');
   rows($('#counts'), [
     ['Contributions received', String(c.contributions)],
-    ['Refund tickets issued', `${c.tickets_issued}${c.reissues ? ` (${c.reissues} re-issued after a network upgrade)` : ''}`],
+    ['Refund tickets issued', `${c.tickets_issued}${c.reissues ? ` (${c.reissues} reissued after a network upgrade)` : ''}`],
     ['Contributions locked in the wallet', `${c.locks_held} of ${c.locks_expected}`],
     ['Taken back by contributors early', String(c.withdrawn)],
     ['Payments set aside (message could not be opened)', String(c.rejects)],
@@ -156,21 +175,22 @@ function render(s) {
     const left = s.close_unfinished || [];
     // a close whose later steps did not all finish: one sentence, and the same button finishes them (nothing is sent twice)
     explain.textContent = left.length ? `Closed, but ${left.join(', ')} did not finish yet.` : 'This campaign is closed.';
+    $('#next-title').textContent = 'Closed';
     btn.hidden = !left.length; btn.disabled = s.closing; btn.textContent = 'Try again';
   } else if (s.phase === 'open' && s.can_close_early) {
-    btn.textContent = 'Close early';
+    btn.textContent = 'Close early'; $('#next-title').textContent = 'Close early';
     explain.textContent = (s.cap_zat == null
       ? 'The goal is met, and this campaign\'s rules allow closing early. Closing now keeps the contributions and sends them to your address;'
       : 'The soft cap is met, and this campaign\'s rules allow closing early. Closing now keeps the contributions that fit under the hard cap and sends them to your address, and refunds any payment over it;') + ' contributors can no longer take theirs back, and payments after the close do not count.';
     btn.hidden = false; btn.disabled = s.closing;
   } else if (s.phase === 'open') {
-    btn.textContent = 'Close the campaign';
+    btn.textContent = 'Close the campaign'; $('#next-title').textContent = 'Close the campaign';
     explain.textContent = s.early_close && s.close_early_reason
       ? `This campaign may close early once its ${s.cap_zat == null ? 'goal' : 'soft cap'} is met. Not yet: ${s.close_early_reason}.`
       : `You can close the campaign after the deadline (block ${s.deadline_height}${leftPhrase ? `, ${leftPhrase}` : ''}).`;
     btn.hidden = false; btn.disabled = true;
   } else {
-    btn.textContent = 'Close the campaign';
+    btn.textContent = 'Close the campaign'; $('#next-title').textContent = 'Close the campaign';
     explain.textContent = s.mode === 'raise'
       ? (s.cap_zat == null
         ? 'If the goal was reached, the money is sent to your address and nothing else changes. If not, every contributor is refunded.'
@@ -181,7 +201,7 @@ function render(s) {
     btn.hidden = false; btn.disabled = s.closing;
   }
   list($('#close-log'), s.close_log || []);
-  const words = { sent: 'sent, waiting', resent: 're-sent, waiting', confirmed: 'confirmed', superseded: 'the coin was spent by another transaction', dead: 'could not be mined (network changed); being rebuilt' };
+  const words = { sent: 'sent, waiting', resent: 'resent, waiting', confirmed: 'confirmed', superseded: 'the coin was spent by another transaction', dead: 'could not be mined (network changed); being rebuilt' };
   const bl = $('#broadcast-list');
   bl.replaceChildren(...(s.broadcasts || []).map((b) => {
     const li = document.createElement('li');
@@ -211,7 +231,7 @@ async function refresh() {
       return o;
     }));
     if (selected && campaigns.some((c) => c.id === selected)) render(await api(`campaigns/${selected}`));
-    else { $('#live').hidden = true; $('#close-section').hidden = true; $('#warnings-section').hidden = true; }
+    else { $('#live').hidden = true; $('#dmore').hidden = true; $('#close-section').hidden = true; $('#warnings-section').hidden = true; }
   } catch (e) {
     const b = $('#banner');
     say(b, "The dashboard can't reach the host program right now. Start it with: cb-host serve");
@@ -303,9 +323,12 @@ async function exportCopy() {
 }
 
 async function main() {
-  setup('Host dashboard'); markReady(); // a page on this computer: nothing to wait for
+  setup('Host dashboard', { netbar: false, host: true }); markReady(); // a page on this computer: nothing to wait for; the network is a small tag here (design round 2)
+  $('#dh-host').textContent = `Your computer · ${location.host}`;
   try { config = await api('config'); } catch { /* shown by refresh */ }
-  if (config && config.network === 'main') { $('#mainnet-banner').hidden = false; $('#confirm-close-row').hidden = false; $('#close-yes').disabled = true; $('#confirm-mainnet-close').addEventListener('change', () => { $('#close-yes').disabled = !$('#confirm-mainnet-close').checked; }); }
+  if (config) setNetwork(config.network); // no bar on the dashboard (it has the small tag); this sets the page's network flag, so amounts follow it
+  if (config) { const tag = $('#net-tag'); tag.textContent = config.network === 'main' ? 'ZCASH MAINNET' : 'TESTNET'; tag.classList.add(config.network === 'main' ? 'main' : 'test'); tag.hidden = false; }
+  if (config && config.network === 'main') { $('#mainnet-banner').hidden = false; $('#confirm-close-row').hidden = false; $('#close-mainnet-line').hidden = false; $('#close-yes').disabled = true; $('#confirm-mainnet-close').addEventListener('change', () => { $('#close-yes').disabled = !$('#confirm-mainnet-close').checked; }); }
   if (config) { if (config.network === 'main') $('#net-note').remove(); else $('#net-note').textContent = 'Test network: no real money.'; }
   const measure = async () => { const m = await measureBlocks(config ? config.network : 'test'); if (m.secondsPerBlock) { measured = m; } measuredAt = Date.now(); };
   measure().then(refresh);

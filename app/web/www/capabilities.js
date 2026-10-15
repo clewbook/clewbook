@@ -4,7 +4,7 @@
 
 /** What a recount cannot see or did not run, whatever the campaign. Remove the anchoring line once anchoring is built. */
 export const NOT_CHECKED = [
-  ['the amount each payment message promised', "it needs the contributor's one-time secret, which only a published challenge reveals"],
+  ['the amount each payment message promised', "it needs the contributor's one time secret, which only a published challenge reveals"],
   ['the proof inside each refund ticket', 'it is checked only on a contributor\'s own device, when they press "Check the proof too"'],
   ['Ticket anchors', "whether each ticket's chain anchor is still valid is not checked"],
   ['Ledger anchoring', "the host's ledger fingerprint is not yet published anywhere public"],
@@ -16,11 +16,11 @@ export const NOT_CHECKED = [
 /** The ticket checks, by level (SPEC section 3.1). `when` says when the contributor's page runs the level. */
 export const LEVELS = [
   { level: 1, when: 'automatic, on every ticket', chip: 'open', ids: ['readable', 'matches_list', 'shape', 'signatures', 'network_version', 'no_expiry', 'fee', 'spends_your_coin', 'coin_unspent', 'coin_used_by_list', 'your_amount'],
-    what: 'The ticket is the one the signed list names, has the expected shape, carries valid signatures, is for the network version in use, never expires, pays the stated fee, spends your contribution, and the coin is unspent.' },
+    what: 'The ticket is the one the signed list names, has the expected shape, carries valid signatures, is for the network version in use, has no expiry height, pays the stated fee, spends your contribution, and the coin is unspent.' },
   { level: 2, when: 'automatic, on tickets issued in the current format', chip: 'open', ids: ['pays_you'],
     what: 'The refund output is recomputed from the values sealed with the ticket and the address you gave, and must equal the output inside the ticket itself. Older tickets cannot be checked this way and say so.' },
   { level: 3, when: 'only when you press "Check the proof too"', chip: 'open', ids: ['proof'],
-    what: 'The zero-knowledge proof inside the ticket is verified on your device by a separate module that is downloaded only on request.' },
+    what: 'The zero knowledge proof inside the ticket is verified on your device by a separate module that is downloaded only on request.' },
   { level: 4, when: 'not built yet', chip: 'nc', ids: ['anchor'],
     what: "The ticket's chain anchor is checked to be a real earlier state of the chain." },
 ];
@@ -50,7 +50,7 @@ export function cardModel(summary, rules, secondsPerBlock = null) {
     ['Refund fee kept', { amount: summary.fee_zat, ticker: net.ticker }],
     ['Deadline', { block: summary.deadline_height }],
     ['Ticket window', { blocks: summary.ticket_k, seconds: secondsPerBlock ? summary.ticket_k * secondsPerBlock : null }],
-    ['Re-issue window after a network upgrade', { blocks: rules.reissue_window, seconds: secondsPerBlock ? rules.reissue_window * secondsPerBlock : null }],
+    ['Reissue window after a network upgrade', { blocks: rules.reissue_window, seconds: secondsPerBlock ? rules.reissue_window * secondsPerBlock : null }],
     ...(uniform ? [['Settlement window', { blocks: summary.settle_window, seconds: secondsPerBlock ? summary.settle_window * secondsPerBlock : null }]] : []),
   ];
   const notChecked = [...NOT_CHECKED];

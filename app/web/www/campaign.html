@@ -14,60 +14,59 @@
 </head>
 <body>
 <header class="bar">
-  <a class="word" href="./"><img class="logo" src="img/clewbook-lockup-colour.svg" alt="Clewbook" width="180" height="28"></a>
-  <nav class="nav" aria-label="Main"><a href="#" aria-current="page">Campaign</a><a id="nav-recount" href="#">Recount</a><a id="nav-card" href="#" hidden>Capability card</a></nav>
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a></nav>
 </header>
 <main class="page campaign">
-  <div class="kickrow"><span class="kick-type" id="title">Campaign</span><span id="status-chip"></span><span class="mono dim" id="short-id"></span><span class="sr" id="campaign-id" aria-hidden="true"></span></div>
-  <h1 class="t-display" id="display-name" hidden></h1>
-  <p class="goalline" id="status-line" hidden><span id="status-text"></span></p>
+  <a id="nav-card" href="#" hidden>Capability card</a>
+  <div class="back-row"><a class="pill-back" href="./">← Campaigns</a></div>
+  <div class="chead">
+    <div class="kickrow"><span id="status-chip"></span><span class="kick"><span id="title">Campaign</span><span class="kick-dot" aria-hidden="true"> · </span><span id="short-id"></span></span><span class="sr" id="campaign-id" aria-hidden="true"></span></div>
+    <h1 class="cname" id="display-name" hidden></h1>
+    <p class="goalline sr" id="status-line" hidden><span id="status-text"></span></p>
+  </div>
   <div id="banners"></div>
-  <div class="actions" id="links" hidden>
-    <a class="btn" id="contribute-link" href="#">Contribute</a>
-    <a class="btn sec recount-btn" id="recount-link" href="#">Recount this campaign</a>
-    <a class="btn link" id="card-link" href="#">Capability card</a>
-  </div>
 
-  <div class="grid2 cgrid">
-  <section class="csect" id="about" hidden>
-    <h2 class="sh">About this campaign</h2>
-    <dl class="kv pl" id="facts"></dl>
-  </section>
-
-  <section class="csect" id="take" hidden>
-    <h2 class="sh">Take part or check</h2>
-    <p class="take-text">The recount checks, in your browser and from the public chain, that the campaign kept its promises.</p>
-    <p class="t-sub zones-hd">Who can see what</p>
-    <ul class="zones">
-      <li><span class="zm open" aria-hidden="true"></span><div><b>Public, on the signed list</b><p>Transaction id, block height and ticket data; the amount in a fundraiser, and every bid once an auction closes. No names, no refund addresses.</p></div></li>
-      <li><span class="zm half" aria-hidden="true"></span><div><b>Sealed to the campaign</b><p>Your refund address, inside the payment message. The host can open every message, so it can see which payments share a refund address.</p></div></li>
-      <li><span class="zm full" aria-hidden="true"></span><div><b>Only on your device</b><p>Your one-time secret and the backup file you download. Relays keep only a sealed copy of your refund ticket.</p></div></li>
-    </ul>
-  </section>
-  </div>
-
-  <section class="csect wide" id="public-list" hidden>
-    <div class="plhd"><h2 class="sh">The public list</h2><p class="dim">Every contribution the campaign has accepted is listed publicly, signed by the campaign.</p></div>
-    <dl class="stats" id="list-facts"></dl>
-    <div class="readfrom"><p class="rf-l">Where it was read from</p><ol class="relays" id="relay-list"></ol></div>
-  </section>
-
-  <section class="csect" id="entries-card" hidden>
-    <div class="enhd"><h3 class="sh3">Latest entries</h3><span class="t-label" id="entries-hint"></span></div>
-    <table class="ledger entries"><thead class="sr"><tr><th>No.</th><th>Entry</th><th>Block</th><th class="r">Amount</th><th>Reference</th></tr></thead><tbody id="entries"></tbody></table>
-    <div class="ledger-narrow" id="entries-narrow" hidden></div>
-  </section>
-
-  <section class="csect badgesect" id="badge-card" hidden>
-    <div class="grid2">
-      <div>
-        <h2 class="sh">Badge for your own site</h2>
-        <p class="dim">Paste this into a web page. It shows a small card that names this campaign and sends readers to its live recount. It does not claim any result by itself.</p>
-        <div class="copyrow"><pre id="badge-code" class="copybox"></pre><button type="button" class="secondary" id="badge-copy">Copy</button></div>
+  <div class="cbody" id="about" hidden>
+    <div class="cmain">
+      <div class="tiles" id="tiles"></div>
+      <div class="actions" id="links" hidden>
+        <a class="btn" id="contribute-link" href="#">Contribute</a>
+        <a class="btn sec recount-btn" id="recount-link" href="#">↻ Recount</a>
       </div>
-      <div><p class="t-sub prev-l">How it looks</p><div id="badge-preview"></div></div>
+      <p class="closed-note" id="closed-note" hidden></p>
+      <p class="bid-note" id="bid-note" hidden>Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives.</p>
+
+      <section class="plist" id="public-list" hidden>
+        <div class="plhd"><span class="plt">Public list<sup>1</sup></span><span class="t-label" id="entries-hint">AS PUBLISHED</span></div>
+        <section id="entries-card" hidden>
+          <table class="ledger entries"><thead class="sr"><tr><th>No.</th><th>Entry</th><th>Block</th><th class="r">Amount</th><th>Reference</th></tr></thead><tbody id="entries"></tbody></table>
+          <div class="ledger-narrow" id="entries-narrow" hidden></div>
+        </section>
+        <p class="pl-empty" id="entries-empty" hidden>No entries yet.</p>
+        <dl class="lfacts" id="list-facts"></dl>
+        <p class="foot1"><sup>1</sup> <span id="relay-live"></span> Recount is the independent check.</p>
+        <div class="readfrom"><span class="rf-l">Read from</span><ol class="relays" id="relay-list"></ol></div>
+      </section>
     </div>
-  </section>
+
+    <aside class="rules">
+      <span class="t-k">RULES</span>
+      <dl class="kv rkv" id="facts"></dl>
+      <details class="fold" id="take"><summary>Who can see what</summary>
+        <ul class="zones">
+          <li><span class="zm open" aria-hidden="true"></span><div><b>Public, on the signed list</b><p>Transaction id, block height and ticket data; the amount in a fundraiser, and every bid once an auction closes. No names, no refund addresses.</p></div></li>
+          <li><span class="zm half" aria-hidden="true"></span><div><b>Sealed to the campaign</b><p>Your refund address, inside the payment message. The host can open every message, so it can see which payments share a refund address.</p></div></li>
+          <li><span class="zm full" aria-hidden="true"></span><div><b>Only on your device</b><p>Your one time secret and the backup file you download. Relays keep only a sealed copy of your refund ticket.</p></div></li>
+        </ul>
+      </details>
+      <details class="fold" id="nc-fold"><summary>Not checked by a recount</summary><ul class="nclist" id="nc-list"></ul></details>
+      <p class="rule-note" id="rule-note" hidden></p>
+      <a class="card-link" id="card-link" href="#">Capability card →</a>
+    </aside>
+  </div>
+
+  <div class="allc"><a class="pill-back big" href="./">← All campaigns</a></div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

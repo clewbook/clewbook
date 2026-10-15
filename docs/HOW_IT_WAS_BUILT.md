@@ -101,7 +101,7 @@ We wrote everything under `app/`, the pages, the specification, the scripts and 
 | qrcode, clap, serde, serde_json | 0.14.1, 4.6.7, 1.0.229, 1.0.151 | Payment code image, command line, data format | MIT or Apache-2.0 |
 | secp256k1 (a C library) | 0.33 | Needed by the Zcash libraries | not checked here |
 | Zig | 0.14 | A build tool that compiles that C library for the browser, not shipped | not checked here |
-| Newsreader, Geist, Geist Mono, Atkinson Hyperlegible | files in `app/web/www/fonts` | Page text | SIL Open Font License 1.1 |
+| Archivo, Chivo Mono, Unbounded, Sora | files in `app/web/www/fonts` | Page text | SIL Open Font License 1.1 |
 
 The full machine generated list of every library, with versions and declared licences, is in `THIRD_PARTY_NOTICES.md`.
 

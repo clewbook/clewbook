@@ -32,6 +32,7 @@ async function makeCode(page) {
   await page.fill('#amount', AMOUNT); await page.fill('#refund', REFUND_ADDR);
   await page.click('#create');
   await page.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 });
+  if (await page.isVisible('#to-pay')) await page.click('#to-pay'); // design round 2: Continue to pay after the Backup step
   await page.click('#manual summary').catch(() => {});
   return { memo: (await page.textContent('#memo')).trim(), payTo: (await page.textContent('#pay-to')).trim() };
 }

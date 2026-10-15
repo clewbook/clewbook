@@ -30,7 +30,7 @@ def start(dev=False):
 
 srv = start()
 try:
-    for path in ["/", "/contribute.html", "/recount.html", "/badge.html", "/ui.css", "/copies.js", "/pkg/ll_web_bg.wasm", "/fonts/LICENSE-newsreader.txt"]:
+    for path in ["/", "/contribute.html", "/recount.html", "/badge.html", "/ui.css", "/copies.js", "/pkg/ll_web_bg.wasm", "/fonts/LICENSE-archivo.txt"]:
         st, h, _ = get(path)
         check(f"served: {path}", st == 200, str(st))
     st, h, _ = get("/pkg/ll_web_bg.wasm")

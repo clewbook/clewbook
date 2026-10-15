@@ -50,10 +50,17 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   await page.fill('#amount', '0.01'); await page.fill('#refund', REFUND_ADDR);
   await page.click('#create');
   await page.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
+  // design round 2: the Backup step comes first; the backup is downloaded there, then "Continue to pay" shows the code
+  const memo = (await page.textContent('#memo')).trim();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#backup')]);
+  const backupPath = `${SHOTS}/backup.json`; await dl.saveAs(backupPath);
+  const backup = JSON.parse(fs.readFileSync(backupPath));
+  check('backup file has the secret, the refund address and the message', backup.seed?.length === 64 && backup.refundAddress === REFUND_ADDR && backup.memo === memo);
+  check('page marks the backup as saved', await page.isVisible('#backup-done'));
+  await page.click('#to-pay');
   await page.waitForSelector('#qr svg');
   await page.screenshot({ path: `${SHOTS}/03-pay.png`, fullPage: true });
   await page.click('#manual summary');
-  const memo = (await page.textContent('#memo')).trim();
   const payTo = (await page.textContent('#pay-to')).trim();
   check('memo is the sealed message, payload version 2 with the amount (LL1:, 267 characters)', memo.startsWith('LL1:') && memo.length === 267, `${memo.length} chars`);
   check('one line before payment: pay exactly the amount, once, from your own shielded balance', /Pay exactly 0\.01000000 TAZ once, from your own wallet's shielded balance/.test(await page.textContent('#pay-warning')) && await page.isVisible('#pay-warning'));
@@ -74,11 +81,6 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   check('the simpler QR decodes to its link', (await decodeQr()) === lightHref);
   await page.click('#qr-toggle');
   check('the full code can be shown again', (await page.getAttribute('#paylink', 'href')) === href && (await decodeQr()) === href);
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#backup')]);
-  const backupPath = `${SHOTS}/backup.json`; await dl.saveAs(backupPath);
-  const backup = JSON.parse(fs.readFileSync(backupPath));
-  check('backup file has the secret, the refund address and the message', backup.seed?.length === 64 && backup.refundAddress === REFUND_ADDR && backup.memo === memo);
-  check('page marks the backup as saved', await page.isVisible('#backup-done'));
 
   // --- pay from a real wallet ---
   log('paying from the test wallet with the page\'s memo');

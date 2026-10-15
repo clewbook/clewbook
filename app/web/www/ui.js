@@ -11,9 +11,10 @@ const SPRITE = `<svg class="sprite" width="0" height="0" aria-hidden="true" focu
   <symbol id="i-fail" viewBox="0 0 12 12"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></symbol>
   <symbol id="i-nc" viewBox="0 0 12 12"><path d="M2.5 6h7"/></symbol></svg>`;
 
-export function setup(title, { netbar = true, themeControl = true } = {}) {
+export function setup(title, { netbar = true, themeControl = true, host = false } = {}) {
   document.documentElement.dataset.started = '1'; // the page's scripts loaded and ran (loadguard.js looks at this)
   if (themeControl) mountTheme(); else applyTheme(themeChoice());
+  if (themeControl) mountChrome({ host });
   if (!document.getElementById('i-pass')) document.body.insertAdjacentHTML('afterbegin', SPRITE);
   for (const el of document.querySelectorAll('[data-brand]')) el.textContent = PRODUCT_NAME;
   if (netbar && !document.getElementById('netbar')) document.body.insertAdjacentHTML('afterbegin', '<div id="netbar" class="netbar checking" role="status">Checking network…</div>');
@@ -36,11 +37,8 @@ export function applyTheme(choice) {
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
   root.dataset.theme = dark ? 'dark' : 'light';
-  // the logo has a light version for dark pages (ui.css swaps it too, where the browser allows)
-  for (const img of document.querySelectorAll('img.logo')) {
-    const want = dark ? 'clewbook-lockup-linen.svg' : 'clewbook-lockup-colour.svg';
-    if (!img.getAttribute('src').endsWith(want)) img.setAttribute('src', img.getAttribute('src').replace(/clewbook-lockup-(colour|linen)\.svg$/, want));
-  }
+  // the segmented Theme controls (footer, phone menu) show the choice; the select underneath keeps it
+  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === choice));
 }
 let themeWatching = false;
 /** The Theme control, always in the same place: the footer line at the bottom of the page (made when the page has none). */
@@ -64,33 +62,79 @@ export function mountTheme() {
     try { if (c === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, c); } catch { c = 'system'; sel.value = 'system'; }
     applyTheme(c);
   });
-  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.append(label, sel);
-  foot.append(wrap);
+  sel.hidden = true; // the visible control is the segmented one below; the select keeps the value for the rest of the page
+  label.id = 'theme-label';
+  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.append(label, sel, themeSeg(sel));
+  let ctl = foot.querySelector('.foot-ctl');
+  if (!ctl) { ctl = document.createElement('span'); ctl.className = 'foot-ctl'; foot.append(ctl); }
+  ctl.append(wrap);
+  applyTheme(themeChoice());
+}
+/** System, Light, Dark as three pressed buttons; pressing one sets the select and lets its change handler save and apply the choice. */
+function themeSeg(sel) {
+  const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-labelledby', 'theme-label');
+  for (const [v, t] of THEMES) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.theme = v; b.textContent = t; b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => { sel.value = v; sel.dispatchEvent(new Event('change')); });
+    seg.append(b);
+  }
+  return seg;
+}
+const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
+
+// ---------- the frame: footer controls (testnet demo, replay intro) and the phone menu ----------
+const DEMO_URL = 'https://clewbook.xyz/demo/';
+function mountChrome({ host }) {
+  const foot = document.querySelector('footer.sitefoot');
+  const ctl = foot && foot.querySelector('.foot-ctl');
+  if (ctl && !ctl.querySelector('.demo-pill')) {
+    const demo = document.createElement('a'); demo.className = 'demo-pill'; demo.href = DEMO_URL; demo.textContent = '▲ Try the testnet demo →';
+    const parts = [demo];
+    if (!host) { const replay = document.createElement('a'); replay.className = 'foot-link'; replay.href = './#intro'; replay.textContent = 'Replay intro'; replay.id = 'replay-intro'; parts.push(replay); }
+    ctl.prepend(...parts);
+  }
+  const bar = document.querySelector('header.bar'), nav = bar && bar.querySelector('nav.nav');
+  if (!bar || !nav || bar.querySelector('.menu-btn')) return;
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'menu-btn'; btn.setAttribute('aria-label', 'Menu'); btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰';
+  nav.before(btn);
+  let panel = null;
+  const close = () => { if (!panel) return; panel.remove(); panel = null; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰'; };
+  const open = () => {
+    panel = document.createElement('div'); panel.className = 'menu-panel';
+    for (const a of nav.querySelectorAll('a')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    const demo = document.createElement('a'); demo.className = 'demo'; demo.href = DEMO_URL; demo.textContent = '▲ Try the testnet demo →'; panel.append(demo);
+    const sel = document.getElementById('theme-select');
+    if (sel) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; row.append(t, themeSeg(sel)); panel.append(row); }
+    bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
+    applyTheme(themeChoice());
+    panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
+  };
+  btn.addEventListener('click', (e) => { e.stopPropagation(); if (panel) close(); else open(); });
+  document.addEventListener('click', (e) => { if (panel && !panel.contains(e.target) && e.target !== btn) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel) { close(); btn.focus(); } });
+  addEventListener('resize', () => { if (innerWidth >= 640) close(); });
 }
 
 // ---------- the network bar: the same on every page of a campaign, so the real network and the test network cannot be mistaken for each other ----------
 // It starts neutral grey ("Checking network…", no amounts) and changes only when the campaign's checked rules name the network. Anything other than
 // 'test' or 'main' is "unknown", which no page treats as either.
+// The test network gets the striped TESTNET bar on every page of a campaign. The main network has no bar (the bar element stays, empty and hidden,
+// so the page keeps one place for it). An unknown network always says so.
 const NETBAR = {
-  test: ['test', 'TEST MONEY ONLY', 'Test network: TAZ has no value.'],
-  main: ['main', 'ZCASH MAINNET', 'Real ZEC.'],
+  test: ['test', 'TESTNET', 'TAZ has no value.'],
+  main: ['main', '', ''],
   unknown: ['unknown', 'NETWORK UNKNOWN', 'This page cannot tell which network this is.'],
 };
-// `short`: only the network word (the campaign page, which shows no money-moving form; every amount there carries its ticker). The page that takes a
-// payment keeps the full sentence, and an unknown network always keeps its sentence.
-const SHORT = { test: 'ZCASH TESTNET', main: 'ZCASH MAINNET' };
-export function setNetwork(network, { short = false } = {}) {
+export function setNetwork(network) {
   const kind = network === 'test' || network === 'main' ? network : 'unknown';
-  const [cls, head0, tail] = NETBAR[kind];
-  const word = short && SHORT[kind] ? SHORT[kind] : null;
-  const head = word || head0;
+  const [cls, head, tail] = NETBAR[kind];
   document.documentElement.dataset.net = kind;
   const bar = document.getElementById('netbar');
   if (!bar) return kind;
   bar.className = `netbar ${cls}`;
   bar.replaceChildren();
-  const b = document.createElement('b'); b.textContent = head;
-  if (word) bar.append(b); else bar.append(b, ` · ${tail}`);
+  bar.hidden = kind === 'main';
+  if (head) { const b = document.createElement('b'); b.textContent = head; bar.append(b, ` · ${tail}`); }
   return kind;
 }
 
@@ -119,12 +163,21 @@ export function markerHTML(status) {
   return `<span class="mk ${s}" aria-hidden="true"><svg><use href="#${ICON[s]}"/></svg></span>`;
 }
 
-// ---------- amounts: all 8 decimals, trailing zeros dimmed (at least two decimals bright), never rounded ----------
-export function amountHTML(zat, unit) {
-  const neg = zat < 0; const a = Math.abs(zat);
-  return amountParts(String(Math.floor(a / 1e8)), String(a % 1e8).padStart(8, '0'), unit, neg);
+// ---------- amounts: never rounded. Testnet: all 8 decimals, trailing zeros dimmed (at least two decimals bright). Mainnet: trimmed, no
+// trailing zeros and no decimal point for a whole amount (0.0002, 1). Display only: stored, compared, hashed and signed amounts are not
+// touched. The network comes from the page's own flag (data-net, set by setNetwork) or the nearest element that carries one (a home card).
+const onMain = (el) => { const c = el && el.closest ? el.closest('[data-net]') : null; return ((c && c.dataset.net) || document.documentElement.dataset.net) === 'main'; };
+/** The display text of an amount in zatoshis on mainnet: trimmed, never rounded (0.00012345, 0.0002, 1). */
+export function trimmedAmount(zat) {
+  const neg = zat < 0; const a = Math.abs(zat); const frac = String(a % 1e8).padStart(8, '0').replace(/0+$/, '');
+  return `${neg ? '−' : ''}${Math.floor(a / 1e8)}${frac ? '.' + frac : ''}`;
 }
-function amountParts(whole, frac8, unit, neg = false) {
+export function amountHTML(zat, unit, main = onMain(null)) {
+  const neg = zat < 0; const a = Math.abs(zat);
+  return amountParts(String(Math.floor(a / 1e8)), String(a % 1e8).padStart(8, '0'), unit, neg, main);
+}
+function amountParts(whole, frac8, unit, neg = false, main = false) {
+  if (main) { const f = frac8.replace(/0+$/, ''); return `<span class="amt">${neg ? '−' : ''}${esc(whole)}${f ? '.' + f : ''}${unit ? `<span class="u"> ${esc(unit)}</span>` : ''}</span>`; }
   const digits = frac8.split('');
   let z = digits.length; while (z > 0 && digits[z - 1] === '0') z--; // digits from index z on are trailing zeros
   z = Math.max(z, 2); // at least two decimals stay bright (40.00 then the dimmed tail)
@@ -142,7 +195,8 @@ export function decorateAmounts(root = document.body) {
     const t = n.nodeValue; AMOUNT_IN_TEXT.lastIndex = 0;
     if (!AMOUNT_IN_TEXT.test(t)) continue;
     const span = document.createElement('span');
-    span.innerHTML = esc(t).replace(AMOUNT_IN_TEXT, (_, whole, frac = '', unit) => amountParts(whole.replace(/,/g, ''), frac.padEnd(8, '0'), unit.trim()));
+    const main = onMain(n.parentElement);
+    span.innerHTML = esc(t).replace(AMOUNT_IN_TEXT, (_, whole, frac = '', unit) => amountParts(whole.replace(/,/g, ''), frac.padEnd(8, '0'), unit.trim(), false, main));
     n.replaceWith(...span.childNodes);
   }
 }
@@ -179,11 +233,11 @@ export const CHECKS = {
   coin_unspent: ['Coin unspent', 'Nothing else has used your contribution, so the refund can still be sent.'],
   coin_used_by_list: ['Coin used by the list', 'Your coin was used only by a transaction the campaign’s signed list names.'],
   pays_you: ['Pays you', 'The refund output pays the address you gave.'],
-  proof: ['Proof', 'The zero-knowledge proof inside the refund verifies (run only when you ask).'],
+  proof: ['Proof', 'The zero knowledge proof inside the refund verifies (run only when you ask).'],
   anchor: ['Chain state', 'Whether the refund’s chain state (anchor) is a real one; this check is not available yet.'],
   // the recount
   R1: ['Rules', 'The published rules (and, for an auction, the revealed key) match what the campaign committed to.'],
-  R2: ['List integrity', 'The public list is signed, chained, gap-free, and closed at most once, after the deadline.'],
+  R2: ['List integrity', 'The public list is signed, chained, gap free, and closed at most once, after the deadline.'],
   R3: ['Entries are real', 'Every entry in the public list is a real payment to the campaign.'],
   R4: ['Tickets issued', 'Every contribution has a refund ticket on the list once the allowed number of blocks has passed.'],
   R4b: ['Ticket timing (host reported)', 'Each ticket was issued within the allowed number of blocks, going by the height the host itself wrote. The recount cannot check that height.'],
@@ -234,17 +288,21 @@ export function etaText(blocks, secondsPerBlock) {
   return `about ${Math.round(s / 86400)} days`;
 }
 
-/** The status badge: the word is always there (OPEN, CLOSED, ...), the colour only adds to it.
+/** The status badge: the word is always there (OPEN, CLOSED · GOAL MISSED, ...), the colour only adds to it.
  *  phase: 'open' | 'ended' (deadline passed, not closed) | 'closed' | anything else = checking.
- *  After a close, `outcome` ('goal_met' | 'auction' | 'goal_missed') adds SUCCEEDED or FAILED, and `refunding` adds REFUNDING. */
-export function statusBadgeHTML({ phase, outcome = null, refunding = false }) {
+ *  After a close the outcome is named on the pill (`goal_met`, `goal_missed`, `auction`; `soft` when the fundraiser has a hard cap, so its goal is the
+ *  soft cap). Every closed outcome is neutral grey: a missed goal that refunded everyone is not a failure. `refunding` adds REFUNDING. */
+export const OUTCOME_WORDS = { goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' };
+export function outcomeWords(outcome, soft = false) {
+  const w = OUTCOME_WORDS[outcome];
+  return w ? (soft ? w.replace('goal', 'soft cap') : w) : 'finished';
+}
+export function statusBadgeHTML({ phase, outcome = null, refunding = false, soft = false }) {
   const pill = (cls, word, dot = false) => `<span class="sbadge ${cls}">${dot ? '<i class="sdot" aria-hidden="true"></i>' : ''}${word}</span>`;
   if (phase === 'open') return pill('open', 'OPEN', true);
   if (phase === 'ended') return pill('ended', 'DEADLINE PASSED');
   if (phase !== 'closed') return pill('unknown', 'CHECKING');
-  let html = pill('closed', 'CLOSED');
-  if (outcome === 'goal_met' || outcome === 'auction') html += pill('succeeded', 'SUCCEEDED');
-  else if (outcome === 'goal_missed') html += pill('failed', 'FAILED');
+  let html = pill('closed', OUTCOME_WORDS[outcome] ? `CLOSED · ${outcomeWords(outcome, soft).toUpperCase()}` : 'CLOSED');
   if (refunding) html += pill('refunding', 'REFUNDING');
   return html;
 }

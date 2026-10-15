@@ -27,6 +27,7 @@ const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
     await p.fill('#amount', '0.001'); await p.fill('#refund', REFUND_ADDR); await p.click('#create');
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 20000 });
+    if (await p.isVisible('#to-pay')) await p.click('#to-pay'); // design round 2: Continue to pay after the Backup step
     await p.evaluate(() => (document.querySelector('#manual').open = true));
     const memo = await text(p, '#memo'), payTo = await text(p, '#pay-to');
     let txid = '';

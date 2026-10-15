@@ -1,78 +1,137 @@
-/* Recount page: only what is specific to it (the shared look is in ui.css). */
-.recount { padding-top: clamp(24px, 4vw, 48px); }
-.kickrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.kick-type { font: 600 14px/1.3 var(--body); color: var(--slate); }
-.kickrow .mono { font-size: 13px; }
-.t-recname { font: 400 clamp(30px, 4.6vw, 44px)/1.08 var(--head); letter-spacing: -.012em; margin-top: 12px; }
-.rlead { margin-top: 12px; max-width: 62ch; color: var(--ink2); }
-.sh { font: 600 19px/1.3 var(--body); margin-bottom: 10px; }
+/* Recount page (design round 2): RECOUNT and TOTALS tabs; a verdict card, compact rule tiles and a civic table on RECOUNT; Totals (with the
+   RECOUNTED stamp) and Sources on TOTALS; the three tools sit on RECOUNT under the checks (owner decision 11). The shared look is in ui.css. */
+.recount { padding-top: 0; }
+.rtabbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; border-bottom: 1px solid var(--cb-border); margin-top: 22px; }
+.rtabs { display: flex; gap: 22px; }
+.page .rtabs [role=tab] { min-height: 44px; padding: 10px 0; margin: 0 0 -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: 600 13px var(--cb-font-body); letter-spacing: .06em; color: var(--cb-ink-3); transition: color .2s; }
+.page .rtabs [role=tab]:hover { background: transparent; color: var(--cb-ink); transform: none; box-shadow: none; }
+.page .rtabs [role=tab][aria-selected=true] { border-bottom-color: var(--cb-ink); color: var(--cb-ink); }
+.rname { display: flex; gap: 10px; align-items: baseline; padding-bottom: 10px; min-width: 0; }
+.rname b { font: 700 20px var(--cb-font-display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.rname .mono { font-size: 13px; }
+.rlead { margin-top: 14px; max-width: 70ch; color: var(--cb-ink-3); font-size: 13px; }
+.rpanel { display: flex; flex-direction: column; gap: 14px; padding: 14px 0 0; }
 
-/* upload mode: a linen panel in place of the verdict */
-.uploadpanel { margin-top: 28px; background: var(--linen); border: 1px solid var(--line); border-radius: 4px; padding: clamp(20px, 3vw, 32px); }
+/* no campaign in the address: a panel to load a saved copy */
+.uploadpanel { margin-top: 18px; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: clamp(20px, 3vw, 28px); }
+.uploadpanel .sh { font: 700 22px var(--cb-font-display); margin-bottom: 10px; }
 .uploadpanel .muted { margin-bottom: 14px; max-width: 68ch; }
-.uploadpanel input[type=file] { max-width: 520px; background: transparent; }
+.uploadpanel input[type=file] { max-width: 520px; }
 
-/* the verdict: a linen block with a coloured top rule and a glyph tile */
-.verdict { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 4px 22px; align-items: start; margin-top: 28px; background: var(--linen); border: 1px solid var(--line); border-top: 4px solid var(--slate); border-radius: 4px; padding: clamp(20px, 3vw, 32px); --kc: var(--slate); }
-.verdict:before { grid-column: 1; grid-row: 1 / span 4; width: 52px; height: 52px; border-radius: 4px; background: var(--kc); color: var(--linen); display: flex; align-items: center; justify-content: center; font: 700 26px/1 var(--body); content: "…"; }
-.verdict > * { grid-column: 2; min-width: 0; }
-.verdict .k { font: 600 12.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--kc); }
-.verdict h2 { font: 600 clamp(22px, 3.2vw, 30px)/1.2 var(--body); letter-spacing: -.015em; text-wrap: balance; margin-top: 4px; overflow-wrap: anywhere; }
-.verdict p { margin-top: 8px; max-width: 68ch; color: var(--ink2); font-size: 16px; }
-.verdict.pass { --kc: var(--success); border-top-color: var(--success); } .verdict.pass:before { content: "✓"; }
-.verdict.fail { --kc: var(--error); border-top-color: var(--error); } .verdict.fail:before { content: "✕"; }
-.verdict.partial { --kc: var(--warning); border-top-color: var(--warning); } .verdict.partial:before { content: "!"; }
-.verdict.cannot { --kc: var(--info); border-top-color: var(--info); } .verdict.cannot:before { content: "?"; }
-@media (prefers-reduced-motion: no-preference) { .verdict.working:before { animation: pulse 1.4s ease-in-out infinite; } }
-.progress-line { color: var(--slate); font-size: 14px; }
+/* the verdict card: tags, the title, one line why, and Run it again */
+.verdict { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 26px 28px; display: flex; justify-content: space-between; gap: 24px; align-items: center; flex-wrap: wrap; }
+.vmain { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 420px; }
+.vtags { display: flex; gap: 8px; flex-wrap: wrap; }
+.vtag { padding: 4px 10px; border-radius: 999px; font: 600 12px var(--cb-font-body); border: 1px solid transparent; letter-spacing: .02em; }
+.vtag.pass { background: var(--ok-bg); color: var(--cb-pass); }
+.vtag.fail { background: var(--cb-fail-bg-2); color: var(--cb-fail); border-color: var(--cb-fail-edge); }
+.vtag.warn { background: var(--warn-chip); color: var(--cb-wait); border-color: var(--warn-edge); }
+.vtag.wait { background: var(--warn-chip); color: var(--cb-wait); }
+.vtag.nc { background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink-3); }
+.verdict h2 { font: 700 clamp(28px, 4vw, 42px)/1.05 var(--cb-font-display); letter-spacing: -.03em; text-wrap: balance; overflow-wrap: anywhere; }
+.verdict.fail h2 { color: var(--cb-ink); }
+.verdict p { max-width: 70ch; color: var(--cb-ink-2); font-size: 15px; }
+.progress-line { color: var(--cb-ink-3); font-size: 13px; }
 .progress-line:empty { display: none; }
-.againrow { margin: 14px 0 0; }
-#again { margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .verdict.working .vtag { animation: pulse 1.4s ease-in-out infinite; } }
+.page .again { margin: 0; min-height: 46px; padding: 0 20px; flex: none; }
 
-/* result strip: counts on the left, checked / not checked / coverage on the right */
-.rsummary { margin-top: 28px; }
-.rsummary .strip > div { padding-right: 8px; }
-.rsummary .cn { margin-top: 0; border-top: 1px solid var(--ink); }
-.cn dt.cov { color: var(--ink); }
-.nc-line { display: block; }
-#notchecked-line { font-family: var(--body); font-size: 14px; line-height: 1.45; }
-.ncrow { display: block; padding: 4px 0; }
-.ncrow:first-child { padding-top: 0; }
-.ncrow b { font-weight: 600; }
-#checked-line .cid { margin-right: 2px; }
-#banners { margin-top: 16px; }
+/* the checks: a strip of compact tiles, then the civic table */
+.rchecks { display: flex; flex-direction: column; gap: 14px; padding-top: 14px; }
+.rc-hd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.rc-hd h2 { font: 700 20px var(--cb-font-display); }
+.rc-hd .dim { font-size: 13px; }
+.tilebox { position: relative; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 16px; overflow: hidden; }
+.rule-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(104px, 1fr); gap: 8px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: thin; }
+.tilebox:has(.tiles-more:not([hidden])) .rule-tiles { padding-right: 52px; }
+.page .rtile { border-radius: 12px; padding: 12px 10px; margin: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; min-height: 76px; min-width: 0; text-align: left; white-space: normal;
+  border: 1px solid var(--cb-border); background: transparent; color: var(--cb-ink-2); font: 600 13px var(--cb-font-body); transition: background .35s, transform .18s, box-shadow .18s; }
+.page .rtile:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.25); background: transparent; color: var(--cb-ink); }
+.page .rtile.pass { background: var(--ok-bg); border-color: color-mix(in srgb, var(--cb-pass) 30%, transparent); color: var(--cb-pass-2); }
+.page .rtile.fail { background: var(--cb-fail-solid); border-color: var(--cb-fail-solid); color: #0B0D10; }
+.page .rtile.nc { border-style: dashed; color: var(--cb-ink-3); }
+.page .rtile.sel { outline: 2px solid var(--cb-ink); outline-offset: 2px; }
+.rt-top { display: flex; justify-content: space-between; width: 100%; }
+.rt-chip { margin-top: auto; font: 600 12px var(--cb-font-body); letter-spacing: .02em; }
+.page .tiles-more { position: absolute; right: 10px; top: 50%; margin: -22px 0 0; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--cb-ink); color: var(--cb-on-ink); font: 600 20px var(--cb-font-body); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.page .tiles-more:hover { background: var(--cb-ink); color: var(--cb-on-ink); transform: translateX(2px); }
 
-/* the checks */
-#rules-card { margin-top: 48px; border-top: 0; padding-top: 0; }
-#rules-card .hd h2 { font-size: 19px; }
-.chk .body ul { list-style: none; margin: 8px 0 0; }
-.chk .body li { margin: 2px 0; overflow-wrap: anywhere; }
-.chk summary .id .cid { white-space: nowrap; }
-.limits { margin-top: 16px; max-width: 72ch; }
+.civic { border-top: 2px solid var(--cb-ink); }
+.civic .chk { border-bottom: 1px solid var(--cb-border); }
+.civic .chk > summary { grid-template-columns: 52px minmax(0, 1fr) auto 24px; gap: 14px; padding: 15px 12px; }
+.civic .chk .id .cid { font: 500 15px var(--cb-font-body); color: var(--cb-ink-3); white-space: nowrap; }
+.civic .chk .nm { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font: 400 14px/1.5 var(--cb-font-body); }
+.civic .chk .nm b { font: 600 16px var(--cb-font-body); color: var(--cb-ink); }
+.civic .chk .nm .pl { color: var(--cb-ink-2); }
+.civic .chk > summary > .chip { border-radius: 6px; background: transparent; border: 1px solid currentColor; padding: 4px 10px; letter-spacing: .06em; }
+.civic .chk > summary > .chip.pass { color: var(--cb-pass); }
+.civic .chk > summary > .chip.fail { color: var(--cb-fail); }
+.civic .chk > summary > .chip.nc { color: var(--cb-ink-3); border-style: dashed; }
+.civic .chk .body { padding: 0 12px 18px 78px; display: flex; flex-direction: column; gap: 10px; animation: cb-in .25s ease; }
+.civic .chk .body .rule { font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.civic .chk .body ul { list-style: none; margin: 0; max-width: 760px; }
+.civic .chk .body li { margin: 2px 0; overflow-wrap: anywhere; }
 
-/* totals and what was read, side by side */
-.rgrid { margin-top: 48px; }
-.rgrid .sect { margin-top: 0; }
-.rgrid > div > .sect + .sect { margin-top: 40px; }
-#totals { margin-top: 12px; border-top: 1px solid var(--ink); }
-#totals dt { font-size: 14.5px; color: var(--ink2); }
-#totals dd { font: 400 14.5px var(--mono); text-align: right; white-space: normal; }
-#totals dd .amt { font-weight: 500; }
-#timeline dd { font-family: var(--body); }
-.runlog { counter-reset: r; border-top: 1px solid var(--line); }
-.runlog li { counter-increment: r; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 400 12.5px/1.5 var(--mono); overflow-wrap: anywhere; color: var(--ink3); }
-.runlog li:before { content: counter(r, decimal-leading-zero); color: var(--persimmon-ink); }
-.runlog li.bad { background: var(--bad-bg); }
-.runfacts { margin-top: 16px; }
-.runfacts .sub { font-size: 13px; }
-.addbtn { margin-top: 8px; }
-.cmp-l { margin: 16px 0 6px; }
-#copy-card, #saved-card, #fp-card { max-width: 760px; }
+/* counts, what was checked, what a recount does not check, coverage */
+.rsummary { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.counts { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 400 14px var(--cb-font-body); color: var(--cb-ink-3); }
+.counts b { font: 600 18px var(--cb-font-body); color: var(--cb-ink); margin-right: 4px; } /* not in the prototype (kept by decision 7): Chivo Mono */
+.counts .p b { color: var(--cb-pass); }
+.counts .f b.on { color: var(--cb-fail); }
+.checked, .coverage { font-size: 13px; color: var(--cb-ink-2); }
+#checked-line .cid { margin-right: 2px; font-size: 13px; }
+.ncfold > summary { font: 700 15px var(--cb-font-display); color: var(--cb-ink); padding: 8px 0; }
+.fold { border-top: 1px solid var(--cb-rule); }
+.fold > summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; align-items: center; gap: 6px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▸"; }
+.fold[open] > summary::before { content: "▾"; }
+.ncgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 0 20px; margin-top: 6px; }
+.ncrow { display: block; padding: 7px 0; border-top: 1px solid var(--cb-rule); font: 400 13px/1.45 var(--cb-font-body); color: var(--cb-ink-2); }
+.ncrow b { font-weight: 600; color: var(--cb-ink); }
+.limits { margin-top: 12px; max-width: 72ch; }
+#banners { margin-top: 0; }
+
+/* TOTALS: the totals card with its stamp, the sources. The tools (on RECOUNT since owner decision 11) keep their look here */
+.panel { width: 100%; max-width: 780px; margin: 0 auto; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 16px; padding: 22px 26px; }
+.panel-h { font: 700 15px var(--cb-font-display); padding-bottom: 8px; }
+.totals { position: relative; overflow: hidden; }
+.totals > :not(.stamp) { position: relative; }
+.stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-9deg); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px clamp(14px, 3vw, 30px);
+  border: 3px double var(--cb-ink); border-radius: 14px; opacity: .07; pointer-events: none; text-align: center; max-width: 86%; user-select: none; }
+.st-name { font: 700 clamp(20px, 5vw, 58px)/1.05 var(--cb-font-display); letter-spacing: -.02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.st-id { font: 600 clamp(10px, 1.6vw, 18px) var(--cb-font-body); letter-spacing: clamp(.08em, 1.5vw, .32em); }
+#timeline, #totals { grid-template-columns: minmax(0, 1fr) auto; }
+#totals dt, #timeline dt { font-size: 15px; color: var(--cb-ink-3); }
+#totals dd, #timeline dd { font: 600 15px var(--cb-font-body); text-align: right; color: var(--cb-ink); }
+#totals dd .amt { font-weight: 600; }
+.sources > summary { cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+.sources > summary::-webkit-details-marker { display: none; }
+.sources > summary::before { content: "▸"; }
+.sources[open] > summary::before { content: "▾"; }
+.sources > summary .dim { font: 400 13px var(--cb-font-body); }
+.runlog { counter-reset: r; border-top: 1px solid var(--cb-rule); margin-top: 12px; }
+.runlog li { counter-increment: r; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--cb-rule); font: 400 13px/1.5 var(--cb-font-body); color: var(--cb-ink-2); overflow-wrap: anywhere; }
+.runlog li:before { content: counter(r, decimal-leading-zero); color: var(--cb-accent-text); }
+.runlog li.bad { background: var(--cb-fail-bg-2); }
+.runfacts { margin-top: 12px; }
+.runfacts .sub { font-size: 12.5px; }
+.tools { width: 100%; margin: 10px auto 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; align-items: start; padding-top: 22px; border-top: 1px solid var(--cb-border); }
+/* the three tools in one row on a wide screen, two on a tablet, one on a phone; equal columns, tops aligned, headings on one line */
+@media (max-width: 999px) { .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .tools { grid-template-columns: minmax(0, 1fr); } }
+.tool { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tool-h { font: 700 16px var(--cb-font-display); white-space: nowrap; }
+.tool .muted { font-size: 14px; }
+.tool form { display: flex; flex-direction: column; gap: 8px; }
+.addbtn { margin-top: 0; }
+.cmp-l { margin: 10px 0 4px; }
+#saved-card { max-width: none; }
 .backrow { margin-top: 32px; }
 
 @media (max-width: 639px) {
-  .verdict { grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; }
-  .verdict:before { width: 40px; height: 40px; font-size: 20px; }
-  #totals { grid-template-columns: minmax(0, 1fr) auto; }
+  .verdict { padding: 20px; }
+  .civic .chk > summary { grid-template-columns: 40px minmax(0, 1fr) auto 18px; gap: 8px; padding: 12px 6px; }
+  .civic .chk .body { padding-left: 54px; padding-right: 8px; }
+  .panel { padding: 18px; }
 }
-.kickrow .mono:has(#campaign-id:empty) { display: none; }

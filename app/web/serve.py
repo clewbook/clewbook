@@ -48,9 +48,12 @@ def csp(rel):
             f"connect-src *; worker-src 'self' blob:; frame-ancestors {frame}; base-uri 'none'; form-action 'none'")
 
 NOT_FOUND = b"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
 <title>Not here</title><link rel="stylesheet" href="/ui.css"><link rel="stylesheet" href="/start.css">
-<main class="notfound"><h1 class="t-h1">That page isn't here</h1><p class="t-lead" style="margin-top:12px">The address may be mistyped, or the page may not exist yet.</p>
-<p style="margin-top:24px"><a href="/">Go to the start page</a></p></main>"""
+<header class="bar"><a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span><nav class="nav" aria-label="Main"><a href="/">Campaigns</a><a href="/recount.html">Recount</a><a href="/host.html">Host</a></nav></header>
+<main class="page notfound"><p class="nf-k">404</p><h1 class="nf-h">That page isn't here</h1><p class="nf-l">The address may be mistyped, or the page may not exist yet.</p>
+<p class="btns nf-b"><a class="btn" href="/">Go to campaigns</a> <a class="btn neutral" href="/host.html">Host guide</a></p></main>
+<footer class="sitefoot"><span>Clewbook &middot; Private Markets. Public Accounting.</span></footer>"""
 
 # Public lightwalletd servers that do not allow browser requests themselves. This local server forwards
 # a browser's gRPC-web call to them (same request, same answer, nothing stored), so the recount page can
