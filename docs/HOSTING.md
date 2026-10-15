@@ -15,6 +15,8 @@ The README lists some of these. The ones it leaves out are marked with a star.
 - For the browser module: the WebAssembly target (`rustup target add wasm32-unknown-unknown`), `wasm-bindgen-cli` at exactly version 0.2.129 (`cargo install wasm-bindgen-cli --version 0.2.129`), and **Zig 0.14**. Download Zig from ziglang.org, unpack it, and set the variable `ZIG` to the path of the `zig` program when you run the build script. Zig compiles the one C dependency for the browser.
 - Node 22 only if you want to run the browser tests. They also need Chromium: after `cd app/vectors/js && npm ci`, run `npx playwright install chromium`, and on Ubuntu `sudo npx playwright install-deps chromium` for its system libraries (if you cannot use sudo, the four missing ones on a bare WSL Ubuntu were `libnspr4`, `libnss3`, `libnssutil3` and `libasound2`: `apt-get download` them and point `LD_LIBRARY_PATH` at the unpacked folder, as we did).
 - For a real campaign: a machine that stays on and online, a public https address for the relay, and an https address for the pages.
+- A place for the public list: a relay that contributors and visitors can reach. You can run your own (section 4) or use one you trust.
+- A shielded address to receive what the campaign keeps.
 
 ## 2. Build
 
@@ -60,6 +62,18 @@ mkdir -p runs/my-campaign
 - `wallet1.age` is the key file that unlocks the wallet's seed. It sits next to the wallet, so the folder as a whole is the key: back it up and keep it private.
 - Run `cb-host create --help` for every option, including `--mode auction`, `--items`, `--goal-zat`, `--deadline-in`, `--ticket-k`, `--early-close`, `--name` and `--relay`.
 - For the main network add `-n main` to `init` and `--network main --confirm-mainnet` to `create`; section 8 applies.
+
+### The steps of a campaign
+
+These are the steps of every campaign, run from your own computer. This site does not host campaigns, hold keys or touch anyone's money, and it has no button that sets one up for you.
+
+1. Start the host program's dashboard on your own computer. It is for you only and cannot be reached from other devices.
+2. Set up the campaign there: type, goal or items, deadline, smallest contribution, and the ticket window. It makes a wallet and a key for this campaign alone.
+3. Share the contribute link it gives you. Contributors pay from their own wallets, and each one gets a refund ticket signed in advance.
+4. After the deadline, close the campaign from the dashboard. It refunds, sweeps or settles, and saves a final copy of the list with a signed fingerprint.
+5. Share the recount link. Anyone can then check your books against the public chain.
+
+The two kinds: in a **fundraiser** people contribute toward a goal; if the goal is reached by the deadline you keep the money, and if not, everyone is refunded. In an **auction** people bid for a number of items; bid amounts stay off the public record until you close, though you see each bid as it arrives. The highest bids win and everyone else is refunded. Winners pay in one of two ways, chosen on the set up page: by default everyone who wins pays the same price, the lowest winning bid, and gets back anything extra they sent, with the payments going to a treasury wallet made for the campaign; or each winner pays their own bid, and it is sent to your address.
 
 ## 4. Running a relay on a small server
 
@@ -116,15 +130,19 @@ Move the built `cb-relay` to the server. The build machine and the server need c
 
 `python3 app/web/serve.py <port> <bind address>` (default 8770 on 127.0.0.1) serves the folder `app/web/www`. Put the same kind of https front in front of it as for the relay. Things to know:
 
-- It serves only an **allow list** of files: the pages (home, host guide, campaign, contribute, recount, card, badge), their scripts and styles, the fonts, the images, the browser modules in `pkg/` and `proof/`, `campaigns.json` and `robots.txt`. Anything else gets the same plain 404 page, including the dashboard files, which are never served. A different folder can be served by setting the environment variable `SERVE_ROOT`.
+- It serves only an **allow list** of files: the pages (home, host page, campaign, contribute, recount, card, badge), their scripts and styles, the fonts, the images, the browser modules in `pkg/` and `proof/`, `campaigns.json` and `robots.txt`. Anything else gets the same plain 404 page, including the dashboard files, which are never served. A different folder can be served by setting the environment variable `SERVE_ROOT`.
 - It sends a strict content policy, no referrer, no sniffing and no cookies. Only the badge page may be shown inside another site's page.
 - It forwards browser calls under `/grpc/<host>` to two public chain servers that do not answer browsers themselves, with a small body limit and a limit on parallel requests.
 - Do not turn on its developer mode on a public server. The code warns about this.
 - Every response is marked as not cacheable, so each visit downloads the browser module again (about 2.4 MB, 0.6 MB compressed). Plan transfer for that.
 
-## 7. Being listed on app.clewbook.xyz
+## 7. Listing and contact
 
-The project runs one public set of pages. Its home page lists campaigns from a file the project edits by hand, so **a campaign can only appear there with the project's approval for now**. There is no submission form. A link to a campaign on those pages can work without being listed: the pages take the campaign and its relay from the link, provided your relay is on https. We have not tested this with a relay run by someone else. A contact route for listing requests has not been set up yet, and we do not invent one here.
+Hosting is guided by us for now. The project runs one public set of pages, app.clewbook.xyz, and its home page lists campaigns from a file the project edits by hand, so **a campaign appears there only with the project's approval**. There is no submission form.
+
+To ask for a listing or for help with hosting, open an issue at https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us (this needs a GitHub account). The code and these guides are at https://github.com/clewbook/clewbook.
+
+A link to a campaign on those pages can work without being listed: the pages take the campaign and its relay from the link, provided your relay is on https. We have not tested this with a relay run by someone else.
 
 ## 8. Mainnet
 
@@ -135,8 +153,11 @@ Testnet campaigns have no restriction. For mainnet, the host program refuses to 
 - **Keys are plain files on the host's machine today.** The campaign's signing and memo keys are in `secrets.json` in the campaign folder (readable only by its owner, but not protected by a passphrase). The wallet's seed phrase file is locked with a key file that sits in the same folder, so it adds no protection against someone who can read the folder.
 - **There has been no outside review of the code or of the design.** The tests and evidence in this repository are ours.
 - **The host machine must stay online** from before the first contribution until the campaign is closed and refunds are confirmed. If it is off, new payments get no ticket, and the recount flags it.
-- **The campaign folder is the key.** Back it up before taking any money, keep the backup private, and never share the folder. There is no key import.
+- **Try it on the test network first.** Its coins have no value. A real money campaign asks for an extra confirmation (section 8).
+- **The campaign folder is the key.** Back it up before taking any money, keep the backup private, and never share the folder. There is no key import. If you lose it, nothing can recover the wallet or the key; contributors can still use their own tickets.
 - A payment that arrives after the deadline is not counted and is not refunded automatically. See "Late payments" in [PRIVACY.md](PRIVACY.md).
+- **Close in time.** If you do not close within the ticket window after the deadline, contributors may claim their own refunds.
+- **The recount is public.** Anything that does not match the chain shows up as a failed check for everyone to see.
 - The relay holds no secrets, but it is a public service: everything on it is public data.
 
 ## 10. Hardening (optional)

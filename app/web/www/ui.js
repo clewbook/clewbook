@@ -23,9 +23,10 @@ export function setup(title, { netbar = true, themeControl = true, host = false 
   document.addEventListener('click', (e) => { for (const o of document.querySelectorAll('.cid.open')) if (!o.contains(e.target)) o.classList.remove('open'); });
 }
 
-// ---------- theme: System (follows the device's setting, also when it changes while the page is open), Light or Dark ----------
-// The small script in every page's head applies the saved choice before the page is drawn (no flash). The choice is kept in this browser when it
-// allows it; when storage is blocked the page stays on System. Only colours change (ui.css, :root[data-theme="dark"]).
+// ---------- theme: Light or Dark, and the device's own setting until one is chosen ----------
+// The small script in every page's head applies the saved choice before the page is drawn (no flash). With no saved choice (or the "system" an
+// older visit saved) the page follows the device, also when it changes while the page is open, and the control shows the theme in use. The choice
+// is kept in this browser when it allows it. Only colours change (ui.css, :root[data-theme="dark"]).
 const THEME_KEY = 'cb-theme';
 const darkQuery = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
 export function themeChoice() {
@@ -37,8 +38,12 @@ export function applyTheme(choice) {
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
   root.dataset.theme = dark ? 'dark' : 'light';
-  // the segmented Theme controls (footer, phone menu) show the choice; the select underneath keeps it
-  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === choice));
+  // the Theme controls (footer, phone menu) show the theme in use
+  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === root.dataset.theme));
+}
+function chooseTheme(c) {
+  try { localStorage.setItem(THEME_KEY, c); } catch { /* storage blocked: the choice holds for this page only */ }
+  applyTheme(c);
 }
 let themeWatching = false;
 /** The Theme control, always in the same place: the footer line at the bottom of the page (made when the page has none). */
@@ -50,37 +55,27 @@ export function mountTheme() {
     const follow = () => { if (document.documentElement.dataset.themeChoice === 'system') applyTheme('system'); };
     if (q.addEventListener) q.addEventListener('change', follow); else if (q.addListener) q.addListener(follow);
   }
-  if (document.getElementById('theme-select')) return;
+  if (document.getElementById('theme-ctl')) return;
   let foot = document.querySelector('footer.sitefoot');
   if (!foot) { foot = document.createElement('footer'); foot.className = 'sitefoot'; document.body.append(foot); }
-  const label = document.createElement('label'); label.htmlFor = 'theme-select'; label.textContent = 'Theme';
-  const sel = document.createElement('select'); sel.id = 'theme-select';
-  for (const [v, t] of [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); }
-  sel.value = themeChoice();
-  sel.addEventListener('change', () => {
-    let c = sel.value;
-    try { if (c === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, c); } catch { c = 'system'; sel.value = 'system'; }
-    applyTheme(c);
-  });
-  sel.hidden = true; // the visible control is the segmented one below; the select keeps the value for the rest of the page
-  label.id = 'theme-label';
-  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.append(label, sel, themeSeg(sel));
+  const label = document.createElement('span'); label.textContent = 'Theme'; label.setAttribute('aria-hidden', 'true');
+  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.id = 'theme-ctl'; wrap.append(label, themeSeg());
   let ctl = foot.querySelector('.foot-ctl');
   if (!ctl) { ctl = document.createElement('span'); ctl.className = 'foot-ctl'; foot.append(ctl); }
   ctl.append(wrap);
   applyTheme(themeChoice());
 }
-/** System, Light, Dark as three pressed buttons; pressing one sets the select and lets its change handler save and apply the choice. */
-function themeSeg(sel) {
-  const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-labelledby', 'theme-label');
+/** Light and Dark as two pressed buttons in one pill; the one in use is filled. */
+function themeSeg() {
+  const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Theme');
   for (const [v, t] of THEMES) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.theme = v; b.textContent = t; b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => { sel.value = v; sel.dispatchEvent(new Event('change')); });
+    b.addEventListener('click', () => chooseTheme(v));
     seg.append(b);
   }
   return seg;
 }
-const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
+const THEMES = [['light', 'Light'], ['dark', 'Dark']];
 
 // ---------- the frame: footer controls (testnet demo, replay intro) and the phone menu ----------
 const DEMO_URL = 'https://clewbook.xyz/demo/';
@@ -103,8 +98,7 @@ function mountChrome({ host }) {
     panel = document.createElement('div'); panel.className = 'menu-panel';
     for (const a of nav.querySelectorAll('a')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
     const demo = document.createElement('a'); demo.className = 'demo'; demo.href = DEMO_URL; demo.textContent = '▲ Try the testnet demo →'; panel.append(demo);
-    const sel = document.getElementById('theme-select');
-    if (sel) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; row.append(t, themeSeg(sel)); panel.append(row); }
+    if (document.getElementById('theme-ctl')) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row); }
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     applyTheme(themeChoice());
     panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });

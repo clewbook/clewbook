@@ -17,52 +17,69 @@
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
   <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="recount.html">Recount</a><a href="host.html" aria-current="page">Host</a></nav>
 </header>
+<div class="aurora" aria-hidden="true"><div></div></div>
 <main class="page hostpage">
-  <p class="t-label hg-k">Host guide</p>
-  <h1 class="t-h1">Host a campaign</h1>
-  <p class="t-lead home-lead">You can run a fundraiser or an auction of your own. Hosting is done from your own computer, with a program you run there. This site does not host campaigns, hold keys or touch anyone's money, and it has no button that sets one up for you.</p>
-
-  <section class="sect">
-    <div class="hd"><h2>Which kind</h2></div>
-    <ul class="kinds">
-      <li><strong>Fundraiser</strong> People contribute toward a goal. If the goal is reached by the deadline, you keep the money. If not, everyone is refunded.</li>
-      <li><strong>Auction</strong> People bid for a number of items. Bid amounts stay off the public record until you close; you see each bid as it arrives. The highest bids win; everyone else is refunded. The set up page offers two ways for winners to pay. The first, chosen unless you change it: everyone who wins pays the same price, the lowest winning bid, and gets back anything extra they sent; the payments go to a treasury wallet made for the campaign. The second: each winner pays their own bid, and it is sent to your address.</li>
-    </ul>
+<div class="hp">
+  <div class="hhero">
+    <span class="heyebrow"><span class="dot"></span>HOST</span>
+    <h1>Host your own campaign</h1>
+    <p>Run a fundraiser or an auction. Contributors stay off the public record, and anyone can recount the books.</p>
+  </div>
+  <section class="hgroup fund" aria-labelledby="g-fund">
+    <div class="gh"><span class="gh-row"><span class="gh-line"></span><h2 id="g-fund">Fundraisers</h2><span class="gh-line"></span></span><span class="gh-sub">Goal · deadline · refunds</span></div>
+    <div class="hgrid">
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="3" y="10" width="18" height="5" rx="2.5"/><rect x="3" y="10" width="11" height="5" rx="2.5" fill="currentColor" stroke="none"/><line x1="17" y1="6" x2="17" y2="19"/></svg></span></div>
+      <h3 class="htc-t">Soft cap</h3>
+      <ul class="htc-b"><li>Goal met by the deadline: every contribution is kept.</li><li>Goal missed: everyone is refunded by their own ticket.</li></ul>
+      <div class="htc-chips"><span class="htc-k">FITS</span><span class="hchip">Crowdfunding</span><span class="hchip">Grants</span><span class="hchip">Pre seed raises</span><span class="hchip">Charity drives</span></div>
+    </article>
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="3" y="10" width="18" height="5" rx="2.5"/><rect x="3" y="10" width="9" height="5" rx="2.5" fill="currentColor" stroke="none"/><line x1="13" y1="7" x2="13" y2="18"/><line x1="20" y1="5" x2="20" y2="20"/></svg></span><span class="hbadge new">NEW</span></div>
+      <h3 class="htc-t">Soft cap + hard cap</h3>
+      <ul class="htc-b"><li>The hard cap is the most the campaign keeps.</li><li>At the close, payments count in chain order. One that would go over is refunded whole; smaller ones that fit are kept.</li></ul>
+      <p class="htc-note">Clewbook handles the money side. The host delivers any token off chain.</p>
+      <div class="htc-chips"><span class="htc-k">FITS</span><span class="hchip">Presales with a fixed allocation</span></div>
+    </article>
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="13" r="8"/><line x1="12" y1="13" x2="12" y2="9"/><line x1="12" y1="13" x2="15" y2="15"/><line x1="10" y1="2.5" x2="14" y2="2.5"/></svg></span></div>
+      <h3 class="htc-t">Early close</h3>
+      <ul class="htc-b"><li>End as soon as the goal is met.</li><li>Only if switched on when the campaign is created.</li></ul>
+      <div class="htc-chips"><span class="htc-k">WORKS WITH</span><span class="hchip">Either fundraiser</span></div>
+    </article>
+    </div>
   </section>
-
-  <section class="sect">
-    <div class="hd"><h2>What you need</h2></div>
-    <ul class="plainlist">
-      <li>A computer that stays on and online from the first contribution until you have closed the campaign. Tickets are issued only while the host program runs.</li>
-      <li>The host program (<code>cb-host</code>) and the relay program (<code>cb-relay</code>), built from the source code that comes with this project. The README has the steps.</li>
-      <li>A place for the public list: a relay that contributors and visitors can reach. You can run your own and give it a web address, or use one you trust.</li>
-      <li>A shielded address to receive what the campaign keeps.</li>
-    </ul>
+  <section class="hgroup auction" aria-labelledby="g-auction">
+    <div class="gh"><span class="gh-row"><span class="gh-line"></span><h2 id="g-auction">Auctions</h2><span class="gh-line"></span></span><span class="gh-sub">N items · sealed bids</span></div>
+    <div class="hgrid">
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><line x1="3" y1="8" x2="21" y2="8"/><rect x="4" y="8" width="4" height="12" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="16" y="8" width="4" height="12" rx="1"/></svg></span><span class="hbadge default">DEFAULT</span></div>
+      <h3 class="htc-t">Uniform price</h3>
+      <ul class="htc-b"><li>The top N bids win. Every winner pays the lowest winning bid, at least the reserve.</li><li>Anything above that is returned.</li></ul>
+      <div class="htc-chips"><span class="htc-k">FITS</span><span class="hchip">Token allocations</span><span class="hchip">Editions</span><span class="hchip">Access slots</span></div>
+    </article>
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="16" y="9" width="4" height="11" rx="1"/></svg></span></div>
+      <h3 class="htc-t">Pay your bid</h3>
+      <ul class="htc-b"><li>Winners pay their own sealed bid.</li><li>The whole amount is kept.</li></ul>
+      <div class="htc-chips"><span class="htc-k">FITS</span><span class="hchip">One off items</span></div>
+    </article>
+    <article class="htc">
+      <div class="htc-top"><span class="ichip" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span></div>
+      <h3 class="htc-t">Single or multi item</h3>
+      <ul class="htc-b"><li>Sell one item or many.</li><li>Ties are broken by chain order.</li></ul>
+      <div class="htc-chips"><span class="htc-k">WORKS WITH</span><span class="hchip">Either auction</span></div>
+    </article>
+    </div>
   </section>
-
-  <section class="sect">
-    <div class="hd"><h2>The steps, from your own computer</h2></div>
-    <ol class="steps">
-      <li>Start the host program's dashboard on your own computer. It is for you only and cannot be reached from other devices.</li>
-      <li>Set up the campaign there: type, goal or items, deadline, smallest contribution, and the ticket window. It makes a wallet and a key for this campaign alone.</li>
-      <li>Share the contribute link it gives you. Contributors pay from their own wallets, and each one gets a refund ticket signed in advance.</li>
-      <li>After the deadline, close the campaign from the dashboard. It refunds, sweeps or settles, and saves a final copy of the list with a signed fingerprint.</li>
-      <li>Share the recount link. Anyone can then check your books against the public chain.</li>
-    </ol>
-  </section>
-
-  <section class="sect">
-    <div class="hd"><h2>What to know first</h2></div>
-    <ul class="plainlist">
-      <li><strong>Try it on the test network first.</strong> Its coins have no value. A real money campaign asks for an extra confirmation.</li>
-      <li><strong>Back up the campaign folder.</strong> It holds the wallet and the key. If you lose it, nothing can recover them; contributors can still use their own tickets.</li>
-      <li><strong>Late payments are not counted.</strong> A payment that arrives after the deadline gets no ticket and is not refunded automatically; it stays in the campaign wallet until you return it by hand.</li>
-      <li><strong>Close in time.</strong> If you do not close within the ticket window after the deadline, contributors may claim their own refunds.</li>
-      <li><strong>The recount is public.</strong> Anything that does not match the chain shows up as a failed check for everyone to see.</li>
-    </ul>
-  </section>
-
-  <p class="backhome btns"><a class="demo-pill big" href="https://clewbook.xyz/demo/">▲ Try the testnet demo →</a> <a class="btn neutral" href="./">Back to the home page</a></p>
+  <div class="hactions">
+    <div class="hbtns">
+      <a class="hbtn primary" href="https://github.com/clewbook/clewbook/blob/main/docs/HOSTING.md" target="_blank" rel="noopener">Host yourself <span aria-hidden="true">↗</span></a>
+      <a class="hbtn" href="https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us" target="_blank" rel="noopener">Contact us</a>
+    </div>
+    <p class="hquiet">Hosting is guided by us for now.</p>
+  </div>
+</div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

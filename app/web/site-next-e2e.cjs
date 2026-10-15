@@ -80,7 +80,10 @@ const text = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' 
     p = await open(`${BASE}/host.html`);
     await p.waitForTimeout(1500);
     const ht = await p.evaluate(() => document.body.innerText), hh = await links(p);
-    check('host: says plainly that hosting is done from your own computer, lists the steps, and has no link to a local dashboard', /Hosting is done from your own computer/.test(ht) && (await p.locator('ol li').count()) >= 5 && !hh.some((h) => LOCAL.test(h)) && !/\bdemo\b|play money|start page/i.test(ht), JSON.stringify(hh.filter((h) => LOCAL.test(h))));
+    const hl2 = await p.evaluate(() => [...document.querySelectorAll('.hactions a')].map((a) => [a.textContent.trim(), a.getAttribute('href'), a.target, a.rel]));
+    check('host: the host page of the handoff (headline, six cards, the two links in a new tab), no link to a local dashboard', /Host your own campaign/.test(ht) && (await p.locator('.htc').count()) === 6 && /Hosting is guided by us for now\./.test(ht)
+      && JSON.stringify(hl2) === JSON.stringify([['Host yourself ↗', 'https://github.com/clewbook/clewbook/blob/main/docs/HOSTING.md', '_blank', 'noopener'], ['Contact us', 'https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us', '_blank', 'noopener']])
+      && !hh.some((h) => LOCAL.test(h)) && !/\bdemo\b|play money|start page/i.test(ht), JSON.stringify(hl2));
     check('host: no sideways scrolling at 390 px', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await p.screenshot({ path: `${SHOTS}/host-390.png`, fullPage: true });
     crawl.push(...hh);

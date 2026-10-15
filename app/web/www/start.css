@@ -154,24 +154,59 @@
   .empty-card { padding: 28px 20px; }
 }
 
-/* the host page: a reading column (design round 2), the two kinds as cards, the steps numbered 01 to 05 */
-.plainlist { margin: var(--s3) 0 0; padding-left: 0; list-style: none; }
-.plainlist li { padding: 6px 0; overflow-wrap: anywhere; color: var(--cb-ink-2); }
-.plainlist li strong { color: var(--cb-ink); }
-.hostpage { padding-top: 36px; }
-.hostpage > * { max-width: 810px; }
-.hg-k { font-weight: 600; letter-spacing: .12em; color: var(--cb-accent-text); margin-bottom: 10px; }
-.hostpage .t-h1 { font-size: clamp(34px, 5vw, 52px); letter-spacing: -.03em; }
-.hostpage .home-lead { margin-top: 14px; color: var(--cb-ink-2); }
-.hostpage .sect { margin-top: 18px; border-top: 1px solid var(--cb-border); padding-top: 18px; }
-.hostpage .sect > .hd h2 { font-size: 22px; }
-.kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
-.kinds li { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 20px 22px; color: var(--cb-ink-2); font-size: 14px; line-height: 1.6; }
-.kinds li strong { display: block; font: 700 20px var(--cb-font-display); color: var(--cb-ink); margin-bottom: 6px; }
-.hostpage .steps { margin-top: 4px; }
-.hostpage .steps li { padding: 14px 0; color: var(--cb-ink-2); }
-.backhome { margin-top: 40px; }
-.backhome .btn.neutral { min-height: 48px; border: 1px solid var(--cb-ink); color: var(--cb-ink); font-weight: 600; }
+/* the host page (host page handoff): a centred hero, the two kinds of campaign as two groups of cards (GroupHeading, HostTypeCard with its
+   IconChip and Badge), two links and one quiet line. The aurora behind it is the home page's. Group tones: --cb-fund and --cb-auction (ui.css). */
+.hostpage { padding-top: 0; padding-bottom: 0; }
+.hp { max-width: 1180px; margin: 0 auto; padding: clamp(40px, 7vw, 88px) 0 clamp(56px, 8vw, 96px); display: flex; flex-direction: column; align-items: center; gap: clamp(40px, 5vw, 64px); }
+.hhero { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; max-width: 720px; }
+.heyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--cb-radius-pill); background: var(--cb-fund-tint); border: 1px solid rgba(63,184,154,.35);
+  font: 600 12px var(--cb-font-body); letter-spacing: .16em; color: var(--cb-accent-text); }
+.heyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cb-fund); }
+.hhero h1 { font: 700 clamp(36px, 5.6vw, 68px)/1.04 var(--cb-font-display); letter-spacing: -.035em; color: var(--cb-ink); text-wrap: balance; }
+.hhero p { font: 400 clamp(15px, 1.4vw, 17px)/1.6 var(--cb-font-body); color: var(--cb-ink-2); max-width: 600px; }
+.hgroup { --tone: var(--cb-fund); --tint: var(--cb-fund-tint); display: flex; flex-direction: column; align-items: center; gap: 22px; width: 100%; }
+.hgroup.auction { --tone: var(--cb-auction); --tint: var(--cb-auction-tint); }
+/* GroupHeading: the title between two short hairlines in the group's tone, and a subline */
+.gh { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.gh-row { display: flex; align-items: center; gap: 12px; }
+.gh-line { width: 28px; height: 1px; background: var(--tone); opacity: .6; }
+.gh h2 { font: 700 clamp(24px, 2.6vw, 30px) var(--cb-font-display); letter-spacing: -.02em; color: var(--cb-ink); }
+.gh-sub { font: 500 13px var(--cb-font-body); letter-spacing: .08em; color: var(--cb-ink-3); white-space: nowrap; }
+.hgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; width: 100%; }
+/* HostTypeCard: not interactive; it lifts a little under the pointer. The chip row sits at the bottom so the cards of a row line up. */
+.htc { position: relative; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 20px; padding: 22px 22px 20px; display: flex; flex-direction: column; gap: 14px; text-align: left;
+  transition: transform .25s cubic-bezier(.16,1,.3,1), border-color .25s, box-shadow .25s; }
+.htc:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--tone) 55%, transparent); box-shadow: 0 18px 40px rgba(0,0,0,.16); }
+.htc-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+/* IconChip: the group's tint behind a stroke icon in its tone */
+.ichip { width: 44px; height: 44px; border-radius: 13px; background: var(--tint); color: var(--tone); display: flex; align-items: center; justify-content: center; flex: none; }
+.ichip svg { display: block; }
+/* Badge: NEW in gold, DEFAULT outlined in the auction tone */
+.hbadge { padding: 4px 10px; border-radius: var(--cb-radius-pill); font: 600 11px var(--cb-font-body); letter-spacing: .12em; }
+.hbadge.new { background: var(--cb-wait); color: #0B0D10; }
+.hbadge.default { border: 1px solid var(--cb-auction); color: var(--cb-auction); }
+.htc-t { font: 700 19px/1.2 var(--cb-font-display); letter-spacing: -.01em; color: var(--cb-ink); }
+.htc-b { display: flex; flex-direction: column; gap: 8px; }
+.htc-b li { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 10px; align-items: baseline; font: 400 14px/1.55 var(--cb-font-body); color: var(--cb-ink-2); text-wrap: pretty; }
+.htc-b li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tone); transform: translateY(-2px); }
+.htc-note { font: 400 13px/1.5 var(--cb-font-body); color: var(--cb-ink-3); }
+.htc-chips { margin-top: auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 4px; }
+.htc-k { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-4); margin-right: 2px; }
+.hchip { padding: 5px 10px; border-radius: var(--cb-radius-pill); background: rgba(var(--cb-overlay-rgb), .06); border: 1px solid var(--cb-border); font: 500 12px var(--cb-font-body); color: var(--cb-ink-2); }
+.hactions { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 8px; width: 100%; }
+.hbtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.hbtn { min-height: 52px; padding: 0 28px; border-radius: var(--cb-radius-pill); border: 1px solid var(--cb-border-hover); background: transparent; color: var(--cb-ink); font: 600 15px var(--cb-font-body);
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; white-space: nowrap; flex: none;
+  transition: transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s, border-color .2s, background .2s; }
+.hbtn:hover { color: var(--cb-ink); transform: translateY(-2px); border-color: #3FB89A; background: rgba(63,184,154,.08); }
+.hbtn.primary { background: #3FB89A; border-color: #3FB89A; color: #0B0D10; }
+.hbtn.primary:hover { color: #0B0D10; background: #3FB89A; box-shadow: 0 10px 28px rgba(63,184,154,.35); }
+.hbtn:active { transform: scale(.97); }
+.hbtn:focus-visible { outline: 2px solid #3FB89A; outline-offset: 2px; }
+.hquiet { font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); text-align: center; white-space: nowrap; }
+@media (min-width: 1000px) { .hgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 719px) { .hgrid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .htc:hover, .hbtn:hover, .hbtn:active { transform: none; } }
 
 /* the demo (clewbook.xyz/demo): the same frame as the product, the TESTNET bar on top and a TESTNET · DEMO eyebrow */
 .demo { padding-top: 36px; }

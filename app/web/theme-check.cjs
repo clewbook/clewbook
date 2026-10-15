@@ -1,6 +1,6 @@
 // Static check of the Theme control (no browser, no network): every page we ship carries the same small theme script at the top of its head
 // (before any stylesheet, so there is no flash), the page server and the hosted copy allow exactly that inline script by its hash, and every
-// page mounts the control (System, Light, Dark) through ui.js, except the badge, which is shown inside other sites and only follows the theme.
+// page mounts the control (Light, Dark) through ui.js, except the badge, which is shown inside other sites and only follows the theme.
 // Usage: node app/web/theme-check.cjs [built static folder, for the demo pages too]      Exit status 1 when a check fails.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const WWW = path.join(__dirname, 'www');
@@ -41,9 +41,10 @@ const vercel = fs.readFileSync(path.join(__dirname, 'vercel.json'), 'utf8');
 check('the hosted copy (vercel.json) allows it too, in both of its policies', vercel.split(`'${h}'`).length - 1 === 2);
 check('no page server policy allows inline scripts in general', !/script-src[^;]*'unsafe-inline'/.test(serve.replace(/\+ \(" 'unsafe-inline'" if DEV else ""\)/, '')));
 const ui = fs.readFileSync(path.join(WWW, 'ui.js'), 'utf8');
-check('ui.js: setup() mounts the control, which offers System, Light and Dark and is labelled Theme', /if \(themeControl\) mountTheme\(\)/.test(ui) && /\['system', 'System'\], \['light', 'Light'\], \['dark', 'Dark'\]/.test(ui) && /textContent = 'Theme'/.test(ui));
-check('ui.js: the choice is saved in try/catch and falls back to System', /try \{ if \(c === 'system'\) localStorage\.removeItem\(THEME_KEY\); else localStorage\.setItem\(THEME_KEY, c\); \} catch \{ c = 'system'; sel\.value = 'system'; \}/.test(ui));
-check('ui.js: System follows the device setting while the page is open', /addEventListener\('change', follow\)/.test(ui));
+check('ui.js: setup() mounts the control, which offers Light and Dark only and is labelled Theme', /if \(themeControl\) mountTheme\(\)/.test(ui) && /const THEMES = \[\['light', 'Light'\], \['dark', 'Dark'\]\];/.test(ui) && !/'System'/.test(ui) && /setAttribute\('aria-label', 'Theme'\)/.test(ui));
+check('ui.js: the choice is saved in try/catch under the same key', /const THEME_KEY = 'cb-theme'/.test(ui) && /try \{ localStorage\.setItem\(THEME_KEY, c\); \} catch/.test(ui));
+check('ui.js: the control shows the theme in use (a saved "system" or no choice follows the device)', /b\.dataset\.theme === root\.dataset\.theme/.test(ui) && /return c === 'light' \|\| c === 'dark' \? c : 'system'/.test(ui));
+check('ui.js: with no choice the page follows the device setting while it is open', /addEventListener\('change', follow\)/.test(ui));
 if (built) check('the built folder has theme-mount.js for its two own pages', fs.existsSync(path.join(built, 'theme-mount.js')));
 console.log(failed ? `${failed} FAILED` : 'ALL PASS');
 process.exit(failed ? 1 : 0);
