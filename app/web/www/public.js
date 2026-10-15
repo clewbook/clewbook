@@ -38,14 +38,14 @@ export async function observedBlockSeconds(endpoints, tip) {
   return null;
 }
 
-/** "about 3 hours" from a number of blocks and a measured seconds-per-block; null when it was not measured (no guessed constant). */
+/** "≈3 hours" from a number of blocks and a measured seconds-per-block; null when it was not measured (no guessed constant). */
 export function eta(blocks, secondsPerBlock) {
   if (!secondsPerBlock) return null;
   const sec = blocks * secondsPerBlock;
-  if (sec < 90) return 'about a minute';
-  if (sec < 5400) return `about ${Math.round(sec / 60)} minutes`;
-  if (sec < 172800) return `about ${Math.round(sec / 3600)} hours`;
-  return `about ${Math.round(sec / 86400)} days`;
+  if (sec < 90) return '≈1 minute';
+  if (sec < 5400) return `≈${Math.round(sec / 60)} minutes`;
+  if (sec < 172800) return `≈${Math.round(sec / 3600)} hours`;
+  return `≈${Math.round(sec / 86400)} days`;
 }
 
 async function getText(url) {

@@ -149,7 +149,14 @@
   .v3 .c-terms { display: none; }
   .vlist .c-name { font-size: 14px; } .vlist .c-terms, .vlist .c-open { font-size: 12px; }
   .cl-head { display: none; }
-  .crow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  /* closed campaigns on a phone: the name and the type pill share the first line (the pill top right), the rest below; more room under the
+     hint and in each row, and slightly heavier lines between the rows */
+  .closed-box > summary { padding-bottom: 12px; }
+  .crow { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: start; padding: 15.5px 10px 14px; border-top: 0; position: relative; }
+  .crow::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1.5px; background: var(--cb-border); } /* the line above each row, 1.5px (a border would be drawn 1px) */
+  .crow > .cr-name { grid-column: 1; grid-row: 1; }
+  .crow > .cr-kind { grid-column: 2; grid-row: 1; justify-self: end; }
+  .crow > :nth-child(n+3) { grid-column: 1 / -1; }
   .cr-name, .cr-terms { white-space: normal; overflow-wrap: anywhere; }
   .empty-card { padding: 28px 20px; }
 }

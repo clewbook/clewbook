@@ -484,7 +484,7 @@ function renderAbout() {
     ...fact('Status', status),
     ...(left ? fact('Time left', left) : []),
     ...(raise ? [] : auctionRules()),
-    ...(left && secPerBlock ? fact('Block time', `about ${Math.round(secPerBlock)} seconds`) : []),
+    ...(left && secPerBlock ? fact('Block time', `≈${Math.round(secPerBlock)} seconds`) : []),
     ...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`),
     ...(raise && campaign.early_close ? fact('Early close', 'Allowed') : []),
     ...fact(raise ? 'Smallest contribution' : 'Smallest bid', `${campaign.min} ${campaign.ticker}`),
@@ -697,7 +697,7 @@ function renderProgress() {
     rr.hidden = false; rr.className = rf.status === 'other' ? 'notice' : 'notice good'; rr.dataset.state = rf.status || 'sent';
     if (rf.status === 'confirmed') rr.textContent = `Your refund is confirmed in block ${rf.minedHeight}. It should reach the address you gave.`;
     else if (rf.status === 'other') rr.textContent = `Your contribution was already spent in block ${rf.minedHeight} by a different transaction (for example the campaign's own refund). Look at the address you gave; nothing more is needed from you.`;
-    else if (rf.status === 'resent') rr.textContent = `Your refund had not been mined after about ${REFUND_RESEND_BLOCKS} blocks, so we sent the very same refund again (send ${rf.sends}). You don't need to do anything, and you never need to pay again.`;
+    else if (rf.status === 'resent') rr.textContent = `Your refund had not been mined after ≈${REFUND_RESEND_BLOCKS} blocks, so we sent the very same refund again (send ${rf.sends}). You don't need to do anything, and you never need to pay again.`;
     else rr.textContent = 'Your refund was sent to the network and is waiting to be mined. If it takes long, this page sends the same refund again by itself. Nothing is lost.';
   } else if (t && !mode && tip != null) {
     rr.hidden = false; rr.className = 'notice'; rr.dataset.state = 'info';

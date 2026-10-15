@@ -46,7 +46,7 @@ function renderTerms() {
     row('Smallest contribution', min),
     row('Deadline', Number.isInteger(n) && n > 0 ? `${measured.tip != null ? `about block ${(measured.tip + n).toLocaleString('en-US')} (now ${measured.tip.toLocaleString('en-US')}, plus ${n.toLocaleString('en-US')})` : `${n.toLocaleString('en-US')} blocks from now`}${time ? `, ${time} from now` : ''}` : '<span class="dim">not entered yet</span>'),
     row('Ticket window', Number.isInteger(Number($('#ticketk').value)) && Number($('#ticketk').value) > 0 ? `${Number($('#ticketk').value).toLocaleString('en-US')} blocks${etaText(Number($('#ticketk').value), measured.secondsPerBlock) ? `, ${etaText(Number($('#ticketk').value), measured.secondsPerBlock)}` : ''}` : '<span class="dim">not entered yet</span>'),
-    row('Network', config ? (config.network === 'main' ? 'Main network (real money)' : 'Test network (no real money)') : ''),
+    row('Network', config ? (config.network === 'main' ? 'Zcash Mainnet' : 'Test network (no real money)') : ''),
   ].join('');
   decorateAmounts($('#terms'));
 }
@@ -66,7 +66,7 @@ function deadlineHint() {
   const n = Number($('#deadline').value);
   const t = Number.isInteger(n) && n > 0 ? etaText(n, measured.secondsPerBlock) : null;
   $('#deadline-hint').textContent = !(Number.isInteger(n) && n > 0) ? 'At least 20 blocks.'
-    : t ? `That is ${t} from now (a block takes about ${Math.round(measured.secondsPerBlock)} seconds, measured over the last ${measured.spanBlocks} blocks).`
+    : t ? `That is ${t} from now (a block takes ≈${Math.round(measured.secondsPerBlock)} seconds, measured over the last ${measured.spanBlocks} blocks).`
       : 'The length of a block could not be measured just now, so no time estimate is shown.';
 }
 

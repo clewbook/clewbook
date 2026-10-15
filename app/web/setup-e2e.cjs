@@ -31,7 +31,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
   check('the smallest contribution hint is the engine\'s floor with 8 decimals', /0\.00020000 TAZ/.test(await text(page, '#minimum-hint')), await text(page, '#minimum-hint'));
   await page.waitForFunction(() => /measured over the last \d+ blocks/.test(document.querySelector('#deadline-hint').textContent), null, { timeout: 60000 }).catch(() => {});
   const hint = await text(page, '#deadline-hint');
-  check('the deadline hint gives a time from a measured block time (not a fixed number)', /about \d+ seconds, measured over the last \d+ blocks/.test(hint), hint);
+  check('the deadline hint gives a time from a measured block time (not a fixed number)', /≈\d+ seconds, measured over the last \d+ blocks/.test(hint), hint);
   await page.fill('#goal', '0.05'); await page.fill('#deadline', '100');
   const terms = await text(page, '#terms');
   check('the terms preview shows the goal with 8 decimals and the deadline block', /Goal\s*0\.05000000 TAZ/.test(terms) && /Deadline\s*about block [\d,]+ \(now [\d,]+, plus 100\)/.test(terms), terms);

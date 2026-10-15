@@ -71,7 +71,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
     const rules = { mode: 'raise', pricing: null, reissue_window: 20 };
     return cardModel({ network: 'main', ticker: 'ZEC', goal_zat: 123456789, min_zat: 20000, fee_zat: 10000, deadline_height: 3000000, ticket_k: 45 }, rules, 75);
   });
-  check('a main-network campaign is labelled as the main network with real money and ZEC', /Main network \(real money\)/.test(JSON.stringify(m.terms)) && JSON.stringify(m.terms).includes('"ticker":"ZEC"'));
+  check('a main-network campaign is labelled Zcash Mainnet with ZEC', /"Network","Zcash Mainnet"/.test(JSON.stringify(m.terms)) && JSON.stringify(m.terms).includes('"ticker":"ZEC"'));
   check('its ticket window and goal are exactly the rules\' numbers', JSON.stringify(m.terms).includes('"blocks":45,"seconds":3375') && JSON.stringify(m.terms).includes('"amount":123456789'));
   check('nothing was requested from outside this computer except the public network servers', outside.length === 0, outside.slice(0, 3).join(' '));
   check('no errors in the browser console', errors.length === 0, errors.join(' | ').slice(0, 200));

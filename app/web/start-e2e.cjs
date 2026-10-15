@@ -20,7 +20,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
       const hasCampaign = !(await page.evaluate(() => document.querySelector('#contribute-link').classList.contains('off')));
       check('the start page links to the demo campaign\'s contribute, campaign and recount pages', !hasCampaign || ((await page.getAttribute('#contribute-link', 'href')).includes('contribute.html#c=') && /campaign\.html#c=/.test(await page.getAttribute('#campaign-link', 'href')) && /recount\.html#c=/.test(await page.getAttribute('#recount-link', 'href'))));
       const st = await text(page, '#contribute-status');
-      check('the status is one calm sentence (open with a time left from a measured block time, wrapping up, closed, or cannot tell)', /^(Open: (about .* left|\d+ blocks left \(the length of a block could not be measured\))\.|The deadline has passed; the host is wrapping up\.|This campaign has closed\.|Can't tell right now whether it is still open\.)$/.test(st), st);
+      check('the status is one calm sentence (open with a time left from a measured block time, wrapping up, closed, or cannot tell)', /^(Open: (≈.* left|\d+ blocks left \(the length of a block could not be measured\))\.|The deadline has passed; the host is wrapping up\.|This campaign has closed\.|Can't tell right now whether it is still open\.)$/.test(st), st);
       check('the dashboard link and the way to start a campaign are there', /8780/.test(await page.getAttribute('#dashboard-link', 'href')) && /Set up a new campaign/.test(await text(page, 'main')));
       check('the page uses the shared look: self-hosted fonts load', await page.evaluate(async () => { await document.fonts.ready; return ['700 16px "Archivo"', '400 16px "Chivo Mono"'].every((f) => document.fonts.check(f)); }));
     }

@@ -125,7 +125,7 @@ function closedRow(item, info, entries) {
   if (named) c1.textContent = named;
   else { c1.append('Unnamed '); const id = document.createElement('span'); id.className = 'cr-id'; id.textContent = `${item.id.slice(0, 8)}…`; c1.append(id); }
   a.dataset.search = `${named || 'unnamed'} ${item.id}`.toLowerCase();
-  const c2 = document.createElement('span'); const k = document.createElement('span'); k.className = 'kind'; k.textContent = typeWord(info); c2.append(k);
+  const c2 = document.createElement('span'); c2.className = 'cr-kind'; const k = document.createElement('span'); k.className = 'kind'; k.textContent = typeWord(info); c2.append(k);
   const c3 = document.createElement('span'); c3.className = 'cr-terms'; setTerms(c3, info);
   const close = entries.find((e) => e.kind === 'close');
   const c4 = document.createElement('span'); c4.className = 'cr-out status';

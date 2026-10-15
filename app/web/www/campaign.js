@@ -28,7 +28,7 @@ function tile(label, value, sub = '', html = false) {
   const u = document.createElement('div'); u.className = 'tu'; u.textContent = sub;
   d.append(k, v, u); $('#tiles').append(d);
 }
-const shortEta = (s) => (s ? s.replace(/^about /, '~').replace(/ minutes$/, ' min').replace(/ hours$/, ' h') : s);
+const shortEta = (s) => (s ? s.replace(/^≈/, '~').replace(/ minutes$/, ' min').replace(/ hours$/, ' h') : s);
 
 async function main() {
   setup('Campaign');
@@ -58,7 +58,7 @@ async function main() {
   const secPerBlock = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), tip);
   const closed = j.entries.some((e) => e.kind === 'close');
   const left = tip == null ? null : c.deadline_height - tip;
-  const status = closed ? 'Closed' : left == null ? 'Open (the chain height could not be read)' : left > 0 ? 'Open for contributions' : 'Deadline passed, not yet closed';
+  const status = closed ? 'Closed' : left == null ? 'Open (the chain height could not be read)' : left > 0 ? 'Open' : 'Deadline passed, not yet closed';
 
   const auction = c.mode === 'auction', uniform = c.pricing === 'uniform';
   const closeE = j.entries.find((e) => e.kind === 'close');
@@ -99,7 +99,7 @@ async function main() {
     deadlineTile();
   } else {
     tile('Goal', zat(c.goal_zat), '', true);
-    tile('Raised', zat(raisedZat), `${issued.length} ${issued.length === 1 ? 'contribution' : 'contributions'} as published`, true);
+    tile('Raised', zat(raisedZat), '', true);
     deadlineTile();
   }
 
@@ -123,7 +123,7 @@ async function main() {
   fact(facts, 'Refund fee', amt(c.fee));
   if (auction) fact(facts, 'Bid amounts', 'public at the close');
   fact(facts, 'Status', status);
-  if (left != null && left > 0 && secPerBlock) fact(facts, 'Block time', `about ${Math.round(secPerBlock)} seconds`, 'measured over the last 100 blocks');
+  if (left != null && left > 0 && secPerBlock) fact(facts, 'Block time', `≈${Math.round(secPerBlock)} seconds`);
   fact(facts, 'Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}`, 'Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund.');
   if (uniform) fact(facts, 'Settlement window', `${c.settle_window} blocks`, `the host must settle every winner by block ${c.settle_by}; after that winners can claim their own refund`);
   if (c.early_close) fact(facts, 'Early close', 'allowed', 'the host may close this fundraiser before the deadline once the ' + (c.cap ? 'soft cap' : 'goal') + ' is met.');
@@ -135,23 +135,33 @@ async function main() {
   else if (auction) $('#bid-note').hidden = false;
   $('#contribute-link').textContent = auction ? 'Bid' : 'Contribute';
 
+  // the counts of the public list, one per line behind the "Public list" heading (closed at first; they stay in the page either way)
   const count = (k) => j.entries.filter((e) => e.kind === k).length;
   const lf = $('#list-facts');
-  const stat = (label, value) => { const d = document.createElement('div'); d.className = 'stat'; fact(d, label, value); lf.append(d); };
-  stat('Entries in the public list', String(j.entries.length));
-  stat('Refund tickets issued', String(count('issue')));
-  stat('Tickets reissued', String(count('reissue')));
-  stat('Payments set aside', String(count('reject')));
+  const stat = (label, note, value) => {
+    const d = document.createElement('div'); d.className = 'stat';
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label; dt.append(Object.assign(document.createElement('small'), { textContent: note })); dd.textContent = value;
+    d.append(dt, dd); lf.append(d);
+  };
+  stat('Entries listed', "everything on the host's public list", String(j.entries.length));
+  stat('Refund tickets issued', auction ? 'one per bid' : 'one per contribution', String(count('issue')));
+  stat('Tickets reissued', 'only after a network upgrade', String(count('reissue')));
+  stat('Payments set aside', 'not counted', String(count('reject')));
+  const tg = $('#pl-toggle');
+  tg.addEventListener('click', () => { const open = tg.getAttribute('aria-expanded') !== 'true'; tg.setAttribute('aria-expanded', String(open)); lf.hidden = !open; });
+  // the footnote at the end of the page: which relays answered, and how many entries each one gave
   const ul = $('#relay-list');
-  for (const url of cfg.relays) {
+  const n = (k) => `${k} ${k === 1 ? 'entry' : 'entries'}`;
+  cfg.relays.forEach((url, i) => {
     const li = document.createElement('li');
     const info = j.ok.find((r) => r.url === url);
-    li.textContent = `${hostOf(url)}: ${info ? `${info.entries.length} entries` : 'no usable answer'}`;
+    li.textContent = `${hostOf(url)}: ${info ? n(info.entries.length) : 'no usable answer'}${i === cfg.relays.length - 1 ? '.' : ';'}`;
     if (!info) li.className = 'bad';
     ul.append(li);
-  }
+  });
   $('#relay-live').textContent = `${j.ok.length} ${j.ok.length === 1 ? 'relay' : 'relays'} live.`;
-  $('#public-list').hidden = false;
+  $('#public-list').hidden = false; $('#pl-foot').hidden = false;
 
   // the latest entries of the signed list, as published (amounts only where the list shows them: never a bid before the close)
   const KIND = { issue: auction ? 'Bid received' : 'Contribution', reissue: 'Ticket reissued', reject: 'Set aside', close: 'Closed', settle: 'Settlement', withdraw: 'Withdrawn' };

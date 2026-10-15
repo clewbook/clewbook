@@ -20,7 +20,30 @@ export function setup(title, { netbar = true, themeControl = true, host = false 
   if (netbar && !document.getElementById('netbar')) document.body.insertAdjacentHTML('afterbegin', '<div id="netbar" class="netbar checking" role="status">Checking network…</div>');
   document.title = title ? `${title} · ${PRODUCT_NAME}` : PRODUCT_NAME;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') for (const o of document.querySelectorAll('.cid.open')) o.classList.remove('open'); });
+  markApprox(document.body);
+  if (window.MutationObserver) new MutationObserver((ms) => {
+    for (const m of ms) {
+      if (m.type === 'characterData') { if (m.target.data.includes('≈')) markApprox(m.target.parentNode); continue; }
+      for (const n of m.addedNodes) if (n.nodeType === 1) markApprox(n); else if (n.nodeType === 3 && n.data.includes('≈')) markApprox(n.parentNode);
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
   document.addEventListener('click', (e) => { for (const o of document.querySelectorAll('.cid.open')) if (!o.contains(e.target)) o.classList.remove('open'); });
+}
+
+// ---------- the approximately sign: Chivo Mono's files have no ≈, so each one is drawn in the system's monospace font ----------
+const APPROX_SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'SELECT', 'TITLE']);
+function markApprox(root) {
+  if (!root || root.nodeType !== 1 || !root.textContent.includes('≈')) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), found = [];
+  for (let t = w.nextNode(); t; t = w.nextNode()) {
+    const el = t.parentNode;
+    if (t.data.includes('≈') && el && !el.closest('.approx') && !APPROX_SKIP.has(el.nodeName) && el.namespaceURI === 'http://www.w3.org/1999/xhtml') found.push(t);
+  }
+  for (const t of found) {
+    const parts = t.data.split('≈'), frag = document.createDocumentFragment();
+    parts.forEach((p, i) => { if (i) frag.append(Object.assign(document.createElement('span'), { className: 'approx', textContent: '≈' })); if (p) frag.append(p); });
+    t.replaceWith(frag);
+  }
 }
 
 // ---------- theme: Light or Dark, and the device's own setting until one is chosen ----------
@@ -272,14 +295,14 @@ export function checkRow({ id, name, detail, status, cls }) {
   return li;
 }
 
-/** "about 12 days" from a number of blocks and a measured seconds per block; null if the block time was not measured. */
+/** "≈12 days" from a number of blocks and a measured seconds per block; null if the block time was not measured. */
 export function etaText(blocks, secondsPerBlock) {
   if (!secondsPerBlock) return null;
   const s = blocks * secondsPerBlock;
   if (s < 90) return 'less than a minute';
-  if (s < 5400) return `about ${Math.round(s / 60)} minutes`;
-  if (s < 172800) return `about ${Math.round(s / 3600)} hours`;
-  return `about ${Math.round(s / 86400)} days`;
+  if (s < 5400) return `≈${Math.round(s / 60)} minutes`;
+  if (s < 172800) return `≈${Math.round(s / 3600)} hours`;
+  return `≈${Math.round(s / 86400)} days`;
 }
 
 /** The status badge: the word is always there (OPEN, CLOSED · GOAL MISSED, ...), the colour only adds to it.

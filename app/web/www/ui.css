@@ -469,3 +469,5 @@ details.plain[open] > summary:before { content: "▾"; }
 }
 @media print { .bar .nav, .menu-btn, .sitefoot .foot-ctl { display: none; } }
 .sprite { position: absolute; width: 0; height: 0; }
+/* the approximately sign, which the Chivo Mono files do not have: the system's own monospace font draws it (ui.js wraps each one) */
+.approx { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }

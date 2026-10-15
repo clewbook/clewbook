@@ -122,7 +122,7 @@ function render(s) {
     ['Type', s.mode === 'raise' ? 'Fundraiser' : 'Auction'],
     ['Status', PHASE[s.phase] + (s.outcome ? ` (${s.outcome.replace('_', ' ')})` : '')],
     ['Deadline', `block ${s.deadline_height}` + (leftPhrase ? ` (${leftPhrase})` : '')],
-    ...(left > 0 && measured.secondsPerBlock ? [['Block time', `about ${Math.round(measured.secondsPerBlock)} seconds, measured over the last ${measured.spanBlocks} blocks`]] : []),
+    ...(left > 0 && measured.secondsPerBlock ? [['Block time', `≈${Math.round(measured.secondsPerBlock)} seconds, measured over the last ${measured.spanBlocks} blocks`]] : []),
     // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
     ...(s.mode !== 'raise' ? [['Items', String(s.items)]] : s.cap_zat == null ? [['Goal', `${coin(s.goal_zat)} ${ticker}`]] : [
       ['Soft cap', `${coin(s.goal_zat)} ${ticker}`],
@@ -246,7 +246,7 @@ function modeChanged() {
 
 function deadlineHint() {
   const n = Number($('#deadline').value);
-  $('#deadline-hint').textContent = Number.isInteger(n) && n > 0 ? `That is ${eta(n)} from now (a block takes about ${config?.seconds_per_block || 25} seconds).` : '';
+  $('#deadline-hint').textContent = Number.isInteger(n) && n > 0 ? `That is ${eta(n)} from now (a block takes ≈${config?.seconds_per_block || 25} seconds).` : '';
 }
 
 async function onCreate(ev) {
