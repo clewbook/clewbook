@@ -17,6 +17,15 @@
 .uploadpanel .sh { font: 700 22px var(--cb-font-display); margin-bottom: 10px; }
 .uploadpanel .muted { margin-bottom: 14px; max-width: 68ch; }
 .uploadpanel input[type=file] { max-width: 520px; }
+/* "I have a ticket backup file": the campaign the file belongs to, before anything is saved */
+.tb-card { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--cb-rule); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.tb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tb-name { font: 700 19px/1.25 var(--cb-font-display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.tb-net { padding: 3px 9px; border-radius: 999px; font: 600 12px var(--cb-font-body); white-space: nowrap; background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink-2); }
+.tb-net.test { background: var(--cb-testnet); color: var(--cb-testnet-ink); }
+.tb-line { color: var(--cb-ink-2); }
+.tb-note { font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.page .tb-card button { margin: 4px 0 0; }
 
 /* the verdict card: tags, the title, one line why, and Run it again */
 .verdict { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 26px 28px; display: flex; justify-content: space-between; gap: 24px; align-items: center; flex-wrap: wrap; }

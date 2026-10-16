@@ -122,6 +122,10 @@
 .odot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .cr-go { color: var(--cb-ink-4); }
 .page .pill-more { margin-top: 10px; min-height: 44px; padding: 0 18px; font: 600 14px var(--cb-font-body); }
+/* the quiet way to the Recount page's "I have a ticket backup file" box, at the end of the home page */
+.bk-link { margin-top: 28px; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.bk-link a { color: inherit; }
+.bk-link a:hover { color: var(--cb-ink); }
 .cl-none { padding: 14px 10px; font: 400 14px var(--cb-font-body); color: var(--cb-ink-3); }
 
 .empty-card { border: 1px dashed var(--cb-border-hover); border-radius: 18px; background: var(--cb-surface); padding: 56px; display: flex; flex-direction: column; gap: 14px; }

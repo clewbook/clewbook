@@ -1262,6 +1262,17 @@ async function onRefundConfirmed() {
   renderAll();
 }
 
+/** A backup file handed over by the Recount page's "I have a ticket backup file" box, through this tab's session storage: read once and deleted
+ *  at once, then given to the ordinary "I have a backup file" restore below, unchanged. Never when this browser already holds a payment here. */
+function takeHandedBackup() {
+  let text = null;
+  try { const k = `cb-handover:${cfg.id}`; text = sessionStorage.getItem(k); sessionStorage.removeItem(k); } catch { return; }
+  if (!text || state || !campaign) return;
+  const input = $('#restore');
+  try { const dt = new DataTransfer(); dt.items.add(new File([text], 'backup.json', { type: 'application/json' })); input.files = dt.files; } catch { return; }
+  input.dispatchEvent(new Event('change'));
+}
+
 function onRestore(ev) {
   const f = ev.target.files[0];
   if (!f) return;
@@ -1339,6 +1350,7 @@ async function main() {
   if (!campaign && rulesJson) campaign = JSON.parse(W.campaign_summary(rulesJson, cfg.id));
   applyNetwork();
   renderAll();
+  takeHandedBackup();
   setInterval(refresh, POLL_MS);
 }
 

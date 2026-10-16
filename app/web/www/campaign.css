@@ -88,6 +88,10 @@
 .rule-note { border-top: 1px solid var(--cb-rule); padding: 10px 0; font-size: 13px; color: var(--cb-ink-2); }
 .card-link { border-top: 1px solid var(--cb-rule); padding: 12px 0 0; min-height: 44px; display: inline-flex; align-items: center; color: var(--cb-accent-text); text-decoration: none; font: 500 15px var(--cb-font-body); }
 .card-link:hover { color: var(--cb-ink); }
+/* the quiet way to the Recount page's "I have a ticket backup file" box */
+.bk-link { margin-top: 4px; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.bk-link a { color: inherit; }
+.bk-link a:hover { color: var(--cb-ink); }
 
 .allc { display: flex; justify-content: center; padding: 40px 0 8px; }
 .pill-back.big { min-height: 46px; padding: 0 22px; gap: 10px; border-color: var(--cb-border-strong); }

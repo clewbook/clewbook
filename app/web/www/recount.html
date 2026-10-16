@@ -28,6 +28,13 @@
     <span class="rname"><b id="campaign-id"></b><span class="mono dim" id="rname"></span></span>
   </div>
   <p class="rlead">This page rechecks a campaign's books in your browser, from the public list and the public chain. It does not trust the campaign.</p>
+  <section class="uploadpanel" id="ticket-box">
+    <h2 class="sh">I have a ticket backup file</h2>
+    <p class="muted">Opens your contribution or bid. The file is read in this browser and is not sent anywhere.</p>
+    <input type="file" id="ticket-file" accept="application/json,.json" aria-label="Ticket backup file">
+    <p id="ticket-error" class="warnline" role="alert" hidden></p>
+    <div id="ticket-result" class="tb-card" aria-live="polite" hidden></div>
+  </section>
   <section class="uploadpanel" id="upload-card" hidden>
     <h2 class="sh">Check a saved copy</h2>
     <p class="muted">Load a saved copy of a campaign's public list (a file ending in .json: the host's export, or the copy this site's pages let you save). It is checked here, in your browser, against the public chain. Nothing is uploaded anywhere.</p>

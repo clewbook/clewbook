@@ -7,7 +7,7 @@ import { sha256hex, reportEnvelope } from './canon.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { setNetwork, setup, decorateAmounts, mountHash, cidEl, chipHTML, setCampaignLabel, markReady, CHECKS } from './ui.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, forget, memoryWords, compareLists, describeComparison, hashesOf } from './copies.js';
-import { linkParams, readAllRelays, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, DEFAULT_ENDPOINTS } from './public.js';
+import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, DEFAULT_ENDPOINTS } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const cfg = linkParams();
@@ -446,8 +446,79 @@ function wireTabs() {
   addEventListener('resize', tilesOverflow);
 }
 
+// ---------- "I have a ticket backup file": a contributor's backup file opens its own campaign's contribute page ----------
+// The file is read here and nowhere else. The campaign is loaded from the relays the file names, with the same checks as any campaign link
+// (the rules must hash to the campaign id), and shown before anything is saved. "Open my ticket" hands the file to the contribute page through
+// this tab's session storage, which that page reads once and deletes; the secret never goes into an address. A browser that already holds a
+// payment for the campaign is never overwritten: the button then just opens that payment.
+const HANDOVER = (id) => `cb-handover:${id}`;
+const webUrl = (u) => { try { return ['https:', 'http:'].includes(new URL(u).protocol); } catch { return false; } };
+const NOT_BACKUP = 'That is not a Clewbook backup file.';
+function wireTicketBox() {
+  const input = $('#ticket-file'), err = $('#ticket-error'), out = $('#ticket-result');
+  const line = (cls, text) => Object.assign(document.createElement('p'), { className: cls, textContent: text });
+  input.addEventListener('change', async () => {
+    const f = input.files[0];
+    input.value = '';
+    err.hidden = true; err.replaceChildren(); out.hidden = true; out.replaceChildren();
+    if (!f) return;
+    const say = (...parts) => { err.replaceChildren(...parts); err.hidden = false; };
+    let text, b;
+    try { if (f.size > 1024 * 1024) throw new Error('too large'); text = await f.text(); b = JSON.parse(text); } catch { return say(NOT_BACKUP); }
+    if (b && b.kind === 'ledger-export') {
+      const a = Object.assign(document.createElement('a'), { href: 'recount.html#upload-card', textContent: 'Check a saved copy' });
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const box = $('#upload-card');
+        if (box && !box.hidden) { box.scrollIntoView({ block: 'start' }); $('#upload-file').focus(); } else { location.href = 'recount.html#upload-card'; location.reload(); }
+      });
+      return say('That is a saved campaign list, not a ticket backup. Use ', a, ' for it.');
+    }
+    const id = b && typeof b.campaign === 'string' ? b.campaign.toLowerCase() : '';
+    const relays = b && Array.isArray(b.relays) ? b.relays.filter((r) => typeof r === 'string' && webUrl(r)).map((r) => r.replace(/\/$/, '')) : [];
+    if (!b || b.kind !== 'contribution-backup' || !/^[0-9a-f]{64}$/.test(id) || !relays.length || typeof b.seed !== 'string') return say(NOT_BACKUP);
+    const server = typeof b.server === 'string' && webUrl(b.server) ? b.server.replace(/\/$/, '') : '';
+    out.replaceChildren(line('tb-note', 'Looking for the campaign…')); out.hidden = false;
+    await init();
+    const reads = await Promise.all(relays.map((u) => readRelay(u, id)));
+    const j = judge(reads);
+    const hosts = relays.map(hostOf).join(', ');
+    if (!j.ok.length) {
+      // a relay that answers but has no such campaign (or only rules that are not this campaign's) has lost it; anything else is "could not reach"
+      const unreachable = (e) => /fetch|network|timed? ?out|abort|load failed|HTTP (5\d\d|408|429)/i.test(e || '');
+      const missing = reads.every((r) => r.error && !unreachable(r.error));
+      const broken = reads.some((r) => !r.error && r.problems.length);
+      out.replaceChildren(line('tb-line', missing ? 'This relay no longer has this campaign.'
+        : broken ? `This campaign's relay (${hosts}) shows a list that does not check out. Try again later.`
+          : `We could not reach this campaign's relay (${hosts}). Try again later.`));
+      return;
+    }
+    const c = JSON.parse(W.campaign_summary(j.rules, id));
+    const closed = j.entries.some((e) => e.kind === 'close');
+    const held = (() => { try { return localStorage.getItem(`ll:${id}`) !== null; } catch { return false; } })();
+    const head = document.createElement('div'); head.className = 'tb-head';
+    head.append(Object.assign(document.createElement('span'), { className: 'tb-name', textContent: c.name || `${c.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${id.slice(0, 8)}…` }),
+      Object.assign(document.createElement('span'), { className: `tb-net ${c.network === 'test' ? 'test' : 'main'}`, textContent: c.network === 'test' ? 'TESTNET' : 'ZCASH MAINNET' }));
+    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'primary', textContent: 'Open my ticket' });
+    btn.id = 'ticket-open';
+    const note = line('tb-note', held ? '' : 'Opening it saves the file in this browser.');
+    note.hidden = held;
+    const go = () => { location.href = sibling('contribute', { id, relays, endpoints: [], server }); };
+    btn.addEventListener('click', () => {
+      if (held) { note.textContent = 'This browser already has a payment for this campaign. Opening it.'; note.hidden = false; btn.disabled = true; setTimeout(go, 900); return; }
+      try { sessionStorage.setItem(HANDOVER(id), text); } catch {
+        note.textContent = 'This browser does not let the page keep the file for a moment, so it cannot be opened from here. Open the campaign and use "I have a backup file" there.';
+        return;
+      }
+      go();
+    });
+    out.replaceChildren(head, line('tb-line', closed ? 'This campaign is closed. Your ticket is still here.' : 'Open'), btn, note);
+  });
+}
+
 async function main() {
   wireTabs();
+  wireTicketBox();
   setup('Recount');
   $('#campaign-id').textContent = cfg.id ? `${cfg.id.slice(0, 8)}…` : '';
   const upload = cfg.id === '' && cfg.relays.length === 0;
