@@ -230,7 +230,7 @@ async function main() {
       // auctions have no amount column: a bid's amount is not in the list, before or after the close
       if (!auction) { const a = td('am r'); if (r.amount != null) a.innerHTML = r.amount; else { a.textContent = DASH; a.classList.add('none'); } }
       td('what').innerHTML = r.what;
-      td('blk').textContent = r.block != null ? r.block.toLocaleString('en-US') : DASH;
+      const b = td('blk'); b.textContent = r.block != null ? r.block.toLocaleString('en-US') : DASH; if (r.block != null) b.dataset.block = String(r.block);
       const pr = td('pr r'); if (r.price != null) pr.innerHTML = r.price; else { pr.textContent = DASH; pr.classList.add('none'); }
       body.append(tr);
     }

@@ -54,7 +54,7 @@ const BASE = `http://127.0.0.1:${PORT}`, DEAD = 'http://127.0.0.1:9';
     await p.context().close();
 
     p = await load(CUT_NOREC);
-    check('the same cut copy with the record also removed: the checks pass as before and the page says no fingerprint was available (this is what a fingerprint cannot do alone)', /No fingerprint was published/.test(await t(p, '#fp-status')) && (await p.getAttribute('#verdict', 'data-kind')) === 'partial', await t(p, '#fp-status'));
+    check('the same cut copy with the record also removed: the checks pass as before and the page says no fingerprint was available (this is what a fingerprint cannot do alone)', (await t(p, '#fp-status')) === 'No fingerprint published for this list.' && (await p.getAttribute('#verdict', 'data-kind')) === 'partial', await t(p, '#fp-status'));
     await p.context().close();
 
     p = await load(FORK);

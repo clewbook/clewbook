@@ -7,7 +7,7 @@ export const NOT_CHECKED = [
   ['the amount each payment message promised', "it needs the contributor's one time secret, which only a published challenge reveals"],
   ['the proof inside each refund ticket', 'it is checked only on a contributor\'s own device, when they press "Check the proof too"'],
   ['Ticket anchors', "whether each ticket's chain anchor is still valid is not checked"],
-  ['Ledger anchoring', "the host's ledger fingerprint is not yet published anywhere public"],
+  ['Ledger anchoring', "once the campaign is closed, the host signs the list's fingerprint (the number of entries and the hash of the last one), but it is not anchored on any public ledger"],
   ['When each ticket was issued', "the issue height in the list is the host's own statement; the recount cannot check it"],
   ['Whether the host spent a contribution first', 'nothing prevents it; R5 and R6 show such a spend after it happens'],
   ['This page', "its code is served by the project's own server; the command line recount can be built from the source instead"],

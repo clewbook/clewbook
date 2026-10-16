@@ -122,7 +122,7 @@
 .odot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .cr-go { color: var(--cb-ink-4); }
 .page .pill-more { margin-top: 10px; min-height: 44px; padding: 0 18px; font: 600 14px var(--cb-font-body); }
-/* the quiet way to the Recount page's "I have a ticket backup file" box, at the end of the home page */
+/* the quiet way to the Recount page's "Import ticket backup file" box, at the end of the home page */
 .bk-link { margin-top: 28px; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
 .bk-link a { color: inherit; }
 .bk-link a:hover { color: var(--cb-ink); }
@@ -194,7 +194,7 @@
 .ichip svg { display: block; }
 /* Badge: NEW in gold, DEFAULT outlined in the auction tone */
 .hbadge { padding: 4px 10px; border-radius: var(--cb-radius-pill); font: 600 11px var(--cb-font-body); letter-spacing: .12em; }
-.hbadge.new { background: var(--cb-wait); color: #0B0D10; }
+.hbadge.new { background: var(--cb-wait); color: var(--cb-on-ink); } /* white on the light theme's dark gold, near black on the dark theme's light gold: at least 4.5 to 1 in both */
 .hbadge.default { border: 1px solid var(--cb-auction); color: var(--cb-auction); }
 .htc-t { font: 700 19px/1.2 var(--cb-font-display); letter-spacing: -.01em; color: var(--cb-ink); }
 .htc-b { display: flex; flex-direction: column; gap: 8px; }

@@ -7,12 +7,13 @@ import { sha256hex, reportEnvelope } from './canon.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { setNetwork, setup, decorateAmounts, mountHash, cidEl, chipHTML, setCampaignLabel, markReady, CHECKS } from './ui.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, forget, memoryWords, compareLists, describeComparison, hashesOf } from './copies.js';
-import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, DEFAULT_ENDPOINTS } from './public.js';
+import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, tipOf, DEFAULT_ENDPOINTS } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const cfg = linkParams();
 let running = false;
 let network = null;
+let addedServer = null; // a chain server the person added with "Add and run again"
 
 function banner(kind, text) {
   const d = document.createElement('div');
@@ -184,8 +185,10 @@ async function recount() {
   if (j.kind === 'none') return verdict('cannot', 'Cannot conclude', 'No relay could give an intact, signed list. A relay that drops or damages entries could make anyone look guilty, so no verdict is given. Ask the host for its own copy or try other relays.');
   if (j.kind === 'disagree') return verdict('cannot', 'RELAYS DISAGREE, CANNOT CONCLUDE', 'The relays do not show the same list. This says nothing about the host: a relay can be behind, down or dishonest. Ask the host for its own copy, or try other relays, and run this again.');
   const c = JSON.parse(W.campaign_summary(j.rules, cfg.id));
-  setCampaignLabel(cfg.id, c.name);
-  $('#rname').textContent = c.name ? `${cfg.id.slice(0, 8)}…` : '';
+  // the short id always in the bold line; the name, when the rules carry one, in a smaller line above it (nothing new is asked for)
+  setCampaignLabel(cfg.id, '');
+  $('#campaign-id').title = `Campaign ${cfg.id}`;
+  $('#rname').textContent = c.name || ''; $('#rname').hidden = !c.name;
   $('#stamp-name').textContent = c.name || ''; $('#stamp-name').hidden = !c.name;
   $('#stamp-id').textContent = `ID ${cfg.id.slice(0, 8)}… · RECOUNTED`;
   const rules = JSON.parse(j.rules);
@@ -219,6 +222,9 @@ async function recount() {
     if (!s.ok) li.className = 'bad';
     sl.append(li);
   }
+  // a server the person added that gave nothing: say why it may have failed, here and only now
+  const added = out.sources.find((s) => s.endpoint === addedServer && !s.ok);
+  if (added) { const e = $('#server-error'); e.textContent = `${serverName(addedServer)} did not answer. A server only works here if it allows requests from web pages.`; e.hidden = false; }
   const rl = document.createElement('li');
   rl.textContent = `Public list: ${j.entries.length} entries from ${j.ok.map((r) => hostOf(r.url)).join(', ')}${j.challenges.length ? `; ${j.challenges.length} published challenge(s)` : ''}`;
   sl.append(rl);
@@ -359,7 +365,7 @@ async function fingerprintStep() {
   st.hidden = false;
   const MSG = {
     match: ['good', `This list is exactly the one the host fixed when it closed the campaign (${out.fixed} entries, signed by the campaign's key).`],
-    none: ['info', 'No fingerprint was published for this list, so nothing could be compared. (The campaign may not be closed yet, may predate this feature, or the file or relay did not carry the host\'s record.)'],
+    none: ['info', 'No fingerprint published for this list.'],
     invalid: ['warn', 'A fingerprint record came with this list but it is not signed by the campaign\'s key, so it was ignored.'],
     cut_off: ['bad', `This list has ${out.has} entries but the host fixed ${out.fixed} when it closed the campaign: the end of the list is missing.`],
     different: ['bad', `This list is NOT the one the host fixed: its entry number ${out.fixed} is not the entry the host's fingerprint names. It may be a different history signed with the same key.`],
@@ -404,6 +410,9 @@ function showSavedCard(j) {
 async function uploadMode() {
   verdictSection().hidden = true;
   $('#upload-card').hidden = false;
+  // "Import ticket backup file" belongs to this state only (no campaign in the address); the home and campaign pages link to it here
+  $('#ticket-box').hidden = false;
+  if (location.hash === '#ticket-box') $('#ticket-box').scrollIntoView({ block: 'start' });
   $('#nav-campaign').hidden = true;
   markReady();
   await init();
@@ -419,7 +428,7 @@ async function uploadMode() {
       try { text = await f.text(); d = JSON.parse(text); } catch { return fail('That is not a saved copy: the file is not readable JSON.'); }
       if (!d || d.kind !== 'ledger-export' || !/^[0-9a-f]{64}$/.test(String(d.campaign || '')) || !Array.isArray(d.ledger)) return fail('That is not a saved copy of a campaign list (it should be a "ledger-export" file).');
       cfg.id = d.campaign; saved = text;
-      $('#upload-card').hidden = true; verdictSection().hidden = false;
+      $('#upload-card').hidden = true; $('#ticket-box').hidden = true; verdictSection().hidden = false;
       $('#campaign-id').textContent = `${cfg.id.slice(0, 8)}…`;
       $('#saved-clear').hidden = true; // no relay to ask instead
       done();
@@ -446,7 +455,7 @@ function wireTabs() {
   addEventListener('resize', tilesOverflow);
 }
 
-// ---------- "I have a ticket backup file": a contributor's backup file opens its own campaign's contribute page ----------
+// ---------- "Import ticket backup file": a contributor's backup file opens its own campaign's contribute page ----------
 // The file is read here and nowhere else. The campaign is loaded from the relays the file names, with the same checks as any campaign link
 // (the rules must hash to the campaign id), and shown before anything is saved. "Open my ticket" hands the file to the contribute page through
 // this tab's session storage, which that page reads once and deletes; the secret never goes into an address. A browser that already holds a
@@ -512,7 +521,20 @@ function wireTicketBox() {
       }
       go();
     });
-    out.replaceChildren(head, line('tb-line', closed ? 'This campaign is closed. Your ticket is still here.' : 'Open'), btn, note);
+    const state = line('tb-line', closed ? 'This campaign is closed. Your ticket is still here.' : 'Open');
+    out.replaceChildren(head, state, btn, note);
+    // an open card asks the chain height afterwards, the way the campaign page does (tipOf): past the deadline and not closed, it says so. The card
+    // is shown first and never waits; a lookup that fails or is slow leaves "Open"; a later file replaces the card and the late answer is dropped
+    if (!closed) {
+      (async () => {
+        for (const e of [server, ...(DEFAULT_ENDPOINTS[c.network] || [])].filter(Boolean)) {
+          const tip = await tipOf(e, 8000);
+          if (tip == null) continue;
+          if (tip > c.deadline_height && out.contains(state)) state.textContent = 'Deadline passed, waiting to be closed';
+          return;
+        }
+      })();
+    }
   });
 }
 
@@ -551,7 +573,7 @@ async function main() {
     err.hidden = ok; err.textContent = ok ? '' : 'Please enter a full web address that starts with https://';
     if (!ok) return;
     if (!cfg.endpoints.length) cfg.endpoints = [...(DEFAULT_ENDPOINTS[network] || [])];
-    cfg.endpoints.unshift(u);
+    cfg.endpoints.unshift(u); addedServer = u;
     const q = new URLSearchParams(location.hash.slice(1));
     q.delete('endpoint');
     for (const e of cfg.endpoints) q.append('endpoint', e);

@@ -1,4 +1,4 @@
-// The Recount page's "I have a ticket backup file" box, with made up backup files (invented secrets) for the example testnet campaigns:
+// The Recount page's "Import ticket backup file" box (round 8: shown only with no campaign in the address), with made up backup files (invented secrets) for the example testnet campaigns:
 // found open, found closed, an unreachable relay, a relay without the campaign, a saved campaign list given instead, a junk file, the hand over
 // to the contribute page (read once, then gone), a payment already in this browser left untouched, and the secret never in an address or on the
 // page. Plain files from app/web/make-static.sh (default runs/static-polish) on a spare port; the chain server is a stand in answered here, so no
@@ -15,6 +15,8 @@ const CLOSED = { id: '48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e1521
 const RELAYS = [`${BASE}/relays/a`, `${BASE}/relays/b`];
 const varint = (n) => { const o = []; while (n > 127) { o.push((n % 128) | 128); n = Math.floor(n / 128); } o.push(n); return o; };
 const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.length]), Buffer.from(bytes)]);
+const NAMED = 'f6737fbc462e75508d424f0612a1ce5ea3df24c5cc1b550074821ccdea5e237a'; // "Community radio mast (demo)", closed
+const LEAD = "Don't trust the host. Recount it. Check a campaign's books yourself, in your browser, against the Zcash chain.";
 const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version: 1, campaign: id, relays, server: MOCK, seed: crypto.randomBytes(32).toString('hex'),
   refundAddress: refund, amountZat: 1000000, memo: 'LL1:invented', payment: null, ticket: null, savedAt: new Date().toISOString(), note: 'made up for a test' });
 
@@ -25,12 +27,20 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
   const errors = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await ctx.route(`${MOCK}/**`, async (route) => {
+    // round 9: the stand-in chain's height can be switched: before the deadline, past it, failing, or slow (and then failing)
+    let tipMode = 'open';
+    const mock = async (route) => {
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-expose-headers': '*' };
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-      const msg = /GetLatestBlock$/.test(route.request().url()) ? frame(0, [0x08, ...varint(OPEN.deadline - 100)]) : Buffer.alloc(0);
+      const isTip = /GetLatestBlock$/.test(route.request().url());
+      if (isTip && tipMode === 'fail') return route.abort();
+      if (isTip && tipMode === 'slow') { await new Promise((r) => setTimeout(r, 4000)); return route.abort(); }
+      const msg = isTip ? frame(0, [0x08, ...varint(tipMode === 'past' ? OPEN.deadline + 50 : OPEN.deadline - 100)]) : Buffer.alloc(0);
       await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/grpc-web+proto' }, body: Buffer.concat([msg, frame(0x80, Buffer.from('grpc-status:0\r\n'))]) });
-    });
+    };
+    await ctx.route(`${MOCK}/**`, mock);
+    // the public testnet servers are never asked in this test (a failed lookup falls back to them; here they fail too)
+    await ctx.route(/zec\.rocks|chainsafe\.dev/, (route) => route.abort());
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(String(e)));
     await p.goto(`${BASE}/recount.html#ticket-box`);
@@ -40,7 +50,12 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
     const settle = () => p.waitForFunction(() => { const r = document.querySelector('#ticket-result'), e = document.querySelector('#ticket-error'); return !e.hidden || (!r.hidden && !/Looking for the campaign/.test(r.textContent)); }, null, { timeout: 60000 });
     const seen = () => p.evaluate(() => ({ err: document.querySelector('#ticket-error').hidden ? '' : document.querySelector('#ticket-error').innerText.trim(), out: document.querySelector('#ticket-result').hidden ? '' : document.querySelector('#ticket-result').innerText.replace(/\s+/g, ' ').trim(), button: !!document.querySelector('#ticket-open') }));
 
-    check('the box is on the Recount page with its title and line', /I have a ticket backup file/.test(await p.textContent('#ticket-box')) && /Opens your contribution or bid\. The file is read in this browser and is not sent anywhere\./.test(await p.textContent('#ticket-box')));
+    const a = await p.evaluate(() => ({ title: document.querySelector('#ticket-box h2').textContent, box: !document.querySelector('#ticket-box').hidden && document.querySelector('#ticket-box').getClientRects().length > 0,
+      saved: !document.querySelector('#upload-card').hidden && document.querySelector('#upload-card h2').textContent, lead: document.querySelector('.rlead').textContent, old: document.body.innerText.includes('I have a ticket backup file'),
+      boxTop: Math.round(document.querySelector('#ticket-box').getBoundingClientRect().top), leadBottom: Math.round(document.querySelector('.rlead').getBoundingClientRect().bottom) }));
+    check('state (a), no campaign in the address: "Import ticket backup file" and "Check a saved copy" are both shown, under the line below the tabs; the old title is gone', a.title === 'Import ticket backup file' && a.box && a.saved === 'Check a saved copy' && a.boxTop >= a.leadBottom && !a.old, JSON.stringify(a));
+    check('state (a): the line under the tabs is the new one, word for word', a.lead === LEAD, a.lead);
+    check('the box is on the Recount page with its title and line', /^Import ticket backup file$/.test(await p.textContent('#ticket-box h2')) && /Opens your contribution or bid\. The file is read in this browser and is not sent anywhere\./.test(await p.textContent('#ticket-box')));
 
     // found, open
     const openFile = invented(OPEN.id, RELAYS, refund);
@@ -51,10 +66,34 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
     check('the secret, the refund address and the memo are on neither the page nor the address', !leak);
     check('nothing is saved before the button is pressed', (await p.evaluate((id) => [localStorage.getItem(`ll:${id}`), sessionStorage.getItem(`cb-handover:${id}`)], OPEN.id)).every((x) => x === null));
 
+    // round 9: the card's state line, from the chain height looked up after the card is shown
+    const stateLine = () => p.evaluate(() => (document.querySelector('#ticket-result .tb-line') || {}).textContent || '');
+    await p.waitForTimeout(1500);
+    check('open, before the deadline: the card still says "Open" once the chain height is known', (await stateLine()) === 'Open', await stateLine());
+    tipMode = 'past';
+    await give('backup.json', JSON.stringify(openFile)); await settle();
+    await p.waitForFunction(() => /Deadline passed, waiting to be closed/.test(document.querySelector('#ticket-result').textContent), null, { timeout: 15000 }).catch(() => {});
+    s = await seen();
+    check('past the deadline and not closed: "Deadline passed, waiting to be closed", the button still there', (await stateLine()) === 'Deadline passed, waiting to be closed' && s.button, JSON.stringify(s));
+    tipMode = 'fail';
+    await give('backup.json', JSON.stringify(openFile)); await settle(); await p.waitForTimeout(1500);
+    check('the height lookup fails: the card keeps "Open" and its button', (await stateLine()) === 'Open' && (await seen()).button, await stateLine());
+    tipMode = 'slow';
+    const t0 = Date.now();
+    await give('backup.json', JSON.stringify(openFile)); await settle();
+    const shownAfter = Date.now() - t0, early = await stateLine();
+    check('a slow lookup never delays the card: shown with "Open" and its button before the height answers', shownAfter < 3500 && early === 'Open' && (await seen()).button, `${shownAfter} ms, ${early}`);
+    await p.waitForTimeout(5000);
+    check('  ... and after the slow lookup gives up, it still says "Open"', (await stateLine()) === 'Open', await stateLine());
+    tipMode = 'past';
+
     // found, closed
     await give('backup.json', JSON.stringify(invented(CLOSED.id, RELAYS, refund))); await settle();
     s = await seen();
-    check('found, closed: "This campaign is closed. Your ticket is still here." and the button', /This campaign is closed\. Your ticket is still here\./.test(s.out) && s.button, JSON.stringify(s));
+    await p.waitForTimeout(1500);
+    s = await seen();
+    check('found, closed: "This campaign is closed. Your ticket is still here." and the button, even with the chain past the deadline', /This campaign is closed\. Your ticket is still here\./.test(s.out) && !/Deadline passed/.test(s.out) && s.button, JSON.stringify(s));
+    tipMode = 'open';
 
     // unreachable relay, and a relay without the campaign
     await give('backup.json', JSON.stringify(invented(OPEN.id, ['http://127.0.0.1:9'], refund))); await settle();
@@ -94,6 +133,36 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
     await p.waitForURL(/contribute\.html#c=/, { timeout: 30000 }); await p.waitForTimeout(2500);
     const kept = await p.evaluate(([id, seed]) => ({ same: localStorage.getItem(`ll:${id}`), handover: sessionStorage.getItem(`cb-handover:${id}`), second: (localStorage.getItem(`ll:${id}`) || '').includes(seed) }), [OPEN.id, second.seed]);
     check('... it says "This browser already has a payment for this campaign. Opening it." and opens that payment without writing', /This browser already has a payment for this campaign\. Opening it\./.test(said) && kept.same === before && kept.handover === null && !kept.second, JSON.stringify({ said: said.slice(-80), handover: kept.handover, second: kept.second }));
+
+    // state (b): a campaign in the address. No ticket backup box, no saved-copy box; the same line under the tabs; the campaign id bold and readable,
+    // its name (from the rules the page already read) in a smaller line above; at 1280 and 390, light and dark
+    for (const [w, theme] of [[1280, 'light'], [1280, 'dark'], [390, 'light'], [390, 'dark']]) {
+      const cb = await browser.newContext({ viewport: { width: w, height: 900 }, colorScheme: theme });
+      await cb.route(`${MOCK}/**`, mock);
+      const q = await cb.newPage(); q.on('pageerror', (e) => errors.push(String(e)));
+      await q.goto(`${BASE}/recount.html#c=${NAMED}&relay=${RELAYS[0]}&relay=${RELAYS[1]}&endpoint=${encodeURIComponent(MOCK)}`);
+      await q.waitForFunction(() => document.querySelector('#rname').textContent.length > 0, null, { timeout: 60000 });
+      const b = await q.evaluate(() => {
+        const id = document.querySelector('#campaign-id'), nm = document.querySelector('#rname'), cs = getComputedStyle(id), body = getComputedStyle(document.body);
+        const r = id.getBoundingClientRect(), n = nm.getBoundingClientRect(), tabs = document.querySelector('.rtabs').getBoundingClientRect();
+        const apart = (x, y) => x.right <= y.left || y.right <= x.left || x.bottom <= y.top || y.bottom <= x.top;
+        const tb = document.querySelector('#ticket-box');
+        return { box: !tb.hidden || tb.getClientRects().length > 0, boxWords: document.body.innerText.includes('Import ticket backup file'), saved: document.querySelector('#upload-card').hidden,
+          lead: document.querySelector('.rlead').textContent, id: id.textContent, name: nm.textContent, weight: Number(cs.fontWeight), size: parseFloat(cs.fontSize), bodySize: parseFloat(body.fontSize),
+          family: cs.fontFamily.split(',')[0].replace(/"/g, ''), color: cs.color, ink: body.color, oneLine: r.height < parseFloat(cs.fontSize) * 2, nameAbove: n.bottom <= r.top + 1, aligned: innerWidth < 640 ? Math.abs(n.left - r.left) <= 1 : Math.abs(n.right - r.right) <= 1,
+          nameSize: parseFloat(getComputedStyle(nm).fontSize), clear: apart(r, tabs) && apart(n, tabs), inView: r.left >= 0 && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth,
+          theme: document.documentElement.dataset.theme };
+      });
+      check(`state (b) ${w} ${theme}: no "Import ticket backup file" box and no "Check a saved copy" box above the result; the same line under the tabs`, !b.box && !b.boxWords && b.saved && b.lead === LEAD && b.theme === theme, JSON.stringify(b));
+      check(`state (b) ${w} ${theme}: the id "f6737fbc…" in Chivo Mono, weight 600 to 700, larger than the body text, in the ink colour, on one line, clear of the tabs; the name smaller, above it, both lined up (right edge at 1280, left edge on a phone)`, b.id === 'f6737fbc…' && b.weight >= 600 && b.weight <= 700 && b.size > b.bodySize && b.family === 'Chivo Mono' && b.color === b.ink && b.oneLine && b.name === 'Community radio mast (demo)' && b.nameAbove && b.aligned && b.nameSize < b.size && b.clear && b.inView && b.wide, JSON.stringify(b));
+      if (w === 1280 && theme === 'light') {
+        await q.goto(`${BASE}/recount.html#c=${OPEN.id}&relay=${RELAYS[0]}&relay=${RELAYS[1]}&endpoint=${encodeURIComponent(MOCK)}`); await q.reload();
+        await q.waitForFunction(() => document.querySelector('#campaign-id').textContent.length > 0, null, { timeout: 60000 }); await q.waitForTimeout(1500);
+        const u = await q.evaluate(() => ({ id: document.querySelector('#campaign-id').textContent, name: document.querySelector('#rname').hidden, weight: getComputedStyle(document.querySelector('#campaign-id')).fontWeight }));
+        check('state (b), a campaign without a name: the bold id alone, no name line', u.id === '47751309…' && u.name && Number(u.weight) >= 600, JSON.stringify(u));
+      }
+      await cb.close();
+    }
 
     // the quiet links
     await p.goto(`${BASE}/campaign.html#c=${OPEN.id}&relay=${RELAYS[0]}&server=${encodeURIComponent(MOCK)}`); await p.waitForSelector('.bk-link a', { state: 'attached' });

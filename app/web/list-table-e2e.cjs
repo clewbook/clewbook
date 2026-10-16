@@ -57,8 +57,16 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
       return { lefts: [...tr.querySelectorAll('td')].map((td) => Math.round(td.getBoundingClientRect().left)), idBelow: ref ? ref.getBoundingClientRect().top >= k.bottom - 1 : true };
     }));
     check('at 1280 the columns run left to right in that order and line up from row to row; the id sits beneath the kind', geo.every((g) => g.lefts.every((x, i) => i === 0 || x > g.lefts[i - 1])) && geo.every((g) => same(g.lefts, geo[0].lefts)) && geo.every((g) => g.idBelow), JSON.stringify(geo[0]));
-    check('screen readers get five column headers on an auction (no Amount), the table keeps its roles', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry and short id', 'Result', 'What happened to the money', 'Block', 'Price paid']) && (await p.getAttribute('.entries', 'role')) === 'table' && (await p.$$eval('#entries td[role=cell]', (t) => t.length)) === 46);
-    check('the column headers are not shown', await p.$eval('.entries thead', (t) => { const r = t.getBoundingClientRect(); return r.right < 0 || r.bottom < 0; }));
+    check('five column headers on an auction (no Amount), short on screen and full for screen readers, the table keeps its roles', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'What happened', 'Block', 'Price paid']) && same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.getAttribute('aria-label') || x.textContent)), ['Entry and short id', 'Result', 'What happened to the money', 'Block', 'Price paid']) && (await p.getAttribute('.entries', 'role')) === 'table' && (await p.$$eval('#entries td[role=cell]', (t) => t.length)) === 46);
+    // round 8: at 1280 one quiet header row names the columns, so a bare number reads as a block; each label sits over its own column
+    const hd = await p.evaluate(() => {
+      const ths = [...document.querySelectorAll('.entries thead th')], tr = document.querySelector('#entries tr:not(.sum):not([hidden])'), tds = [...tr.querySelectorAll('td')];
+      const cs = getComputedStyle(ths[0]), cell = getComputedStyle(tds[0]);
+      return { shown: ths.every((t) => { const r = t.getBoundingClientRect(); return r.width > 0 && r.left >= 0 && r.top >= 0; }), above: ths.every((t) => t.getBoundingClientRect().bottom <= tr.getBoundingClientRect().top + 1),
+        lined: ths.every((t, i) => Math.abs(t.getBoundingClientRect().left - tds[i].getBoundingClientRect().left) <= 1), blockOverBlock: ths[3].textContent === 'Block' && tds[3].className.startsWith('blk'),
+        size: parseFloat(cs.fontSize), cellSize: parseFloat(cell.fontSize), quiet: cs.color !== cell.color, upper: cs.textTransform === 'uppercase', oneRow: new Set(ths.map((t) => Math.round(t.getBoundingClientRect().bottom))).size === 1 };
+    });
+    check('1280: the column headers are shown in one quiet row above the entries (smaller and lighter than the cells, upper case, bottoms in line), each over its own column, "Block" over the block numbers', hd.shown && hd.above && hd.lined && hd.blockOverBlock && hd.size < hd.cellSize && hd.quiet && hd.upper && hd.oneRow, JSON.stringify(hd));
     // ---------- 2. Show older ----------
     const btn = async () => ({ shown: await p.isVisible('#entries-more'), text: (await p.textContent('#entries-more')).trim(), exp: await p.getAttribute('#entries-more', 'aria-expanded'), hint: (await p.textContent('#entries-hint')).trim(), rows: (await rowsOf(p)).filter((r) => r.shown).map((r) => r.seq).join(',') });
     let b = await btn();
@@ -83,7 +91,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check('a counted contribution: Contribution, its id beneath, Counted, 0.0015 TAZ, Kept by the campaign, its block, a dash', same(rows[2].cells, ['Contribution', 'f82faee7…03c47', 'Counted', '0.0015 TAZ', 'Kept by the campaign', '4,500,977', '—']), JSON.stringify(rows[2].cells));
     check('the payment over the hard cap: Over the cap, Refunded by ticket', same(rows[1].cells, ['Contribution', 'abeb3fa3…08a23', 'Over the cap', '0.0015 TAZ', 'Refunded by ticket', '4,500,980', '—']), JSON.stringify(rows[1].cells));
     check('its close: one line, "Closed at block 4,501,065: soft cap met", across all six columns', same(rows[0].cells, ['Closed at block 4,501,065: soft cap met']) && (await p.$eval('#entries tr.sum td', (d) => d.colSpan)) === 6, JSON.stringify(rows[0].cells));
-    check('a fundraiser keeps the amount column: six headers, six cells a row', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry and short id', 'Result', 'Amount', 'What happened to the money', 'Block', 'Price paid']) && rows.slice(1).every((r) => same(r.classes, ['k', 'res', 'am', 'what', 'blk', 'pr'])));
+    check('a fundraiser keeps the amount column: six headers, six cells a row', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'Amount', 'What happened', 'Block', 'Price paid']) && rows.slice(1).every((r) => same(r.classes, ['k', 'res', 'am', 'what', 'blk', 'pr'])));
     z = await zeros(p);
     check('capped fundraiser page: no amount with trailing zeros, and no dimmed digits', z.text.length === 0 && z.dim === 0, JSON.stringify(z));
     await p.context().close();
@@ -135,6 +143,22 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
         if (theme === 'light' && id === AUCTION) await p.screenshot({ path: `${SHOTS}/list-table-390.png`, fullPage: true });
         await p.context().close();
       }
+    }
+    // round 8: on a phone there are no columns, so the header row is out of sight and a muted "Block" sits before each block number (never before a dash)
+    for (const theme of ['light', 'dark']) {
+      p = await open(AUCTION, 390, theme);
+      await p.click('#entries-more').catch(() => {});
+      const ph = await p.evaluate(() => {
+        const cells = [...document.querySelectorAll('#entries tr:not(.sum):not([hidden]) td.blk')];
+        const lab = (td) => getComputedStyle(td, '::before').content;
+        const withN = cells.filter((td) => /^[0-9,]+$/.test(td.textContent)), dash = cells.filter((td) => !/^[0-9,]+$/.test(td.textContent));
+        const head = document.querySelector('.entries thead').getBoundingClientRect();
+        return { n: withN.length, labelled: withN.every((td) => lab(td) === '"Block "'), dashes: dash.length, dashBare: dash.every((td) => lab(td) === 'none' || lab(td) === 'normal'),
+          muted: withN.length ? getComputedStyle(withN[0], '::before').color !== getComputedStyle(withN[0]).color : false, text: withN.length ? withN[0].textContent : '',
+          headHidden: head.right < 0 || head.bottom < 0, wide: document.documentElement.scrollWidth <= innerWidth };
+      });
+      check(`390 ${theme}: the header row is out of sight; every block number reads "Block 4,498,…" with the word muted; a dash has no label; the cell text stays the number`, ph.n > 0 && ph.labelled && ph.dashes > 0 && ph.dashBare && ph.muted && /^4,49\d,\d{3}$/.test(ph.text) && ph.headHidden && ph.wide, JSON.stringify(ph));
+      await p.context().close();
     }
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));
   } finally { await browser.close(); srv.kill(); }

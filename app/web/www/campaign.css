@@ -43,6 +43,9 @@
 .entries td.res { color: var(--cb-ink); }
 .entries td.what { white-space: normal; min-width: 9em; }
 .entries td.blk { color: var(--cb-ink-3); font-variant-numeric: tabular-nums; }
+/* one quiet label per column, so a bare number reads as a block (round 8); on a phone, where a row is two lines, the word sits before the number instead */
+.entries .lhead th { font-size: 11px; letter-spacing: .04em; color: var(--cb-ink-4); padding: 0 14px 7px 0; white-space: normal; vertical-align: bottom; } /* a label never widens its column */
+.entries .lhead th:last-child { padding-right: 0; }
 .entries td.none { color: var(--cb-ink-4); }
 /* the close: one summary line on a quiet band, weight 600 (no italic: Chivo Mono ships no italic file, and none is synthesised) */
 .entries tr.sum td.sum { padding: 11px 12px; background: var(--cb-surface); white-space: normal; font-weight: 600; font-synthesis: none; color: var(--cb-ink); }
@@ -92,7 +95,7 @@
 .rule-note { border-top: 1px solid var(--cb-rule); padding: 10px 0; font-size: 13px; color: var(--cb-ink-2); }
 .card-link { border-top: 1px solid var(--cb-rule); padding: 12px 0 0; min-height: 44px; display: inline-flex; align-items: center; color: var(--cb-accent-text); text-decoration: none; font: 500 15px var(--cb-font-body); }
 .card-link:hover { color: var(--cb-ink); }
-/* the quiet way to the Recount page's "I have a ticket backup file" box */
+/* the quiet way to the Recount page's "Import ticket backup file" box */
 .bk-link { margin-top: 4px; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
 .bk-link a { color: inherit; }
 .bk-link a:hover { color: var(--cb-ink); }
@@ -126,6 +129,8 @@
   .entries tr:has(td.am:not(.none)):has(td.pr:not(.none)) td.pr { grid-column: 4; }
   .entries .ref { grid-row: 2; grid-column: 1; }
   .entries td.blk { grid-row: 2; grid-column: 2; font-size: 13px; }
+  .entries .lhead { position: absolute; left: -9999px; }
+  .entries td.blk[data-block]::before { content: "Block "; color: var(--cb-ink-4); }
   .entries td.what { grid-row: 2; grid-column: 3 / 5; justify-self: end; text-align: right; min-width: 0; font-size: 13px; }
   .rkv { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
   .rkv dt { white-space: normal; }

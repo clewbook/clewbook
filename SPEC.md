@@ -32,7 +32,7 @@ Published at creation; immutable. `rules_id = BLAKE2b-256("ledgerlab_rules", can
 | `v` | int | `1` |
 | `network` | string | `"test"` or `"main"` |
 | `mode` | string | `"raise"` or `"auction"` |
-| `goal_zat` | int | raise only: amount that must remain (after early withdrawals) at the deadline. With `cap_zat` it is the soft cap, counted on the kept amount only (§4, "Hard cap") |
+| `goal_zat` | int | raise only: amount that must remain (after early withdrawals) at the deadline, or at an early close (§4, "Early close"). With `cap_zat` it is the soft cap, counted on the kept amount only (§4, "Hard cap") |
 | `items` | int | auction only: number of items; the top `items` bids win |
 | `start_height` | int | contributions mined before this height are ignored |
 | `deadline_height` | int | last height at which a contribution counts |
@@ -280,7 +280,7 @@ by value (ties: lower height, then txid, then action).
 | # | Rule | Fail means |
 |---|---|---|
 | R1 | `rules_id` matches the published rules; auction: the revealed UFVK matches `ufvk_hash` | wrong rules or key |
-| R2 | Signatures verify, the hash chain has no gaps, at most one close entry, after the deadline | forged, dropped or premature entries |
+| R2 | Signatures verify, the hash chain has no gaps, at most one close entry, after the deadline (or before it, only as §4 "Early close" allows) | forged, dropped or premature entries |
 | R3 | Every entry points at a real payment with matching details (raise amounts; auction commitments; rejects only for payload-shaped memos; auction entries never show amounts) | fake or leaky entry |
 | R4 | Every contribution has a ticket entry once `tip > height + ticket_k` (inside the window it is pending) | missing ticket |
 | R4b | Every ticket's `issue_height ≤ height + ticket_k`. The issue height is written by the host, so this is the host's report (the title says so) | ticket issued late, by the host's own height |
@@ -288,6 +288,8 @@ by value (ties: lower height, then txid, then action).
 | R6 | After the deadline, contributions outside the kept set leave only through their tickets | stolen refund |
 | R7 | The close entry's outcome (raise) or winners (auction) equal the recomputed ones | wrong outcome or winner list |
 | R8 | No published challenge opens a valid payload for a rejected payment | false reject |
+
+For a fundraiser closed early (§4, "Early close"), the close height takes the place of the deadline in R5 to R7: it ends the contributions R7 counts, and R5 and R6 split spends at it.
 
 Totals: `raised` (sum of contributions), `withdrawn` (refunded by ticket before the deadline),
 `refunded` (by ticket after the deadline), `kept` (swept from the kept set), `pending` (unspent),

@@ -1264,7 +1264,7 @@ async function onRefundConfirmed() {
   renderAll();
 }
 
-/** A backup file handed over by the Recount page's "I have a ticket backup file" box, through this tab's session storage: read once and deleted
+/** A backup file handed over by the Recount page's "Import ticket backup file" box, through this tab's session storage: read once and deleted
  *  at once, then given to the ordinary "I have a backup file" restore below, unchanged. Never when this browser already holds a payment here. */
 function takeHandedBackup() {
   let text = null;

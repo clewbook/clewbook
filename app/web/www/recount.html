@@ -25,11 +25,11 @@
       <button type="button" role="tab" id="tab-recount" aria-selected="true" aria-controls="panel-recount">RECOUNT</button>
       <button type="button" role="tab" id="tab-totals" aria-selected="false" aria-controls="panel-totals" tabindex="-1">TOTALS</button>
     </div>
-    <span class="rname"><b id="campaign-id"></b><span class="mono dim" id="rname"></span></span>
+    <span class="rname"><span class="rname-n" id="rname" hidden></span><b class="rid" id="campaign-id"></b></span>
   </div>
-  <p class="rlead">This page rechecks a campaign's books in your browser, from the public list and the public chain. It does not trust the campaign.</p>
-  <section class="uploadpanel" id="ticket-box">
-    <h2 class="sh">I have a ticket backup file</h2>
+  <p class="rlead">Don't trust the host. Recount it. Check a campaign's books yourself, in your browser, against the Zcash chain.</p>
+  <section class="uploadpanel" id="ticket-box" hidden>
+    <h2 class="sh">Import ticket backup file</h2>
     <p class="muted">Opens your contribution or bid. The file is read in this browser and is not sent anywhere.</p>
     <input type="file" id="ticket-file" accept="application/json,.json" aria-label="Ticket backup file">
     <p id="ticket-error" class="warnline" role="alert" hidden></p>
@@ -83,7 +83,7 @@
     <div class="tools">
       <section class="tool" id="add-server-card" hidden>
     <h2 class="tool-h">Check another server</h2>
-    <p class="muted">Add a public lightwalletd server address (it must allow requests from web pages). The recount runs again including it.</p>
+    <p class="muted">Paste another public Zcash server address and run the recount again with it.</p>
     <form id="add-server" novalidate>
       <input type="url" id="server-url" placeholder="https://…" required autocomplete="off">
       <button type="submit" class="secondary addbtn">Add and run again</button>
@@ -92,7 +92,7 @@
   </section>
       <section class="tool" id="copy-card" hidden>
     <h2 class="tool-h">Keep a copy</h2>
-    <p class="muted">The list is public, but a server can stop showing part of it. Hosts and relays cannot change a copy you keep, and the recount refuses an altered copy.</p>
+    <p class="muted">Save the full list. If a server later hides or changes part of it, your copy still shows what you saw.</p>
     <div class="btns"><button type="button" class="secondary" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></div>
     <div id="compare-box">
       <p class="t-sub cmp-l">Compare with my saved copy</p>
@@ -107,7 +107,7 @@
   </section>
       <section class="tool" id="fp-card" hidden>
     <h2 class="tool-h">Fingerprint</h2>
-    <p class="muted t-sm">How many entries the list has, and the hash of its last entry:</p>
+    <p class="muted">The number of entries and the hash of the last one. Compare it with one you were given.</p>
     <pre id="fp-line" class="copybox"></pre>
     <p id="fp-status" class="notice" hidden></p>
     <p class="t-sub cmp-l">Compare with a fingerprint you were given</p>
@@ -116,6 +116,7 @@
     <details class="plain"><summary>What the fingerprint can and cannot show</summary>
       <p><strong>It can show</strong> that this list is exactly the one the host fixed when it closed the campaign: nothing was cut off the end, and nothing was swapped for a different list since. It works with no relay running, because a saved copy carries the host's signed record, and because anyone can compare the line above with a line the host posted elsewhere.</p>
       <p><strong>It cannot show</strong> that the host was honest, or that the list was complete at the moment it was fixed (a payment can still be checked against the chain by the checks above, but a note the host never wrote is only caught when the chain shows its effect). It cannot show that the record you were shown is the one others saw: compare it with a copy posted somewhere durable. If no record is available, no check is made, and the page says so.</p>
+      <p><strong>When there is none:</strong> the host publishes it when it closes the campaign, so a campaign that is still open has none. A campaign older than this feature has none either, and a saved file or a relay may not carry the host's record.</p>
     </details>
   </section>
     </div>

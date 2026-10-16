@@ -9,6 +9,7 @@ const DIR = process.env.DIR || 'runs/static-polish', PORT = process.env.PORT || 
 const { GOOD, FORK, BIG_SMALL, BIG_LARGE } = process.env;
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const BASE = `http://127.0.0.1:${PORT}`, RELAY = 'http://relay.test', MOCK = 'https://chain.mock.test/testnet';
 const good = JSON.parse(fs.readFileSync(GOOD, 'utf8')), fork = JSON.parse(fs.readFileSync(FORK, 'utf8'));
 const ID = good.campaign, RULES = JSON.stringify(good.rules), FINAL = good.final;
@@ -195,6 +196,45 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
     check('a saved copy that does not itself verify is refused ("does not check out")', /does not check out/.test(r.err), r.err);
     check('the page says what a saved copy can and cannot show', /It can show/.test(await t(p, '#copy-card')) && /It cannot show/.test(await t(p, '#copy-card')) && /before the host cut/.test(await t(p, '#copy-card')) && /protects only the person who kept it/.test(await t(p, '#copy-card')));
     await p.close();
+
+    // ---------- round 8: the three blocks under the result: one short line each, the controls kept and aligned; the server detail only on failure ----------
+    served = good.ledger; finalServed = null;
+    for (const w of [1280, 390]) {
+      const cw = await browser.newContext({ viewport: { width: w, height: 1000 } });
+      const q = await cw.newPage(); await wire(q);
+      await q.route('https://dead.mock.test/**', (route) => route.abort());
+      await q.goto(recount);
+      await q.waitForFunction(() => !document.querySelector('#fp-card').hidden && !document.querySelector('#copy-card').hidden && !document.querySelector('#fp-status').hidden, null, { timeout: 60000 });
+      if (w === 1280) {
+        const x = await q.evaluate(() => {
+          const one = (sel) => document.querySelector(sel).textContent.replace(/\s+/g, ' ').trim();
+          return { server: one('#add-server-card > .muted'), copy: one('#copy-card > .muted'), fp: one('#fp-card > .muted'), none: one('#fp-status'), noneCls: document.querySelector('#fp-status').className,
+            why: one('#fp-card details'), seen: document.querySelector('#add-server-card').innerText, err: document.querySelector('#server-error').hidden,
+            controls: [!!document.querySelector('#server-url'), one('#add-server button'), one('#save-copy'), one('#copy-card .cmp-l'), !!document.querySelector('#compare-file'), one('#copy-card details summary'),
+              one('#fp-card .cmp-l'), !!document.querySelector('#fp-given'), one('#fp-card details summary'), one('#fp-line')],
+            coverage: !!document.querySelector('#coverage-line') };
+        });
+        check('Check another server: "Paste another public Zcash server address and run the recount again with it."; nothing about lightwalletd or web pages on show', x.server === 'Paste another public Zcash server address and run the recount again with it.' && !/lightwalletd|web pages/.test(x.seen) && x.err, x.server);
+        check('Keep a copy: "Save the full list. If a server later hides or changes part of it, your copy still shows what you saw."', x.copy === 'Save the full list. If a server later hides or changes part of it, your copy still shows what you saw.', x.copy);
+        check('Fingerprint: "The number of entries and the hash of the last one. Compare it with one you were given."', x.fp === 'The number of entries and the hash of the last one. Compare it with one you were given.', x.fp);
+        check('no fingerprint: the grey box says one short line, and the reasons are inside "What the fingerprint can and cannot show"', x.none === 'No fingerprint published for this list.' && /\binfo\b/.test(x.noneCls) && /When there is none: the host publishes it when it closes the campaign, so a campaign that is still open has none\. A campaign older than this feature has none either, and a saved file or a relay may not carry the host's record\./.test(x.why), JSON.stringify([x.none, x.noneCls]));
+        check('the controls stay: the address field, "Add and run again", "Save a copy of the full list", "Compare with my saved copy" and its file, both explainers, "Compare with a fingerprint you were given" and its field, the fingerprint line; Coverage stays', same(x.controls.slice(0, 9), [true, 'Add and run again', 'Save a copy of the full list', 'Compare with my saved copy', true, 'What a saved copy can and cannot show', 'Compare with a fingerprint you were given', true, 'What the fingerprint can and cannot show']) && /^2 entries, last entry [0-9a-f]{64}$/.test(x.controls[9]) && x.coverage, JSON.stringify(x.controls));
+      }
+      const lay = await q.evaluate(() => {
+        const tools = [...document.querySelectorAll('.tools > .tool')].filter((t) => !t.hidden), bx = (el) => el.getBoundingClientRect();
+        return { n: tools.length, heads: tools.map((t) => Math.round(bx(t.querySelector('.tool-h')).top)), headSize: tools.map((t) => getComputedStyle(t.querySelector('.tool-h')).fontSize), headLines: tools.map((t) => Math.round(bx(t.querySelector('.tool-h')).height)),
+          textSize: tools.map((t) => getComputedStyle(t.querySelector(':scope > .muted')).fontSize), ctrls: ['#add-server', '#copy-card .btns', '#fp-line'].map((sel) => Math.round(bx(document.querySelector(sel)).top)),
+          inside: tools.every((t) => bx(t).right <= innerWidth + 0.5), wide: document.documentElement.scrollWidth <= innerWidth };
+      });
+      if (w === 1280) check('1280: the three blocks in one row with tops, heading size, heading height and text size alike, and their controls starting on one line', lay.n === 3 && new Set(lay.heads).size === 1 && new Set(lay.headSize).size === 1 && new Set(lay.headLines).size === 1 && new Set(lay.textSize).size === 1 && Math.max(...lay.ctrls) - Math.min(...lay.ctrls) <= 2 && lay.wide, JSON.stringify(lay));
+      else check('390: the three blocks stack in order, each inside the page, no sideways scroll', lay.n === 3 && lay.heads[0] < lay.heads[1] && lay.heads[1] < lay.heads[2] && lay.inside && lay.wide, JSON.stringify(lay));
+      if (w === 1280) {
+        await q.fill('#server-url', 'https://dead.mock.test/testnet'); await q.click('#add-server button');
+        await q.waitForFunction(() => !document.querySelector('#server-error').hidden, null, { timeout: 90000 });
+        check('a server that gives nothing: only then the page says why it may not work here', (await t(q, '#server-error')) === 'dead.mock.test did not answer. A server only works here if it allows requests from web pages.', await t(q, '#server-error'));
+      }
+      await cw.close();
+    }
 
     // ---------- very large list, compared ----------
     const large = JSON.parse(fs.readFileSync(BIG_LARGE, 'utf8'));
