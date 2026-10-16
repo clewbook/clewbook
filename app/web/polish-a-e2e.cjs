@@ -235,6 +235,26 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.screenshot({ path: `${SHOTS}/polish-a-390.png`, fullPage: true });
     await p.context().close();
 
+    // ---------- the Theme control: System, Light, Dark ----------
+    p = await newPage({ colorScheme: 'dark' });
+    tip = RAISE.deadline - 100;
+    await p.goto(link(RAISE));
+    await p.waitForSelector('footer .theme-seg button', { timeout: 60000 });
+    const th = () => p.evaluate(() => ({ theme: document.documentElement.dataset.theme, pressed: [...document.querySelectorAll('footer .theme-seg button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent).join(','), labels: [...document.querySelectorAll('footer .theme-seg button')].map((b) => b.textContent).join(' | '), stored: localStorage.getItem('cb-theme') }));
+    let t0 = await th();
+    check('theme: the control reads System | Light | Dark, and a first visit shows System and follows the device (dark)', t0.labels === 'System | Light | Dark' && t0.pressed === 'System' && t0.theme === 'dark' && t0.stored === null, JSON.stringify(t0));
+    await p.emulateMedia({ colorScheme: 'light' }); await p.waitForTimeout(200); t0 = await th();
+    check('theme: with System, the device switching to light switches the page at once', t0.theme === 'light' && t0.pressed === 'System', JSON.stringify(t0));
+    await p.click('footer .theme-seg button[data-theme="dark"]'); await p.emulateMedia({ colorScheme: 'light' }); await p.waitForTimeout(200); t0 = await th();
+    check('theme: Dark chosen stays dark whatever the device says, and is stored', t0.theme === 'dark' && t0.pressed === 'Dark' && t0.stored === 'dark', JSON.stringify(t0));
+    await p.reload(); await p.waitForSelector('footer .theme-seg button', { timeout: 60000 }); t0 = await th();
+    check('theme: Dark survives a reload', t0.theme === 'dark' && t0.pressed === 'Dark', JSON.stringify(t0));
+    await p.click('footer .theme-seg button[data-theme="light"]'); await p.click('footer .theme-seg button[data-theme="system"]'); await p.emulateMedia({ colorScheme: 'dark' }); await p.waitForTimeout(200); t0 = await th();
+    check('theme: Light then System returns to following the device (now dark)', t0.theme === 'dark' && t0.pressed === 'System' && t0.stored === 'system', JSON.stringify(t0));
+    await p.reload(); await p.waitForSelector('footer .theme-seg button', { timeout: 60000 }); await p.emulateMedia({ colorScheme: 'light' }); await p.waitForTimeout(200); t0 = await th();
+    check('theme: System survives a reload and keeps following the device (now light)', t0.theme === 'light' && t0.pressed === 'System', JSON.stringify(t0));
+    await p.context().close();
+
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));
   } finally {
     srv.kill();

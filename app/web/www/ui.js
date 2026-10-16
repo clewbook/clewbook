@@ -46,10 +46,10 @@ function markApprox(root) {
   }
 }
 
-// ---------- theme: Light or Dark, and the device's own setting until one is chosen ----------
-// The small script in every page's head applies the saved choice before the page is drawn (no flash). With no saved choice (or the "system" an
-// older visit saved) the page follows the device, also when it changes while the page is open, and the control shows the theme in use. The choice
-// is kept in this browser when it allows it. Only colours change (ui.css, :root[data-theme="dark"]).
+// ---------- theme: System (follows the device), Light or Dark ----------
+// The small script in every page's head applies the saved choice before the page is drawn (no flash). With no saved choice, or "system" saved,
+// the page follows the device, also when it changes while the page is open, and the control shows System. The choice is kept in this browser
+// when it allows it. Only colours change (ui.css, :root[data-theme="dark"]).
 const THEME_KEY = 'cb-theme';
 const darkQuery = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
 export function themeChoice() {
@@ -61,8 +61,8 @@ export function applyTheme(choice) {
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
   root.dataset.theme = dark ? 'dark' : 'light';
-  // the Theme controls (footer, phone menu) show the theme in use
-  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === root.dataset.theme));
+  // the Theme controls (footer, phone menu) show the choice: System, Light or Dark
+  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === choice));
 }
 function chooseTheme(c) {
   try { localStorage.setItem(THEME_KEY, c); } catch { /* storage blocked: the choice holds for this page only */ }
@@ -88,7 +88,7 @@ export function mountTheme() {
   ctl.append(wrap);
   applyTheme(themeChoice());
 }
-/** Light and Dark as two pressed buttons in one pill; the one in use is filled. */
+/** System, Light and Dark as three pressed buttons in one pill; the one chosen is filled. */
 function themeSeg() {
   const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Theme');
   for (const [v, t] of THEMES) {
@@ -98,7 +98,7 @@ function themeSeg() {
   }
   return seg;
 }
-const THEMES = [['light', 'Light'], ['dark', 'Dark']];
+const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
 // ---------- the frame: footer controls (testnet demo, replay intro) and the phone menu ----------
 const DEMO_URL = 'https://clewbook.xyz/demo/';
