@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "host", "contrib", "recount", "vectors", "web", "relay", "ticketcheck", "proofmeasure", "proofcheck"]
+members = ["core", "host", "contrib", "recount", "vectors", "web", "relay", "ticketcheck", "proofmeasure", "proofcheck", "listing"]
 resolver = "2"
 # ll-web is built only for wasm32 (app/web/build.sh); its library features differ from the native tools.
 default-members = ["core", "host", "contrib", "recount", "vectors", "relay", "ticketcheck"]

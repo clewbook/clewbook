@@ -34,7 +34,8 @@ Start with the [README](../README.md). Then, by what you want to know:
 
 | Document | In one line |
 |---|---|
-| [HOSTING.md](HOSTING.md) | Build, a local trial, a test network faucet, a campaign from the command line, running a relay and the pages, mainnet, cautions, hardening. |
+| [HOSTING.md](HOSTING.md) | Build, a local trial, a test network faucet, a campaign from the command line, running a relay and the pages, getting listed on app.clewbook.xyz (testnet), mainnet, cautions, hardening. |
+| [LISTING.md](LISTING.md) | The listing job behind the home page of app.clewbook.xyz: listing records, the checks (with the recount check), limits, the service and the operator commands. |
 
 ## Outside code and licences
 

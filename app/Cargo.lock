@@ -2232,6 +2232,7 @@ dependencies = [
  "crypto_box",
  "hex",
  "ll-core",
+ "ll-listing",
  "ll-relay",
  "orchard",
  "pczt",
@@ -2253,6 +2254,27 @@ dependencies = [
  "zcash_primitives",
  "zcash_protocol",
  "zip321",
+]
+
+[[package]]
+name = "ll-listing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake2b_simd",
+ "clap",
+ "ed25519-dalek",
+ "hex",
+ "ll-core",
+ "ll-relay",
+ "ll-web",
+ "orchard",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "tiny_http",
+ "unicode-normalization",
+ "ureq",
 ]
 
 [[package]]

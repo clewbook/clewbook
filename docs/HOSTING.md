@@ -123,7 +123,7 @@ Move the built `cb-relay` to the server. The build machine and the server need c
 - Tell the host which relay to publish to: `cb-host serve --relay https://<your_relay_address>` (repeat the flag for more than one). A campaign created from the command line takes `--relay` the same way. Inside each campaign folder the file `private/relays` lists the relays, one per line, and the host reads it again on every check.
 - Tell the dashboard where your pages live, so the contributor links it builds are right: `--page-base https://<your_pages_address>`. The default is `http://127.0.0.1:8770`, which only works on your own computer.
 - The contribute page needs a chain server for the network. The dashboard option `--server` sets it (default is the testnet server). For mainnet pass `--network main` and the address of a public mainnet chain server.
-- The home page lists campaigns from a file `campaigns.json` next to the pages. Its form is `{"campaigns": [{"id": "<64 hex characters>", "relays": ["https://<your_relay_address>"]}]}`. You maintain it by hand: start from the empty example, `cp app/web/www/campaigns.example.json app/web/www/campaigns.json`, and add your campaign's id and relays. Without the file the home page lists nothing. Campaign, contribute and recount pages work for any campaign from a link, with no list.
+- The home page lists campaigns from a file `campaigns.json` next to the pages. Its form is `{"campaigns": [{"id": "<64 hex characters>", "relays": ["https://<your_relay_address>"]}]}`. You maintain it by hand: start from the empty example, `cp app/web/www/campaigns.example.json app/web/www/campaigns.json`, and add your campaign's id and relays. Without the file the home page lists nothing. Campaign, contribute and recount pages work for any campaign from a link, with no list. (On app.clewbook.xyz the list comes from the listing job, section 7.)
 - Keep the host (`cb-host serve`) running on your own machine until the campaign has closed and refunds are confirmed. The dashboard is for you only and cannot be reached from other devices.
 
 ## 6. The page server
@@ -138,11 +138,25 @@ Move the built `cb-relay` to the server. The build machine and the server need c
 
 ## 7. Listing and contact
 
-Hosting is guided by us for now. The project runs one public set of pages, app.clewbook.xyz, and its home page lists campaigns from a file the project edits by hand, so **a campaign appears there only with the project's approval**. There is no submission form.
+The project runs one public set of pages, app.clewbook.xyz. Its home page shows the project's own campaigns and the campaigns of hosts we have approved. On **testnet** you can ask for your campaign to be listed there yourself; it takes four steps.
 
-To ask for a listing or for help with hosting, open an issue at https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us (this needs a GitHub account). The code and these guides are at https://github.com/clewbook/clewbook.
+1. **Make your host key, once.** `cb-host host-key init --runs-dir runs` makes a long lived key in `runs/host_key.json` (readable only by you, never replaced, never printed) and shows its public key and its **fingerprint**, ten groups of four characters. `cb-host host-key show --runs-dir runs` shows them again.
+2. **Tell us who you are.** Open an issue at https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us (this needs a GitHub account) with your fingerprint, the label you would like (see below) and a word about your campaign.
+3. **Send a listing request for your campaign.** `cb-host listing-record --run runs/<campaign folder> --runs-dir runs --out listing-request.json --post https://listing.clewbook.xyz`. It writes the request to the file and sends it to `https://listing.clewbook.xyz/v1/records`. The request names the campaign, its relays (from the campaign's `private/relays`, or repeat `--relay https://<your_relay_address>`) and its network, and is signed twice: by your host key and by the campaign's own ledger key, so only someone who holds both can ask for that campaign. Your relay must be on https and reachable from the internet. The answer says "received"; nothing is decided at that moment.
+4. **Wait for approval.** Every 10 minutes the listing job reads your campaign from every relay you named and checks it. Before it is listed for the first time, your campaign must pass a **recount**: the same check the recount page runs, over your relays' list and the public chain. A fundraiser gets the full recount; an auction before its close gets the two checks that can run without its viewing key, and the full recount after its close. Then, once we approve your host key, the campaign appears on the home page.
 
-A link to a campaign on those pages can work without being listed: the pages take the campaign and its relay from the link, provided your relay is on https. We have not tested this with a relay run by someone else.
+What approval means: **we show your campaign under Clewbook with your label. It is not an audit**, and it says nothing about what the campaign is for. The label shown with your campaigns ("Hosted by <label>") comes from us, never from your request; it follows the same rules as campaign names, and it may not contain the word Clewbook. Campaign names that look like a name already listed, or like the word Clewbook in any spelling, are refused.
+
+Some things to know:
+
+- A request from a host we have not approved waits at most **7 days**, then it is removed. You can send it again.
+- A listed campaign stays listed after its deadline, as a closed campaign. It is recounted again when its list changes and at least every 6 hours; if a recount fails later, the campaign stays listed and we are told, and we decide whether to take it off.
+- We can hide a campaign or revoke a host key at any time. Nothing is deleted from any relay.
+- **Mainnet listing is not open yet.** For a mainnet campaign, or for help with hosting, use the same issue link (Contact us).
+
+A link to a campaign on those pages works without being listed: the pages take the campaign and its relay from the link, provided your relay is on https. We have not tested this with a relay run by someone else.
+
+How the listing job works, its checks and limits: `docs/LISTING.md`.
 
 ## 8. Mainnet
 

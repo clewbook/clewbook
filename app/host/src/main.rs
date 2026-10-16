@@ -231,6 +231,41 @@ enum Cmd {
         #[arg(long)]
         out: PathBuf,
     },
+    /// PROTOTYPE (listing, testnet only): the host's long lived key, kept in <runs dir>/host_key.json (mode 600, never printed)
+    HostKey {
+        #[command(subcommand)]
+        action: HostKeyAction,
+        /// The host's run directory
+        #[arg(long, default_value = "runs", global = true)]
+        runs_dir: PathBuf,
+    },
+    /// PROTOTYPE (listing, testnet only): write a listing record for one campaign, signed by the host key and by the campaign's ledger key,
+    /// and optionally send it to a listing endpoint
+    ListingRecord {
+        /// The campaign folder
+        #[arg(long)]
+        run: PathBuf,
+        /// The host's run directory (where the host key is)
+        #[arg(long, default_value = "runs")]
+        runs_dir: PathBuf,
+        /// Relays to name in the record (repeat); default: the campaign's private/relays
+        #[arg(long = "relay")]
+        relays: Vec<String>,
+        /// Where to write the record (an existing file is not overwritten)
+        #[arg(long)]
+        out: PathBuf,
+        /// Also send it to this listing endpoint (for example https://listing.example.org)
+        #[arg(long)]
+        post: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum HostKeyAction {
+    /// Make the host key (once; an existing key is never replaced)
+    Init,
+    /// Show the host key's public key and fingerprint (never the secret)
+    Show,
 }
 
 /// Local, private configuration of a run (not published).
@@ -1727,6 +1762,31 @@ fn main() -> Result<()> {
             if !late.is_empty() {
                 let after = if end < r.rules.deadline_height { "the early close" } else { "the deadline" };
                 println!("{} payment(s) after {after}: not counted, not ticketed, not refunded. Return them by hand if their senders ask.", late.len());
+            }
+            Ok(())
+        }
+        Cmd::HostKey { action: HostKeyAction::Init, runs_dir } => {
+            let pk = ll_listing::host::init_key(&runs_dir)?;
+            println!("host key made in {} (mode 600)", ll_listing::host::key_path(&runs_dir).display());
+            println!("public key:  {pk}");
+            println!("fingerprint: {}", ll_listing::record::fingerprint(&pk));
+            Ok(())
+        }
+        Cmd::HostKey { action: HostKeyAction::Show, runs_dir } => {
+            let (pk, fp) = ll_listing::host::describe_key(&runs_dir)?;
+            println!("public key:  {pk}");
+            println!("fingerprint: {fp}");
+            Ok(())
+        }
+        Cmd::ListingRecord { run, runs_dir, relays, out, post } => {
+            if out.exists() {
+                bail!("{} already exists; choose another file name", out.display());
+            }
+            let rec = ll_listing::host::record_for(&runs_dir, &run, relays, ll_listing::host::now_secs())?;
+            fs::write(&out, serde_json::to_vec_pretty(&rec)?)?;
+            println!("listing record for campaign {}… written to {} (host {})", &rec.campaign[..8], out.display(), rec.host_fingerprint());
+            if let Some(url) = post {
+                println!("{}", ll_listing::host::post(&url, &rec)?);
             }
             Ok(())
         }

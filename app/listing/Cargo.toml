@@ -1,0 +1,43 @@
+[package]
+name = "ll-listing"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# PROTOTYPE (testnet only): listing campaigns on the home page by an approved host key. Not merged, not deployed.
+
+[dependencies]
+anyhow.workspace = true
+blake2b_simd.workspace = true
+clap.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ll-core.workspace = true
+# the recount: the relay crate's agreement check, and the browser's own recount module (app/web, unchanged), compiled natively
+ll-relay = { path = "../relay", optional = true }
+ll-web = { path = "../web", optional = true }
+tiny_http = "0.12"
+ureq = "2"
+unicode-normalization = "0.1"
+
+[features]
+# cb-host links this crate only for its host key and listing record commands, without the recount (default-features = false)
+default = ["recount"]
+recount = ["dep:ll-relay", "dep:ll-web"]
+
+[dev-dependencies]
+ll-relay = { path = "../relay" }
+orchard.workspace = true
+
+[lib]
+name = "ll_listing"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cb-listing"
+path = "src/main.rs"
+required-features = ["recount"]
