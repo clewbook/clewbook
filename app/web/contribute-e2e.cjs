@@ -63,7 +63,7 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   await page.click('#manual summary');
   const payTo = (await page.textContent('#pay-to')).trim();
   check('memo is the sealed message, payload version 2 with the amount (LL1:, 267 characters)', memo.startsWith('LL1:') && memo.length === 267, `${memo.length} chars`);
-  check('one line before payment: pay exactly the amount, once, from a shielded address', /Pay exactly 0\.01000000 TAZ once, from a shielded address\./.test(await page.textContent('#pay-warning')) && await page.isVisible('#pay-warning'));
+  check('one line before payment: pay exactly the amount, once, from a shielded address', /Pay exactly 0\.01 TAZ once, from a shielded address\./.test(await page.textContent('#pay-warning')) && await page.isVisible('#pay-warning'));
   check('a new payment code is not labelled old-format', await page.isHidden('#format-note'));
   check('payment address comes from the committed rules', payTo.length > 100);
   const href = await page.getAttribute('#paylink', 'href');

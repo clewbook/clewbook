@@ -61,7 +61,7 @@ const CAUTIONS = () => {
     await create(p, addr, '0.01');
     const normal = await p.evaluate(CAUTIONS);
     rules('payment step, normal', normal, { max: 1 });
-    check('payment step, normal: the one line says to pay exactly the amount once, from a shielded address', normal.length === 1 && /^Pay exactly 0\.01\d* TAZ once, from a shielded address\.$/.test(normal[0].text), normal[0] && normal[0].text);
+    check('payment step, normal: the one line says to pay exactly the amount once, from a shielded address', normal.length === 1 && /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(normal[0].text), normal[0] && normal[0].text);
     check('payment step: "Why?" is closed and holds one sentence', (await p.evaluate(() => !document.querySelector('#pay-why').open)) && (await text(p, '#pay-why p')).split(/\.\s/).length === 1);
     await p.screenshot({ path: `${SHOTS}/stage-h-payment.png`, fullPage: true });
     // changed amount

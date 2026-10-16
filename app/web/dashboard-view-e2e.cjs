@@ -20,7 +20,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
     await page.waitForFunction(() => /Block time/.test(document.querySelector('#facts').textContent) && document.querySelectorAll('#check-list .chk').length > 0, null, { timeout: 90000 });
     if (tag === '1280') {
       const facts = await text(page, '#facts');
-      check('status shows type, status, deadline with a measured time left, goal and minimum with 8 decimals', /Fundraiser/.test(facts) && /Open for contributions/.test(facts) && /Deadlineblock \d+ \(≈.* left\)/.test(facts) && /Block time≈\d+ seconds, measured over the last \d+ blocks/.test(facts) && /Goal0\.\d{8} TAZ/.test(facts) && /Smallest contribution0\.00020000 TAZ/.test(facts), facts.slice(0, 260));
+      check('status shows type, status, deadline with a measured time left, goal and minimum trimmed (no trailing zeros)', /Fundraiser/.test(facts) && /Open for contributions/.test(facts) && /Deadlineblock \d+ \(≈.* left\)/.test(facts) && /Block time≈\d+ seconds, measured over the last \d+ blocks/.test(facts) && /Goal0\.\d{0,7}[1-9] TAZ/.test(facts) && /Smallest contribution0\.0002 TAZ/.test(facts), facts.slice(0, 260));
       check('the status badge says OPEN', /OPEN/.test(await text(page, '#status-chip')));
       const todo = await text(page, '#todo-list');
       check('what the host still has to do: keep it running, close after the deadline', /Keep this program and this computer running/.test(todo) && /Close the campaign/.test(todo), todo);

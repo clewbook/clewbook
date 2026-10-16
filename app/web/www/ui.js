@@ -183,29 +183,23 @@ export function markerHTML(status) {
   return `<span class="mk ${s}" aria-hidden="true"><svg><use href="#${ICON[s]}"/></svg></span>`;
 }
 
-// ---------- amounts: never rounded. Testnet: all 8 decimals, trailing zeros dimmed (at least two decimals bright). Mainnet: trimmed, no
-// trailing zeros and no decimal point for a whole amount (0.0002, 1). Display only: stored, compared, hashed and signed amounts are not
-// touched. The network comes from the page's own flag (data-net, set by setNetwork) or the nearest element that carries one (a home card).
-const onMain = (el) => { const c = el && el.closest ? el.closest('[data-net]') : null; return ((c && c.dataset.net) || document.documentElement.dataset.net) === 'main'; };
+// ---------- amounts: never rounded. On every network: trimmed, no trailing zeros and no decimal point for a whole amount (0.0002, 1). Display
+// only: stored, compared, hashed and signed amounts are not touched. The third argument of amountHTML (mainnet or not) is accepted and no longer used.
 /** The display text of an amount in zatoshis on mainnet: trimmed, never rounded (0.00012345, 0.0002, 1). */
 export function trimmedAmount(zat) {
   const neg = zat < 0; const a = Math.abs(zat); const frac = String(a % 1e8).padStart(8, '0').replace(/0+$/, '');
   return `${neg ? '−' : ''}${Math.floor(a / 1e8)}${frac ? '.' + frac : ''}`;
 }
-export function amountHTML(zat, unit, main = onMain(null)) {
+export function amountHTML(zat, unit) {
   const neg = zat < 0; const a = Math.abs(zat);
-  return amountParts(String(Math.floor(a / 1e8)), String(a % 1e8).padStart(8, '0'), unit, neg, main);
+  return amountParts(String(Math.floor(a / 1e8)), String(a % 1e8).padStart(8, '0'), unit, neg);
 }
-function amountParts(whole, frac8, unit, neg = false, main = false) {
-  if (main) { const f = frac8.replace(/0+$/, ''); return `<span class="amt">${neg ? '−' : ''}${esc(whole)}${f ? '.' + f : ''}${unit ? `<span class="u"> ${esc(unit)}</span>` : ''}</span>`; }
-  const digits = frac8.split('');
-  let z = digits.length; while (z > 0 && digits[z - 1] === '0') z--; // digits from index z on are trailing zeros
-  z = Math.max(z, 2); // at least two decimals stay bright (40.00 then the dimmed tail)
-  const cell = (from, to) => { let out = ''; for (let i = from; i < to; i++) out += i >= z ? `<span class="z">${digits[i]}</span>` : digits[i]; return out; };
-  return `<span class="amt">${neg ? '−' : ''}${esc(whole)}.${cell(0, 4)}<span class="g">${cell(4, 8)}</span>${unit ? `<span class="u"> ${esc(unit)}</span>` : ''}</span>`;
+function amountParts(whole, frac8, unit, neg = false) {
+  const f = frac8.replace(/0+$/, '');
+  return `<span class="amt">${neg ? '−' : ''}${esc(whole)}${f ? '.' + f : ''}${unit ? `<span class="u"> ${esc(unit)}</span>` : ''}</span>`;
 }
 const AMOUNT_IN_TEXT = /(\d[\d,]*)(?:\.(\d{1,8}))?( (?:TAZ|ZEC)\b)/g;
-/** Re-draws every "<number> TAZ|ZEC" in the text under `root` as an 8-decimal amount with dimmed zeros. The words stay the same. */
+/** Re-draws every "<number> TAZ|ZEC" in the text under `root` as a trimmed amount (no trailing zeros). The words stay the same. */
 export function decorateAmounts(root = document.body) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => (n.parentElement && !n.parentElement.closest('.amt, script, style, textarea, input, pre, code') && /(?:TAZ|ZEC)\b/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
@@ -215,8 +209,7 @@ export function decorateAmounts(root = document.body) {
     const t = n.nodeValue; AMOUNT_IN_TEXT.lastIndex = 0;
     if (!AMOUNT_IN_TEXT.test(t)) continue;
     const span = document.createElement('span');
-    const main = onMain(n.parentElement);
-    span.innerHTML = esc(t).replace(AMOUNT_IN_TEXT, (_, whole, frac = '', unit) => amountParts(whole.replace(/,/g, ''), frac.padEnd(8, '0'), unit.trim(), false, main));
+    span.innerHTML = esc(t).replace(AMOUNT_IN_TEXT, (_, whole, frac = '', unit) => amountParts(whole.replace(/,/g, ''), frac.padEnd(8, '0'), unit.trim()));
     n.replaceWith(...span.childNodes);
   }
 }

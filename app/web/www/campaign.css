@@ -32,20 +32,21 @@
 .pl-arrow::before { content: "▸"; }
 .pl-toggle[aria-expanded="true"] .pl-arrow::before { content: "▾"; }
 .plist sup { color: var(--cb-info); }
-.entries { display: block; }
-.entries tbody { display: block; }
-.entries tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--cb-rule); }
-.entries td { display: block; padding: 0; border: 0; font: 400 15px var(--cb-font-body); color: var(--cb-ink); }
-.entries td.n { display: none; }
-.entries td.kind { grid-column: 1; grid-row: 1; }
-.entries td.blk { grid-column: 2; grid-row: 1; color: var(--cb-ink-3); white-space: nowrap; font-size: 14px; }
-.entries td.r { grid-column: 3; grid-row: 1; text-align: right; }
-.entries td:last-child { display: none; }
-.entries .ref { color: var(--cb-ink-4); font-size: 14px; }
-.entries .enote { display: block; font-size: 13px; color: var(--cb-ink-3); }
-.entries .hash { font-size: 12.5px; }
-.ledger-narrow { display: none !important; }
-.lrow .full { grid-column: 1 / -1; }
+/* the list: one row per entry, six aligned columns (kind with its short id beneath, result, amount, what happened, block, price paid); headers for
+   screen readers only. At phone width each row is two lines: kind, result and the amounts; then id, block and what happened. */
+.entries { table-layout: auto; }
+.entries td { padding: 12px 14px 12px 0; vertical-align: top; font: 400 14px/1.4 var(--cb-font-body); color: var(--cb-ink-2); white-space: nowrap; }
+.entries td:last-child { padding-right: 0; }
+.entries tr[hidden] { display: none; }
+.entries .ek { display: block; font-weight: 500; color: var(--cb-ink); }
+.entries .ref { display: block; font-size: 13px; color: var(--cb-ink-4); }
+.entries td.res { color: var(--cb-ink); }
+.entries td.what { white-space: normal; min-width: 9em; }
+.entries td.blk { color: var(--cb-ink-3); font-variant-numeric: tabular-nums; }
+.entries td.none { color: var(--cb-ink-4); }
+.page .pl-more { align-self: flex-start; min-height: 44px; margin: 4px 0 0; padding: 0 2px; border: 0; background: none; box-shadow: none; transform: none;
+  font: 500 14px var(--cb-font-body); color: var(--cb-accent-text); cursor: pointer; }
+.page .pl-more:hover { background: none; color: var(--cb-ink); transform: none; }
 .pl-empty { padding: 13px 0; color: var(--cb-ink-3); border-bottom: 1px solid var(--cb-rule); }
 /* the counts: one per line, label and a short note on the left, the value on the right, a thin line between (as in the Rules table) */
 .lfacts { display: flex; flex-direction: column; font: 400 14px var(--cb-font-body); color: var(--cb-ink-2); }
@@ -103,9 +104,19 @@
 }
 @media (max-width: 639px) {
   .chead { padding-top: 24px; }
-  .entries tr { grid-template-columns: minmax(0, 1fr) auto; }
-  .entries td.blk { grid-column: 1; grid-row: 2; }
-  .entries td.r { grid-column: 2; grid-row: 1 / span 2; }
+  .entries, .entries tbody { display: block; }
+  .entries tr { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--cb-rule); }
+  .entries td { display: block; padding: 0; border: 0; min-width: 0; }
+  .entries td.k { display: contents; }
+  .entries td.none { display: none; }
+  .entries .ek { grid-row: 1; grid-column: 1; }
+  .entries td.res { grid-row: 1; grid-column: 2; }
+  .entries td.am, .entries td.pr { grid-row: 1; grid-column: 3 / 5; justify-self: end; }
+  .entries tr:has(td.am:not(.none)):has(td.pr:not(.none)) td.am { grid-column: 3; }
+  .entries tr:has(td.am:not(.none)):has(td.pr:not(.none)) td.pr { grid-column: 4; }
+  .entries .ref { grid-row: 2; grid-column: 1; }
+  .entries td.blk { grid-row: 2; grid-column: 2; font-size: 13px; }
+  .entries td.what { grid-row: 2; grid-column: 3 / 5; justify-self: end; text-align: right; min-width: 0; font-size: 13px; }
   .rkv { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
   .rkv dt { white-space: normal; }
   .actions .btn { flex: 1 1 auto; }

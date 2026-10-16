@@ -163,39 +163,83 @@ async function main() {
   $('#relay-live').textContent = `${j.ok.length} ${j.ok.length === 1 ? 'relay' : 'relays'} live.`;
   $('#public-list').hidden = false; $('#pl-foot').hidden = false;
 
-  // the latest entries of the signed list, as published (amounts only where the list shows them: never a bid before the close)
-  const KIND = { issue: auction ? 'Bid received' : 'Contribution', reissue: 'Ticket reissued', reject: 'Set aside', close: 'Closed', settle: 'Settlement', withdraw: 'Withdrawn' };
+  // the signed list, as published, newest first: one row per entry with the same six columns (kind with its short id beneath, result, amount,
+  // what happened to the money, block, price paid). Amounts only where the list gives them: never a bid before the close, and nothing computed.
   const winners = closeE && closeE.close && Array.isArray(closeE.close.winners) ? closeE.close.winners : null;
   const settleOf = (nf) => j.entries.find((e) => e.kind === 'settle' && e.settle && e.settle.nf === nf);
-  const latest = j.entries.slice(-10).reverse();
-  if (latest.length) {
-    const body = $('#entries'), narrow = $('#entries-narrow');
-    for (const e of latest) {
-      const ref = (e.contribution && e.contribution.txid) || (e.settle && e.settle.txid) || (e.ticket && e.ticket.txid) || null;
-      let zatv = e.contribution && e.contribution.value_zat != null ? e.contribution.value_zat : e.settle ? e.settle.price_zat : null;
-      const height = e.contribution ? e.contribution.height : null;
-      let kind = KIND[e.kind] || e.kind, note = '';
-      // a closed auction: each bid entry is a winner or not (the close names the winners by nullifier); a winner's settlement gives the price and what came back
-      if (auction && e.kind === 'issue' && winners && e.contribution && e.contribution.nf) {
-        const won = winners.includes(e.contribution.nf), st = won ? settleOf(e.contribution.nf) : null;
-        kind = won ? 'Bid · won' : 'Bid · did not win';
-        if (st) { zatv = st.settle.price_zat; note = st.settle.excess_zat > 0 ? 'back' : ''; }
-        else if (!won) note = 'refunded by ticket';
-      }
-      const tr = document.createElement('tr');
-      const cells = [['n', `#${e.seq}`], ['kind', kind], ['blk', height != null ? `block ${height.toLocaleString('en-US')}` : ''], ['r', null], ['', null]];
-      for (const [cls, text] of cells) { const td = document.createElement('td'); if (cls) td.className = cls; if (text != null) td.textContent = text; tr.append(td); }
-      tr.children[3].innerHTML = zatv != null ? zat(zatv) : `<span class="dim">${note || (auction && e.kind === 'issue' ? 'amount hidden until the close' : '')}</span>`;
-      if (zatv != null && note === 'back' && e.contribution) { const st = settleOf(e.contribution.nf); tr.children[1].insertAdjacentHTML('beforeend', `<small class="enote">the settlement lists ${zat(st.settle.excess_zat)} sent back</small>`); }
-      if (ref) { const r = document.createElement('span'); r.className = 'ref'; r.title = ref; r.textContent = `${ref.slice(0, 8)}…${ref.slice(-5)}`; tr.children[1].append(' ', r); }
-      body.append(tr);
-      const row = document.createElement('div'); row.className = 'lrow';
-      const l = document.createElement('span'); l.textContent = `No. ${e.seq} ${kind}${height != null ? ` / block ${height.toLocaleString('en-US')}` : ''}`;
-      const a = document.createElement('span'); a.className = 'a'; a.innerHTML = tr.children[3].innerHTML;
-      row.append(l, a);
-      narrow.append(row);
+  // a capped fundraiser that met its soft cap: the list replayed in its order (as on the contribute page); a contribution that fits even counting
+  // every listed payment is kept, any other is over the cap and refunded by its ticket
+  const overCap = new Set();
+  if (!auction && outcome === 'goal_met' && c.cap_zat != null) {
+    let room = c.cap_zat; const seen = new Set();
+    for (const e of j.entries) {
+      const x = e.contribution;
+      if (!e.ticket || !x || x.value_zat == null || seen.has(x.nf)) continue;
+      seen.add(x.nf);
+      if (x.value_zat <= room) room -= x.value_zat; else overCap.add(x.nf);
     }
-    $('#entries-hint').textContent = latest.length < j.entries.length ? `AS PUBLISHED · ${latest.length} OF ${j.entries.length}` : 'AS PUBLISHED';
+  }
+  const DASH = '—';
+  const sentBack = (s) => (s.excess_zat > 0 ? `${zat(s.excess_zat)} sent back` : 'Nothing sent back');
+  /** One entry as its six cells: [kind, id, result, amount, what happened, block, price]; amounts are HTML, the rest plain text. */
+  function rowOf(e) {
+    const x = e.contribution;
+    const ref = (x && x.txid) || (e.settle && e.settle.txid) || (e.ticket && e.ticket.txid) || null;
+    const r = { kind: '', ref, result: DASH, amount: x && x.value_zat != null ? zat(x.value_zat) : null, what: DASH, block: x ? x.height : null, price: null };
+    if (e.kind === 'issue' && auction) {
+      r.kind = 'Bid';
+      if (winners && x && x.nf) {
+        const won = winners.includes(x.nf), st = won ? settleOf(x.nf) : null;
+        r.result = won ? 'Won' : 'Lost';
+        if (!won) r.what = 'Refunded by ticket';
+        else if (st) { r.what = sentBack(st.settle); r.price = zat(st.settle.price_zat); }
+        else r.what = uniform ? 'Not settled yet' : 'Kept as payment';
+      } else { r.result = 'Received'; r.what = r.amount == null ? 'Amount hidden until the close' : 'Ticket issued'; }
+    } else if (e.kind === 'issue' || e.kind === 'withdraw') {
+      r.kind = 'Contribution';
+      if (e.kind === 'withdraw') { r.result = 'Withdrawn'; r.what = 'Taken back'; }
+      else if (outcome === 'goal_missed') { r.result = 'Refunded'; r.what = 'Refunded by ticket'; }
+      else if (outcome === 'goal_met' && x && overCap.has(x.nf)) { r.result = 'Over the cap'; r.what = 'Refunded by ticket'; }
+      else if (outcome === 'goal_met') { r.result = 'Counted'; r.what = 'Kept by the campaign'; }
+      else { r.result = 'Received'; r.what = 'Ticket issued'; }
+    } else if (e.kind === 'reissue') { r.kind = 'Reissue'; r.result = 'Reissued'; r.what = 'New refund ticket'; }
+    else if (e.kind === 'reject') { r.kind = 'Set aside'; r.result = 'Not counted'; }
+    else if (e.kind === 'close') {
+      r.kind = 'Closed';
+      const w = e.close ? outcomeWords(e.close.outcome, !!c.cap) : 'finished';
+      r.result = w.charAt(0).toUpperCase() + w.slice(1);
+      r.block = e.close ? e.close.close_height : null;
+      if (e.close && e.close.clearing_price_zat != null) r.price = zat(e.close.clearing_price_zat);
+    } else if (e.kind === 'settle' && e.settle) { r.kind = 'Settlement'; r.result = 'Settled'; r.what = sentBack(e.settle); r.price = zat(e.settle.price_zat); }
+    else r.kind = e.kind;
+    return r;
+  }
+  const all = j.entries.slice().reverse();
+  if (all.length) {
+    const body = $('#entries');
+    for (const e of all) {
+      const r = rowOf(e);
+      const tr = document.createElement('tr'); tr.setAttribute('role', 'row'); tr.dataset.seq = String(e.seq);
+      const td = (cls) => { const d = document.createElement('td'); d.className = cls; d.setAttribute('role', 'cell'); tr.append(d); return d; };
+      const k = td('k');
+      k.append(Object.assign(document.createElement('span'), { className: 'ek', textContent: r.kind }));
+      if (r.ref) { const s = document.createElement('span'); s.className = 'ref'; s.title = r.ref; s.textContent = `${r.ref.slice(0, 8)}…${r.ref.slice(-5)}`; k.append(s); }
+      td('res').textContent = r.result;
+      const a = td('am r'); if (r.amount != null) a.innerHTML = r.amount; else { a.textContent = DASH; a.classList.add('none'); }
+      td('what').innerHTML = r.what;
+      td('blk').textContent = r.block != null ? r.block.toLocaleString('en-US') : DASH;
+      const pr = td('pr r'); if (r.price != null) pr.innerHTML = r.price; else { pr.textContent = DASH; pr.classList.add('none'); }
+      body.append(tr);
+    }
+    // the newest 5, and the rest behind "Show older (N)"
+    const SHOWN = 5, rows = [...body.children], more = $('#entries-more'), hint = $('#entries-hint');
+    const fold = (open) => {
+      rows.forEach((tr, i) => { tr.hidden = !open && i >= SHOWN; });
+      more.textContent = open ? 'Show fewer' : `Show older (${rows.length - SHOWN})`;
+      more.setAttribute('aria-expanded', String(open));
+      hint.textContent = open ? 'AS PUBLISHED' : `AS PUBLISHED · ${SHOWN} OF ${rows.length}`;
+    };
+    if (rows.length > SHOWN) { more.hidden = false; fold(false); more.addEventListener('click', () => fold(more.getAttribute('aria-expanded') !== 'true')); }
     $('#entries-card').hidden = false;
   } else $('#entries-empty').hidden = false;
 

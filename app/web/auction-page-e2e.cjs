@@ -22,7 +22,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   }
   // winner with an excess
   let p = await open(process.env.LINK_A, process.env.BACKUP_A);
-  check('winner sees "you won" and the exact price and excess', /you won/i.test(await txt(p, '#auction-title')) && /paid 0\.00190000/.test(await txt(p, '#auction-text')) && /0\.00100000 TAZ should have been paid back/.test(await txt(p, '#auction-text')), await txt(p, '#auction-text'));
+  check('winner sees "you won" and the exact price and excess', /you won/i.test(await txt(p, '#auction-title')) && /paid 0\.0019 TAZ/.test(await txt(p, '#auction-text')) && /0\.001 TAZ should have been paid back/.test(await txt(p, '#auction-text')), await txt(p, '#auction-text'));
   check('winner sees the settlement deadline in the facts', /settle winners within \d+ blocks/.test(await txt(p, '#about-facts')), (await txt(p, '#about-facts')).slice(0, 200));
   check('proof section (with the dedicated-account warning) is shown to a winner with an excess', await p.isVisible('#auction-proof') && /dedicated account/i.test(await txt(p, '#auction-proof')));
   await p.screenshot({ path: `${process.env.SHOTS || 'runs/page/shots'}/40-auction-winner.png`, fullPage: true });

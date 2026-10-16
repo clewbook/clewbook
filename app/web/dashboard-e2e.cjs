@@ -42,7 +42,7 @@ const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g
   await page.waitForSelector('#live:not([hidden])', { timeout: 300000 });
   await page.screenshot({ path: `${SHOTS}/20-dashboard-new.png`, fullPage: true });
   const facts = await text(page, '#facts');
-  check('shows the new campaign (type, goal, deadline, minimum)', /Fundraiser/.test(facts) && /Goal0\.05000000 TAZ/.test(facts) && /Deadline/.test(facts) && /0\.00020000 TAZ/.test(facts), facts.slice(0, 160));
+  check('shows the new campaign (type, goal, deadline, minimum)', /Fundraiser/.test(facts) && /Goal0\.05 TAZ/.test(facts) && /Deadline/.test(facts) && /0\.0002 TAZ/.test(facts), facts.slice(0, 160));
   const sel = await page.inputValue('#campaign-select');
   const st0 = await (await fetch(`${BASE}/api/campaigns/${sel}`)).json();
   check('contributor link is built', st0.contribute_link.includes(`#c=${sel}`) && st0.contribute_link.includes('relay='));
@@ -69,7 +69,7 @@ const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g
   check('live counts: 1 contribution received', (await val(page, '#counts', 'Contributions received')) === '1');
   check('live counts: 1 refund ticket issued', (await val(page, '#counts', 'Refund tickets issued')) === '1');
   check('live counts: 1 of 1 locked in the wallet', (await val(page, '#counts', 'Contributions locked in the wallet')) === '1 of 1');
-  check('raised so far shows 0.01 TAZ (8 decimals)', (await val(page, '#facts', 'Raised so far')) === '0.01000000 TAZ');
+  check('raised so far shows 0.01 TAZ (trimmed)', (await val(page, '#facts', 'Raised so far')) === '0.01 TAZ');
   const checks = await text(page, '#check-list');
   check('self-check: all rules pass', !/FAILS/.test(checks) && /R1/.test(checks), checks.slice(0, 80));
   check('both relays reported up to date', (await text(page, '#relay-list')).match(/up to date/g)?.length === 2);

@@ -6,7 +6,7 @@ const SHOTS = process.env.SHOTS || 'runs/design-shots';
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };
 const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g, ' ').trim();
-const zat8 = (z) => `${Math.floor(z / 1e8)}.${String(z % 1e8).padStart(8, '0')}`;
+const zat8 = (z) => { const f = String(z % 1e8).padStart(8, '0').replace(/0+$/, ''); return `${Math.floor(z / 1e8)}${f ? '.' + f : ''}`; }; // trimmed, as the pages show it
 const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
 (async () => {
   const browser = await chromium.launch();
@@ -24,7 +24,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
       if (tag === '1280') {
         const terms = await text(p, '#terms'), uniform = rules.mode === 'auction' && rules.pricing === 'uniform';
         check(`${name}: the type and network come from the rules`, new RegExp(rules.mode === 'raise' ? 'Type\\s*Fundraiser' : 'Type\\s*Auction').test(terms) && /Network\s*Test network \(no real money\)/.test(terms) && rules.network === 'test', terms.slice(0, 120));
-        check(`${name}: the smallest contribution, the refund fee and the ticket window equal the rules, with 8 decimals`, terms.includes(`Smallest contribution${zat8(rules.min_contribution_zat)} TAZ`.replace(/\s/g, '')) || terms.replace(/\s/g, '').includes(`Smallestcontribution${zat8(rules.min_contribution_zat)}TAZ`) , terms);
+        check(`${name}: the smallest contribution, the refund fee and the ticket window equal the rules, trimmed`, terms.includes(`Smallest contribution${zat8(rules.min_contribution_zat)} TAZ`.replace(/\s/g, '')) || terms.replace(/\s/g, '').includes(`Smallestcontribution${zat8(rules.min_contribution_zat)}TAZ`) , terms);
         check(`${name}: the ticket window is K = ${rules.ticket_k} blocks and the deadline is block ${rules.deadline_height}`, new RegExp(`Ticket window\\s*${rules.ticket_k} blocks`).test(terms) && terms.replace(/,/g, '').includes(`block ${rules.deadline_height}`), terms);
         if (rules.mode === 'raise') check('fundraiser: the goal equals the rules', terms.replace(/\s/g, '').includes(`Goal${zat8(rules.goal_zat)}TAZ`));
         const ids = await p.evaluate(() => [...document.querySelectorAll('#checks .cid')].map((e) => e.firstChild.textContent));

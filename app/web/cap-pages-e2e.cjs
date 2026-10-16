@@ -27,8 +27,8 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   await p.waitForSelector('#form-card:not([hidden])', { timeout: 120000 });
   await p.waitForFunction(() => /Room left/.test(document.querySelector('#about-facts').textContent), null, { timeout: 60000 });
   let f = await facts(p, '#about-facts');
-  check('contribute: "Soft cap", "Hard cap" and the room left are shown, and no "Goal"', /^0\.00200000 TAZ/.test(f['Soft cap'] || '') && /^0\.00300000 TAZ/.test(f['Hard cap'] || '') && /^0\.00300000 TAZ/.test(f['Room left under the hard cap'] || '') && !('Goal' in f), JSON.stringify(f).slice(0, 300));
-  check('contribute: the status line names both caps', (await p.textContent('#status-text')).trim() === 'Fundraiser, soft cap 0.00200000 TAZ, hard cap 0.00300000 TAZ', await p.textContent('#status-text'));
+  check('contribute: "Soft cap", "Hard cap" and the room left are shown, and no "Goal"', /^0\.002 TAZ/.test(f['Soft cap'] || '') && /^0\.003 TAZ/.test(f['Hard cap'] || '') && /^0\.003 TAZ/.test(f['Room left under the hard cap'] || '') && !('Goal' in f), JSON.stringify(f).slice(0, 300));
+  check('contribute: the status line names both caps', (await p.textContent('#status-text')).trim() === 'Fundraiser, soft cap 0.002 TAZ, hard cap 0.003 TAZ', await p.textContent('#status-text'));
   check('contribute: no cap note before paying (owner decision: the paragraph is removed)', (await p.locator('#cap-note').count()) === 0);
   check('contribute: the about text has no hyphens or dashes', noDash(await p.textContent('#about-text')));
   await p.fill('#amount', '0.0031'); await p.fill('#refund', E.REFUND); await p.click('#create');
@@ -52,12 +52,12 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   p = await open(link('campaign.html', E.CAPPED));
   await p.waitForFunction(() => /Hard cap/.test(document.body.textContent), null, { timeout: 120000 }).catch(() => {});
   const body = (await p.textContent('body')).replace(/\s+/g, ' ');
-  check('campaign page: soft cap and hard cap, with what each means', /Soft cap0\.00200000 TAZthe least it must keep/.test(body) && /Hard cap0\.00300000 TAZthe most it keeps/.test(body) && /Soft cap 0\.00200000 TAZ, hard cap 0\.00300000 TAZ/.test(body), body.slice(0, 200));
+  check('campaign page: soft cap and hard cap, with what each means', /Soft cap0\.002 TAZthe least it must keep/.test(body) && /Hard cap0\.003 TAZthe most it keeps/.test(body) && /Soft cap 0\.002 TAZ, hard cap 0\.003 TAZ/.test(body), body.slice(0, 200));
   await p.close();
   p = await open(link('card.html', E.CAPPED));
   await p.waitForSelector('#card:not([hidden])', { timeout: 120000 }).catch(() => {});
   const terms = (await p.textContent('#terms')).replace(/\s+/g, ' ');
-  check('claim sheet: "Soft cap" and "Hard cap" from the rules, no "Goal"', /Soft cap ?0\.00200000 TAZ/.test(terms) && /Hard cap \(payments over it are refunded at the close\) ?0\.00300000 TAZ/.test(terms) && !/Goal/.test(terms), terms.slice(0, 300));
+  check('claim sheet: "Soft cap" and "Hard cap" from the rules, no "Goal"', /Soft cap ?0\.002 TAZ/.test(terms) && /Hard cap \(payments over it are refunded at the close\) ?0\.003 TAZ/.test(terms) && !/Goal/.test(terms), terms.slice(0, 300));
   await p.close();
   p = await open(link('card.html', E.PLAIN));
   await p.waitForSelector('#card:not([hidden])', { timeout: 120000 }).catch(() => {});
@@ -95,12 +95,12 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
     const w = (await p.textContent('#cap-warn')).trim();
     check('set up page: a hard cap below twice the goal shows the plain warning (and does not block)', await p.isVisible('#cap-warn') && /less than twice the soft cap/.test(w) && await p.isEnabled('#create-btn') && noDash(w), w);
     let pv = (await p.textContent('#terms')).replace(/\s+/g, ' ');
-    check('set up page: the summary says "Soft cap" and "Hard cap" when a cap is entered', /Soft cap ?0\.00200000/.test(pv) && /Hard cap ?0\.00300000/.test(pv) && !/Goal/.test(pv), pv.slice(0, 200));
+    check('set up page: the summary says "Soft cap" and "Hard cap" when a cap is entered', /Soft cap ?0\.002 TAZ/.test(pv) && /Hard cap ?0\.003 TAZ/.test(pv) && !/Goal/.test(pv), pv.slice(0, 200));
     await p.fill('#cap', '0.004'); await p.waitForTimeout(300);
     check('set up page: twice the goal: no warning', await p.isHidden('#cap-warn'));
     await p.fill('#cap', ''); await p.waitForTimeout(300);
     pv = (await p.textContent('#terms')).replace(/\s+/g, ' ');
-    check('set up page: without a cap the summary says "Goal" as before', /Goal ?0\.00200000/.test(pv) && !/Hard cap/.test(pv), pv.slice(0, 200));
+    check('set up page: without a cap the summary says "Goal" as before', /Goal ?0\.002 TAZ/.test(pv) && !/Hard cap/.test(pv), pv.slice(0, 200));
     check('set up page: the hard cap hint has no hyphens or dashes', noDash(await p.textContent('#cap-hint')));
     await p.close();
   }

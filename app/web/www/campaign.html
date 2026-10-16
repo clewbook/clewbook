@@ -41,8 +41,8 @@
         <div class="plhd"><button type="button" class="plt pl-toggle" id="pl-toggle" aria-expanded="false" aria-controls="list-facts"><span class="pl-arrow" aria-hidden="true"></span>Public list<sup>1</sup></button><span class="t-label" id="entries-hint">AS PUBLISHED</span></div>
         <dl class="lfacts" id="list-facts" hidden></dl>
         <section id="entries-card" hidden>
-          <table class="ledger entries"><thead class="sr"><tr><th>No.</th><th>Entry</th><th>Block</th><th class="r">Amount</th><th>Reference</th></tr></thead><tbody id="entries"></tbody></table>
-          <div class="ledger-narrow" id="entries-narrow" hidden></div>
+          <table class="ledger entries" role="table" aria-label="Public list, newest first"><thead class="sr" role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Entry and short id</th><th scope="col" role="columnheader">Result</th><th scope="col" role="columnheader">Amount</th><th scope="col" role="columnheader">What happened to the money</th><th scope="col" role="columnheader">Block</th><th scope="col" role="columnheader">Price paid</th></tr></thead><tbody id="entries" role="rowgroup"></tbody></table>
+          <button type="button" class="pl-more" id="entries-more" aria-controls="entries" aria-expanded="false" hidden></button>
         </section>
         <p class="pl-empty" id="entries-empty" hidden>No entries yet.</p>
       </section>

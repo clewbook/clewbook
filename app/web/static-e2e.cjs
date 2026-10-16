@@ -82,7 +82,7 @@ const CASES = [
     await card.screenshot({ path: `${SHOTS}/static-card-1000.png`, fullPage: true }); await card.close();
     const camp = await open(`${BASE}/campaign.html#${q}`);
     await camp.waitForSelector('#links:not([hidden])', { timeout: 90000 });
-    check('the campaign page lists the ledger entries from the files', (await camp.locator('#entries tr').count()) === 6);
+    check('the campaign page lists the ledger entries from the files: 6 rows, the newest 5 shown and "Show older (1)"', (await camp.locator('#entries tr').count()) === 6 && (await camp.locator('#entries tr:not([hidden])').count()) === 5 && (await camp.textContent('#entries-more')).trim() === 'Show older (1)');
     await camp.close();
     const idx = await open(`${BASE}/proofs/`);
     check('the proofs page builds its links from wherever it is served', (await idx.locator('#list a').count()) === 39 && /relays\/a/.test(await idx.locator('#list a').first().getAttribute('href')));
