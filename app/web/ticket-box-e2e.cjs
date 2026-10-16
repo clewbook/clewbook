@@ -51,10 +51,11 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
     const seen = () => p.evaluate(() => ({ err: document.querySelector('#ticket-error').hidden ? '' : document.querySelector('#ticket-error').innerText.trim(), out: document.querySelector('#ticket-result').hidden ? '' : document.querySelector('#ticket-result').innerText.replace(/\s+/g, ' ').trim(), button: !!document.querySelector('#ticket-open') }));
 
     const a = await p.evaluate(() => ({ title: document.querySelector('#ticket-box h2').textContent, box: !document.querySelector('#ticket-box').hidden && document.querySelector('#ticket-box').getClientRects().length > 0,
-      saved: !document.querySelector('#upload-card').hidden && document.querySelector('#upload-card h2').textContent, lead: document.querySelector('.rlead').textContent, old: document.body.innerText.includes('I have a ticket backup file'),
+      saved: !document.querySelector('#upload-card').hidden && document.querySelector('#upload-card h2').textContent, savedText: document.querySelector('#upload-card .muted').textContent, lead: document.querySelector('.rlead').textContent, old: document.body.innerText.includes('I have a ticket backup file'),
       boxTop: Math.round(document.querySelector('#ticket-box').getBoundingClientRect().top), leadBottom: Math.round(document.querySelector('.rlead').getBoundingClientRect().bottom) }));
     check('state (a), no campaign in the address: "Import ticket backup file" and "Check a saved copy" are both shown, under the line below the tabs; the old title is gone', a.title === 'Import ticket backup file' && a.box && a.saved === 'Check a saved copy' && a.boxTop >= a.leadBottom && !a.old, JSON.stringify(a));
     check('state (a): the line under the tabs is the new one, word for word', a.lead === LEAD, a.lead);
+    check('state (a): "Check a saved copy" says what the file is, what the page does with it and that it stays on the device, word for word', a.savedText === 'Saved a campaign\'s list before? Choose the file and your browser checks it against the Zcash chain. It never leaves your device. Get one from the host, or with "Keep a copy" after a recount.', a.savedText);
     check('the box is on the Recount page with its title and line', /^Import ticket backup file$/.test(await p.textContent('#ticket-box h2')) && /Opens your contribution or bid\. The file is read in this browser and is not sent anywhere\./.test(await p.textContent('#ticket-box')));
 
     // found, open

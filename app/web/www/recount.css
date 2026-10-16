@@ -41,6 +41,7 @@
 .verdict h2 { font: 700 clamp(28px, 4vw, 42px)/1.05 var(--cb-font-display); letter-spacing: -.03em; text-wrap: balance; overflow-wrap: anywhere; }
 .verdict.fail h2 { color: var(--cb-ink); }
 .verdict p { max-width: 70ch; color: var(--cb-ink-2); font-size: 15px; }
+#verdict-text:empty { display: none; } /* a plain pass or fail has no line under its heading: no gap either */
 .progress-line { color: var(--cb-ink-3); font-size: 13px; }
 .progress-line:empty { display: none; }
 @media (prefers-reduced-motion: no-preference) { .verdict.working .vtag { animation: pulse 1.4s ease-in-out infinite; } }

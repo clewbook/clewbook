@@ -214,6 +214,14 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
               one('#fp-card .cmp-l'), !!document.querySelector('#fp-given'), one('#fp-card details summary'), one('#fp-line')],
             coverage: !!document.querySelector('#coverage-line') };
         });
+        // round 10: the verdict card. One stand-in server, so the result is limited: the heading has no "(limited check)", there is no line (and no gap)
+        // under it, and the LIMITED tag stays beside PASS or FAIL
+        const vd = await q.evaluate(() => {
+          const v = document.querySelector('#verdict'), h = document.querySelector('#verdict-title'), tx = document.querySelector('#verdict-text'), main = document.querySelector('.vmain');
+          return { kind: v.dataset.kind, title: h.textContent, text: tx.textContent, display: getComputedStyle(tx).display, kicker: document.querySelector('#verdict-kicker').textContent,
+            gap: Math.round(main.getBoundingClientRect().bottom - h.getBoundingClientRect().bottom) };
+        });
+        check('the verdict: "All checks pass" or "Some checks FAIL" with no "(limited check)", no line under the heading and no gap; the LIMITED tag beside PASS or FAIL', ['All checks pass', 'Some checks FAIL'].includes(vd.title) && vd.text === '' && vd.display === 'none' && vd.gap <= 2 && /LIMITED/.test(vd.kicker) && /PASS|FAIL/.test(vd.kicker) && ['partial', 'fail'].includes(vd.kind), JSON.stringify(vd));
         check('Check another server: "Paste another public Zcash server address and run the recount again with it."; nothing about lightwalletd or web pages on show', x.server === 'Paste another public Zcash server address and run the recount again with it.' && !/lightwalletd|web pages/.test(x.seen) && x.err, x.server);
         check('Keep a copy: "Save the full list. If a server later hides or changes part of it, your copy still shows what you saw."', x.copy === 'Save the full list. If a server later hides or changes part of it, your copy still shows what you saw.', x.copy);
         check('Fingerprint: "The number of entries and the hash of the last one. Compare it with one you were given."', x.fp === 'The number of entries and the hash of the last one. Compare it with one you were given.', x.fp);

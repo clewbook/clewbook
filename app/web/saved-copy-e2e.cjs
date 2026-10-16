@@ -41,7 +41,7 @@ const clone = () => JSON.parse(JSON.stringify(good));
     await p.setInputFiles('#saved-file', GOOD);
     await settle(p); await p.waitForFunction(() => /saved copy/i.test(document.querySelector('#verdict-title').textContent), null, { timeout: 600000 });
     const title = await t(p, '#verdict-title'), banners = await t(p, '#banners');
-    check('the host\'s export gives "All checks pass for the saved copy (limited check)", every check passing', (await p.getAttribute('#verdict', 'data-kind')) === 'partial' && /All checks pass for the saved copy/.test(title) && Number(await t(p, '#n-fail')) === 0 && Number(await t(p, '#n-pass')) >= 8, `${title} pass=${await t(p, '#n-pass')}`);
+    check('the host\'s export gives "All checks pass for the saved copy" with the LIMITED tag, every check passing', (await p.getAttribute('#verdict', 'data-kind')) === 'partial' && title === 'All checks pass for the saved copy' && /LIMITED/.test(await t(p, '#verdict-kicker')) && Number(await t(p, '#n-fail')) === 0 && Number(await t(p, '#n-pass')) >= 8, `${title} pass=${await t(p, '#n-pass')}`);
     check('the page says plainly that the result comes from a file, not from a relay', /comes from a saved copy of the list that you loaded, not from a relay/.test(banners) && /not from a relay/.test(await t(p, '#verdict-text')) && await p.isVisible('#saved-using'), banners.slice(0, 160));
     check('"Not checked" names the missing agreement with relays', /came from a saved file/.test(await t(p, '#notchecked-line')));
     await p.screenshot({ path: `${SHOTS}/saved-copy-result.png`, fullPage: true });

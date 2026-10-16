@@ -26,14 +26,15 @@ function fact(dl, label, value) {
   dt.textContent = label; dd.textContent = value;
   dl.append(dt, dd);
 }
-function verdict(kind, title, text) {
+function verdict(kind, title, text, limitedFail = false) {
   const v = $('#verdict');
   v.className = `verdict ${kind}`; // pass | fail | cannot | partial | working
   $('#verdict-title').textContent = title;
-  $('#verdict-text').textContent = text;
+  $('#verdict-text').textContent = text; // empty for a plain pass or fail: the heading and the tags say it (round 10); the empty line takes no room
   v.dataset.kind = kind;
-  // the tags of the verdict card: a word and a mark each, never colour alone
-  const limited = kind === 'partial' || /limited check/i.test(title);
+  // the tags of the verdict card: a word and a mark each, never colour alone. LIMITED: a pass that could not be cross checked (kind partial), or a
+  // fail that could not be (limitedFail), as the notes below the card explain
+  const limited = kind === 'partial' || limitedFail;
   const tags = kind === 'pass' ? [['pass', '✓ PASS']] : kind === 'partial' ? [['pass', '✓ PASS'], ['warn', '△ LIMITED']]
     : kind === 'fail' ? [['fail', '✕ FAIL'], ...(limited ? [['warn', '△ LIMITED']] : [])]
     : kind === 'cannot' ? [['wait', /^Not yet possible/.test(title) ? '◷ WAIT' : '◷ CANNOT CONCLUDE']] : [['nc', 'WORKING']];
@@ -272,15 +273,16 @@ async function recount() {
   if (partial) warn('warn', 'Only one public server answered. A single server could leave blocks out, so this is not a cross check.');
   if (oneRelay && !j.fromFile) warn('info', cfg.relays.length > 1 ? 'Only one relay gave a usable list.' : 'Only one relay was asked, so the list has not been cross checked.');
   if (r.all_pass) {
-    if (j.fromFile) verdict('partial', 'All checks pass for the saved copy (limited check)', 'Every check passes for the saved copy you loaded, as checked against the chain. This result comes from a file, not from a relay: it shows the file is internally sound and matches the chain, not that it is the list the host showed to others.');
-    else if (partial || oneRelay) verdict('partial', 'All checks pass (limited check)', 'Every check passes, but not everything could be cross checked; see the notes below.');
-    else verdict('pass', 'All checks pass', `Every check passes at block ${out.end}. Checked against ${n} servers: they all showed the same chain data, and the relays showed the same list.`);
+    // a saved copy keeps its one line: what a result from a file can and cannot show is said nowhere else
+    if (j.fromFile) verdict('partial', 'All checks pass for the saved copy', 'This result comes from a file, not from a relay: it shows the file is internally sound and matches the chain, not that it is the list the host showed to others.');
+    else if (partial || oneRelay) verdict('partial', 'All checks pass', '');
+    else verdict('pass', 'All checks pass', '');
   } else if (j.fromFile) {
-    verdict('fail', 'Some checks FAIL for the saved copy (limited check)', 'At least one check fails for the saved copy you loaded. This result comes from a file, not from a relay: the failure may be in the file (for example, entries cut off its end) or in the campaign; the evidence is under each failing check.');
+    verdict('fail', 'Some checks FAIL for the saved copy', 'This result comes from a file, not from a relay: the failure may be in the file (for example, entries cut off its end) or in the campaign.', true);
   } else if (partial || oneRelay) {
-    verdict('fail', 'Some checks FAIL (limited check)', 'At least one check fails. Because not everything could be cross checked, this could also be a missing entry or block from a source; try again with more relays or servers.');
+    verdict('fail', 'Some checks FAIL', '', true);
   } else {
-    verdict('fail', 'Some checks FAIL', 'At least one check fails, and the servers and relays agree on what they showed. The evidence is under each failing check.');
+    verdict('fail', 'Some checks FAIL', '');
   }
 }
 

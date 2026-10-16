@@ -47,7 +47,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   await p.waitForFunction(() => document.querySelector('#verdict').dataset.kind && document.querySelector('#verdict').dataset.kind !== 'working', null, { timeout: 240000 });
   const kind = await p.getAttribute('#verdict', 'data-kind');
   check('recount: all checks pass with two servers and two relays', kind === 'pass', `${kind}: ${await txt(p, '#verdict-title')}`);
-  check('recount wording: "Checked against N servers", no claim of independence', /Checked against 2 servers/.test(await txt(p, '#verdict-text')) && !/independent servers/i.test(await txt(p, '#verdict')));
+  check('recount wording: "Checked against N servers" in the Coverage line (the verdict card has no line under "All checks pass"), no claim of independence', /Checked against 2 servers/.test(await txt(p, '#coverage-line')) && (await txt(p, '#verdict-text')) === '' && !/independent servers/i.test(await txt(p, '#verdict')));
   check('recount notes that both testnet servers share hosting', /same hosting/.test(await txt(p, '#banners')));
   const rules = await txt(p, '#rules');
   const rows = await p.evaluate(() => [...document.querySelectorAll('#rules .chk')].map((d) => ({ id: d.querySelector('.id').textContent.replace(/\s+/g, ' ').trim().split(' ')[0], pass: d.classList.contains('pass'), chip: d.querySelector('.chip').textContent.trim() })));
