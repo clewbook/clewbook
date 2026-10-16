@@ -2,7 +2,7 @@
 
 **Private Markets. Public Accounting.**
 
-Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can recount the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a refund ticket that can return their money without the host.
+Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host.
 
 - **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
 - **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
