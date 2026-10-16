@@ -144,6 +144,9 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     });
     check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(18, 21, 26)' && box.before && /^Pay exactly 0\.01(0+)? TAZ once, from a shielded address\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
+    const wl = await p.evaluate(() => { const m = document.querySelector('#manual'); m.open = true; const a = document.querySelector('#paylink'), n = m.querySelector('.wallet-note'); const r = (e) => e.getBoundingClientRect();
+      const out = { note: n ? n.innerText.trim() : null, below: !!n && r(n).top >= r(a).bottom, old: /works with some wallets only|most reliable way/.test(m.innerText), link: a.textContent, wide: document.documentElement.scrollWidth <= innerWidth + 1 }; m.open = false; return out; });
+    check('pay step: "(Connects with Vizor, Noir coming soon)" on its own line under "Open in my wallet app", and the old sentence is gone', wl.note === '(Connects with Vizor, Noir coming soon)' && wl.below && !wl.old && wl.link === 'Open in my wallet app' && wl.wide, JSON.stringify(wl));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
 

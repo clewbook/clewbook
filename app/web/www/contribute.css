@@ -96,6 +96,7 @@
 #manual { margin: 0; }
 .copyhd { margin: 12px 0 4px; }
 #manual pre.copybox { max-height: 7rem; }
+#manual .wallet-note { display: block; margin-top: 2px; } /* the wallets note on its own line under the link, in the hint's own muted style */
 .pay-back { margin-top: 8px; }
 /* the payment code stays at least 280 px wide so a long payment link still scans (tested in contribute-e2e) */
 .qr .code { width: 290px; max-width: 100%; box-sizing: content-box; scroll-margin-top: 96px; } /* never under the sticky header when brought into view */
