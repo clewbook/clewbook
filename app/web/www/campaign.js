@@ -163,8 +163,8 @@ async function main() {
   $('#relay-live').textContent = `${j.ok.length} ${j.ok.length === 1 ? 'relay' : 'relays'} live.`;
   $('#public-list').hidden = false; $('#pl-foot').hidden = false;
 
-  // the signed list, as published, newest first: one row per entry with the same six columns (kind with its short id beneath, result, amount,
-  // what happened to the money, block, price paid). Amounts only where the list gives them: never a bid before the close, and nothing computed.
+  // the signed list, as published, newest first: one row per entry with the same columns (kind with its short id beneath, result, amount on
+  // fundraisers, what happened to the money, block, price paid), and the close as one summary line. Amounts only where the list gives them: never a bid before the close, and nothing computed.
   const winners = closeE && closeE.close && Array.isArray(closeE.close.winners) ? closeE.close.winners : null;
   const settleOf = (nf) => j.entries.find((e) => e.kind === 'settle' && e.settle && e.settle.nf === nf);
   // a capped fundraiser that met its soft cap: the list replayed in its order (as on the contribute page); a contribution that fits even counting
@@ -181,7 +181,8 @@ async function main() {
   }
   const DASH = '—';
   const sentBack = (s) => (s.excess_zat > 0 ? `${zat(s.excess_zat)} sent back` : 'Nothing sent back');
-  /** One entry as its six cells: [kind, id, result, amount, what happened, block, price]; amounts are HTML, the rest plain text. */
+  /** One entry as its cells: kind, id, result, amount (fundraisers only), what happened, block, price; amounts are HTML, the rest plain text.
+   *  The close is a single summary line instead. */
   function rowOf(e) {
     const x = e.contribution;
     const ref = (x && x.txid) || (e.settle && e.settle.txid) || (e.ticket && e.ticket.txid) || null;
@@ -205,15 +206,15 @@ async function main() {
     } else if (e.kind === 'reissue') { r.kind = 'Reissue'; r.result = 'Reissued'; r.what = 'New refund ticket'; }
     else if (e.kind === 'reject') { r.kind = 'Set aside'; r.result = 'Not counted'; }
     else if (e.kind === 'close') {
-      r.kind = 'Closed';
-      const w = e.close ? outcomeWords(e.close.outcome, !!c.cap) : 'finished';
-      r.result = w.charAt(0).toUpperCase() + w.slice(1);
-      r.block = e.close ? e.close.close_height : null;
-      if (e.close && e.close.clearing_price_zat != null) r.price = zat(e.close.clearing_price_zat);
+      // the close is one summary line across the row, not cells with dashes
+      const at = e.close ? ` at block ${e.close.close_height.toLocaleString('en-US')}` : '';
+      if (auction) r.summary = `Auction settled${at}${e.close && e.close.clearing_price_zat != null ? ` for ${zat(e.close.clearing_price_zat)}` : ''}`;
+      else r.summary = `Closed${at}: ${e.close ? outcomeWords(e.close.outcome, !!c.cap) : 'finished'}`;
     } else if (e.kind === 'settle' && e.settle) { r.kind = 'Settlement'; r.result = 'Settled'; r.what = sentBack(e.settle); r.price = zat(e.settle.price_zat); }
     else r.kind = e.kind;
     return r;
   }
+  if (auction) $('#entries-h-amount').remove();
   const all = j.entries.slice().reverse();
   if (all.length) {
     const body = $('#entries');
@@ -221,11 +222,13 @@ async function main() {
       const r = rowOf(e);
       const tr = document.createElement('tr'); tr.setAttribute('role', 'row'); tr.dataset.seq = String(e.seq);
       const td = (cls) => { const d = document.createElement('td'); d.className = cls; d.setAttribute('role', 'cell'); tr.append(d); return d; };
+      if (r.summary) { tr.className = 'sum'; const d = td('sum'); d.colSpan = auction ? 5 : 6; d.innerHTML = r.summary; body.append(tr); continue; }
       const k = td('k');
       k.append(Object.assign(document.createElement('span'), { className: 'ek', textContent: r.kind }));
       if (r.ref) { const s = document.createElement('span'); s.className = 'ref'; s.title = r.ref; s.textContent = `${r.ref.slice(0, 8)}…${r.ref.slice(-5)}`; k.append(s); }
       td('res').textContent = r.result;
-      const a = td('am r'); if (r.amount != null) a.innerHTML = r.amount; else { a.textContent = DASH; a.classList.add('none'); }
+      // auctions have no amount column: a bid's amount is not in the list, before or after the close
+      if (!auction) { const a = td('am r'); if (r.amount != null) a.innerHTML = r.amount; else { a.textContent = DASH; a.classList.add('none'); } }
       td('what').innerHTML = r.what;
       td('blk').textContent = r.block != null ? r.block.toLocaleString('en-US') : DASH;
       const pr = td('pr r'); if (r.price != null) pr.innerHTML = r.price; else { pr.textContent = DASH; pr.classList.add('none'); }

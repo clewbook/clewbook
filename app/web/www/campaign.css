@@ -44,6 +44,9 @@
 .entries td.what { white-space: normal; min-width: 9em; }
 .entries td.blk { color: var(--cb-ink-3); font-variant-numeric: tabular-nums; }
 .entries td.none { color: var(--cb-ink-4); }
+/* the close: one summary line on a quiet band, weight 600 (no italic: Chivo Mono ships no italic file, and none is synthesised) */
+.entries tr.sum td.sum { padding: 11px 12px; background: var(--cb-surface); white-space: normal; font-weight: 600; font-synthesis: none; color: var(--cb-ink); }
+.entries tr.sum td.sum .amt { font-weight: 600; }
 .page .pl-more { align-self: flex-start; min-height: 44px; margin: 4px 0 0; padding: 0 2px; border: 0; background: none; box-shadow: none; transform: none;
   font: 500 14px var(--cb-font-body); color: var(--cb-accent-text); cursor: pointer; }
 .page .pl-more:hover { background: none; color: var(--cb-ink); transform: none; }
@@ -98,6 +101,11 @@
 .pill-back.big { min-height: 46px; padding: 0 22px; gap: 10px; border-color: var(--cb-border-strong); }
 .pill-back.big:hover { gap: 14px; }
 
+/* wide screens: a little more of the width for the list, so "what happened" stays on one line */
+@media (min-width: 1200px) {
+  .cbody { grid-template-columns: minmax(0, 1.25fr) minmax(340px, 1fr); }
+  .entries td.what { white-space: nowrap; }
+}
 @media (max-width: 999px) {
   .cbody { grid-template-columns: minmax(0, 1fr); }
   .rules { border-left: 0; padding-left: 0; border-top: 1px solid var(--cb-border); padding-top: 18px; }
@@ -109,6 +117,8 @@
   .entries td { display: block; padding: 0; border: 0; min-width: 0; }
   .entries td.k { display: contents; }
   .entries td.none { display: none; }
+  .entries tr.sum { display: block; padding: 0; }
+  .entries tr.sum td.sum { display: block; }
   .entries .ek { grid-row: 1; grid-column: 1; }
   .entries td.res { grid-row: 1; grid-column: 2; }
   .entries td.am, .entries td.pr { grid-row: 1; grid-column: 3 / 5; justify-self: end; }
