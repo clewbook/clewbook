@@ -150,7 +150,7 @@ function emptyCard(text) {
   const t = document.createElement('p'); t.className = 'e-t'; t.textContent = text;
   const l = document.createElement('p'); l.className = 'e-l'; l.textContent = 'To try it with test money, open the testnet demo.';
   const b = document.createElement('div'); b.className = 'btns';
-  const demo = document.createElement('a'); demo.className = 'demo-pill big'; demo.href = 'https://clewbook.xyz/demo/'; demo.textContent = '▲ Try the testnet demo →';
+  const demo = document.createElement('a'); demo.className = 'demo-pill big'; demo.href = 'https://clewbook.xyz/demo/'; demo.textContent = 'Try the testnet demo →';
   const host = document.createElement('a'); host.className = 'btn neutral'; host.href = 'host.html'; host.textContent = 'Host a campaign';
   b.append(demo, host); d.append(t, l, b);
   return d;

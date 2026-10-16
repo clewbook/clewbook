@@ -104,6 +104,8 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.goto(link(RAISE));
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
     check('fundraiser page: the heading is just "Fundraiser" and labels say contribution', (await text(p, '#page-title')) === 'Fundraiser' && /^Fundraiser ·/.test(await p.title()) && /Your contribution/.test(await text(p, '#form-title')) && /Amount/.test(await text(p, '#amount-label')) && /Contribution received/.test(await text(p, '#received-what')));
+    const amountBack = await p.evaluate((id) => { const a = document.querySelector('#flow-back'), u = new URL(a.href); return u.pathname.endsWith('/campaign.html') && new URLSearchParams(u.hash.slice(1)).get('c') === id && new URLSearchParams(u.hash.slice(1)).getAll('relay').length === 2 && !!a.offsetParent; }, RAISE.id);
+    check('amount step: the top left link goes to this campaign\'s own page with the same relays (not the recount)', amountBack);
     check('no page title or heading is the bare word "Contribute"', (await text(p, '#page-title')) !== 'Contribute' && (await p.title()) !== 'Contribute · ' + (await p.title()).split(' · ').pop());
 
     // ---------- 3. the boxed notice ----------
@@ -134,9 +136,21 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.fill('#refund', addr);
     await p.fill('#amount', '0.0002'); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
     check('exactly the minimum is accepted', (await text(p, '#pay-min')).startsWith('0.0002'));
+    const backLink = () => p.evaluate((id) => { const a = document.querySelector('#flow-back'), u = new URL(a.href); return { ok: !!a.offsetParent && u.pathname.endsWith('/campaign.html') && new URLSearchParams(u.hash.slice(1)).get('c') === id, href: a.getAttribute('href').slice(0, 40), stage: document.querySelector('#cflow').dataset.stage }; }, RAISE.id);
+    let bl = await backLink();
+    check('backup step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'backup', JSON.stringify(bl));
     await p.evaluate((id) => localStorage.removeItem(`ll:${id}`), RAISE.id); await p.reload(); await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
     const create = async (amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); }; // design round 2: Continue to pay after the Backup step
     await create('0.01');
+    bl = await backLink();
+    check('pay step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'pay', JSON.stringify(bl));
+    await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(300);
+    const row = await p.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const ids = ['change-amount', 'start-over', 'backup2'];
+      return { tops: ids.map((i) => Math.round(r(i).top)), heights: ids.map((i) => Math.round(r(i).height)), lefts: ids.map((i) => Math.round(r(i).left)), parent: ids.every((i) => document.getElementById(i).parentElement === document.getElementById('change-amount').parentElement),
+        downloads: [...document.querySelectorAll('#cflow button')].filter((b) => b.offsetParent && b.textContent.trim() === 'Download backup file').length }; });
+    check('pay step at 1280: Download backup file in the same row as Back to the amount and Start over, same height, one of it only', row.parent && new Set(row.tops).size === 1 && new Set(row.heights).size === 1 && row.lefts[0] < row.lefts[1] && row.lefts[1] < row.lefts[2] && row.downloads === 1, JSON.stringify(row));
+    await p.setViewportSize({ width: 1000, height: 900 }); await p.waitForTimeout(300);
+    check('the footer pill reads "Try the testnet demo →", with no triangle', (await p.textContent('.sitefoot .demo-pill')) === 'Try the testnet demo →' && !/▲/.test(await p.textContent('.sitefoot')));
     check('pay step: "Where things stand" is shown, "About this campaign" is not', (await p.isVisible('.stand-k')) && (await p.isVisible('#s-ticket')) && (await p.isHidden('#about')));
     const box = await p.evaluate(() => {
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
@@ -152,7 +166,11 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
 
     // ---------- 4. back and start over ----------
     check('the payment step offers "Back to the amount" and "Start over"', (await p.isVisible('#change-amount')) && (await p.isVisible('#start-over')));
+    const headTop = await p.evaluate(() => Math.round(document.querySelector('#pay-warning').getBoundingClientRect().top + scrollY));
     await p.click('#change-amount');
+    const lv = await p.evaluate((before) => { const box = document.querySelector('#leave-confirm'), row = document.querySelector('#leave-box .btns'), h = document.querySelector('#pay-warning');
+      return { after: !!(row.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING), below: box.getBoundingClientRect().top >= row.getBoundingClientRect().bottom, notAbove: !(box.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), headSame: Math.round(h.getBoundingClientRect().top + scrollY) === before }; }, headTop);
+    check('the leave question sits right under the button row that asked it, not above the heading, and the heading does not move', lv.after && lv.below && lv.notAbove && lv.headSame, JSON.stringify(lv));
     check('leaving asks first, in one sentence: stay if you already paid, otherwise nothing is lost and the code is kept', await p.isVisible('#leave-confirm') && (await text(p, '#leave-text')) === 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.');
     await p.click('#leave-no');
     check('"Keep it" keeps the payment step', (await p.isHidden('#leave-confirm')) && (await p.isVisible('#pay-card')));
@@ -199,6 +217,8 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     check('late notice: not shown for an underpaid payment (that has its own, different notice)', !(await lateShown(H + 500)));
     await setPaid({ ticket: { nf: 'x', entry: { seq: 0, contribution: { height: H } } }, paidZat: 2000000, paidHeight: H });
     check('late notice: not shown once a ticket is held', !(await lateShown(H + 500)));
+    bl = await backLink();
+    check('ticket step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'ticket', JSON.stringify(bl));
     const tk = await p.evaluate(() => ({ stage: document.querySelector('#cflow').dataset.stage, about: !!document.querySelector('#about').offsetParent, stand: !!document.querySelector('.stand-k').offsetParent || !!document.querySelector('#s-ticket').offsetParent,
       open: [...document.querySelectorAll('#progress-card details')].filter((d) => d.open).map((d) => d.id || d.querySelector('summary').textContent), n: document.querySelectorAll('#progress-card details').length }));
     check('ticket step: no "About this campaign", no "Where things stand", and every disclosure closed on load', tk.stage === 'ticket' && !tk.about && !tk.stand && tk.open.length === 0 && tk.n >= 4, JSON.stringify(tk));

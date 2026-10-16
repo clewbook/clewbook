@@ -126,7 +126,9 @@
 .earlier { margin: 12px 0; }
 .earlier .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
 #leave-box { margin-top: 8px; }
-#backup2 { align-self: flex-start; }
+/* Back to the amount, Start over and Download backup file: one row from 1280 px wide (561 px with the usual padding did not fit the 534 px column) */
+#leave-box .btns { gap: 10px; }
+.page #leave-box .btns > button { padding: 0 13px; }
 
 /* 4 · the refund ticket */
 .cflow[data-stage="ticket"] #progress-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 18px 48px; align-items: start; }

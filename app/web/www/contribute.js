@@ -880,6 +880,8 @@ function askLeave(kind) {
   $('#leave-text').textContent = state.txid
     ? 'This payment was seen, so paying again with a new code makes a second contribution; download your backup first.'
     : 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.';
+  // right under the buttons that asked: the backup step's own Back, or the row of Back to the amount, Start over and Download backup file
+  if (!$('#pay-backup').hidden) $('#pay-backup').after($('#leave-confirm')); else $('#leave-box').append($('#leave-confirm'));
   $('#leave-confirm').hidden = false;
   $('#leave-confirm').scrollIntoView({ block: 'center' }); // the question sits below the code; bring it to where the button was tapped
 }
@@ -1335,10 +1337,13 @@ async function main() {
     return;
   }
   const rb = $('#recount-btn');
-  rb.href = `recount.html#c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`; // from what this page already holds: no pasting
+  const linkTail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
+  rb.href = `recount.html#${linkTail}`; // from what this page already holds: no pasting
   rb.hidden = false;
   $('#nav-recount').href = rb.href; // the Recount item of the header points at this campaign's recount too
-  $('#flow-back').href = $('#tk-back').href = rb.href.replace(/^recount\.html/, 'campaign.html');
+  // back to this campaign's own page, with the relays (and chain server) this page was opened with; built from the parts, because reading
+  // rb.href back gives the full address, which a "recount.html" at the start never matches
+  $('#flow-back').href = $('#tk-back').href = `campaign.html#${linkTail}${cfg.server ? `&server=${cfg.server}` : ''}`;
   await init();
   wire();
   wireSaveCopy();
