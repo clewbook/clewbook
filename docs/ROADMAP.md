@@ -1,16 +1,5 @@
 # Roadmap
 
-## Built
-
-- **Soft cap and hard cap for fundraisers:** in the live host program, relay, pages and recount (R6 and R7 check the cap), on testnet and on mainnet. One open mainnet campaign has a hard cap.
-- **Early close for fundraisers:** a fundraiser whose rules allow it can close once its goal is met (auctions never). In the live host program and dashboard, on testnet and on mainnet.
-- **R4 split into R4 and R4b:** R4 checks that every contribution has a refund ticket; R4b checks that each ticket was issued within the ticket window, by the height the host reports. In the recount page on app.clewbook.xyz and the demo, in cb-recount and in the dashboard's self check.
-- **System, Light and Dark theme control:** on app.clewbook.xyz and the demo.
-- **The public list as one table on the campaign page:** with Show older, and the close as one summary line. On app.clewbook.xyz and the demo.
-- **Automatic listing:** the listing job at listing.clewbook.xyz builds the home page list of app.clewbook.xyz from the project's own campaigns and the campaigns of approved hosts, after a recount. Testnet only; mainnet is off. See `docs/LISTING.md`.
-
-## Planned
-
 | Item | What it means | What it enables | Effort |
 |---|---|---|---|
 | Raise (top up) | A public bidder tag in the payment note groups payments into one bid | Raise a bid, one step Replace | 6 to 9 days |
@@ -25,3 +14,11 @@
 | Passphrase flag | Optional start up passphrase | Protects a stolen disk | Small |
 | Auto close | Close without pressing the button | Fewer late closes | Not scoped |
 | Admission gating | Refuse payments when the host is stale | Fewer unticketed payments | Not scoped |
+| NU7 update for mainnet tickets | Refund tickets are valid under one Zcash network upgrade; this update makes mainnet tickets work across the next upgrade (NU7). Until then, new mainnet campaigns must end before the upgrade | Mainnet campaigns that run past the upgrade date | Not scoped |
+| Ledger anchoring | At the close the host publishes a fingerprint of the final public list (the number of entries and the hash of the last one) on the Zcash chain, and the recount checks that the list it reads matches it. A second part checks that each refund ticket was made against a real earlier state of the chain | A host cannot later show a history that disagrees with the published fingerprint | About 14 to 20 hours for the fingerprint at the close; the ticket check is not scoped |
+| Cancel and refund all (fundraisers only) | The host calls off a campaign and everyone is refunded by their ticket; the recount reports a clean "called off, all refunded" result instead of flagging the early refunds. Opt in per campaign, so existing campaigns are not affected | A host can stop a campaign cleanly | About 3 to 5 working sessions |
+| Host pays the refund fee on cancel | On a cancel the host tops up the network fee, so contributors get the full amount back | Full refunds when a host calls a campaign off | About 3 to 4 more sessions after the plain cancel |
+| Pay from a wallet extension | A "Pay with Noir" button that fills in the address, amount and memo. Vizor already opens from our payment link | Paying from a browser wallet without copying anything | About 1.5 sessions |
+| Open ended fundraiser or donation mode | No deadline and no tickets; periodic signed snapshots; sweeps recorded in the ledger | Ongoing donations | Not scoped |
+| Hosted by label | The opened campaign page shows the label of its approved host; it is never shown on the home page | Visitors see who hosts a campaign | About half a day |
+| Mainnet listing of other hosts' campaigns | Automatic listing for mainnet, after the upgrade height is published and a review | Other hosts' mainnet campaigns on the home page | About half a day plus review |
