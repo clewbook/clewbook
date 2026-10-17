@@ -13,13 +13,13 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
     await p.goto(process.env.LINK);
     await p.waitForFunction(() => document.querySelector('#verdict').dataset.kind && document.querySelector('#verdict').dataset.kind !== 'working', null, { timeout: 300000 });
     const kind = await p.getAttribute('#verdict', 'data-kind');
-    const ids = await p.evaluate(() => [...document.querySelectorAll('#rules .chk .cid')].map((e) => e.firstChild.textContent));
+    const ids = await p.evaluate(() => [...document.querySelectorAll('#rules .rrow .rr-id')].map((e) => e.textContent));
     if (tag === '390') {
       check('auction recount: the verdict is a pass or a limited pass', kind === 'pass' || kind === 'partial', kind);
       check('auction recount: R1 to R12 and R4b are all listed', [...Array.from({ length: 12 }, (_, i) => `R${i + 1}`), 'R4b'].every((r) => ids.includes(r)), ids.join(' '));
       check('auction recount: the auction totals are shown (clearing price, treasury)', /Clearing price/.test(await txt(p, '#totals')) && /treasury/i.test(await txt(p, '#totals')));
-      await p.click('#rules .chk:has(.cid:text-is("R11")) .cid'); await p.waitForTimeout(200);
-      check('auction recount: tapping R11 shows its name and sentence', /Nothing diverted/.test(await txt(p, '#rules .chk:has(.cid:text-is("R11")) .tip')));
+      await p.click('#rules .rrow[data-id="R11"] .rr-btn'); await p.waitForTimeout(300); // round 11: every row is a button that opens its description
+      check('auction recount: tapping R11 shows its name and sentence', /Nothing diverted/.test(await txt(p, '#rules .rrow[data-id="R11"] .rr-name')) && /Settlements returned no value/.test(await txt(p, '#rules .rrow[data-id="R11"] .rr-panel')) && await p.isVisible('#rules .rrow[data-id="R11"] .rr-panel'));
     }
     await p.screenshot({ path: `runs/design-shots/recount-auction-${tag}.png`, fullPage: true });
     check(`no horizontal scrolling (${tag})`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));

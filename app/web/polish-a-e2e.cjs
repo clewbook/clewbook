@@ -89,21 +89,22 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     check('auction page: the heading is just "Auction"', (await text(p, '#page-title')) === 'Auction' && (await text(p, '#crumb')) === 'Auction' && /^Auction ·/.test(await p.title()), await p.title());
     const lab = [await text(p, '#amount-label'), await text(p, '#received-what'), await text(p, '#about-facts'), await text(p, '#form-intro')];
     check('auction page: labels say bid', /Your bid/.test(lab[0]) && /Bid received/.test(lab[1]) && /SmallestbidSmallest bid|Smallest bid/.test(lab[2]) , lab.map((x) => x.slice(0, 60)).join(' | '));
-    check('auction page does not say "contribution" in its form labels', !/contribution/i.test(await text(p, '#form-card .hd')) && !/contribution/i.test(await text(p, '#amount-label')));
+    check('auction page does not say "contribution" in its form labels', !/contribution/i.test(await text(p, '#form-title')) && !/contribution/i.test(await text(p, '#amount-label')));
     await p.context().close();
     p = await newPage();
     tip = AUCTION.deadline - 100; // before the deadline the form is the bid form
     await p.goto(link(AUCTION));
     await p.waitForSelector('#form-title', { timeout: 60000 });
-    await p.waitForFunction(() => /Your bid/.test(document.querySelector('#form-title').textContent), null, { timeout: 60000 });
-    check('auction page, open: the form says "Your bid" and that bid amounts stay off the public record', /off the public record/.test(await text(p, '#form-intro')) && /Your bid/.test(await text(p, '#form-title')));
+    await p.waitForFunction(() => document.querySelector('#form-title').textContent === 'Bid', null, { timeout: 60000 });
+    // round 11: question 1 is headed "Bid" (handoff 3.1); that bid amounts stay off the public record is said in "About this campaign"
+    check('auction page, open: the question says "Bid" and the page says that bid amounts stay off the public record', /off the public record/.test(await text(p, '#about-text')) && (await text(p, '#form-title')) === 'Bid');
     await p.context().close();
 
     p = await newPage();
     tip = RAISE.deadline - 100;
     await p.goto(link(RAISE));
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
-    check('fundraiser page: the heading is just "Fundraiser" and labels say contribution', (await text(p, '#page-title')) === 'Fundraiser' && /^Fundraiser ·/.test(await p.title()) && /Your contribution/.test(await text(p, '#form-title')) && /Amount/.test(await text(p, '#amount-label')) && /Contribution received/.test(await text(p, '#received-what')));
+    check('fundraiser page: the heading is just "Fundraiser" and labels say contribution', (await text(p, '#page-title')) === 'Fundraiser' && /^Fundraiser ·/.test(await p.title()) && (await text(p, '#form-title')) === 'Contribute' && /Amount/.test(await text(p, '#amount-label')) && /Contribution received/.test(await text(p, '#received-what')));
     const amountBack = await p.evaluate((id) => { const a = document.querySelector('#flow-back'), u = new URL(a.href); return u.pathname.endsWith('/campaign.html') && new URLSearchParams(u.hash.slice(1)).get('c') === id && new URLSearchParams(u.hash.slice(1)).getAll('relay').length === 2 && !!a.offsetParent; }, RAISE.id);
     check('amount step: the top left link goes to this campaign\'s own page with the same relays (not the recount)', amountBack);
     check('no page title or heading is the bare word "Contribute"', (await text(p, '#page-title')) !== 'Contribute' && (await p.title()) !== 'Contribute · ' + (await p.title()).split(' · ').pop());
@@ -115,68 +116,78 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       return { shown: !e.hidden, text: e.textContent, under: box.nextElementSibling === e, hintHidden: document.querySelector('#amount-hint').hidden, bad: box.classList.contains('bad'), border: cs.borderTopColor, ring: cs.boxShadow, inv: inp.getAttribute('aria-invalid'), desc: inp.getAttribute('aria-describedby'), live: e.getAttribute('aria-live'), addrMsg: document.querySelector('#form-error').hidden ? '' : document.querySelector('#form-error').textContent, focus: document.activeElement && document.activeElement.id }; });
     await p.fill('#amount', '0.0001'); // typing only, no click
     let am = await amountState();
-    check('typing an amount below the minimum: at once a red edge and ring on the amount box and the message directly under it, in place of the hint', am.shown && am.under && am.hintHidden && am.bad && /^The smallest amount this campaign accepts is 0\.0002 TAZ\.$/.test(am.text) && am.border === 'rgb(179, 38, 30)' && /3px/.test(am.ring) && am.inv === 'true' && am.desc === 'amount-error' && am.live === 'polite' && am.addrMsg === '', JSON.stringify(am));
-    await p.fill('#refund', addr); await p.click('#create');
+    // round 11 (handoff 3.1): a red border and the message, no ring
+    check('typing an amount below the minimum: at once a red edge on the amount box and the message directly under it, in place of the hint; Continue off', am.shown && am.under && am.hintHidden && am.bad && /^The smallest amount this campaign accepts is 0\.0002 TAZ\.$/.test(am.text) && am.border === 'rgb(179, 38, 30)' && am.inv === 'true' && am.desc === 'amount-error' && am.live === 'polite' && am.addrMsg === '' && (await p.isDisabled('#to-addr')), JSON.stringify(am));
+    await p.press('#amount', 'Enter');
     am = await amountState();
     check('below the smallest contribution: no payment code, the message stays under the amount box, nothing about the amount under the address, focus on the amount', /smallest amount this campaign accepts is 0\.0002 TAZ/.test(am.text) && am.shown && am.addrMsg === '' && am.focus === 'amount' && (await p.isHidden('#pay-card')) && (await p.evaluate((id) => localStorage.getItem(`ll:${id}`), RAISE.id)) === null, JSON.stringify(am));
-    await p.fill('#amount', '0.00019999'); await p.click('#create');
+    await p.fill('#amount', '0.00019999'); await p.press('#amount', 'Enter');
     check('one unit below the minimum is refused too', /0\.0002 TAZ/.test(await text(p, '#amount-error')) && (await p.isHidden('#pay-card')));
     await p.fill('#amount', '');
     am = await amountState();
     check('emptying the amount clears the red edge and the message at once, and the grey hint comes back', !am.shown && !am.bad && !am.hintHidden && am.inv === null && am.desc === 'amount-hint', JSON.stringify(am));
-    await p.fill('#amount', '0.0002'); await p.fill('#refund', ''); await p.click('#create');
+    // round 11: the address is question 2; Create my payment is off until it is valid, and a forced submit still gets the page's own messages
+    await p.fill('#amount', '0.0002'); await p.click('#to-addr'); await p.fill('#refund', ''); await p.evaluate(() => document.querySelector('#form').requestSubmit());
     am = await amountState();
-    check('a blank refund address: its message under the address box, nothing under the amount', /enter the address where your refund should go/i.test(am.addrMsg) && !am.shown && (await p.isHidden('#pay-card')), JSON.stringify(am));
-    await p.fill('#refund', 'not an address'); await p.click('#create');
+    check('a blank refund address: Create is off; its message under the address box, nothing under the amount', /enter the address where your refund should go/i.test(am.addrMsg) && !am.shown && (await p.isDisabled('#create')) && (await p.isHidden('#pay-card')), JSON.stringify(am));
+    await p.fill('#refund', 'not an address');
+    const asTyped = await text(p, '#refund-msg');
+    await p.evaluate(() => document.querySelector('#form').requestSubmit());
     am = await amountState();
-    check('a wrong refund address: its message under the address box, nothing under the amount', /valid refund address/i.test(am.addrMsg) && !am.shown && (await p.isHidden('#pay-card')), JSON.stringify(am));
-    await p.fill('#amount', '0.0001'); await p.click('#create');
+    check('a wrong refund address: said as it is typed and under the address box, Create off, nothing under the amount', /valid refund address/i.test(asTyped) && /valid refund address/i.test(am.addrMsg) && !am.shown && (await p.isDisabled('#create')) && (await p.isHidden('#pay-card')), `${asTyped} | ${JSON.stringify(am)}`);
+    await p.evaluate(() => { document.querySelector('#amount').value = '0.0001'; document.querySelector('#form').requestSubmit(); });
     am = await amountState();
     check('a wrong amount and a wrong address together: each message under its own box (never an amount message under the address), focus on the amount', am.shown && /smallest amount/.test(am.text) && /valid refund address/i.test(am.addrMsg) && !/amount/i.test(am.addrMsg) && am.focus === 'amount', JSON.stringify(am));
-    await p.fill('#refund', addr);
-    await p.fill('#amount', '0.0002'); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
+    await p.fill('#amount', '0.0002'); await p.click('#to-addr'); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 10000 });
     check('exactly the minimum is accepted', (await text(p, '#pay-min')).startsWith('0.0002'));
-    const backLink = () => p.evaluate((id) => { const a = document.querySelector('#flow-back'), u = new URL(a.href); return { ok: !!a.offsetParent && u.pathname.endsWith('/campaign.html') && new URLSearchParams(u.hash.slice(1)).get('c') === id, href: a.getAttribute('href').slice(0, 40), stage: document.querySelector('#cflow').dataset.stage }; }, RAISE.id);
+    // round 11 (handoff 3.3 and section 2): Continue to pay is always enabled; "Saved" ticks itself when the file is downloaded; the step pills
+    const pills = await p.evaluate(() => [...document.querySelectorAll('#stepper li')].map((l) => [l.textContent, l.getAttribute('aria-current')]));
+    check('backup step: "Continue to pay" enabled before any download, "Saved" not ticked yet; the pills read ✓ Contribute, 2 Backup (current), 3 Pay, 4 Ticket, 5 Done', (await p.isEnabled('#to-pay')) && !(await p.isChecked('#backup-saved')) && JSON.stringify(pills) === JSON.stringify([['✓ Contribute', null], ['2 Backup', 'step'], ['3 Pay', null], ['4 Ticket', null], ['5 Done', null]]), JSON.stringify(pills));
+    { const dlS = p.waitForEvent('download'); await p.click('#backup'); await dlS; }
+    check('backup step: downloading the file ticks "Saved" by itself', await p.isChecked('#backup-saved'));
+    // round 11 (handoff 2): one Back at the top left, by step: the refund address (backup), backup (pay), home (ticket)
+    const backLink = () => p.evaluate(() => { const vis = [...document.querySelectorAll('.ctop .cback')].filter((b) => b.offsetParent); return { only: vis.length === 1, id: vis[0] && vis[0].id, text: vis[0] && vis[0].textContent.replace(/\s+/g, ' ').trim(), href: vis[0] && vis[0].getAttribute('href'), stage: document.querySelector('#cflow').dataset.stage }; });
     let bl = await backLink();
-    check('backup step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'backup', JSON.stringify(bl));
+    check('backup step: the one top left control is "← Refund address"', bl.only && bl.id === 'edit-amount' && bl.text === '← Refund address' && bl.stage === 'backup', JSON.stringify(bl));
     await p.evaluate((id) => localStorage.removeItem(`ll:${id}`), RAISE.id); await p.reload(); await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
-    const create = async (amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); }; // design round 2: Continue to pay after the Backup step
+    const create = async (amount) => { if (await p.isHidden('#q-amount')) await p.click('#q-back'); await p.fill('#amount', amount); await p.click('#to-addr'); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])'); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); }; // design round 2: Continue to pay after the Backup step
     await create('0.01');
     bl = await backLink();
-    check('pay step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'pay', JSON.stringify(bl));
+    check('pay step: the one top left control is "← Backup"', bl.only && bl.id === 'back-to-backup' && bl.text === '← Backup' && bl.stage === 'pay', JSON.stringify(bl));
     await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(300);
-    const row = await p.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const ids = ['change-amount', 'start-over', 'backup2'];
-      return { tops: ids.map((i) => Math.round(r(i).top)), heights: ids.map((i) => Math.round(r(i).height)), lefts: ids.map((i) => Math.round(r(i).left)), parent: ids.every((i) => document.getElementById(i).parentElement === document.getElementById('change-amount').parentElement),
-        downloads: [...document.querySelectorAll('#cflow button')].filter((b) => b.offsetParent && b.textContent.trim() === 'Download backup file').length }; });
-    check('pay step at 1280: Download backup file in the same row as Back to the amount and Start over, same height, one of it only', row.parent && new Set(row.tops).size === 1 && new Set(row.heights).size === 1 && row.lefts[0] < row.lefts[1] && row.lefts[1] < row.lefts[2] && row.downloads === 1, JSON.stringify(row));
+    const row = await p.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const ids = ['backup2', 'start-over'];
+      return { tops: ids.map((i) => Math.round(r(i).top)), heights: ids.map((i) => Math.round(r(i).height)), lefts: ids.map((i) => Math.round(r(i).left)), parent: ids.every((i) => document.getElementById(i).parentElement === document.getElementById('backup2').parentElement),
+        downloads: [...document.querySelectorAll('#cflow button')].filter((b) => b.offsetParent && /^↓ (Backup file|Download backup file)$/.test(b.textContent.trim())).length }; });
+    check('pay step at 1280: "↓ Backup file" and "Start over" in one row (handoff 3.4), same height, one download button only', row.parent && new Set(row.tops).size === 1 && new Set(row.heights).size === 1 && row.lefts[0] < row.lefts[1] && row.downloads === 1, JSON.stringify(row));
     await p.setViewportSize({ width: 1000, height: 900 }); await p.waitForTimeout(300);
-    check('the footer pill reads "Try the testnet demo →", with no triangle', (await p.textContent('.sitefoot .demo-pill')) === 'Try the testnet demo →' && !/▲/.test(await p.textContent('.sitefoot')));
-    check('pay step: "Where things stand" is shown, "About this campaign" is not', (await p.isVisible('.stand-k')) && (await p.isVisible('#s-ticket')) && (await p.isHidden('#about')));
+    // round 11 (handoff section 9): the demo is in the header, named "Testnet demo, no real money"; the footer pill is gone
+    check('the footer has no demo pill; the header names "Testnet demo" with "Testnet demo, no real money"', !(await p.$('.sitefoot .demo-pill')) && !/testnet demo/i.test(await p.textContent('.sitefoot')) && (await text(p, '.bar .demo-link')) === 'Testnet demo' && (await p.getAttribute('.bar .demo-link', 'title')) === 'Testnet demo, no real money');
+    check('pay step: the tracker (Backup, payment, received, ticket) is shown, "About this campaign" is not', (await p.isVisible('#stand')) && (await p.isVisible('#s-ticket')) && (await p.isHidden('#about')));
     const box = await p.evaluate(() => {
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
     });
     check('pre-payment line: one plain sentence in ink (no box), above the code, with the amount and where to pay from', box.border === 0 && box.color === 'rgb(18, 21, 26)' && box.before && /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(box.text), `${box.text.slice(0, 120)} ${box.color}`);
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
-    const wl = await p.evaluate(() => { const m = document.querySelector('#manual'); m.open = true; const a = document.querySelector('#paylink'), n = m.querySelector('.wallet-note'); const r = (e) => e.getBoundingClientRect();
-      const out = { note: n ? n.innerText.trim() : null, below: !!n && r(n).top >= r(a).bottom, old: /works with some wallets only|most reliable way/.test(m.innerText), link: a.textContent, wide: document.documentElement.scrollWidth <= innerWidth + 1 }; m.open = false; return out; });
-    check('pay step: "(Connects with Vizor, Noir coming soon)" on its own line under "Open in my wallet app", and the old sentence is gone', wl.note === '(Connects with Vizor, Noir coming soon)' && wl.below && !wl.old && wl.link === 'Open in my wallet app' && wl.wide, JSON.stringify(wl));
+    const wl = await p.evaluate(() => { const m = document.querySelector('#pay-main'); const a = document.querySelector('#paylink'), n = document.querySelector('.cpwallet .wallet-note'); const r = (e) => e.getBoundingClientRect();
+      return { note: n ? n.innerText.trim() : null, below: !!n && r(n).top >= r(a).bottom, old: /works with some wallets only|most reliable way/.test(m.innerText), link: a.textContent, wide: document.documentElement.scrollWidth <= innerWidth + 1 }; });
+    check('pay step: "(Connects with Vizor, Noir coming soon)" on its own line under "Open in my wallet app ↗" (under the three copy rows), and the old sentence is gone', wl.note === '(Connects with Vizor, Noir coming soon)' && wl.below && !wl.old && wl.link === 'Open in my wallet app ↗' && wl.wide, JSON.stringify(wl));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
 
     // ---------- 4. back and start over ----------
-    check('the payment step offers "Back to the amount" and "Start over"', (await p.isVisible('#change-amount')) && (await p.isVisible('#start-over')));
+    check('the payment step offers "← Backup" (and from there "← Refund address") and "Start over"', (await p.isVisible('#back-to-backup')) && (await p.isVisible('#start-over')));
     const headTop = await p.evaluate(() => Math.round(document.querySelector('#pay-warning').getBoundingClientRect().top + scrollY));
-    await p.click('#change-amount');
-    const lv = await p.evaluate((before) => { const box = document.querySelector('#leave-confirm'), row = document.querySelector('#leave-box .btns'), h = document.querySelector('#pay-warning');
+    await p.click('#start-over');
+    const lv = await p.evaluate((before) => { const box = document.querySelector('#leave-confirm'), row = document.querySelector('#leave-box'), h = document.querySelector('#pay-warning');
       return { after: !!(row.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING), below: box.getBoundingClientRect().top >= row.getBoundingClientRect().bottom, notAbove: !(box.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), headSame: Math.round(h.getBoundingClientRect().top + scrollY) === before }; }, headTop);
     check('the leave question sits right under the button row that asked it, not above the heading, and the heading does not move', lv.after && lv.below && lv.notAbove && lv.headSame, JSON.stringify(lv));
     check('leaving asks first, in one sentence: stay if you already paid, otherwise nothing is lost and the code is kept', await p.isVisible('#leave-confirm') && (await text(p, '#leave-text')) === 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.');
     await p.click('#leave-no');
     check('"Keep it" keeps the payment step', (await p.isHidden('#leave-confirm')) && (await p.isVisible('#pay-card')));
-    await p.click('#change-amount'); await p.click('#leave-yes');
+    await p.click('#back-to-backup'); await p.click('#edit-amount'); await p.click('#leave-yes');
     await p.waitForSelector('#form-card:not([hidden])');
-    check('back to the amount: the form comes back with the amount and the refund address filled in', (await p.inputValue('#amount')) === '0.01' && (await p.inputValue('#refund')) === addr && (await p.isHidden('#pay-card')));
+    check('back to the refund address: the form comes back with the amount and the refund address filled in', (await p.inputValue('#amount')) === '0.01' && (await p.inputValue('#refund')) === addr && (await p.isHidden('#pay-card')));
     let st = await p.evaluate((id) => ({ cur: localStorage.getItem(`ll:${id}`), earlier: JSON.parse(localStorage.getItem(`ll:${id}:earlier`) || '[]') }), RAISE.id);
     check('the left code is kept, not deleted, and the page says it may still be a live contribution', st.cur === null && st.earlier.length === 1 && st.earlier[0].memo === first.memo && (await p.isVisible('#earlier')) && /each still counts if you paid it/.test(await text(p, '#earlier')));
     check('the left code can be followed again', await p.isVisible('#earlier button:has-text("Follow it again")'));
@@ -218,8 +229,8 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await setPaid({ ticket: { nf: 'x', entry: { seq: 0, contribution: { height: H } } }, paidZat: 2000000, paidHeight: H });
     check('late notice: not shown once a ticket is held', !(await lateShown(H + 500)));
     bl = await backLink();
-    check('ticket step: the top left link goes to this campaign\'s own page (not the recount)', bl.ok && bl.stage === 'ticket', JSON.stringify(bl));
-    const tk = await p.evaluate(() => ({ stage: document.querySelector('#cflow').dataset.stage, about: !!document.querySelector('#about').offsetParent, stand: !!document.querySelector('.stand-k').offsetParent || !!document.querySelector('#s-ticket').offsetParent,
+    check('ticket step: the one top left control is "← Back to home"', bl.only && bl.id === 'tk-back' && bl.text === '← Back to home' && bl.href === './' && bl.stage === 'ticket', JSON.stringify(bl));
+    const tk = await p.evaluate(() => ({ stage: document.querySelector('#cflow').dataset.stage, about: !!document.querySelector('#about').offsetParent, stand: !!document.querySelector('#stand').offsetParent || !!document.querySelector('#s-ticket').offsetParent,
       open: [...document.querySelectorAll('#progress-card details')].filter((d) => d.open).map((d) => d.id || d.querySelector('summary').textContent), n: document.querySelectorAll('#progress-card details').length }));
     check('ticket step: no "About this campaign", no "Where things stand", and every disclosure closed on load', tk.stage === 'ticket' && !tk.about && !tk.stand && tk.open.length === 0 && tk.n >= 4, JSON.stringify(tk));
     await p.context().close();
@@ -229,8 +240,9 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     tip = RAISE.deadline - 100;
     await p.goto(link(RAISE));
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
-    await p.fill('#amount', '0.01'); await p.fill('#refund', addr); await p.click('#create');
+    await p.fill('#amount', '0.01'); await p.click('#to-addr'); await p.fill('#refund', addr); await p.click('#create');
     await p.waitForSelector('#pay-card:not([hidden])'); await p.click('#to-pay');
+    check('390 px wide: one line "STEP 3 OF 5 · PAY" in place of the step pills', (await text(p, '#ministep')) === 'STEP 3 OF 5 · PAY' && (await p.isVisible('#ministep')) && (await p.isHidden('#stepper')));
     check('390 px wide: no sideways scrolling, notice and buttons fit', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll('#pay-warning, #leave-box')].every((e) => e.getBoundingClientRect().right <= innerWidth)));
     await p.screenshot({ path: `${SHOTS}/polish-a-390.png`, fullPage: true });
     await p.context().close();

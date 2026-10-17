@@ -67,10 +67,10 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   // ---- recount page: an auction that has not closed ----
   p = await open(link('recount.html', E.AUCTION));
   await p.waitForFunction(() => { const k = document.querySelector('#verdict').dataset.kind; return k && k !== 'working'; }, null, { timeout: 120000 });
-  const rows = await p.evaluate(() => [...document.querySelectorAll('#rules .chk')].map((c) => [c.querySelector('.cid').firstChild.textContent, c.querySelector('summary .chip').textContent.trim(), c.className]));
+  const rows = await p.evaluate(() => [...document.querySelectorAll('#rules .rrow')].map((c) => [c.querySelector('.rr-id').textContent, c.querySelector('.spill').textContent.trim().replace(/^\S+ /, ''), `${c.className} ${c.querySelector('.spill').className} ${c.querySelector('.rr-btn').getAttribute('aria-expanded')}`]));
   const word = Object.fromEntries(rows.map(([id, w]) => [id, w]));
   check('open auction: R1 and R2 PASS, every other check WAIT, as the command line shows', word.R1 === 'PASS' && word.R2 === 'PASS' && ['R3', 'R4', 'R4b', 'R5', 'R6', 'R7', 'R8'].every((id) => word[id] === 'WAIT') && rows.length === 9, JSON.stringify(word));
-  check('open auction: the WAIT rows look neutral (not pass, not fail) and stay closed', rows.filter(([, w]) => w === 'WAIT').every(([, , c]) => /\bnc\b/.test(c)));
+  check('open auction: the WAIT rows look neutral (not pass, not fail) and stay closed', rows.filter(([, w]) => w === 'WAIT').every(([, , c]) => /\bnc\b/.test(c) && /\bwait\b/.test(c) && /false$/.test(c)));
   const vt = await p.textContent('#verdict-text');
   check('open auction: the verdict says "Not yet possible", that R1 and R2 pass, and why the rest waits', (await p.getAttribute('#verdict', 'data-kind')) === 'cannot' && /Not yet possible/.test(await p.textContent('#verdict-title')) && /R1 and R2 pass/.test(vt) && /published at the close/.test(vt) && noDash(vt), vt);
   await p.close();
@@ -80,8 +80,8 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
     p = await open(link('recount.html', E.CLOSED, E.CLOSED_RELAY || E.RELAY));
     await p.waitForFunction(() => { const k = document.querySelector('#verdict').dataset.kind; return k && k !== 'working'; }, null, { timeout: 600000 });
     const t = await facts(p, '#totals');
-    const r6 = await p.evaluate(() => [...document.querySelectorAll('#rules .chk')].find((c) => c.querySelector('.cid').firstChild.textContent === 'R6')?.textContent.replace(/\s+/g, ' '));
-    check('closed capped recount: all checks pass', (await p.locator('#rules .chk.fail').count()) === 0 && Number(await p.textContent('#n-fail')) === 0);
+    const r6 = await p.evaluate(() => document.querySelector('#rules .rrow[data-id="R6"]')?.textContent.replace(/\s+/g, ' '));
+    check('closed capped recount: all checks pass', (await p.locator('#rules .rrow.fail').count()) === 0 && (await p.locator('#rules .rrow').count()) === 9);
     check('closed capped recount: totals show the soft cap (met), the hard cap and what was over it', /met/.test(t['Soft cap'] || '') && 'Hard cap' in t && /in 1 payment\(s\), refunded by their own tickets/.test(t['Over the hard cap'] || '') && !('Goal' in t), JSON.stringify(t).slice(0, 400));
     check('closed capped recount: R6 says "1 payment(s) over the cap, refunded by ticket"', /1 payment\(s\) over the cap, refunded by ticket/.test(r6 || ''), r6);
     await p.close();

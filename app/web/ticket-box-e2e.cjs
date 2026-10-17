@@ -16,7 +16,8 @@ const RELAYS = [`${BASE}/relays/a`, `${BASE}/relays/b`];
 const varint = (n) => { const o = []; while (n > 127) { o.push((n % 128) | 128); n = Math.floor(n / 128); } o.push(n); return o; };
 const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.length]), Buffer.from(bytes)]);
 const NAMED = 'f6737fbc462e75508d424f0612a1ce5ea3df24c5cc1b550074821ccdea5e237a'; // "Community radio mast (demo)", closed
-const LEAD = "Don't trust the host. Recount it. Check a campaign's books yourself, in your browser, against the Zcash chain.";
+// round 11 (handoff "recount v2", copy deck section 2): the empty state's heading and supporting line, word for word
+const H1 = "Don't trust the host. Recount it.", SUB = "Check a campaign's books yourself, in your browser, against the Zcash chain.";
 const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version: 1, campaign: id, relays, server: MOCK, seed: crypto.randomBytes(32).toString('hex'),
   refundAddress: refund, amountZat: 1000000, memo: 'LL1:invented', payment: null, ticket: null, savedAt: new Date().toISOString(), note: 'made up for a test' });
 
@@ -51,10 +52,12 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
     const seen = () => p.evaluate(() => ({ err: document.querySelector('#ticket-error').hidden ? '' : document.querySelector('#ticket-error').innerText.trim(), out: document.querySelector('#ticket-result').hidden ? '' : document.querySelector('#ticket-result').innerText.replace(/\s+/g, ' ').trim(), button: !!document.querySelector('#ticket-open') }));
 
     const a = await p.evaluate(() => ({ title: document.querySelector('#ticket-box h2').textContent, box: !document.querySelector('#ticket-box').hidden && document.querySelector('#ticket-box').getClientRects().length > 0,
-      saved: !document.querySelector('#upload-card').hidden && document.querySelector('#upload-card h2').textContent, savedText: document.querySelector('#upload-card .muted').textContent, lead: document.querySelector('.rlead').textContent, old: document.body.innerText.includes('I have a ticket backup file'),
-      boxTop: Math.round(document.querySelector('#ticket-box').getBoundingClientRect().top), leadBottom: Math.round(document.querySelector('.rlead').getBoundingClientRect().bottom) }));
-    check('state (a), no campaign in the address: "Import ticket backup file" and "Check a saved copy" are both shown, under the line below the tabs; the old title is gone', a.title === 'Import ticket backup file' && a.box && a.saved === 'Check a saved copy' && a.boxTop >= a.leadBottom && !a.old, JSON.stringify(a));
-    check('state (a): the line under the tabs is the new one, word for word', a.lead === LEAD, a.lead);
+      saved: !document.querySelector('#upload-card').hidden && document.querySelector('#upload-card h2').textContent, savedText: document.querySelector('#upload-card .ec-p').textContent, h1: document.querySelector('.rh1').textContent, sub: document.querySelector('.rsub').textContent, old: document.body.innerText.includes('I have a ticket backup file'),
+      boxTop: Math.round(document.querySelector('#ticket-box').getBoundingClientRect().top), leadBottom: Math.round(document.querySelector('.etabs').getBoundingClientRect().bottom),
+      labels: [...document.querySelectorAll('.ec-k')].map((x) => x.textContent), choosers: [...document.querySelectorAll('.ecard .filebtn')].map((l) => [l.textContent.trim(), l.querySelector('input[type=file]').getAttribute('aria-label')]) }));
+    check('state (a), no campaign in the address: "Import ticket backup file" and "Check a saved copy" are both shown, under the tabs; the old title is gone', a.title === 'Import ticket backup file' && a.box && a.saved === 'Check a saved copy' && a.boxTop >= a.leadBottom && !a.old, JSON.stringify(a));
+    check('state (a): the heading and the supporting line, word for word', a.h1 === H1 && a.sub === SUB, `${a.h1} | ${a.sub}`);
+    check('state (a): the two card labels, and both choosers are native file inputs under "↑ Choose file", named "Import ticket backup file" and "Check a saved copy"', JSON.stringify(a.labels) === JSON.stringify(['YOUR CONTRIBUTION OR BID', "A CAMPAIGN'S LIST"]) && JSON.stringify(a.choosers) === JSON.stringify([['↑Choose file', 'Import ticket backup file'], ['↑Choose file', 'Check a saved copy']]), JSON.stringify([a.labels, a.choosers]));
     check('state (a): "Check a saved copy" says what the file is, what the page does with it and that it stays on the device, word for word', a.savedText === 'Saved a campaign\'s list before? Choose the file and your browser checks it against the Zcash chain. It never leaves your device. Get one from the host, or with "Keep a copy" after a recount.', a.savedText);
     check('the box is on the Recount page with its title and line', /^Import ticket backup file$/.test(await p.textContent('#ticket-box h2')) && /Opens your contribution or bid\. The file is read in this browser and is not sent anywhere\./.test(await p.textContent('#ticket-box')));
 
@@ -142,24 +145,24 @@ const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version
       await cb.route(`${MOCK}/**`, mock);
       const q = await cb.newPage(); q.on('pageerror', (e) => errors.push(String(e)));
       await q.goto(`${BASE}/recount.html#c=${NAMED}&relay=${RELAYS[0]}&relay=${RELAYS[1]}&endpoint=${encodeURIComponent(MOCK)}`);
-      await q.waitForFunction(() => document.querySelector('#rname').textContent.length > 0, null, { timeout: 60000 });
+      await q.waitForFunction(() => document.querySelector('#verdict').dataset.kind && document.querySelector('#verdict').dataset.kind !== 'working', null, { timeout: 60000 });
       const b = await q.evaluate(() => {
-        const id = document.querySelector('#campaign-id'), nm = document.querySelector('#rname'), cs = getComputedStyle(id), body = getComputedStyle(document.body);
-        const r = id.getBoundingClientRect(), n = nm.getBoundingClientRect(), tabs = document.querySelector('.rtabs').getBoundingClientRect();
+        const id = document.querySelector('#campaign-id'), btn = document.querySelector('#cid-copy'), cs = getComputedStyle(id), body = getComputedStyle(document.body);
+        const r = id.getBoundingClientRect(), tabs = document.querySelector('.rtabs').getBoundingClientRect();
         const apart = (x, y) => x.right <= y.left || y.right <= x.left || x.bottom <= y.top || y.bottom <= x.top;
         const tb = document.querySelector('#ticket-box');
         return { box: !tb.hidden || tb.getClientRects().length > 0, boxWords: document.body.innerText.includes('Import ticket backup file'), saved: document.querySelector('#upload-card').hidden,
-          lead: document.querySelector('.rlead').textContent, id: id.textContent, name: nm.textContent, weight: Number(cs.fontWeight), size: parseFloat(cs.fontSize), bodySize: parseFloat(body.fontSize),
-          family: cs.fontFamily.split(',')[0].replace(/"/g, ''), color: cs.color, ink: body.color, oneLine: r.height < parseFloat(cs.fontSize) * 2, nameAbove: n.bottom <= r.top + 1, aligned: innerWidth < 640 ? Math.abs(n.left - r.left) <= 1 : Math.abs(n.right - r.right) <= 1,
-          nameSize: parseFloat(getComputedStyle(nm).fontSize), clear: apart(r, tabs) && apart(n, tabs), inView: r.left >= 0 && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth,
+          hero: !!document.querySelector('.rh1') && document.querySelector('.rh1').getClientRects().length > 0, id: id.textContent, label: btn.querySelector('.rcid-k').textContent, icon: btn.querySelector('.rcid-ic').getClientRects().length > 0, aria: btn.getAttribute('aria-label'),
+          noName: !document.querySelector('#rname'), weight: Number(cs.fontWeight), size: parseFloat(cs.fontSize),
+          family: cs.fontFamily.split(',')[0].replace(/"/g, ''), color: cs.color, ink: body.color, oneLine: r.height < parseFloat(cs.fontSize) * 2, clear: apart(r, tabs), inView: r.left >= 0 && r.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth,
           theme: document.documentElement.dataset.theme };
       });
-      check(`state (b) ${w} ${theme}: no "Import ticket backup file" box and no "Check a saved copy" box above the result; the same line under the tabs`, !b.box && !b.boxWords && b.saved && b.lead === LEAD && b.theme === theme, JSON.stringify(b));
-      check(`state (b) ${w} ${theme}: the id "f6737fbc…" in Chivo Mono, weight 600 to 700, larger than the body text, in the ink colour, on one line, clear of the tabs; the name smaller, above it, both lined up (right edge at 1280, left edge on a phone)`, b.id === 'f6737fbc…' && b.weight >= 600 && b.weight <= 700 && b.size > b.bodySize && b.family === 'Chivo Mono' && b.color === b.ink && b.oneLine && b.name === 'Community radio mast (demo)' && b.nameAbove && b.aligned && b.nameSize < b.size && b.clear && b.inView && b.wide, JSON.stringify(b));
+      check(`state (b) ${w} ${theme}: no "Import ticket backup file" box, no "Check a saved copy" box and no empty state heading above the result`, !b.box && !b.boxWords && b.saved && !b.hero && b.theme === theme, JSON.stringify(b));
+      check(`state (b) ${w} ${theme}: "CAMPAIGN" then the id "f6737fbc…" in Chivo Mono 600 15px, in the ink colour, on one line, clear of the tabs, with the copy icon only; the button named "Copy campaign id f6737fbc"; no name line (round 11)`, b.id === 'f6737fbc…' && b.label === 'CAMPAIGN' && b.icon && b.aria === 'Copy campaign id f6737fbc' && b.noName && b.weight === 600 && b.size === 15 && b.family === 'Chivo Mono' && b.color === b.ink && b.oneLine && b.clear && b.inView && b.wide, JSON.stringify(b));
       if (w === 1280 && theme === 'light') {
         await q.goto(`${BASE}/recount.html#c=${OPEN.id}&relay=${RELAYS[0]}&relay=${RELAYS[1]}&endpoint=${encodeURIComponent(MOCK)}`); await q.reload();
         await q.waitForFunction(() => document.querySelector('#campaign-id').textContent.length > 0, null, { timeout: 60000 }); await q.waitForTimeout(1500);
-        const u = await q.evaluate(() => ({ id: document.querySelector('#campaign-id').textContent, name: document.querySelector('#rname').hidden, weight: getComputedStyle(document.querySelector('#campaign-id')).fontWeight }));
+        const u = await q.evaluate(() => ({ id: document.querySelector('#campaign-id').textContent, name: !document.querySelector('#rname'), weight: getComputedStyle(document.querySelector('#campaign-id')).fontWeight }));
         check('state (b), a campaign without a name: the bold id alone, no name line', u.id === '47751309…' && u.name && Number(u.weight) >= 600, JSON.stringify(u));
       }
       await cb.close();

@@ -7,7 +7,8 @@
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
-import { setup, setNetwork, decorateAmounts, amountHTML, mountHash, checkRow, etaText, chipHTML, statusBadgeHTML, setCampaignLabel, markReady } from './ui.js';
+import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, outcomeWords } from './ui.js';
+import { NOT_CHECKED } from './capabilities.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -21,6 +22,7 @@ const cfg = {
 const DEFAULT_SERVER = { test: 'https://zjs.zec.rocks/testnet', main: 'https://zjs.zec.rocks/mainnet' };
 let refused = null; // set when this page must not take a payment: the sentence that says why
 const POLL_MS = 5000;
+let flowBackHref = '#'; // the campaign's own page, for the Back of question 1
 
 const storeKey = `ll:${cfg.id}`;
 const load = () => { try { return JSON.parse(localStorage.getItem(storeKey)); } catch { return null; } };
@@ -459,11 +461,15 @@ function renderAbout() {
   // the words follow the campaign type: a fundraiser takes contributions, an auction takes bids
   $('#crumb').textContent = $('#page-title').textContent = raise ? 'Fundraiser' : 'Auction';
   document.title = `${raise ? 'Fundraiser' : 'Auction'} · ${document.title.split(' · ').pop()}`;
-  if (!(state === null && tip != null && tip > campaign.deadline_height)) $('#form-title').textContent = raise ? 'Your contribution' : 'Your bid';
-  $('#form-intro').textContent = raise
-    ? ''
-    : 'Your refund address and your bid are kept in this browser. Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives. We never ask for your name.';
-  $('#form-intro').hidden = raise;
+  // question 1 (round 11): the heading names the step; one helper line; the rules in a small box (the campaign page's own rows)
+  $('#form-title').textContent = raise ? 'Contribute' : 'Bid';
+  $('#q-back-label').textContent = raise ? 'Contribute' : 'Bid';
+  $('#form-intro').textContent = raise ? `If the ${gw} is missed, everyone is refunded.` : "The whole amount you send is your bid. If you don't win, you are refunded.";
+  const qr = raise ? [[capped ? 'Soft cap missed' : 'Goal missed', 'all refunded'], ['Smallest', `${campaign.min} ${campaign.ticker}`], ['Refund fee', `${campaign.fee} ${campaign.ticker}`]]
+    : [['How winners pay', campaign.pricing === 'uniform' ? 'one price: the lowest winning bid' : 'each pays their own bid'], ['Ties', 'earlier in the chain wins'], ['Bid amounts', 'public at the close'], ['Refund fee', `${campaign.fee} ${campaign.ticker}`]];
+  $('#q-rules').replaceChildren(...qr.map(([k, v]) => { const d = document.createElement('div'); d.append(Object.assign(document.createElement('span'), { textContent: k }), Object.assign(document.createElement('b'), { textContent: v })); return d; }));
+  $('#addr-prefix').textContent = campaign.network === 'test' ? 'utest1' : 'u1';
+  $('#cname').textContent = campaignName(); $('#cname').hidden = false;
   renderBefore(raise);
   $('#amount-label').innerHTML = `${raise ? 'Amount' : 'Your bid'} (<span class="ticker">${campaign.ticker}</span>)`;
   $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
@@ -480,7 +486,10 @@ function renderAbout() {
     const rt = state && state.refundTrack;
     const refunding = !!closeE && closeE.close && closeE.close.outcome === 'goal_missed' && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
     $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding, soft: campaign.mode === 'raise' && campaign.cap_zat != null }); // a capped fundraiser says soft cap, as on the campaign page
-    $('#status-text').textContent = raise ? (capped ? `Fundraiser, soft cap ${campaign.goal} ${campaign.ticker}, hard cap ${campaign.cap} ${campaign.ticker}` : `Fundraiser, goal ${campaign.goal} ${campaign.ticker}`) : `Auction, ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'}`;
+    const pays = campaign.pricing === 'uniform' ? 'one price for every winner' : 'pay your bid';
+    $('#status-text').textContent = raise ? (capped ? `Fundraiser · soft cap ${campaign.goal} ${campaign.ticker} · hard cap ${campaign.cap} ${campaign.ticker}` : `Fundraiser · goal ${campaign.goal} ${campaign.ticker}`)
+      : closed ? `Auction · ${pays} · ${cfg.id.slice(0, 8)}…` : `Auction · ${campaign.items} ${campaign.items === 1 ? 'item' : 'items'} · ${pays}`;
+    if (raise && closed) $('#status-text').textContent += ` · ${cfg.id.slice(0, 8)}…`;
   }
   const dl = $('#about-facts');
   dl.replaceChildren(
@@ -519,7 +528,7 @@ function renderAbout() {
   dl.append(...fact('Ticket window', `${campaign.ticket_k} blocks: your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund`)); // always the last row
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
   $('#amount-hint').textContent = `At least ${campaign.min} ${campaign.ticker}${raise ? '' : ' for a bid'}. About ${campaign.fee} ${campaign.ticker} of it is kept if you get a refund.`;
-  if (!state) showAmountProblem(amountProblem()); // the room under a hard cap can change while the page is open
+  if (!state) { showAmountProblem(amountProblem()); syncForm(); } // the room under a hard cap can change while the page is open
 }
 
 /** The bid page's rules text (an auction only): what a bid is, ties, the reserve, and what happens to an overpaid bid in each kind of auction. */
@@ -609,11 +618,20 @@ async function publishDisclosure(complaint) {
   st.textContent = ok === cfg.relays.length ? (complaint ? 'Your report was published to all the servers. It is shown as unverified until you publish the viewing key.' : 'Published to all the servers. Anyone running the recount can now check that your excess arrived.') : `Published to ${ok} of ${cfg.relays.length} servers. Try again in a moment.`;
 }
 
+/** No payment code in this browser and the campaign takes no more payments (deadline passed, or closed early): the closed page (handoff 3.7). */
+const closedView = () => !state && !!campaign && tip != null && (tip > campaign.deadline_height || closedEarlyAt() != null);
+let showDone = false; // the Done screen after "Finish" (presentation only; this page load)
+/** Done is offered only while it is true: no refund sent, and not a closed campaign that refunds this payment. */
+const doneTrue = () => !!(state && state.ticket && !state.refundSentAt && !(view.entries.some((e) => e.kind === 'close') && owedRefund()));
+
 function renderProgress() {
   const has = !!state;
-  $('#form-card').hidden = has || !campaign;
+  if (!doneTrue()) showDone = false;
+  $('#form-card').hidden = has || !campaign || closedView();
   $('#pay-card').hidden = !has || !!(state && state.ticket);
-  $('#progress-card').hidden = !has;
+  $('#progress-card').hidden = !has || showDone;
+  $('#done-card').hidden = !showDone;
+  $('#cwrap').classList.toggle('wide', closedView());
   if (!has) payStage = null;
   else if (!state.ticket && !payStage) payStage = paymentSeen() || state.backupDownloaded ? 'pay' : 'backup';
   const inBackup = has && !state.ticket && payStage === 'backup';
@@ -621,22 +639,35 @@ function renderProgress() {
   if (inBackup) $('#progress-card').hidden = true;
   $('#cflow').dataset.stage = !has ? 'amount' : state.ticket ? 'ticket' : payStage;
   $('#ticket-h').hidden = !(has && state.ticket);
-  $('#tk-when').hidden = !(has && state.ticket); // the ticket's conditions only once there is a ticket
-  $('#tk-back').hidden = !(has && state.ticket);
+  $('#tk-folds').hidden = !(has && state.ticket); // the ticket's conditions, checks and details only once there is a ticket
+  // one Back at the top left, by step: the campaign (question 1), question 1 (question 2), the refund address (backup), backup (pay), home (ticket); none on Done
+  const stage = !has ? (closedView() ? 'closed' : qStep) : state.ticket ? (showDone ? 'done' : 'ticket') : payStage;
+  $('#flow-back').hidden = !(stage === 'amount' || stage === 'closed');
+  $('#flow-back-label').textContent = stage === 'closed' ? 'Campaigns' : 'Campaign';
+  $('#flow-back').href = stage === 'closed' ? './' : flowBackHref;
+  $('#q-back').hidden = stage !== 'addr';
+  $('#edit-amount').hidden = stage !== 'backup' || paymentSeen();
+  $('#back-to-backup').hidden = stage !== 'pay';
+  $('#tk-back').hidden = stage !== 'ticket';
+  $('#stand').hidden = !has || !!state.ticket;
+  $('#pay-more').hidden = !has || !!state.ticket;
+  $('#ticket-actions').hidden = !(has && state.ticket);
+  $('#finish').hidden = !doneTrue();
   if (!has) return;
   $('#backup-saved').checked = !!state.backupDownloaded || savedTick;
   setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet');
+  $('#s-backup').classList.toggle('warn', !(state.backupDownloaded || savedTick)); // not saved yet: the yellow ring
   const t = !!state.ticket;
   setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : 'waiting for you to pay');
   setStep('#s-received', t, t ? 'done' : 'waiting');
   const tcv = ticketCheck && ticketCheck.verdict;
   setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…');
   $('#s-ticket').classList.toggle('bad', t && tcv === 'fail');
-  { let first = true; for (const li of document.querySelectorAll('.progress li')) { const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }
+  { let first = true; for (const li of document.querySelectorAll('.progress li')) { if (li.id === 's-backup') continue; const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }
   renderTicketView(tcv);
   renderTicketChecks();
   let note = '';
-  if (!t) note = 'This usually takes a minute or two; you can leave and come back with the same link.';
+  if (!t) note = '';
   else if (tcv === 'pass') note = '';
   else if (tcv === 'fail') note = 'Your refund ticket did not pass a check (see below). Keep your backup file.';
   else note = 'Your refund ticket is saved on this device. Checking it now…';
@@ -685,7 +716,6 @@ function renderProgress() {
     btn.textContent = c && done > 0 && !all ? 'Try the remaining servers again' : 'Publish proof that my payment was valid';
   } else { proof.hidden = true; btn.hidden = true; }
 
-  $('#backup-done').hidden = !state.backupDownloaded;
   // once the ticket is here: the refund right lives in this browser and the file; a file saved now also holds the ticket
   $('#backup-nudge').hidden = !state.ticket;
   $('#backup3-done').hidden = !state.backupWithTicket;
@@ -693,9 +723,10 @@ function renderProgress() {
   // refund area
   const mode = refundMode();
   $('#refund-area').hidden = !mode;
-  $('#refund-confirm').hidden = true;
+  if (!mode) { $('#refund-confirm').hidden = true; $('#refund-btn').hidden = false; }
+  $('#refund-k').textContent = mode === 'withdraw' ? 'CHANGED YOUR MIND?' : 'REFUND';
   if (mode === 'withdraw') {
-    $('#refund-explain').textContent = 'Changed your mind? You can take your contribution back any time before the deadline.';
+    $('#refund-explain').textContent = 'You can take your contribution back any time before the deadline.';
     $('#refund-btn').textContent = 'Refund me';
   } else if (mode === 'silent') {
     $('#refund-explain').textContent = "The deadline has passed and the campaign hasn't wrapped up. You can now claim your refund yourself.";
@@ -743,12 +774,12 @@ function renderPay(p) {
   };
   tog.onclick = () => { useLightCode = !useLightCode; showCode(); $('#qr').scrollIntoView({ block: 'nearest' }); }; // the whole code in view, below the header
   showCode(); // the choice survives the page's regular refresh
-  $('#pay-amount').textContent = `${p.amount} ${p.ticker}`;
   $('#pay-min').textContent = `${p.amount} ${p.ticker}`;
-  $('#pay-refund').textContent = `${p.refund} ${p.ticker}`;
   $('#pay-to').textContent = p.pay_to;
   $('#memo').textContent = p.memo;
-  for (const [id, hex, n] of [['#qc-addr', p.pay_to, 7], ['#qc-memo', p.memo, 6]]) { const el = $(id); if (el.dataset.h !== hex) mountHash(el, hex, n); }
+  $('#pay-amt').textContent = p.amount;
+  // the rows show a short form; Copy copies the whole value (the full text is in the hidden lines above)
+  for (const [id, v, n] of [['#qc-addr', p.pay_to, 7], ['#qc-memo', p.memo, 6]]) { const el = $(id); el.textContent = v.length > 2 * n + 1 ? `${v.slice(0, n)}…${v.slice(-n)}` : v; el.title = v; }
   $('#qc-amount').innerHTML = amountHTML(state.amountZat, p.ticker);
 }
 
@@ -777,14 +808,21 @@ const tooLateToStart = () => { const b = blocksLeft(); return b != null && b >= 
 /** The stepper above the page (a visual aid only): Amount, Backup, Pay, Ticket, Done. */
 function renderStepper() {
   const el = $('#stepper');
-  el.hidden = !!refused || !campaign;
-  const done = !!(state && state.ticket && ((state.refundTrack && state.refundTrack.status === 'confirmed') || view.entries.some((e) => e.kind === 'close')));
-  const now = !state ? 'amount' : state.ticket ? (done ? 'done' : 'ticket') : (payStage || 'backup');
+  const off = !!refused || !campaign || closedView();
+  el.hidden = off;
+  const now = !state ? 'amount' : state.ticket ? (showDone ? 'done' : 'ticket') : (payStage || 'backup');
   const order = ['amount', 'backup', 'pay', 'ticket', 'done'];
+  const first = campaign && campaign.mode !== 'raise' ? 'Bid' : 'Contribute';
+  const names = { amount: first, backup: 'Backup', pay: 'Pay', ticket: 'Ticket', done: 'Done' };
+  const at = order.indexOf(now);
   for (const li of el.children) {
-    const i = order.indexOf(li.dataset.step), at = order.indexOf(now);
+    const i = order.indexOf(li.dataset.step);
     li.className = i === at ? 'now' : i < at ? 'done' : '';
+    li.textContent = `${i < at ? '✓' : i + 1} ${names[li.dataset.step]}`;
+    if (i === at) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
   }
+  $('#ministep').hidden = off;
+  $('#ministep').textContent = `STEP ${at + 1} OF 5 · ${names[now].toUpperCase()}`;
 }
 
 /** The refund ticket drawn as a ticket, from the ticket this page holds and its checks; then four short facts about it. Presentation only. */
@@ -795,11 +833,10 @@ function renderTicketView(tcv) {
   if (!t) return;
   const e = t.entry, c = e.contribution || {};
   const rf = state.refundTrack || {};
-  $('#tk-name').textContent = campaignName();
   $('#tk-entry').textContent = `#${e.seq}`;
   const nPass = ticketCheck ? ticketCheck.checks.filter((x) => x.status === 'pass').length : 0;
   const chip = rf.status === 'confirmed' ? ['refunded', 'Refunded'] : tcv === 'pass' ? ['pass', `✓ Held · ${nPass} checks`] : tcv === 'fail' ? ['fail', '✕ Did not pass a check'] : ['nc', 'Checking'];
-  $('#tk-chip').innerHTML = `<span class="chip ${chip[0]}">${chip[1]}</span>`;
+  $('#tk-chip').replaceChildren(Object.assign(document.createElement('span'), { className: `tkbadge ${chip[0]}`, textContent: chip[1] }));
   const back = c.value_zat != null ? c.value_zat - campaign.fee_zat : null; // what the ticket pays: the listed contribution minus the refund fee
   $('#tk-amount-box').hidden = back == null;
   if (back != null) $('#tk-amount').innerHTML = amountHTML(back, campaign.ticker);
@@ -839,7 +876,7 @@ function renderNearDeadline() {
   else if (pastDeadline() && state && !state.txid && !state.ticket) text = closedEarlyAt() != null ? 'The campaign has closed, so a payment now is not counted or refunded automatically.' : 'The deadline has passed, so a payment now is not counted or refunded automatically.';
   el.textContent = text;
   el.hidden = !text;
-  $('#create').disabled = tooLateToStart() && !state;
+  syncForm(); // the buttons: valid input, and not in the last blocks before the deadline
 }
 
 function renderAllInner() {
@@ -852,18 +889,26 @@ function renderAllInner() {
   renderAuction();
   renderAbout();
   renderProgress();
-  { const seen = paymentSeen(); $('#edit-box').hidden = seen; $('#edit-locked').hidden = !seen; $('#change-amount').hidden = seen; }
+  { const seen = paymentSeen(); $('#edit-locked').hidden = !seen; }
   if (state && !state.ticket) enterPayHistory();
   if (state && !state.ticket) { try { renderPay(paymentFromState()); } catch (e) { $('#banners').append(banner('bad', e.message)); } }
-  const over = campaign && tip != null && (tip > campaign.deadline_height || closedEarlyAt() != null);
-  if (!state && over) {
-    // No new contributions, but someone who already contributed must still be able to restore their backup here
-    // (their ticket, refund and auction result all depend on it).
-    $('#form').hidden = true;
-    $('#form-card h2').textContent = campaign.mode === 'raise' ? 'Already contributed?' : 'Already bid?';
-    $('#form-card > p').textContent = 'You can restore your backup file here to see your result or claim a refund.';
-    $('#form-card details').open = true;
-    $('#banners').append(banner('', "This campaign is no longer taking contributions."));
+  // No new contributions: the closed page. Someone who already contributed restores their backup from its "Have a ticket backup file?" link
+  // (their ticket, refund and auction result all depend on it); it is redrawn only when the list changes.
+  const cc = $('#closed-card');
+  cc.hidden = !closedView();
+  if (closedView()) {
+    const key = `${view.entries.length}:${tip > campaign.deadline_height}:${secPerBlock != null}`;
+    if (cc.dataset.key !== key) {
+      cc.dataset.key = key;
+      const tail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
+      renderClosed(cc, { c: campaign, id: cfg.id, entries: view.entries, ok: view.ok, relays: cfg.relays, tip, secPerBlock, links: { recount: `recount.html#${tail}`, card: `card.html#${tail}` } });
+    }
+  } else cc.dataset.key = '';
+  $('#cname').hidden = closedView() || !campaign;
+  // the Done screen
+  if (showDone && campaign) {
+    $('#done-h').textContent = campaign.mode === 'raise' ? "You're in." : 'Your bid is in.';
+    $('#done-text').textContent = `${storageOk ? 'Your refund ticket is saved on this device. ' : ''}Keep your backup file; with it you can open your ticket from any browser.`;
   }
 }
 
@@ -881,7 +926,7 @@ function askLeave(kind) {
     ? 'This payment was seen, so paying again with a new code makes a second contribution; download your backup first.'
     : 'If you already paid with this code, stay; if not, leaving loses nothing and the code is kept.';
   // right under the buttons that asked: the backup step's own Back, or the row of Back to the amount, Start over and Download backup file
-  if (!$('#pay-backup').hidden) $('#pay-backup').after($('#leave-confirm')); else $('#leave-box').append($('#leave-confirm'));
+  if (!$('#pay-backup').hidden) $('#pay-backup').after($('#leave-confirm')); else $('#leave-box').after($('#leave-confirm'));
   $('#leave-confirm').hidden = false;
   $('#leave-confirm').scrollIntoView({ block: 'center' }); // the question sits below the code; bring it to where the button was tapped
 }
@@ -908,8 +953,9 @@ function leavePayment() {
     note.hidden = false;
   } else note.hidden = true;
   renderAll();
-  if (leaveTo === 'amount') { $('#amount').value = coin(old.amountZat); $('#refund').value = old.refund; }
-  else { $('#amount').value = ''; $('#refund').value = ''; }
+  if (leaveTo === 'amount') { $('#amount').value = coin(old.amountZat); $('#refund').value = old.refund; qStep = 'addr'; }
+  else { $('#amount').value = ''; $('#refund').value = ''; qStep = 'amount'; }
+  syncForm();
   if (history.state && history.state.cbPay && !skipPop) { skipPop = true; history.back(); }
   $('#form-card').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1046,8 +1092,42 @@ function showAmountProblem(msg) {
   else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'amount-hint'); }
 }
 
+// ---------- the two questions (round 11): one input per screen, its button enabled only when the input is valid ----------
+let qStep = 'amount'; // 'amount' | 'addr', before a payment code exists (presentation only)
+/** The address checked by the same rule onCreate uses (the WebAssembly module); null when valid, else its message. */
+function addressProblem() {
+  try { W.check_refund_address(campaign.network, $('#refund').value); return null; } catch (e) { return e.message || String(e); }
+}
+function syncForm() {
+  if (!campaign) return;
+  const t = $('#amount').value.trim();
+  const msg = t ? amountProblem(true) : null, ok = !!t && !msg;
+  $('.amountbox').classList.toggle('good', ok);
+  $('#amount-ok').hidden = !ok; $('#amount-hint').hidden = !!t;
+  if (ok) $('#amount-ok').textContent = `✓ A refund would return ${coin(parseAmount(t) - campaign.fee_zat)} ${campaign.ticker} after the ${campaign.fee} ${campaign.ticker} fee.`;
+  $('#to-addr').disabled = !ok || tooLateToStart();
+  $('#to-addr-why').textContent = ok ? '' : 'Enter an amount to continue.';
+  const a = $('#refund').value.trim(), am = a ? addressProblem() : null, aok = !!a && !am;
+  $('#refund').classList.toggle('good', aok); $('#refund').classList.toggle('bad', !!am);
+  const rm = $('#refund-msg');
+  rm.textContent = !a ? 'Your refund goes here and nowhere else.' : aok ? '✓ Looks like a shielded address.' : am;
+  rm.className = `cmsg${!a ? '' : aok ? ' good' : ' bad'}`;
+  $('#create').disabled = !aok || !ok || tooLateToStart();
+  $('#create-why').textContent = aok ? '' : 'Paste your refund address to continue.';
+  // the step shown, the progress bar and the back pill
+  $('#q-amount').hidden = qStep !== 'amount'; $('#q-addr').hidden = qStep !== 'addr';
+  $('#q-label').textContent = `QUESTION ${qStep === 'amount' ? 1 : 2} OF 2`;
+  $('#q-bar').style.width = qStep === 'amount' ? '50%' : '100%';
+}
+function goQuestion(q) {
+  qStep = q; renderAll();
+  window.scrollTo(0, 0);
+  (q === 'addr' ? $('#refund') : $('#amount')).focus({ preventScroll: true });
+}
+
 async function onCreate(ev) {
   ev.preventDefault();
+  if (qStep === 'amount') { if (!$('#to-addr').disabled) goQuestion('addr'); else showAmountProblem(amountProblem(true)); return; }
   const err = $('#form-error'), gen = $('#create-error');
   say(err, ''); say(gen, '');
   if (tooLateToStart()) return; // the line above the form says why
@@ -1056,7 +1136,7 @@ async function onCreate(ev) {
   try { W.check_refund_address(campaign.network, $('#refund').value); } catch (e) { addrMsg = e.message || String(e); }
   showAmountProblem(amountMsg);
   say(err, addrMsg || ''); // the message under the refund address is only ever about the address
-  if (amountMsg) { $('#amount').focus(); return; }
+  if (amountMsg) { qStep = 'amount'; syncForm(); $('#amount').focus(); return; }
   if (addrMsg) { $('#refund').focus(); return; }
   try {
     const zat = parseAmount($('#amount').value);
@@ -1193,7 +1273,7 @@ async function checkTicket() {
     const t = JSON.parse(W.open_ticket(state.seed, JSON.stringify(state.ticket.entry), hexToBytes(state.ticket.blob_hex)));
     raw = t.raw_hex; opening = t.opening || null; // version 1 tickets carry no opening
   } catch (e) {
-    ticketCheck = { verdict: 'fail', checks: [{ id: 'readable', status: 'fail', detail: String(e.message || e) }] };
+    ticketCheck = { verdict: 'fail', checks: [{ id: 'readable', status: 'fail', label: 'it could not be opened with your secret', detail: String(e.message || e) }] }; // the label: the lists below print one for every check
     return;
   }
   const nf = state.ticket.nf;
@@ -1295,12 +1375,19 @@ function wire() {
   $('#proof-publish').addEventListener('click', () => publishDisclosure(false));
   $('#proof-complain').addEventListener('click', () => publishDisclosure(true));
   $('#form').addEventListener('submit', onCreate);
-  $('#amount').addEventListener('input', () => showAmountProblem(amountProblem())); // at once, on every keystroke
+  $('#amount').addEventListener('input', () => {
+    const a = $('#amount'); if (a.value.includes(',')) { const pos = a.selectionStart; a.value = a.value.replace(/,/g, '.'); a.setSelectionRange(pos, pos); } // a comma becomes a dot
+    showAmountProblem(amountProblem()); syncForm();
+  }); // at once, on every keystroke
+  $('#refund').addEventListener('input', syncForm);
+  $('#to-addr').addEventListener('click', () => { if (!$('#to-addr').disabled) goQuestion('addr'); });
+  $('#q-back').addEventListener('click', () => goQuestion('amount'));
+  $('#finish').addEventListener('click', () => { if (!doneTrue()) return; showDone = true; renderAll(); window.scrollTo(0, 0); });
+  $('#to-ticket').addEventListener('click', () => { showDone = false; renderAll(); window.scrollTo(0, 0); });
   $('#backup').addEventListener('click', () => downloadBackup());
   $('#to-pay').addEventListener('click', () => { payStage = 'pay'; renderAll(); $('#cflow').scrollIntoView({ block: 'start' }); });
   $('#back-to-backup').addEventListener('click', () => { payStage = 'backup'; renderAll(); });
   $('#backup-saved').addEventListener('change', (e) => { savedTick = e.target.checked; renderAll(); });
-  $('#change-amount').addEventListener('click', () => askLeave('amount'));
   $('#edit-amount').addEventListener('click', () => askLeave('amount'));
   $('#start-over').addEventListener('click', () => askLeave('over'));
   $('#leave-yes').addEventListener('click', leavePayment);
@@ -1310,18 +1397,25 @@ function wire() {
   $('#rebid').addEventListener('click', () => { leaveTo = 'over'; leavePayment(); });
   $('#restore').addEventListener('change', onRestore);
   for (const b of document.querySelectorAll('[data-copy]')) {
+    let t = null;
     b.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText($(`#${b.dataset.copy}`).textContent); b.textContent = 'Copied'; }
+      clearTimeout(t);
+      try { await navigator.clipboard.writeText($(`#${b.dataset.copy}`).textContent); b.textContent = '✓ Copied'; b.classList.add('copied'); t = setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1600); }
       catch { const r = document.createRange(); r.selectNodeContents($(`#${b.dataset.copy}`)); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = 'Selected: press copy'; }
     });
   }
   $('#refund-btn').addEventListener('click', () => {
-    $('#refund-confirm-text').textContent = refundMode() === 'withdraw'
+    // the amount and the address it goes to, then the page's own sentence
+    const c = state.ticket && state.ticket.entry.contribution, back = c && c.value_zat != null ? c.value_zat - campaign.fee_zat : null;
+    const to = state.refund.length > 16 ? `${state.refund.slice(0, 6)}…${state.refund.slice(-5)}` : state.refund;
+    const p = $('#refund-confirm-text'); p.replaceChildren();
+    if (back != null) p.append('Send ', Object.assign(document.createElement('b'), { textContent: `${coin(back)} ${campaign.ticker}` }), ' to ', Object.assign(document.createElement('b'), { textContent: to }), '? ');
+    p.append(refundMode() === 'withdraw'
       ? 'This takes your contribution back out of the campaign. It cannot be undone, and a small fee is kept.'
-      : 'This claims your refund yourself. A small fee is kept.';
-    $('#refund-confirm').hidden = false;
+      : 'This claims your refund yourself. A small fee is kept.');
+    $('#refund-confirm').hidden = false; $('#refund-btn').hidden = true;
   });
-  $('#refund-no').addEventListener('click', () => { $('#refund-confirm').hidden = true; });
+  $('#refund-no').addEventListener('click', () => { $('#refund-confirm').hidden = true; $('#refund-btn').hidden = false; });
   $('#refund-yes').addEventListener('click', onRefundConfirmed);
   $('#manual-txid-save').addEventListener('click', () => {
     const v = $('#manual-txid').value.trim().toLowerCase();
@@ -1343,7 +1437,8 @@ async function main() {
   $('#nav-recount').href = rb.href; // the Recount item of the header points at this campaign's recount too
   // back to this campaign's own page, with the relays (and chain server) this page was opened with; built from the parts, because reading
   // rb.href back gives the full address, which a "recount.html" at the start never matches
-  $('#flow-back').href = $('#tk-back').href = `campaign.html#${linkTail}${cfg.server ? `&server=${cfg.server}` : ''}`;
+  flowBackHref = $('#flow-back').href = `campaign.html#${linkTail}${cfg.server ? `&server=${cfg.server}` : ''}`;
+  $('#done-recount').href = rb.href;
   await init();
   wire();
   wireSaveCopy();
@@ -1357,6 +1452,197 @@ async function main() {
   renderAll();
   takeHandedBackup();
   setInterval(refresh, POLL_MS);
+}
+
+// ---------- the closed page (round 11, handoff 3.7) ----------
+// The contribute page when its campaign takes no more payments and this browser holds no payment for it: the facts, ↻ Recount, the public list as
+// published and the rules. Reading only. The rows and the rules follow the campaign page (campaign.js) word for word; that page is not changed, so
+// its logic is repeated here rather than shared.
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const DASH = '–'; // an empty cell (the wording rules allow no em dash)
+
+/** The public list as rows: kind, ref, result, amount (fundraisers), what happened, block, price; the close as one summary line. As on the campaign page. */
+function rowsOf(c, entries) {
+  const auction = c.mode === 'auction', uniform = c.pricing === 'uniform';
+  const closeE = entries.find((e) => e.kind === 'close');
+  const outcome = closeE && closeE.close ? closeE.close.outcome : null;
+  const zat = (z) => amountHTML(z, c.ticker);
+  const winners = closeE && closeE.close && Array.isArray(closeE.close.winners) ? closeE.close.winners : null;
+  const settleOf = (nf) => entries.find((e) => e.kind === 'settle' && e.settle && e.settle.nf === nf);
+  const overCap = new Set();
+  if (!auction && outcome === 'goal_met' && c.cap_zat != null) {
+    let room = c.cap_zat; const seen = new Set();
+    for (const e of entries) {
+      const x = e.contribution;
+      if (!e.ticket || !x || x.value_zat == null || seen.has(x.nf)) continue;
+      seen.add(x.nf);
+      if (x.value_zat <= room) room -= x.value_zat; else overCap.add(x.nf);
+    }
+  }
+  const sentBack = (s) => (s.excess_zat > 0 ? `${zat(s.excess_zat)} sent back` : 'Nothing sent back');
+  return entries.slice().reverse().map((e) => {
+    const x = e.contribution;
+    const ref = (x && x.txid) || (e.settle && e.settle.txid) || (e.ticket && e.ticket.txid) || null;
+    const r = { kind: '', ref, result: DASH, amount: x && x.value_zat != null ? zat(x.value_zat) : null, what: DASH, block: x ? x.height : null, price: null };
+    if (e.kind === 'issue' && auction) {
+      r.kind = 'Bid';
+      if (winners && x && x.nf) {
+        const won = winners.includes(x.nf), st = won ? settleOf(x.nf) : null;
+        r.result = won ? 'Won' : 'Lost';
+        if (!won) r.what = 'Refunded by ticket';
+        else if (st) { r.what = sentBack(st.settle); r.price = zat(st.settle.price_zat); }
+        else r.what = uniform ? 'Not settled yet' : 'Kept as payment';
+      } else { r.result = 'Received'; r.what = r.amount == null ? 'Amount hidden until the close' : 'Ticket issued'; }
+    } else if (e.kind === 'issue' || e.kind === 'withdraw') {
+      r.kind = 'Contribution';
+      if (e.kind === 'withdraw') { r.result = 'Withdrawn'; r.what = 'Taken back'; }
+      else if (outcome === 'goal_missed') { r.result = 'Refunded'; r.what = 'Refunded by ticket'; }
+      else if (outcome === 'goal_met' && x && overCap.has(x.nf)) { r.result = 'Over the cap'; r.what = 'Refunded by ticket'; }
+      else if (outcome === 'goal_met') { r.result = 'Counted'; r.what = 'Kept by the campaign'; }
+      else { r.result = 'Received'; r.what = 'Ticket issued'; }
+    } else if (e.kind === 'reissue') { r.kind = 'Reissue'; r.result = 'Reissued'; r.what = 'New refund ticket'; }
+    else if (e.kind === 'reject') { r.kind = 'Set aside'; r.result = 'Not counted'; }
+    else if (e.kind === 'close') {
+      const at = e.close ? ` at block ${e.close.close_height.toLocaleString('en-US')}` : '';
+      if (auction) r.summary = `Auction settled${at}${e.close && e.close.clearing_price_zat != null ? ` for ${zat(e.close.clearing_price_zat)}` : ''}`;
+      else r.summary = `Closed${at}: ${e.close ? outcomeWords(e.close.outcome, !!c.cap) : 'finished'}`;
+    } else if (e.kind === 'settle' && e.settle) { r.kind = 'Settlement'; r.result = 'Settled'; r.what = sentBack(e.settle); r.price = zat(e.settle.price_zat); }
+    else r.kind = e.kind;
+    return r;
+  });
+}
+
+/** Draws the page into `box`. `v` = { c (summary), id, entries, ok (relays that answered, with their entries), relays, tip, secPerBlock, links }. */
+function renderClosed(box, v) {
+  const { c, entries } = v;
+  const auction = c.mode === 'auction', uniform = c.pricing === 'uniform';
+  const closeE = entries.find((e) => e.kind === 'close');
+  const closed = !!closeE, outcome = closeE && closeE.close ? closeE.close.outcome : null;
+  const left = v.tip == null ? null : c.deadline_height - v.tip;
+  const eta = (b) => etaText(b, v.secPerBlock);
+  const zat = (z) => amountHTML(z, c.ticker);
+  const amt = (x) => (x == null ? '' : `${x} ${c.ticker}`);
+  box.replaceChildren();
+  const main = el('div', 'cc-main'), aside = el('aside', 'cc-rules');
+  main.append(el('h1', 'cc-h', c.name || `${auction ? 'Auction' : 'Fundraiser'} ${v.id.slice(0, 8)}…`));
+
+  // the facts: as the campaign page's tiles (closed: outcome, terms, network; deadline passed and not closed: the open tiles)
+  const facts = [];
+  if (closed) {
+    facts.push(['OUTCOME', outcomeWords(outcome, !!c.cap).replace('auction settled', 'settled'), closeE.close ? `block ${closeE.close.close_height.toLocaleString('en-US')}` : '']);
+    if (auction) facts.push(['TERMS', `${c.items} ${c.items === 1 ? 'item' : 'items'}`, uniform ? 'one price for every winner' : 'pay your bid']);
+    else if (c.cap) facts.push(['TERMS', `Soft cap ${c.goal}`, `hard cap ${c.cap} ${c.ticker}`]);
+    else facts.push(['TERMS', `Goal ${c.goal} ${c.ticker}`, '']);
+    facts.push(['NETWORK', c.network === 'main' ? 'Zcash Mainnet' : 'Testnet', '']);
+  } else {
+    const issued = entries.filter((e) => e.kind === 'issue');
+    const raisedZat = issued.reduce((t, e) => t + (e.contribution && e.contribution.value_zat != null ? e.contribution.value_zat : 0), 0);
+    if (auction) { facts.push(['ITEMS', String(c.items), 'one per winning bid']); facts.push(uniform ? ['RESERVE', zat(c.reserve_zat), 'lowest price an item sells for', true] : ['SMALLEST BID', zat(c.min_zat), '', true]); }
+    else if (c.cap) { facts.push(['SOFT CAP', zat(c.goal_zat), 'the least it must keep', true]); facts.push(['HARD CAP', zat(c.cap_zat), 'the most it keeps', true]); }
+    else { facts.push(['GOAL', zat(c.goal_zat), '', true]); facts.push(['RAISED', zat(raisedZat), '', true]); }
+    facts.push(['DEADLINE', left != null && left <= 0 ? 'passed' : DASH, `block ${c.deadline_height.toLocaleString('en-US')}`]);
+  }
+  const fbox = el('div', 'cc-facts');
+  for (const [k, val, sub, html] of facts) {
+    const f = el('div', 'cc-fact'); f.append(el('span', 'cc-fk', k));
+    const right = el('span', 'cc-fr'); const b = el('b', 'cc-fv'); if (html) b.innerHTML = val; else b.textContent = val;
+    right.append(b, el('span', 'cc-fs', sub)); f.append(right); fbox.append(f);
+  }
+  main.append(fbox);
+
+  // ↻ Recount and the closed line
+  const act = el('div', 'cbtnrow');
+  const rc = el('a', 'cprimary', '↻ Recount'); rc.href = v.links.recount; rc.id = 'cc-recount';
+  act.append(rc, el('span', 'cc-note', closed ? `■ Closed: ${outcomeWords(outcome, !!c.cap)}. No new ${auction ? 'bids' : 'payments'}.` : 'This campaign is no longer taking contributions.'));
+  main.append(act);
+
+  // the public list, as published, newest first; the newest 5 and the rest behind "Show older (N)"
+  const list = el('div', 'cc-list');
+  const hd = el('div', 'cc-lhd'); const t = el('b', 'cc-lt', 'Public list '); t.append(el('sup', '', '1'));
+  const hint = el('span', 'cc-hint', 'AS PUBLISHED'); hd.append(t, hint); list.append(hd);
+  const rows = rowsOf(c, entries);
+  const cols = auction ? ['ENTRY', 'RESULT', 'WHAT HAPPENED', 'BLOCK', 'PRICE PAID'] : ['ENTRY', 'RESULT', 'AMOUNT', 'WHAT HAPPENED', 'BLOCK', 'PRICE PAID'];
+  const scroll = el('div', 'cc-scroll'), table = el('div', `cc-table ${auction ? 'auc' : 'fund'}`);
+  const th = el('div', 'cc-tr cc-th'); for (const h of cols) th.append(el('span', /PRICE|AMOUNT/.test(h) ? 'r' : '', h)); table.append(th);
+  const trs = [];
+  for (const r of rows) {
+    let tr;
+    if (r.summary) { tr = el('div', 'cc-mark'); tr.innerHTML = r.summary; }
+    else {
+      tr = el('div', 'cc-tr');
+      const k = el('span', 'cc-k'); k.append(el('b', '', r.kind)); if (r.ref) { const s = el('span', 'cc-ref', `${r.ref.slice(0, 8)}…${r.ref.slice(-5)}`); s.title = r.ref; k.append(s); }
+      tr.append(k, el('b', `cc-res ${r.result === 'Won' ? 'won' : r.result === 'Lost' ? 'lost' : ''}`, r.result));
+      if (!auction) { const a = el('span', 'r'); if (r.amount != null) a.innerHTML = r.amount; else a.textContent = DASH; tr.append(a); }
+      const w = el('span'); w.innerHTML = r.what; tr.append(w);
+      tr.append(el('span', 'cc-blk', r.block != null ? r.block.toLocaleString('en-US') : DASH));
+      const p = el('b', 'r'); if (r.price != null) p.innerHTML = r.price; else p.textContent = DASH; tr.append(p);
+    }
+    trs.push(tr); table.append(tr);
+  }
+  if (!rows.length) table.append(el('p', 'cc-empty', 'No entries yet.'));
+  scroll.append(table); list.append(scroll);
+  const SHOWN = 5;
+  if (trs.length > SHOWN) {
+    const more = el('button', 'coutline cc-more'); more.type = 'button'; more.setAttribute('aria-expanded', 'false');
+    const fold = (open) => { trs.forEach((tr, i) => { tr.hidden = !open && i >= SHOWN; }); more.textContent = open ? 'Show fewer' : `Show older (${trs.length - SHOWN})`; more.setAttribute('aria-expanded', String(open)); hint.textContent = open ? 'AS PUBLISHED' : `AS PUBLISHED · ${SHOWN} OF ${trs.length}`; };
+    more.addEventListener('click', () => fold(more.getAttribute('aria-expanded') !== 'true'));
+    fold(false); list.append(more);
+  }
+  main.append(list);
+  const n = (k) => `${k} ${k === 1 ? 'entry' : 'entries'}`;
+  const read = v.relays.map((url) => { const info = (v.ok || []).find((r) => r.url === url); let h = url; try { h = new URL(url).host; } catch { /* as given */ } return `${h}: ${info ? n(info.entries.length) : 'no usable answer'}`; }).join('; ');
+  const foot = el('p', 'cc-foot'); foot.append(el('sup', '', '1'), ` ${(v.ok || []).length} ${(v.ok || []).length === 1 ? 'relay' : 'relays'} live. Recount is the independent check. Read from ${read}.`);
+  main.append(foot);
+
+  // RULES: the campaign page's rows; the two long ones show their value and open on a tap
+  aside.append(el('span', 'cc-rk', 'RULES'));
+  const status = closed ? 'Closed' : left == null ? 'Open (the chain height could not be read)' : left > 0 ? 'Open' : 'Deadline passed, not yet closed';
+  const rule = (k, val, sub) => {
+    const row = el('div', 'cc-rule');
+    if (!sub) { const d = el('div', 'cc-rp'); d.append(el('span', '', k), el('b', '', val)); row.append(d); }
+    else {
+      const b = el('button', 'cc-rbtn'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
+      const r = el('span', 'cc-rv'); r.append(el('b', '', val), (() => { const x = el('span', 'cc-chev', '▾'); x.setAttribute('aria-hidden', 'true'); return x; })());
+      b.append(el('span', '', k), r);
+      const s = el('span', 'cc-rsub', sub); s.hidden = true;
+      b.addEventListener('click', () => { const o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); s.hidden = !o; });
+      row.append(b, s);
+    }
+    aside.append(row);
+  };
+  rule('Type', auction ? 'Auction' : 'Fundraiser');
+  if (auction) {
+    rule('How winners pay', uniform ? 'one price: the lowest winning bid' : 'each pays their own bid');
+    if (uniform) rule('Reserve', amt(c.reserve));
+    rule('Ties', 'earlier in the chain wins');
+    rule('Each bid', 'for one item');
+    rule('Smallest bid', amt(c.min));
+  } else {
+    if (c.cap) { rule('Soft cap', amt(c.goal)); rule('Hard cap', amt(c.cap)); }
+    rule(c.cap ? 'Soft cap missed' : 'Goal missed', 'all refunded');
+    rule('Smallest', amt(c.min));
+  }
+  rule('Refund fee', amt(c.fee));
+  if (auction) rule('Bid amounts', 'public at the close');
+  rule('Status', status);
+  rule('Ticket window', `${c.ticket_k} blocks${eta(c.ticket_k) ? ` (${eta(c.ticket_k)})` : ''}`, 'Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund.');
+  if (uniform) rule('Settlement window', `${c.settle_window} blocks`, `the host must settle every winner by block ${c.settle_by}; after that winners can claim their own refund`);
+  if (c.early_close) rule('Early close', 'allowed');
+  rule('Refund promise', 'a signed ticket');
+  const fold = (title, body) => { const d = el('details', 'cc-fold'); d.append(el('summary', '', `▸ ${title}`), body); aside.append(d); };
+  const zones = el('div', 'cc-zones');
+  for (const [b, p] of [['Public, on the signed list', 'Transaction id, block height and ticket data; the amount in a fundraiser, and every bid once an auction closes. No names, no refund addresses.'],
+    ['Sealed to the campaign', 'Your refund address, inside the payment message. The host can open every message, so it can see which payments share a refund address.'],
+    ['Only on your device', 'Your one time secret and the backup file you download. Relays keep only a sealed copy of your refund ticket.']]) { const q = el('p'); q.append(el('b', '', b), ` ${p}`); zones.append(q); }
+  fold('Who can see what', zones);
+  const nc = el('ul', 'cc-nc'); for (const [what, why] of NOT_CHECKED) nc.append(el('li', '', `${what}: ${why}`));
+  fold('Not checked by a recount', nc);
+  if (uniform) aside.append(el('p', 'cc-note2', 'A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.'));
+  const links = el('div', 'cc-links');
+  const card = el('a', 'cc-card', 'Capability card →'); card.href = v.links.card;
+  const bk = el('a', 'cc-bk', 'Have a ticket backup file? Open it here'); bk.href = 'recount.html#ticket-box';
+  links.append(card, bk); aside.append(links);
+  box.append(main, aside);
 }
 
 main().catch((e) => { $('#banners').append(banner('bad', `Something went wrong: ${e.message || e}`)); });

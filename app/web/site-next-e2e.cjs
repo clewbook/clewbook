@@ -194,7 +194,7 @@ const text = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' 
     check('upload: a file that is not a saved copy is refused in one plain sentence', /not a saved copy/.test(await text(p, '#upload-error')), await text(p, '#upload-error'));
     await p.setInputFiles('#upload-file', SAVED);
     await p.waitForFunction(() => { const k = document.querySelector('#verdict').dataset.kind; return k && k !== 'working'; }, null, { timeout: 600000 });
-    const v = { kind: await p.getAttribute('#verdict', 'data-kind'), pass: await text(p, '#n-pass'), fail: await text(p, '#n-fail'), bar: await text(p, '#netbar') };
+    const v = { kind: await p.getAttribute('#verdict', 'data-kind'), pass: String(await p.locator('#rules .rrow.pass').count()), fail: String(await p.locator('#rules .rrow.fail').count()), bar: await text(p, '#netbar') };
     check('upload: a saved copy of a finished testnet campaign is recounted from the file and the chain: all checks pass, the testnet bar shows', v.fail === '0' && Number(v.pass) >= 8 && /^TEST MONEY ONLY/.test(v.bar) && !(await p.isVisible('#saved-clear')), JSON.stringify(v));
     await p.screenshot({ path: `${SHOTS}/recount-upload-result-390.png`, fullPage: true });
     await p.context().close();

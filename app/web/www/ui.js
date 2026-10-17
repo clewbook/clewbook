@@ -100,16 +100,15 @@ function themeSeg() {
 }
 const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
-// ---------- the frame: footer controls (testnet demo, replay intro) and the phone menu ----------
-const DEMO_URL = 'https://clewbook.xyz/demo/';
+// ---------- the frame: footer controls (replay intro) and the phone menu ----------
+// The header's last nav item is "Testnet demo": a gold link, or inside the demo a marked "you are here" item (the demo build writes that one). Under
+// 720 px the nav folds into the menu, where the demo is the first row. The footer keeps Replay intro and the Theme control (design round 11).
 function mountChrome({ host }) {
   const foot = document.querySelector('footer.sitefoot');
   const ctl = foot && foot.querySelector('.foot-ctl');
-  if (ctl && !ctl.querySelector('.demo-pill')) {
-    const demo = document.createElement('a'); demo.className = 'demo-pill'; demo.href = DEMO_URL; demo.textContent = 'Try the testnet demo →';
-    const parts = [demo];
-    if (!host) { const replay = document.createElement('a'); replay.className = 'foot-link'; replay.href = './#intro'; replay.textContent = 'Replay intro'; replay.id = 'replay-intro'; parts.push(replay); }
-    ctl.prepend(...parts);
+  if (ctl && !host && !ctl.querySelector('#replay-intro')) {
+    const replay = document.createElement('a'); replay.className = 'foot-link'; replay.href = './#intro'; replay.textContent = 'Replay intro'; replay.id = 'replay-intro';
+    ctl.prepend(replay);
   }
   const bar = document.querySelector('header.bar'), nav = bar && bar.querySelector('nav.nav');
   if (!bar || !nav || bar.querySelector('.menu-btn')) return;
@@ -119,11 +118,19 @@ function mountChrome({ host }) {
   const close = () => { if (!panel) return; panel.remove(); panel = null; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰'; };
   const open = () => {
     panel = document.createElement('div'); panel.className = 'menu-panel';
-    for (const a of nav.querySelectorAll('a')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
-    // "Replay intro", where the footer has it: the menu item hands the click to the footer's own control, so both do exactly the same
-    const replay = document.getElementById('replay-intro');
-    if (replay) { const r = document.createElement('a'); r.className = 'replay'; r.href = replay.getAttribute('href'); r.textContent = 'Replay intro'; r.addEventListener('click', (e) => { e.preventDefault(); replay.click(); }); panel.append(r); }
-    const demo = document.createElement('a'); demo.className = 'demo'; demo.href = DEMO_URL; demo.textContent = 'Try the testnet demo →'; panel.append(demo);
+    // first row: the testnet demo (a gold link), or inside the demo the place you are
+    const demo = nav.querySelector('.demo-link');
+    if (demo && demo.matches('[aria-current]')) {
+      const cur = document.createElement('span'); cur.className = 'demo-row cur'; cur.setAttribute('aria-current', 'page');
+      cur.append(Object.assign(document.createElement('i'), { className: 'demo-dot' }), 'Testnet demo · you are here');
+      cur.firstChild.setAttribute('aria-hidden', 'true');
+      panel.append(cur);
+    } else if (demo) {
+      const a = document.createElement('a'); a.className = 'demo-row'; a.href = demo.getAttribute('href'); a.title = demo.title; a.setAttribute('aria-label', demo.getAttribute('aria-label') || demo.title);
+      a.append('Testnet demo', Object.assign(document.createElement('span'), { textContent: 'no real money' }));
+      panel.append(a);
+    }
+    for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
     if (document.getElementById('theme-ctl')) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row); }
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     applyTheme(themeChoice());
@@ -132,8 +139,10 @@ function mountChrome({ host }) {
   btn.addEventListener('click', (e) => { e.stopPropagation(); if (panel) close(); else open(); });
   document.addEventListener('click', (e) => { if (panel && !panel.contains(e.target) && e.target !== btn) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel) { close(); btn.focus(); } });
-  addEventListener('resize', () => { if (innerWidth >= 640) close(); });
+  addEventListener('resize', () => { if (innerWidth >= 720) close(); });
 }
+/** The frame on a page that has no other script work (the demo's start pages): the Theme control and the phone menu, no Replay intro. */
+export function mountFrame() { mountTheme(); mountChrome({ host: true }); }
 
 // ---------- the network bar: the same on every page of a campaign, so the real network and the test network cannot be mistaken for each other ----------
 // It starts neutral grey ("Checking network…", no amounts) and changes only when the campaign's checked rules name the network. Anything other than

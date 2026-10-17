@@ -5,7 +5,7 @@ import init, * as W from './pkg/ll_web.js';
 import { crossCheck } from './recount.js';
 import { sha256hex, reportEnvelope } from './canon.js';
 import { NOT_CHECKED } from './capabilities.js';
-import { setNetwork, setup, decorateAmounts, mountHash, cidEl, chipHTML, setCampaignLabel, markReady, CHECKS } from './ui.js';
+import { setNetwork, setup, decorateAmounts, mountHash, setCampaignLabel, markReady, CHECKS } from './ui.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, forget, memoryWords, compareLists, describeComparison, hashesOf } from './copies.js';
 import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, tipOf, DEFAULT_ENDPOINTS } from './public.js';
 
@@ -17,13 +17,18 @@ let addedServer = null; // a chain server the person added with "Add and run aga
 
 function banner(kind, text) {
   const d = document.createElement('div');
-  d.className = `notice ${kind}`;
-  d.textContent = text;
+  if (kind === 'bad') { d.className = 'notice bad'; d.textContent = text; return d; }
+  // a grey advisory note (round 11): its own ✕ removes it for this run only; "Run it again" or a reload brings it back
+  d.className = 'rnote'; d.setAttribute('role', 'note'); d.dataset.kind = kind; d.textContent = text;
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'rnote-x'; x.setAttribute('aria-label', 'Dismiss this note'); x.textContent = '✕';
+  x.addEventListener('click', () => d.remove());
+  d.append(x);
   return d;
 }
 function fact(dl, label, value) {
   const dt = document.createElement('dt'), dd = document.createElement('dd');
   dt.textContent = label; dd.textContent = value;
+  if (/^(Goal|Soft cap)$/.test(label) && /: missed$/.test(value)) dd.className = 'missed'; // a missed goal in the fail colour
   dl.append(dt, dd);
 }
 function verdict(kind, title, text, limitedFail = false) {
@@ -35,12 +40,10 @@ function verdict(kind, title, text, limitedFail = false) {
   // the tags of the verdict card: a word and a mark each, never colour alone. LIMITED: a pass that could not be cross checked (kind partial), or a
   // fail that could not be (limitedFail), as the notes below the card explain
   const limited = kind === 'partial' || limitedFail;
-  const tags = kind === 'pass' ? [['pass', '✓ PASS']] : kind === 'partial' ? [['pass', '✓ PASS'], ['warn', '△ LIMITED']]
-    : kind === 'fail' ? [['fail', '✕ FAIL'], ...(limited ? [['warn', '△ LIMITED']] : [])]
+  const tags = kind === 'pass' ? [['pass', '✓ PASS']] : kind === 'partial' ? [['pass', '✓ PASS'], ['limited', '△ LIMITED']]
+    : kind === 'fail' ? [['fail', '✕ FAIL'], ...(limited ? [['limited', '△ LIMITED']] : [])]
     : kind === 'cannot' ? [['wait', /^Not yet possible/.test(title) ? '◷ WAIT' : '◷ CANNOT CONCLUDE']] : [['nc', 'WORKING']];
-  $('#verdict-kicker').replaceChildren(...tags.map(([c, t]) => Object.assign(document.createElement('span'), { className: `vtag ${c}`, textContent: t })));
-  // the RECOUNTED stamp on the Totals tab: only after a recount that reached a verdict (pass, fail or limited), never for WAIT or cannot conclude
-  $('#stamp').hidden = !['pass', 'partial', 'fail'].includes(kind);
+  $('#verdict-kicker').replaceChildren(...tags.map(([c, t]) => Object.assign(document.createElement('span'), { className: `spill vtag ${c}`, textContent: t })));
 }
 const progress = (t) => { $('#progress').textContent = t; };
 const warn = (kind, text) => $('#banners').append(banner(kind, text));
@@ -76,97 +79,89 @@ function showTotals(r, ticker, final) {
   decorateAmounts($('#totals'));
 }
 
+/** The checks as one table (round 11, "Table and filters"): every row a button that opens the check's description and the evidence the engine wrote.
+ *  FAIL rows start open, PASS and WAIT rows closed; every run starts from these defaults. The filters show all, the failed or the passed rows. */
+let filter = 'all';
 function showRules(r) {
-  const box = $('#rules'), tiles = $('#rule-tiles');
-  box.replaceChildren(); tiles.replaceChildren();
-  let opened = false;
+  const box = $('#rules');
+  box.replaceChildren();
+  const nFail = r.rules.filter((x) => !x.waiting && !x.pass).length, nPass = r.rules.filter((x) => !x.waiting && x.pass).length;
+  $('#f-all').textContent = `All ${r.rules.length}`; $('#f-bad').textContent = `Problems ${nFail}`; $('#f-ok').textContent = `Matched ${nPass}`;
   for (const x of r.rules) {
-    const d = document.createElement('details');
-    // a check that cannot run yet (an auction before its close) shows WAIT, with the neutral "not checked" look
-    const st = x.waiting ? 'nc' : x.pass ? 'pass' : 'fail';
-    const word = x.waiting ? 'WAIT' : x.pass ? 'PASS' : 'FAIL';
-    d.className = `chk ${st}`; d.dataset.id = x.id;
-    if (st === 'fail' && !opened) { d.open = true; opened = true; } // the first failed check opens by itself, with its evidence (one row open at a time)
-    // the civic row: id, the short name in bold with its plain sentence, the result chip, and + to open the evidence
-    const sum = document.createElement('summary');
-    const id = document.createElement('span'); id.className = 'id'; id.append(cidEl(x.id));
-    const nm = document.createElement('span'); nm.className = 'nm';
-    const b = document.createElement('b'); b.textContent = (CHECKS[x.id] || [x.title])[0];
-    const pl = document.createElement('span'); pl.className = 'pl'; pl.textContent = CHECKS[x.id] ? CHECKS[x.id][1] : '';
-    nm.append(b, ' ', pl);
-    const chip = document.createElement('span'); chip.innerHTML = chipHTML(st, word);
-    sum.append(id, nm, chip.firstChild);
-    d.append(sum);
-    // the opened row: the rule as the engine states it, then the evidence lines as the engine wrote them
-    const body = document.createElement('div'); body.className = 'body';
-    const rule = document.createElement('p'); rule.className = 'rule'; rule.textContent = x.title; body.append(rule);
+    // a check that cannot run yet (an auction before its close) shows WAIT, in the neutral look
+    const st = x.waiting ? 'wait' : x.pass ? 'pass' : 'fail';
+    const word = x.waiting ? '◷ WAIT' : x.pass ? '✓ PASS' : '✕ FAIL';
+    const row = document.createElement('div'); row.className = `rrow ${st}`; row.dataset.id = x.id; row.dataset.st = st;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rr-btn';
+    const panelId = `rr-${x.id}`;
+    b.setAttribute('aria-controls', panelId);
+    const id = Object.assign(document.createElement('span'), { className: 'rr-id', textContent: x.id });
+    const name = (CHECKS[x.id] || [x.title])[0];
+    const nm = document.createElement('span'); nm.className = 'rr-name';
+    const m = name.match(/^(.*?)( \(.*\))$/); // a bracketed qualifier goes under the name on a phone
+    if (m) nm.append(Object.assign(document.createElement('span'), { textContent: m[1] }), Object.assign(document.createElement('span'), { className: 'rr-sub', textContent: m[2] }));
+    else nm.textContent = name;
+    const pill = Object.assign(document.createElement('span'), { className: `spill ${st === 'wait' ? 'nc' : st}`, textContent: word }); // a check that waits looks neutral, as before
+    const chev = Object.assign(document.createElement('span'), { className: 'rr-chev', textContent: '▾' }); chev.setAttribute('aria-hidden', 'true');
+    b.append(id, nm, pill, chev);
+    b.setAttribute('aria-label', `${x.id} ${name}: ${word.slice(2)}`);
+    const panel = document.createElement('div'); panel.className = 'rr-panel'; panel.id = panelId;
+    panel.append(Object.assign(document.createElement('p'), { className: 'rr-desc', textContent: CHECKS[x.id] ? CHECKS[x.id][1] : x.title }));
     if (x.details.length) {
-      const ev = document.createElement('ul');
-      for (const t of x.details) { const e = document.createElement('li'); e.textContent = t; ev.append(e); }
-      body.append(ev);
+      const ev = document.createElement('div'); ev.className = 'rr-ev';
+      for (const t of x.details) ev.append(Object.assign(document.createElement('p'), { textContent: t }));
+      panel.append(ev);
     }
-    d.append(body);
-    d.addEventListener('toggle', () => { if (d.open) for (const o of box.querySelectorAll('details.chk[open]')) if (o !== d) o.open = false; syncTiles(); });
-    box.append(d);
-    // the compact tile above the table: id, mark and result; it opens its row
-    const t = document.createElement('button'); t.type = 'button'; t.className = `rtile ${st}`; t.dataset.id = x.id;
-    const host = x.id === 'R4b' && st === 'fail' ? ' · HOST REPORTED' : '';
-    t.innerHTML = `<span class="rt-top"><span class="rt-id"></span><span class="rt-mk" aria-hidden="true">${st === 'pass' ? '✓' : st === 'fail' ? '✕' : '◷'}</span></span><span class="rt-chip"></span>`;
-    t.querySelector('.rt-id').textContent = x.id; t.querySelector('.rt-chip').textContent = word + host;
-    t.setAttribute('aria-label', `${x.id}: ${word}${host}. Show its evidence`);
-    t.addEventListener('click', () => { d.open = true; d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
-    tiles.append(t);
+    const setOpen = (o) => { b.setAttribute('aria-expanded', String(o)); panel.hidden = !o; row.classList.toggle('open', o); };
+    setOpen(st === 'fail');
+    b.addEventListener('click', () => setOpen(b.getAttribute('aria-expanded') !== 'true'));
+    row.append(b, panel);
+    box.append(row);
   }
+  applyFilter('all');
   $('#rules-card').hidden = false;
-  syncTiles(); tilesOverflow();
 }
-/** The selected tile follows the open row. */
-function syncTiles() {
-  const open = document.querySelector('#rules details.chk[open]');
-  for (const t of document.querySelectorAll('#rule-tiles .rtile')) t.classList.toggle('sel', !!open && t.dataset.id === open.dataset.id);
-}
-/** With more tiles than fit, the strip scrolls sideways and a round › button jumps to its end (it hides at the end). */
-function tilesOverflow() {
-  const strip = $('#rule-tiles'), more = $('#tiles-more');
-  more.hidden = !(strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 4);
+function applyFilter(f) {
+  filter = f;
+  for (const c of document.querySelectorAll('.rchip')) c.setAttribute('aria-pressed', String(c.dataset.f === f));
+  for (const row of document.querySelectorAll('#rules .rrow')) row.hidden = (f === 'bad' && row.dataset.st !== 'fail') || (f === 'ok' && row.dataset.st !== 'pass');
 }
 
-/** Checked / Not checked lines and the counts. "Not checked" lists what this run could not see, each with its reason as text. */
-function showSummary(r, { partial, oneRelay, fromFile }) {
-  const pass = r.rules.filter((x) => x.pass), fail = r.rules.filter((x) => !x.pass);
+/** The coverage line and what a recount does not check. "Not checked" lists what this run could not see, each with its reason as text. */
+function showSummary(r, { partial, oneRelay, fromFile, servers, hostings, relays, sameAsLast }) {
   const notChecked = [...NOT_CHECKED];
   if (partial) notChecked.push(['agreement between servers', 'only one public server answered']);
   if (oneRelay) notChecked.push(fromFile ? ['agreement with what relays show', 'the list came from a saved file, not from a relay'] : ['agreement between relays', 'only one relay gave a usable list']);
-  $('#n-pass').textContent = String(pass.length); $('#n-fail').textContent = String(fail.length); $('#n-fail').classList.toggle('on', fail.length > 0); $('#n-nc').textContent = String(notChecked.length);
   $('#nc-count').textContent = String(notChecked.length);
-  const line = $('#checked-line'); line.replaceChildren();
-  for (const x of r.rules) { line.append(cidEl(x.id), ' '); }
-  if (fail.length) { const sp = document.createElement('span'); sp.textContent = `(${fail.map((x) => x.id).join(', ')} did not match)`; line.append(sp); }
   const nc = $('#notchecked-line'); nc.replaceChildren();
   for (const [what, why] of notChecked) { // one ruled row each: a short bold lead-in in sentence case, then the reason as text
     const row = document.createElement('span'); row.className = 'ncrow';
     const lead = document.createElement('b'); lead.textContent = `${what.charAt(0).toUpperCase()}${what.slice(1)}:`;
     row.append(lead, ` ${why}.`); nc.append(row);
   }
+  const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  $('#coverage-line').textContent = [pl(servers, 'server'), pl(hostings, 'apparent hosting'), pl(relays, 'relay'), ...(sameAsLast ? ['same list as your last visit'] : [])].join(' · ');
   $('#summary').hidden = false;
 }
 
 async function run() {
   if (running) return;
   running = true;
-  $('#again').hidden = true;
+  $('#again').hidden = $('#again-tab').hidden = true;
   $('#banners').replaceChildren(); $('#sources').replaceChildren();
   for (const id of ['#totals-card', '#rules-card', '#sources-card', '#summary', '#saved-card']) $(id).hidden = true;
+  sameAsLast = false;
   verdict('working', 'Working…', 'Reading the public list.');
   lastJ = null;
   $('#fp-card').hidden = true;
   $('#copy-card').hidden = true;
   try { await recount(); await fingerprintStep(); } catch (e) {
     verdict('cannot', 'Cannot conclude', `The recount could not finish: ${e.message || e} Nothing was concluded.`);
-  } finally { running = false; $('#again').hidden = false; progress(''); }
+  } finally { running = false; $('#again').hidden = $('#again-tab').hidden = false; progress(''); }
 }
 
 let lastJ = null; // the list the last run used, for the fingerprint step
+let sameAsLast = false; // this browser saw exactly this list on its last visit (said in the coverage line)
 let saved = null; // the text of a saved copy the person loaded; when set, it is used instead of the relays
 
 async function recount() {
@@ -188,10 +183,7 @@ async function recount() {
   const c = JSON.parse(W.campaign_summary(j.rules, cfg.id));
   // the short id always in the bold line; the name, when the rules carry one, in a smaller line above it (nothing new is asked for)
   setCampaignLabel(cfg.id, '');
-  $('#campaign-id').title = `Campaign ${cfg.id}`;
-  $('#rname').textContent = c.name || ''; $('#rname').hidden = !c.name;
-  $('#stamp-name').textContent = c.name || ''; $('#stamp-name').hidden = !c.name;
-  $('#stamp-id').textContent = `ID ${cfg.id.slice(0, 8)}… · RECOUNTED`;
+  $('#campaign-id').title = '';
   const rules = JSON.parse(j.rules);
   copyStep(j);
   setNetwork(c.network);
@@ -255,9 +247,19 @@ async function recount() {
   const openNote = $('#open-note');
   const pastDeadline = out.end > rules.deadline_height, isClosed = j.entries.some((e) => e.kind === 'close');
   openNote.hidden = !(pastDeadline && !isClosed);
-  if (!openNote.hidden) openNote.textContent = out.end > rules.deadline_height + rules.ticket_k
-    ? `This campaign is past its deadline and has not been closed. Its ticket window (${rules.ticket_k} blocks after block ${rules.deadline_height}) has passed, so by the campaign's rules contributors may now claim refunds with their own tickets. This recount does not check whether any were claimed.`
-    : `This campaign is past its deadline and has not been closed. By the campaign's rules, contributors may claim refunds with their own tickets after block ${rules.deadline_height + rules.ticket_k} (the end of its ${rules.ticket_k}-block ticket window). This recount does not check whether any were claimed.`;
+  if (!openNote.hidden) {
+    // the notice (round 11): the same facts as the paragraph it replaces. The window ends at deadline + K; refunds are open only once the chain is past it
+    const windowEnd = rules.deadline_height + rules.ticket_k, open = out.end > windowEnd;
+    const k = Object.assign(document.createElement('span'), { className: 'rn-k', textContent: open ? 'NOTICE · REFUNDS OPEN' : 'NOTICE' });
+    const grid = document.createElement('div'); grid.className = 'rn-grid';
+    for (const [l, v] of [['Status', 'Past deadline. Not closed by the host.'],
+      ['Ticket window', `${open ? 'Ended' : 'Ends'} at block ${nf(windowEnd)}`],
+      ['Refunds', open ? 'Contributors may now claim with their own tickets.' : `By the campaign's rules, contributors may claim refunds with their own tickets after block ${nf(windowEnd)}.`]]) {
+      grid.append(Object.assign(document.createElement('span'), { className: 'rn-l', textContent: l }), Object.assign(document.createElement('span'), { className: 'rn-v', textContent: v }));
+    }
+    const foot = Object.assign(document.createElement('span'), { className: 'rn-f', textContent: 'This recount does not check whether any refunds were claimed.' });
+    openNote.replaceChildren(k, grid, foot);
+  }
   $('#rf-height').textContent = Number(out.end).toLocaleString('en-US');
   $('#rf-time').textContent = `${new Date().toISOString().slice(0, 19).replace('T', ' ')} UTC`;
   mountHash($('#rf-hash'), await sha256hex(reportEnvelope(cfg.id, out.end, r)), 8);
@@ -268,8 +270,7 @@ async function recount() {
   if (!partial && groups.size < 2) warn('warn', `The ${n} servers that answered all appear to run on the same hosting (${[...groups][0]}), so they are not independent evidence of each other. Add a server run by someone else below.`);
   else if (!partial) warn('info', `${n} servers answered, on ${groups.size} apparently separate hostings. We can only see hosting from the outside, so this is not a proof of independence.`);
   const oneRelay = j.kind === 'single';
-  showSummary(r, { partial, oneRelay, fromFile: !!j.fromFile });
-  $('#coverage-line').textContent = `Checked against ${n} server${n === 1 ? '' : 's'} on ${groups.size} apparent hosting${groups.size === 1 ? '' : 's'} (hosting is judged from the outside), and ${j.ok.length} relay${j.ok.length === 1 ? '' : 's'} for the public list.`;
+  showSummary(r, { partial, oneRelay, fromFile: !!j.fromFile, servers: n, hostings: groups.size, relays: j.ok.length, sameAsLast });
   if (partial) warn('warn', 'Only one public server answered. A single server could leave blocks out, so this is not a cross check.');
   if (oneRelay && !j.fromFile) warn('info', cfg.relays.length > 1 ? 'Only one relay gave a usable list.' : 'Only one relay was asked, so the list has not been cross checked.');
   if (r.all_pass) {
@@ -292,7 +293,8 @@ function copyStep(j) {
   const note = $('#memory-note');
   if (!j.fromFile && (j.kind === 'single' || j.kind === 'agree')) {
     const r = checkMemory(cfg.id, hashes);
-    const w = memoryWords(r);
+    const w = r.state === 'same' ? null : memoryWords(r); // the same list as last time is said in the coverage line
+    sameAsLast = r.state === 'same';
     note.hidden = !w;
     note.replaceChildren();
     if (w) {
@@ -410,7 +412,7 @@ function showSavedCard(j) {
 /** The page opened with no campaign at all: it asks for a saved copy and takes the campaign (its number and rules) from that file. Nothing is asked of
  *  any relay; the chain servers are the defaults of the network the file's rules name. Returns once a usable file was loaded. */
 async function uploadMode() {
-  verdictSection().hidden = true;
+  $('#frame').hidden = true; $('#empty').hidden = false;
   $('#upload-card').hidden = false;
   // "Import ticket backup file" belongs to this state only (no campaign in the address); the home and campaign pages link to it here
   $('#ticket-box').hidden = false;
@@ -430,31 +432,64 @@ async function uploadMode() {
       try { text = await f.text(); d = JSON.parse(text); } catch { return fail('That is not a saved copy: the file is not readable JSON.'); }
       if (!d || d.kind !== 'ledger-export' || !/^[0-9a-f]{64}$/.test(String(d.campaign || '')) || !Array.isArray(d.ledger)) return fail('That is not a saved copy of a campaign list (it should be a "ledger-export" file).');
       cfg.id = d.campaign; saved = text;
-      $('#upload-card').hidden = true; $('#ticket-box').hidden = true; verdictSection().hidden = false;
-      $('#campaign-id').textContent = `${cfg.id.slice(0, 8)}…`;
+      $('#upload-card').hidden = true; $('#ticket-box').hidden = true; $('#empty').hidden = true; $('#frame').hidden = false;
+      $('#campaign-id').textContent = `${cfg.id.slice(0, 8)}…`; $('#cid-copy').setAttribute('aria-label', `Copy campaign id ${cfg.id.slice(0, 8)}`);
       $('#saved-clear').hidden = true; // no relay to ask instead
       done();
     });
   });
 }
-const verdictSection = () => $('#verdict');
 
-/** RECOUNT and TOTALS: two views of the same run (Totals and Sources are on TOTALS; the three tools are on RECOUNT, owner decision 11). */
-function setTab(which) {
+/** RECOUNT and TOTALS: two views of the same run (Totals and Sources on TOTALS; the checks and the three actions on RECOUNT). The tab lives in the
+ *  address as ?tab=totals, so it can be shared; a link without it opens RECOUNT. The #c=… part of every older link is left as it is. */
+function setTab(which, write = true) {
   const totals = which === 'totals';
   $('#panel-recount').hidden = totals; $('#panel-totals').hidden = !totals;
-  for (const [id, on] of [['#tab-recount', !totals], ['#tab-totals', totals]]) { const b = $(id); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }
+  for (const [id, on] of [['#tab-recount', !totals], ['#tab-totals', totals], ['#etab-recount', !totals], ['#etab-totals', totals]]) { const b = $(id); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }
+  document.body.dataset.tab = totals ? 'totals' : 'recount';
+  if (write) {
+    const q = new URLSearchParams(location.search);
+    if (totals) q.set('tab', 'totals'); else q.delete('tab');
+    const qs = q.toString();
+    history.replaceState(history.state, '', `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`);
+  }
 }
 function wireTabs() {
-  $('#tab-recount').addEventListener('click', () => setTab('recount'));
-  $('#tab-totals').addEventListener('click', () => setTab('totals'));
-  for (const b of document.querySelectorAll('.rtabs [role=tab]')) b.addEventListener('keydown', (e) => {
+  for (const pre of ['tab', 'etab']) {
+    $(`#${pre}-recount`).addEventListener('click', () => setTab('recount'));
+    $(`#${pre}-totals`).addEventListener('click', () => setTab('totals'));
+  }
+  for (const b of document.querySelectorAll('[role=tab]')) b.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const to = b.id === 'tab-recount' ? 'totals' : 'recount'; setTab(to); $(`#tab-${to}`).focus();
+    const pre = b.id.split('-')[0], to = b.id.endsWith('recount') ? 'totals' : 'recount'; setTab(to); $(`#${pre}-${to}`).focus();
   });
-  $('#tiles-more').addEventListener('click', () => { const s = $('#rule-tiles'); s.scrollLeft = s.scrollWidth; setTimeout(tilesOverflow, 400); });
-  $('#rule-tiles').addEventListener('scroll', tilesOverflow);
-  addEventListener('resize', tilesOverflow);
+  setTab(new URLSearchParams(location.search).get('tab') === 'totals' ? 'totals' : 'recount', false);
+  for (const c of document.querySelectorAll('.rchip')) c.addEventListener('click', () => applyFilter(c.dataset.f));
+  // the three actions open the existing tools, one at a time; an action shows only once its tool is there
+  const acts = [['#act-server', '#add-server-card'], ['#act-copy', '#copy-card'], ['#act-fp', '#fp-card']];
+  const sync = () => {
+    let any = false;
+    for (const [a, c] of acts) { const avail = !$(c).hidden; $(a).hidden = !avail; any ||= avail; if (!avail) { $(c).classList.remove('open'); $(a).setAttribute('aria-expanded', 'false'); } }
+    $('#actions').hidden = !any;
+  };
+  for (const [a, c] of acts) {
+    new MutationObserver(sync).observe($(c), { attributes: true, attributeFilter: ['hidden'] });
+    $(a).addEventListener('click', () => {
+      const open = !$(c).classList.contains('open');
+      for (const [a2, c2] of acts) { $(c2).classList.toggle('open', open && c2 === c); $(a2).setAttribute('aria-expanded', String(open && a2 === a)); }
+      if (open) $(c).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+  sync();
+  // the campaign id: one button that copies the full id; the icon becomes a green tick for 1.6 s
+  $('#cid-copy').addEventListener('click', async () => {
+    if (!cfg.id) return;
+    try { await navigator.clipboard.writeText(cfg.id); } catch { return; }
+    $('.rcid-ic').hidden = true; $('.rcid-ok').hidden = false;
+    setTimeout(() => { $('.rcid-ic').hidden = false; $('.rcid-ok').hidden = true; }, 1600);
+  });
+  // a native file chooser under each "Choose file": the chosen file's name beside it
+  for (const [i, n] of [['#ticket-file', '#ticket-fname'], ['#upload-file', '#upload-fname']]) $(i).addEventListener('change', () => { const f = $(i).files[0]; if (f) { $(n).textContent = f.name; $(n).classList.add('set'); } });
 }
 
 // ---------- "Import ticket backup file": a contributor's backup file opens its own campaign's contribute page ----------
@@ -545,15 +580,17 @@ async function main() {
   wireTicketBox();
   setup('Recount');
   $('#campaign-id').textContent = cfg.id ? `${cfg.id.slice(0, 8)}…` : '';
+  $('#cid-copy').setAttribute('aria-label', `Copy campaign id ${cfg.id.slice(0, 8)}`);
   const upload = cfg.id === '' && cfg.relays.length === 0;
+  if (!upload) $('#frame').hidden = false;
   if (upload) await uploadMode();
   else if (!/^[0-9a-f]{64}$/.test(cfg.id) || cfg.relays.length === 0) {
     verdict('cannot', 'Incomplete link', 'This link is incomplete. Please ask whoever sent it for the full recount link.');
     return;
   }
-  if (!upload) { const back = $('#campaign-link'); back.href = sibling('campaign', cfg); back.hidden = false; $('#nav-campaign').href = back.href; }
+  if (!upload) $('#nav-campaign').href = sibling('campaign', cfg);
   if (!upload) await init();
-  $('#again').addEventListener('click', run);
+  $('#again').addEventListener('click', run); $('#again-tab').addEventListener('click', run);
   $('#saved-file').addEventListener('change', async (ev) => {
     const f = ev.target.files[0];
     if (!f) return;

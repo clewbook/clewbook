@@ -15,134 +15,168 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="#" aria-current="page">Recount</a><a href="host.html">Host</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="#" aria-current="page">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
+<div class="aurora" aria-hidden="true"><div></div></div>
 <main class="page recount">
-  <div class="back-row"><a class="pill-back" id="nav-campaign" href="#">← Campaign</a></div>
-  <h1 class="sr">Recount in this browser</h1>
-  <div class="rtabbar">
-    <div class="rtabs" role="tablist" aria-label="Recount">
-      <button type="button" role="tab" id="tab-recount" aria-selected="true" aria-controls="panel-recount">RECOUNT</button>
-      <button type="button" role="tab" id="tab-totals" aria-selected="false" aria-controls="panel-totals" tabindex="-1">TOTALS</button>
+  <!-- Part A: no campaign in the address. Both tabs show this same content -->
+  <div class="rempty" id="empty" hidden>
+    <div class="rhero">
+      <span class="reyebrow"><i aria-hidden="true"></i>RECOUNT</span>
+      <h1 class="rh1">Don't trust the host. Recount it.</h1>
+      <p class="rsub">Check a campaign's books yourself, in your browser, against the Zcash chain.</p>
+      <div class="rfacts"><span>9 checks for a fundraiser</span><span>13 for an auction</span><span>No account, nothing to install</span></div>
     </div>
-    <span class="rname"><span class="rname-n" id="rname" hidden></span><b class="rid" id="campaign-id"></b></span>
+    <div class="ebody">
+      <div class="etabs" role="tablist" aria-label="Recount">
+        <button type="button" role="tab" id="etab-recount" aria-selected="true">RECOUNT</button>
+        <button type="button" role="tab" id="etab-totals" aria-selected="false" tabindex="-1">TOTALS</button>
+      </div>
+      <div class="ecards">
+        <section class="ecard" id="ticket-box" hidden>
+          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v8a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2z"/><line x1="14" y1="7" x2="14" y2="17" stroke-dasharray="2 2"/></svg></span><span class="ec-k">YOUR CONTRIBUTION OR BID</span></div>
+          <h2 class="ec-h">Import ticket backup file</h2>
+          <p class="ec-p">Opens your contribution or bid. The file is read in this browser and is not sent anywhere.</p>
+          <div class="ec-file"><label class="filebtn"><input type="file" id="ticket-file" accept="application/json,.json" aria-label="Import ticket backup file"><span aria-hidden="true">↑</span>Choose file</label><span class="fname" id="ticket-fname">No file chosen</span></div>
+          <p id="ticket-error" class="warnline" role="alert" hidden></p>
+          <div id="ticket-result" class="tb-card" aria-live="polite" hidden></div>
+        </section>
+        <section class="ecard" id="upload-card" hidden>
+          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><line x1="10" y1="11" x2="15" y2="11"/><line x1="10" y1="15" x2="15" y2="15"/></svg></span><span class="ec-k">A CAMPAIGN'S LIST</span></div>
+          <h2 class="ec-h">Check a saved copy</h2>
+          <p class="ec-p">Saved a campaign's list before? Choose the file and your browser checks it against the Zcash chain. It never leaves your device. Get one from the host, or with "Keep a copy" after a recount.</p>
+          <div class="ec-file"><label class="filebtn"><input type="file" id="upload-file" accept="application/json,.json" aria-label="Check a saved copy"><span aria-hidden="true">↑</span>Choose file</label><span class="fname" id="upload-fname">No file chosen</span></div>
+          <p id="upload-error" class="warnline" role="alert" hidden></p>
+        </section>
+      </div>
+    </div>
+    <p class="elegend"><span>A recount ends as</span><span class="spill pass">PASS</span><span class="spill limited">LIMITED</span><span class="spill fail">FAIL</span></p>
   </div>
-  <p class="rlead">Don't trust the host. Recount it. Check a campaign's books yourself, in your browser, against the Zcash chain.</p>
-  <section class="uploadpanel" id="ticket-box" hidden>
-    <h2 class="sh">Import ticket backup file</h2>
-    <p class="muted">Opens your contribution or bid. The file is read in this browser and is not sent anywhere.</p>
-    <input type="file" id="ticket-file" accept="application/json,.json" aria-label="Ticket backup file">
-    <p id="ticket-error" class="warnline" role="alert" hidden></p>
-    <div id="ticket-result" class="tb-card" aria-live="polite" hidden></div>
-  </section>
-  <section class="uploadpanel" id="upload-card" hidden>
-    <h2 class="sh">Check a saved copy</h2>
-    <p class="muted">Saved a campaign's list before? Choose the file and your browser checks it against the Zcash chain. It never leaves your device. Get one from the host, or with "Keep a copy" after a recount.</p>
-    <input type="file" id="upload-file" accept="application/json,.json" aria-label="Saved copy of a campaign's list">
-    <p id="upload-error" class="warnline" role="alert" hidden></p>
-  </section>
 
-  <div class="rpanel" id="panel-recount" role="tabpanel" aria-labelledby="tab-recount">
-    <section id="verdict" class="verdict working" aria-live="polite">
-      <div class="vmain">
-        <div class="k vtags" id="verdict-kicker">Working</div>
-        <h2 id="verdict-title">Working…</h2>
+  <!-- Parts B to D: a campaign's recount. The frame, then RECOUNT or TOTALS -->
+  <div class="rframe" id="frame" hidden>
+    <a class="rback" id="nav-campaign" href="#">← Campaign</a>
+    <div class="rtabrow">
+      <div class="rtabs" role="tablist" aria-label="Recount">
+        <button type="button" role="tab" id="tab-recount" aria-selected="true" aria-controls="panel-recount">RECOUNT</button>
+        <button type="button" role="tab" id="tab-totals" aria-selected="false" aria-controls="panel-totals" tabindex="-1">TOTALS</button>
+      </div>
+      <button type="button" class="ragain tabagain" id="again-tab" hidden>↻ Run it again</button>
+      <button type="button" class="rcid" id="cid-copy" title="Copy campaign id"><span class="rcid-k">CAMPAIGN</span><b class="rid" id="campaign-id"></b><span class="rcid-ic" aria-hidden="true"><i></i><i></i></span><span class="rcid-ok" aria-hidden="true" hidden>✓</span></button>
+    </div>
+
+    <div class="rpanel" id="panel-recount" role="tabpanel" aria-labelledby="tab-recount">
+      <section id="verdict" class="verdict working" aria-live="polite">
+        <div class="vrow">
+          <div class="vmain"><span class="vtags" id="verdict-kicker"></span><h1 id="verdict-title">Working…</h1></div>
+          <button type="button" class="ragain" id="again" hidden>↻ Run it again</button>
+        </div>
         <p id="verdict-text">Reading the public list.</p>
         <p class="progress-line" id="progress"></p>
+      </section>
+
+      <div id="banners"></div>
+      <div id="memory-note" hidden></div>
+      <section class="rcard" id="saved-card" hidden>
+        <h2 class="tool-h">Recount from a saved copy</h2>
+        <div id="saved-tried" class="notice bad" hidden></div>
+        <p class="muted">If the host gave you a saved copy of the public list (their export or backup, a file ending in .json), load it here. It is checked exactly as a relay's copy is: the rules must match this campaign's number, and every entry must be signed, in order and without gaps. A copy that fails any of that is refused. The result is marked as coming from a file, because nothing here shows whether it is the list the host showed to others.</p>
+        <input type="file" id="saved-file" accept="application/json,.json">
+        <p id="saved-error" class="error" role="alert" hidden></p>
+        <p id="saved-using" class="notice info" hidden>Using the saved copy you loaded. <button type="button" class="secondary" id="saved-clear">Ask the relays again instead</button></p>
+      </section>
+
+      <section class="rchecks" id="rules-card" hidden>
+        <div class="rfilters">
+          <div class="rf-chips" role="group" aria-label="Show checks">
+            <button type="button" class="rchip" data-f="all" id="f-all" aria-pressed="true">All</button>
+            <button type="button" class="rchip" data-f="bad" id="f-bad" aria-pressed="false">Problems</button>
+            <button type="button" class="rchip" data-f="ok" id="f-ok" aria-pressed="false">Matched</button>
+          </div>
+          <span class="rf-hint">Tap any row for details</span>
+        </div>
+        <div class="rtable">
+          <div class="rt-head" aria-hidden="true"><span>ID</span><span>CHECK</span><span>STATUS</span><span></span></div>
+          <div id="rules"></div>
+        </div>
+      </section>
+
+      <div id="summary" class="rsummary" hidden>
+        <p class="coverage" id="coverage-line"></p>
+        <details class="rfold ncfold"><summary>What a recount does not check · <span id="nc-count">0</span></summary>
+          <div class="ncgrid" id="notchecked-line"></div>
+          <p class="limits" id="limits-note">What this check cannot see: without a contributor revealing their one time secret, it can see that payments repeated an earlier payment's message and that a payment was set aside, but not what amount a message promised, so it cannot tell whether setting aside a payment for being too small was fair.</p>
+        </details>
       </div>
-      <button type="button" class="outline again" id="again" hidden>↻ Run it again</button>
-    </section>
 
-    <div id="banners"></div>
-    <div id="memory-note" hidden></div>
-    <section class="panel" id="saved-card" hidden>
-    <div class="hd"><h2>Recount from a saved copy</h2></div>
-    <div id="saved-tried" class="notice bad" hidden></div>
-    <p class="muted">If the host gave you a saved copy of the public list (their export or backup, a file ending in .json), load it here. It is checked exactly as a relay's copy is: the rules must match this campaign's number, and every entry must be signed, in order and without gaps. A copy that fails any of that is refused. The result is marked as coming from a file, because nothing here shows whether it is the list the host showed to others.</p>
-    <input type="file" id="saved-file" accept="application/json,.json">
-    <p id="saved-error" class="error" role="alert" hidden></p>
-    <p id="saved-using" class="notice info" hidden>Using the saved copy you loaded. <button type="button" class="secondary" id="saved-clear">Ask the relays again instead</button></p>
-  </section>
+      <div class="ractions" id="actions" hidden>
+        <button type="button" class="ract" id="act-server" aria-controls="add-server-card" aria-expanded="false" hidden>Add another server</button>
+        <button type="button" class="ract" id="act-copy" aria-controls="copy-card" aria-expanded="false" hidden>Save a copy</button>
+        <button type="button" class="ract" id="act-fp" aria-controls="fp-card" aria-expanded="false" hidden>Compare fingerprint</button>
+      </div>
+      <div class="tools">
+        <section class="tool rcard" id="add-server-card" hidden>
+          <h2 class="tool-h">Check another server</h2>
+          <p class="muted">Paste another public Zcash server address and run the recount again with it.</p>
+          <form id="add-server" novalidate>
+            <input type="url" id="server-url" placeholder="https://…" required autocomplete="off">
+            <button type="submit" class="ract addbtn">Add and run again</button>
+          </form>
+          <p class="notice bad" id="server-error" hidden></p>
+        </section>
+        <section class="tool rcard" id="copy-card" hidden>
+          <h2 class="tool-h">Keep a copy</h2>
+          <p class="muted">Save the full list. If a server later hides or changes part of it, your copy still shows what you saw.</p>
+          <div class="btns"><button type="button" class="ract" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></div>
+          <div id="compare-box">
+            <p class="t-sub cmp-l">Compare with my saved copy</p>
+            <input type="file" id="compare-file" accept="application/json,.json">
+            <p id="compare-error" class="error" role="alert" hidden></p>
+            <div id="compare-out" class="notice" hidden></div>
+          </div>
+          <details class="plain"><summary>What a saved copy can and cannot show</summary>
+            <p><strong>It can show</strong> that entries you once saw are missing from the current list, or have been replaced by different ones. A copy saved <em>before</em> the host cut anything is the useful one.</p>
+            <p><strong>It cannot show</strong> anything about a time before you saved it, and it protects only the person who kept it. If you never saved a copy, or saved it after the damage, it has nothing to compare. A copy that matches the current list does not prove the list is complete: nothing was written that neither of you has seen.</p>
+          </details>
+        </section>
+        <section class="tool rcard" id="fp-card" hidden>
+          <h2 class="tool-h">Fingerprint</h2>
+          <p class="muted">The number of entries and the hash of the last one. Compare it with one you were given.</p>
+          <pre id="fp-line" class="copybox"></pre>
+          <p id="fp-status" class="notice" hidden></p>
+          <p class="t-sub cmp-l">Compare with a fingerprint you were given</p>
+          <input id="fp-given" autocomplete="off" spellcheck="false" placeholder="for example: 12 entries, last entry 3fa9…">
+          <p id="fp-given-status" class="muted t-sm" hidden></p>
+          <details class="plain"><summary>What the fingerprint can and cannot show</summary>
+            <p><strong>It can show</strong> that this list is exactly the one the host fixed when it closed the campaign: nothing was cut off the end, and nothing was swapped for a different list since. It works with no relay running, because a saved copy carries the host's signed record, and because anyone can compare the line above with a line the host posted elsewhere.</p>
+            <p><strong>It cannot show</strong> that the host was honest, or that the list was complete at the moment it was fixed (a payment can still be checked against the chain by the checks above, but a note the host never wrote is only caught when the chain shows its effect). It cannot show that the record you were shown is the one others saw: compare it with a copy posted somewhere durable. If no record is available, no check is made, and the page says so.</p>
+            <p><strong>When there is none:</strong> the host publishes it when it closes the campaign, so a campaign that is still open has none. A campaign older than this feature has none either, and a saved file or a relay may not carry the host's record.</p>
+          </details>
+        </section>
+      </div>
+      <a class="rhome" href="./">Back to home page</a>
+    </div>
 
-    <section class="rchecks" id="rules-card" hidden>
-      <div class="rc-hd"><h2>The checks</h2><span class="dim" id="rules-hint">Select a check for its evidence</span></div>
-      <div class="tilebox"><div class="rule-tiles" id="rule-tiles"></div><button type="button" class="tiles-more" id="tiles-more" aria-label="Show the rest of the checks" hidden>›</button></div>
-      <div class="checks civic" id="rules"></div>
-    </section>
-
-    <div id="summary" class="rsummary" hidden>
-      <p class="counts"><span class="cnt p"><b id="n-pass">0</b> passed</span><span class="cnt f"><b id="n-fail">0</b> failed</span><span class="cnt x"><b id="n-nc">0</b> not checked</span></p>
-      <p class="checked"><span class="t-label">Checked</span> <span id="checked-line"></span></p>
-      <details class="fold ncfold"><summary>What a recount does not check · <span id="nc-count">0</span></summary>
-        <div class="ncgrid" id="notchecked-line"></div>
-        <p class="muted t-sm limits" id="limits-note">What this check cannot see: without a contributor revealing their one time secret, it can see that payments repeated an earlier payment's message and that a payment was set aside, but not what amount a message promised, so it cannot tell whether setting aside a payment for being too small was fair.</p>
+    <div class="rpanel totalspanel" id="panel-totals" role="tabpanel" aria-labelledby="tab-totals" hidden>
+      <section class="rcard totals" id="totals-card" hidden>
+        <h2 class="rc-h">Totals</h2>
+        <dl class="trows" id="timeline"><dt>Deadline</dt><dd id="tl-deadline"></dd><dt id="tl-closed-t" hidden>Closed at</dt><dd id="tl-closed" hidden></dd></dl>
+        <dl class="trows" id="totals"></dl>
+        <div class="rnotice" id="open-note" role="note" hidden></div>
+      </section>
+      <details class="rcard sources" id="sources-card" open hidden>
+        <summary class="rc-h">Sources <span class="dim" id="sources-sum"></span></summary>
+        <ol class="runlog" id="sources"></ol>
+        <dl class="runfacts" id="run-facts">
+          <dt>Chain height</dt><dd id="rf-height"></dd>
+          <dt>Ran at</dt><dd id="rf-time"></dd>
+          <dt>Report hash</dt><dd><span id="rf-hash"></span></dd>
+        </dl>
+        <details class="hashwhat"><summary>What the report hash is</summary><p>SHA-256 of the report as canonical JSON (sorted keys, no spaces, campaign id and chain height included). The same recount gives the same hash; see SPEC section 5.</p></details>
       </details>
-      <p class="coverage"><span class="t-label">Coverage</span> <span id="coverage-line"></span></p>
-    </div>
-
-    <div class="tools">
-      <section class="tool" id="add-server-card" hidden>
-    <h2 class="tool-h">Check another server</h2>
-    <p class="muted">Paste another public Zcash server address and run the recount again with it.</p>
-    <form id="add-server" novalidate>
-      <input type="url" id="server-url" placeholder="https://…" required autocomplete="off">
-      <button type="submit" class="secondary addbtn">Add and run again</button>
-    </form>
-    <p class="notice bad" id="server-error" hidden></p>
-  </section>
-      <section class="tool" id="copy-card" hidden>
-    <h2 class="tool-h">Keep a copy</h2>
-    <p class="muted">Save the full list. If a server later hides or changes part of it, your copy still shows what you saw.</p>
-    <div class="btns"><button type="button" class="secondary" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></div>
-    <div id="compare-box">
-      <p class="t-sub cmp-l">Compare with my saved copy</p>
-      <input type="file" id="compare-file" accept="application/json,.json">
-      <p id="compare-error" class="error" role="alert" hidden></p>
-      <div id="compare-out" class="notice" hidden></div>
-    </div>
-    <details class="plain"><summary>What a saved copy can and cannot show</summary>
-      <p><strong>It can show</strong> that entries you once saw are missing from the current list, or have been replaced by different ones. A copy saved <em>before</em> the host cut anything is the useful one.</p>
-      <p><strong>It cannot show</strong> anything about a time before you saved it, and it protects only the person who kept it. If you never saved a copy, or saved it after the damage, it has nothing to compare. A copy that matches the current list does not prove the list is complete: nothing was written that neither of you has seen.</p>
-    </details>
-  </section>
-      <section class="tool" id="fp-card" hidden>
-    <h2 class="tool-h">Fingerprint</h2>
-    <p class="muted">The number of entries and the hash of the last one. Compare it with one you were given.</p>
-    <pre id="fp-line" class="copybox"></pre>
-    <p id="fp-status" class="notice" hidden></p>
-    <p class="t-sub cmp-l">Compare with a fingerprint you were given</p>
-    <input id="fp-given" autocomplete="off" spellcheck="false" placeholder="for example: 12 entries, last entry 3fa9…">
-    <p id="fp-given-status" class="muted t-sm" hidden></p>
-    <details class="plain"><summary>What the fingerprint can and cannot show</summary>
-      <p><strong>It can show</strong> that this list is exactly the one the host fixed when it closed the campaign: nothing was cut off the end, and nothing was swapped for a different list since. It works with no relay running, because a saved copy carries the host's signed record, and because anyone can compare the line above with a line the host posted elsewhere.</p>
-      <p><strong>It cannot show</strong> that the host was honest, or that the list was complete at the moment it was fixed (a payment can still be checked against the chain by the checks above, but a note the host never wrote is only caught when the chain shows its effect). It cannot show that the record you were shown is the one others saw: compare it with a copy posted somewhere durable. If no record is available, no check is made, and the page says so.</p>
-      <p><strong>When there is none:</strong> the host publishes it when it closes the campaign, so a campaign that is still open has none. A campaign older than this feature has none either, and a saved file or a relay may not carry the host's record.</p>
-    </details>
-  </section>
+      <a class="rhome" href="./">Back to home page</a>
     </div>
   </div>
-
-  <div class="rpanel" id="panel-totals" role="tabpanel" aria-labelledby="tab-totals" hidden>
-    <section class="panel totals" id="totals-card" hidden>
-      <div class="stamp" id="stamp" aria-hidden="true" hidden><span class="st-name" id="stamp-name"></span><span class="st-id" id="stamp-id"></span></div>
-      <h2 class="panel-h">Totals</h2>
-      <dl class="kv pl" id="timeline"><dt>Deadline</dt><dd id="tl-deadline"></dd><dt id="tl-closed-t" hidden>Closed at</dt><dd id="tl-closed" hidden></dd></dl>
-      <dl class="kv pl" id="totals"></dl>
-      <p class="notice info" id="open-note" hidden></p>
-    </section>
-
-    <details class="panel sources" id="sources-card" open hidden>
-      <summary class="panel-h">Sources <span class="dim" id="sources-sum"></span></summary>
-      <ol class="runlog" id="sources"></ol>
-      <dl class="kv pl runfacts" id="run-facts">
-        <dt>Chain height</dt><dd id="rf-height"></dd>
-        <dt>Ran at</dt><dd id="rf-time"></dd>
-        <dt>Report hash</dt><dd><span id="rf-hash"></span><span class="sub">SHA-256 of the report as canonical JSON (sorted keys, no spaces, campaign id and chain height included). The same recount gives the same hash; see SPEC section 5.</span></dd>
-      </dl>
-    </details>
-  </div>
-
-  <p class="backrow"><a id="campaign-link" href="#" hidden>Back to the campaign page</a></p>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

@@ -39,9 +39,10 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
   };
   const text = async (p, sel) => (await p.textContent(sel)).replace(/\s+/g, ' ').trim();
   const addrOf = (p, c) => p.evaluate(async (id) => (await (await fetch(`/relays/a/v1/campaigns/${id}`)).json()).pay_to, c.id);
-  const create = async (p, addr, amount) => { await p.fill('#amount', amount); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); await p.waitForSelector('#qr svg', { state: 'attached' }); }; // design round 2: Create opens the Backup step; the code is drawn and shown after Continue to pay
+  // round 11: two questions (amount, then refund address); after leaving a code the page shows the refund address question again
+  const create = async (p, addr, amount) => { if (await p.isHidden('#q-amount')) await p.click('#q-back'); await p.fill('#amount', amount); await p.click('#to-addr'); await p.fill('#refund', addr); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); await p.waitForSelector('#qr svg', { state: 'attached' }); }; // design round 2: Create opens the Backup step; the code is drawn and shown after Continue to pay
   const qrOf = (p) => p.evaluate(() => document.querySelector('#qr').innerHTML.length + ':' + document.querySelector('#qr').innerHTML.slice(0, 400));
-  const memoOf = async (p) => { await p.evaluate(() => (document.querySelector('#manual').open = true)); return (await text(p, '#memo')); };
+  const memoOf = async (p) => text(p, '#memo'); // round 11: the full message behind the "3 Message" row's Copy
   const inView = (p, sel) => p.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; }, sel);
   try {
     for (const [label, c, noun] of [['fundraiser', RAISE, 'contribution'], ['auction', AUCTION, 'bid']]) {
@@ -52,7 +53,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       const memo1 = await memoOf(p), qr1 = await qrOf(p);
       await p.evaluate(() => window.scrollTo(0, 0));
       const box = await p.locator('#edit-amount').boundingBox();
-      check(`${label}: on the backup step, a "← Back" button that goes back to the amount is visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /←\s*Back/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
+      check(`${label}: on the backup step, a "← Refund address" button at the top that goes back is visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /^←\s*Refund address$/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
       check(`${label}: the backup step comes first, with its download button, before the code is shown`, (await p.isVisible('#backup')) && /Save your backup file first/.test(await text(p, '#pay-card')) && (await p.isHidden('#qr svg')));
       await p.tap('#to-pay');
       check(`${label}: "Continue to pay" shows the warning and the code`, /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(await text(p, '#pay-warning')) && (await p.isVisible('#pay-warning')) && (await p.isVisible('#qr svg')));
@@ -66,7 +67,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       await p.tap('#edit-amount'); await p.tap('#leave-yes');
       await p.waitForSelector('#form-card:not([hidden])');
       const note = await text(p, '#left-note');
-      check(`${label}: back on the amount step with 0.01 filled in, and a plain note says not to pay the previous QR`, (await p.inputValue('#amount')) === '0.01' && (await p.isVisible('#left-note')) && note === 'Do not pay the previous code; if you already did, it still counts and is listed below.', note.slice(0, 200));
+      check(`${label}: back on the refund address question with 0.01 kept and the address filled in, and a plain note says not to pay the previous QR`, (await p.isVisible('#q-addr')) && (await p.inputValue('#refund')) === addr && (await p.inputValue('#amount')) === '0.01' && (await p.isVisible('#left-note')) && note === 'Do not pay the previous code; if you already did, it still counts and is listed below.', note.slice(0, 200));
       let st = await p.evaluate((id) => ({ cur: localStorage.getItem(`ll:${id}`), earlier: JSON.parse(localStorage.getItem(`ll:${id}:earlier`) || '[]') }), c.id);
       check(`${label}: the old code and its secret are kept in the list of earlier codes, not lost`, st.cur === null && st.earlier.length === 1 && st.earlier[0].memo === memo1 && !!st.earlier[0].seed && (await p.isVisible('#earlier')));
       await p.screenshot({ path: `${SHOTS}/back-${label}-amount.png` });

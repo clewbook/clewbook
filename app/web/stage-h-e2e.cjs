@@ -49,7 +49,8 @@ const CAUTIONS = () => {
   };
   const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g, ' ').trim();
   const addrOf = (p) => p.evaluate(async (id) => (await (await fetch(`/relays/a/v1/campaigns/${id}`)).json()).pay_to, RAISE.id);
-  const create = async (p, a, amount) => { await p.fill('#amount', amount); await p.fill('#refund', a); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); await p.waitForTimeout(600); }; // design round 2: Continue to pay after the Backup step
+  // round 11: the amount and the refund address are two questions (Continue between them); a page left with a code shows the second question again
+  const create = async (p, a, amount) => { if (await p.isHidden('#q-amount')) await p.click('#q-back'); await p.fill('#amount', amount); await p.click('#to-addr'); await p.fill('#refund', a); await p.click('#create'); await p.waitForSelector('#pay-card:not([hidden])', { timeout: 15000 }); if (await p.isVisible('#to-pay')) await p.click('#to-pay'); await p.waitForTimeout(600); }; // design round 2: Continue to pay after the Backup step
   const rules = (name, list, { max = Infinity } = {}) => {
     check(`${name}: ${list.length} caution line(s) visible${max < Infinity ? `, at most ${max}` : ''}`, list.length <= max, JSON.stringify(list.map((x) => x.text)));
     check(`${name}: each is one sentence of at most 20 words, grey, not boxed, not red`, list.every((x) => x.text.split(/\s+/).length <= 20 && (x.text.match(/[.;?!](\s|$)/g) || []).length <= 2 && !x.red && !x.boxed), JSON.stringify(list));
@@ -61,7 +62,8 @@ const CAUTIONS = () => {
     await create(p, addr, '0.01');
     const normal = await p.evaluate(CAUTIONS);
     rules('payment step, normal', normal, { max: 1 });
-    check('payment step, normal: the one line says to pay exactly the amount once, from a shielded address', normal.length === 1 && /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(normal[0].text), normal[0] && normal[0].text);
+    // round 11: "Pay exactly … once, from a shielded address." is the payment step's heading now, so no caution line is needed under it
+    check('payment step, normal: no caution line; the heading says to pay exactly the amount once, from a shielded address', normal.length === 0 && /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(await text(p, '.pay-h')), `${JSON.stringify(normal)} | ${await text(p, '.pay-h')}`);
     check('payment step: "Why?" is closed and holds one sentence', (await p.evaluate(() => !document.querySelector('#pay-why').open)) && (await text(p, '#pay-why p')).split(/\.\s/).length === 1);
     await p.screenshot({ path: `${SHOTS}/stage-h-payment.png`, fullPage: true });
     // changed amount
@@ -86,11 +88,14 @@ const CAUTIONS = () => {
     p = await page({ t: RAISE.deadline - 5 });
     const near = await p.evaluate(CAUTIONS);
     rules('amount step, 5 blocks before the deadline', near, { max: 1 });
-    check('  ... no new payment code: Create is off and one line says why', (await p.isDisabled('#create')) && near.length === 1 && near[0].text === 'New payments stop 10 blocks before the deadline, because one mined after it would not count.', JSON.stringify(near));
-    await p.fill('#amount', '0.01'); await p.fill('#refund', addr); await p.click('#create', { force: true }).catch(() => {}); await p.waitForTimeout(500);
-    check('  ... and pressing it anyway makes nothing', await p.isHidden('#pay-card'));
+    await p.fill('#amount', '0.01'); await p.waitForTimeout(300); // round 11: a valid amount, and still no way on: Continue (and Create) stay off
+    check('  ... no new payment code: Continue and Create are off with a valid amount, and one line says why', (await p.isDisabled('#to-addr')) && (await p.isDisabled('#create')) && near.length === 1 && near[0].text === 'New payments stop 10 blocks before the deadline, because one mined after it would not count.', JSON.stringify(near));
+    await p.click('#to-addr', { force: true }).catch(() => {}); await p.evaluate(() => document.querySelector('#form').requestSubmit()); await p.waitForTimeout(500);
+    await p.evaluate((a) => { document.querySelector('#refund').value = a; }, addr); await p.click('#create', { force: true }).catch(() => {}); await p.waitForTimeout(500);
+    check('  ... and pressing them anyway makes nothing', await p.isHidden('#pay-card'));
     await p.context().close();
     p = await page({ t: RAISE.deadline - 10 });
+    await p.fill('#amount', '0.01'); await p.click('#to-addr'); await p.fill('#refund', addr);
     check('exactly 10 blocks before the deadline: a payment code can still be made, and no deadline line', (await p.isEnabled('#create')) && (await p.isHidden('#near-deadline')));
     await create(p, addr, '0.01');
     await p.context().close();

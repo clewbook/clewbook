@@ -1,244 +1,312 @@
-/* Contribute and bid (design round 2): a flow bar with the five steps, then one step at a time: Amount, Backup, Pay, Ticket. The shared look is
-   in ui.css. The step shown follows the page's own state (#cflow data-stage, set by contribute.js); nothing here hides a red notice. */
-.cpage { padding-top: 0; }
+/* Contribute and bid (design round 11, handoff "contribute"): one question per screen (amount, refund address), then backup, pay, ticket, done;
+   and the closed page when a campaign takes no more payments. The step shown follows the page's own state (contribute.js); nothing here hides a
+   red notice. Values are the handoff's, on the shared tokens of ui.css (its --k names map one to one, as noted in recount.css). */
+@keyframes cbin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.page.cpage { padding: 0 var(--cb-gutter); max-width: none; animation: none; }
+.cwrap { max-width: 680px; margin: 0 auto; padding: 24px 0 72px; display: flex; flex-direction: column; gap: 24px; }
+.cwrap.wide { max-width: 1160px; }
+.cflow { display: contents; }
+.cscreen { display: flex; flex-direction: column; gap: 20px; padding-top: 12px; animation: cbin .35s ease; min-width: 0; }
+.cscreen[hidden] { display: none; }
+#banners:empty, #memory-note:empty { display: none; }
+#banners { display: flex; flex-direction: column; gap: 10px; }
 
-/* the flow bar: back to the campaign, the stepper */
-.flowbar { padding: 20px 0 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
-.flow-back { font: 400 15px var(--cb-font-body); color: var(--cb-ink-3); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flow-back:hover { color: var(--cb-ink); }
-.flow-back > span[aria-hidden] { margin-right: .5ch; }
-.flow-back #campaign-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stepper { display: flex; gap: 4px; font: 500 13px var(--cb-font-body); flex-wrap: wrap; margin: 0; }
-.stepper li { white-space: nowrap; padding: 8px 12px; border-radius: 999px; color: var(--cb-ink-3); transition: background .3s, color .3s; }
-.stepper li.now { background: var(--cb-ink); color: var(--cb-on-ink); }
-.stepper li.done { color: var(--cb-ink-2); }
-.stepper li.done .n { font-size: 0; }
-.stepper li.done .n::before { content: "✓"; font-size: 13px; }
-.status-line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
-.status-line .sbadge { margin-right: 0; }
-#banners { margin-top: 14px; }
+/* buttons: primary (teal fill), outline, quiet, danger; hover lifts, press scales, disabled is grey with no hover */
+.page .cprimary, .page a.cprimary { display: inline-flex; align-items: center; justify-content: center; margin: 0; min-height: 52px; padding: 0 28px; border: 0; border-radius: 999px; background: #3FB89A; color: #0B0D10; font: 700 15px var(--cb-font-body); white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s, border-color .2s; }
+.page .cprimary:hover, .page a.cprimary:hover { background: #3FB89A; color: #0B0D10; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(63,184,154,.28); }
+.page .cprimary:active { transform: scale(.97); }
+.page .cprimary:disabled, .page .cprimary:disabled:hover { background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink-4); transform: none; box-shadow: none; cursor: not-allowed; }
+.page .coutline, .page a.coutline { display: inline-flex; align-items: center; justify-content: center; margin: 0; min-height: 48px; padding: 0 20px; border: 1px solid var(--cb-border-hover); border-radius: 999px; background: transparent; color: var(--cb-ink); font: 600 14px var(--cb-font-body); white-space: nowrap; text-decoration: none;
+  transition: transform .2s, border-color .2s; }
+.page .coutline:hover, .page a.coutline:hover { background: transparent; color: var(--cb-ink); border-color: #3FB89A; transform: translateY(-2px); }
+.page .coutline:active { transform: scale(.97); }
+.page .cquiet { margin: 0; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--cb-ink-3); font: 600 13px var(--cb-font-body); }
+.page .cquiet:hover { background: rgba(var(--cb-overlay-rgb), .06); color: var(--cb-ink); transform: none; }
+.page .cdanger { margin: 0; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--cb-fail); color: #0B0D10; font: 700 13px var(--cb-font-body); }
+.page .cdanger:hover { background: var(--cb-fail); color: #0B0D10; transform: translateY(-2px); }
+.cbtnrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cwhy { font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.cwhy:empty { display: none; }
 
-/* the layout of each step */
-.cflow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px 48px; padding: 30px 0 24px; align-items: start; }
-.cflow[data-stage="amount"] { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
-.cmain { min-width: 0; display: flex; flex-direction: column; gap: 32px; }
-.cflow[data-stage="pay"] .cmain { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 32px 48px; align-items: start; }
-.caside { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
-.cflow:not([data-stage="amount"]) .caside { max-width: 780px; padding-top: 22px; border-top: 1px solid var(--cb-border); }
-.cflow:not([data-stage="amount"]) .before { display: none; }
-.cflow[data-stage="backup"] .caside { display: none; } /* the backup step shows only the backup; the campaign details are on the amount step */
-.flow-h { font: 700 40px/1.05 var(--cb-font-display); letter-spacing: -.03em; margin: 0; }
-.intro { color: var(--cb-ink-2); margin-top: 12px; max-width: 62ch; }
-.eyebrow-k { font: 500 13px var(--cb-font-body); color: var(--cb-accent-text); letter-spacing: .02em; }
-.lead { color: var(--cb-ink-2); max-width: 62ch; }
-.mt2 { margin-top: 8px; }
-.subhd { font: 700 17px/1.35 var(--cb-font-display); margin: 0 0 8px; }
+/* the top row: Back at the left, the step pills at the right (one line "STEP 3 OF 5 · PAY" on a phone) */
+.ctop { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.page .cback, .page a.cback { margin: 0 auto 0 0; min-height: 44px; padding: 0 18px; border-radius: 999px; background: rgba(var(--cb-overlay-rgb), .08); border: 1px solid var(--cb-border-hover); display: inline-flex; align-items: center; gap: 6px; font: 700 14px var(--cb-font-body); color: var(--cb-ink); text-decoration: none; white-space: nowrap; transition: transform .2s, border-color .2s; }
+.page .cback:hover, .page a.cback:hover { background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink); border-color: #3FB89A; transform: translateX(-2px); }
+.stepper { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; overflow-x: auto; }
+.stepper li { min-height: 34px; padding: 0 11px; border-radius: 999px; display: flex; align-items: center; white-space: nowrap; font: 600 12px var(--cb-font-body); color: var(--cb-ink-4); }
+.stepper li.done { color: var(--cb-pass); }
+.stepper li.now { background: var(--cb-ink); color: var(--cb-page); }
+.ministep { font: 600 12px var(--cb-font-body); letter-spacing: .1em; color: var(--cb-ink-3); }
 
-/* 1 · amount */
-#form-card form { display: flex; flex-direction: column; }
-.amountbox { display: flex; align-items: center; border-radius: 14px; border: 2px solid var(--cb-border-strong); background: var(--cb-surface); min-height: 64px; padding: 0 18px; }
-.amountbox:focus-within { border-color: var(--cb-accent-text); outline: 2px solid var(--cb-focus); outline-offset: 2px; }
-.amountbox input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font: 700 30px var(--cb-font-display); min-height: 60px; padding: 0; font-variant-numeric: tabular-nums; }
+/* the campaign: status pill and meta; the name on its own line */
+.chead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chead .sbadge { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 10px; border-radius: 999px; background: transparent; border: 1px solid var(--cb-border-hover); color: var(--cb-ink-3); font: 600 11px var(--cb-font-body); letter-spacing: .12em; white-space: nowrap; }
+.chead .sbadge.open { border-color: rgba(95,212,154,.45); color: var(--cb-pass); }
+.chead .sbadge .sdot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; } /* the pill's ● (it pulses unless the person asked for reduced motion) */
+.cmeta { font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.cname { margin-top: -12px; font: 700 clamp(22px, 3vw, 26px)/1.2 var(--cb-font-display); letter-spacing: -.02em; color: var(--cb-ink); text-wrap: balance; overflow-wrap: anywhere; }
+
+/* headings and helpers */
+.ch1 { margin: 0; font: 600 clamp(28px, 4.4vw, 38px)/1.15 var(--cb-font-display); letter-spacing: -.03em; color: var(--cb-ink); text-wrap: balance; }
+.ch2 { margin: 0; font: 700 18px var(--cb-font-display); color: var(--cb-ink); }
+.chelp { margin: 0; font: 400 15px/1.6 var(--cb-font-body); color: var(--cb-ink-2); text-wrap: pretty; }
+.chelp:empty { display: none; }
+.ceyebrow { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: #3FB89A; }
+.acc { color: #3FB89A; }
+.acc .amt, .acc .amt .u { font: inherit; color: inherit; }
+.subhd { font: 700 16px/1.35 var(--cb-font-display); margin: 0 0 8px; }
+
+/* 3.1 and 3.2: the questions */
+.qprog { display: flex; flex-direction: column; gap: 8px; }
+.qlabel { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); }
+.qbar { height: 4px; border-radius: 2px; background: var(--cb-border); overflow: hidden; }
+.qbar i { display: block; height: 100%; width: 50%; background: #3FB89A; transition: width .5s cubic-bezier(.16,1,.3,1); }
+#form, .qstep { display: flex; flex-direction: column; gap: 20px; }
+.qstep { animation: cbin .35s ease; }
+.amountbox { display: flex; align-items: center; border-radius: 18px; border: 1.5px solid var(--cb-border-hover); background: var(--cb-surface); padding: 0 20px; transition: border-color .2s; }
+.amountbox:focus-within { border-color: #3FB89A; }
+.amountbox.good { border-color: rgba(95,212,154,.6); }
+.amountbox.bad, .amountbox.bad:focus-within { border-color: var(--cb-fail); transition: none; } /* an amount the campaign would refuse shows at once (earlier owner decision); the fade is for the other states */
+.amountbox input { flex: 1; min-width: 0; min-height: 76px; margin: 0; padding: 0; background: transparent; border: 0; outline: none; font: 700 36px var(--cb-font-display); color: var(--cb-ink); font-variant-numeric: tabular-nums; }
 .amountbox input:focus-visible { outline: 0; }
-.amountbox .tk { font: 500 13px var(--cb-font-body); color: var(--cb-ink-3); }
-/* an amount the campaign would refuse: a red edge and a soft red ring at once, and its message right under the box (no animation) */
-.amountbox.bad, .amountbox.bad:focus-within { border-color: var(--cb-fail); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cb-fail) 20%, transparent); }
-.amount-error { margin-top: 8px; }
-#refund { min-height: 88px; border-radius: 14px; padding: 14px; resize: none; }
-#form-error, #create-error, #restore-error { margin-top: 8px; }
-#form-card .btns { margin-top: 18px; }
-.page button.create { min-height: 52px; margin: 0; }
-.before { display: flex; flex-direction: column; border-left: 1px solid var(--cb-border); padding-left: 26px; font: 400 15px/1.55 var(--cb-font-body); color: var(--cb-ink-2); }
-.before .t-k { padding-bottom: 10px; }
-.cmain .before { border-left: 0; padding-left: 0; margin-top: 8px; } /* "Before you pay" sits under "I have a backup file" in the left column */
-.before-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-top: 1px solid var(--cb-rule); }
+.amountbox .tk { font: 600 15px var(--cb-font-body); color: var(--cb-ink-3); }
+.cmsg { margin: 0; font: 400 14px/1.5 var(--cb-font-body); color: var(--cb-ink-3); }
+.cmsg.good { color: var(--cb-pass); }
+.cmsg.bad { color: var(--cb-fail); }
+.qrules { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 6px 18px; }
+.qrules > div { display: flex; justify-content: space-between; gap: 14px; padding: 11px 0; border-top: 1px solid var(--cb-border); font: 400 13px var(--cb-font-body); }
+.qrules > div:first-child { border-top: 0; }
+.qrules span { color: var(--cb-ink-3); white-space: nowrap; }
+.qrules b { color: var(--cb-ink); text-align: right; font-weight: 600; }
+#refund { min-height: 0; margin: 0; border-radius: 18px; border: 1.5px solid var(--cb-border-hover); background: var(--cb-surface); padding: 16px 20px; font: 400 15px/1.6 var(--cb-font-body); color: var(--cb-ink); resize: vertical; outline: none; overflow-wrap: anywhere; }
+#refund:focus { border-color: #3FB89A; }
+#refund.good { border-color: rgba(95,212,154,.6); }
+#refund.bad { border-color: var(--cb-fail); }
+/* folds: "I have a backup file", "About this campaign", "Why?", the transaction id */
+.cfold { border-top: 1px solid var(--cb-border); padding-top: 14px; }
+.cfold > summary { cursor: pointer; list-style: none; font: 600 14px var(--cb-font-body); color: var(--cb-accent-text); }
+.cfold > summary::-webkit-details-marker { display: none; }
+.cfold-b { padding-top: 12px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; font: 400 13px/1.6 var(--cb-font-body); color: var(--cb-ink-2); }
+.cfold-b > * { max-width: 100%; }
+.page .filebtn { position: relative; margin: 0; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--cb-border-hover); color: var(--cb-ink); font: 600 14px var(--cb-font-body); display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap; text-transform: none; letter-spacing: normal;
+  transition: transform .2s, border-color .2s; }
+.page .filebtn:hover { transform: translateY(-2px); border-color: #3FB89A; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; min-height: 0; }
+.filebtn:has(input:focus-visible) { outline: 2px solid #3FB89A; outline-offset: 2px; }
+#about-text { color: var(--cb-ink-2); max-width: 62ch; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+#about-facts { width: 100%; }
+.before { display: flex; flex-direction: column; width: 100%; font: 400 13px/1.55 var(--cb-font-body); color: var(--cb-ink-2); }
+.before .t-k { padding: 8px 0; }
+.before-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--cb-border); }
 .bm.pub { color: var(--cb-pass); } .bm.host { color: var(--cb-info); } .bm.you { color: var(--cb-accent-text); } .bm.warn { color: var(--cb-wait); }
+.savebox { width: 100%; padding-top: 12px; border-top: 1px solid var(--cb-border); display: flex; flex-direction: column; gap: 10px; }
+.aside-recount { margin: 0; }
+.link-arrow { color: var(--cb-accent-text); text-decoration: none; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; }
+.link-arrow:hover { color: var(--cb-ink); }
+.afoot { font-size: 12px; color: var(--cb-ink-3); }
 
-/* 2 · backup */
-.pay-backup { max-width: 660px; display: flex; flex-direction: column; gap: 20px; }
-.pay-backup .flow-h { font-size: 42px; }
-.pay-backup .btns { gap: 12px; }
-.pay-backup .btns button { margin: 0; }
-.savedbox { display: inline-flex; gap: 10px; align-items: center; min-height: 44px; margin: 0; align-self: flex-start; font: 500 15px var(--cb-font-body); text-transform: none; letter-spacing: 0; color: var(--cb-ink); cursor: pointer; }
-.savedbox input { width: 22px; height: 22px; min-height: 0; margin: 0; }
-.saved { color: var(--cb-pass); font-weight: 600; }
-.savedbox #backup-done:not([hidden]) + .saved-off { display: none; }
-.editrow { margin-top: 8px; }
-.page .pill-step { min-height: 44px; padding: 0 18px; border: 1px solid var(--cb-border-strong); border-radius: 999px; background: transparent; color: var(--cb-ink-2); font: 500 15px var(--cb-font-body); }
-/* the Back control keeps a full-size target (44 x 120 px at least) */
-#edit-amount { min-width: 128px; justify-content: center; }
+/* 3.3 backup */
+.pay-backup { display: flex; flex-direction: column; gap: 20px; }
+.bklines { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 18px 20px; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px 12px; font: 400 14px/1.55 var(--cb-font-body); color: var(--cb-ink); }
+.bklines .ok { color: var(--cb-pass); } .bklines .wn { color: var(--cb-wait); }
+.page .savedbox { display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 0; align-self: flex-start; cursor: pointer; font: 600 14px var(--cb-font-body); letter-spacing: normal; text-transform: none; color: var(--cb-ink); }
+.savedbox input { width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: #3FB89A; }
+.cconfirm { border: 1px solid rgba(255,138,128,.5); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font: 400 13px/1.55 var(--cb-font-body); color: var(--cb-ink); animation: cbin .25s ease; }
+.cconfirm .cbtnrow { gap: 8px; }
 
-/* 3 · pay */
-.pay-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.pay-h { font-size: clamp(24px, 3.6vw, 34px); line-height: 1.25; letter-spacing: -.02em; }
-#pay-warning { color: var(--cb-ink); font: inherit; margin: 0; }
-#pay-min { color: var(--cb-accent-text); }
-#pay-min .amt, #pay-min .amt .u { font: inherit; color: inherit; }
-#pay-min .amt .z { color: inherit; opacity: .75; }
-.why summary { font-size: 14px; color: var(--cb-info); }
-.qrrow { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-.qrcol { display: inline-flex; flex-direction: column; gap: 10px; max-width: 100%; }
-.qrcol .payhint { width: 0; min-width: 100%; } /* wraps to the width of the code box above it */
-.qrinfo { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.qrinfo .t-sub { margin-bottom: 0; }
-.kv.qc { grid-template-columns: 78px minmax(0, 1fr); background: transparent; }
-.kv.qc dt, .kv.qc dd { padding: 10px 0; font-size: 14px; }
-.kv.qc dd { font: 400 13px var(--cb-font-body); }
-.kv.qc .hash { flex-wrap: wrap; }
-.kv.qc .hash .h-s { flex-basis: 100%; } /* the value on its own line, then Expand and Copy together under it */
-.kv.qc .hash .h-b { white-space: nowrap; flex: none; }
-.payhint { margin: 0; }
-/* "Show payment details" sits 16px under "Code hard to scan?": the margins that stacked up there (the hint line's, the button's and the fold's,
-   46px with the column gap) are gone, and the line is not drawn at all when there is no simpler code */
-#pay-main > p.hint:has(> #qr-toggle) { margin: 0 0 -2px; }
-#pay-main > p.hint:has(> #qr-toggle[hidden]) { display: none; }
-.page #qr-toggle { margin: 0; }
-#manual { margin: 0; }
-.copyhd { margin: 12px 0 4px; }
-#manual pre.copybox { max-height: 7rem; }
-#manual .wallet-note { display: block; margin-top: 2px; } /* the wallets note on its own line under the link, in the hint's own muted style */
-.pay-back { margin-top: 8px; }
-/* the payment code stays at least 280 px wide so a long payment link still scans (tested in contribute-e2e) */
-.qr .code { width: 290px; max-width: 100%; box-sizing: content-box; scroll-margin-top: 96px; } /* never under the sticky header when brought into view */
-@media (max-width: 639px) { .qrrow .qrcol, .qrrow .qr { width: 100%; } .qr .code { width: calc(100% - 36px); max-width: 320px; } }
-
-/* where things stand (beside the code), then the ticket */
-#progress-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.cflow[data-stage="pay"] #progress-card { border-left: 1px solid var(--cb-border); padding-left: 30px; }
-.stand { display: flex; flex-direction: column; gap: 6px; }
-.stand-k { margin: 0 0 6px; font-family: var(--cb-font-display); font-weight: 700; } /* an h3: headings are Archivo */
-.progress { border-top: 1px solid var(--cb-rule); }
-.progress li { grid-template-columns: 18px minmax(0, 1fr) auto; }
-.progress li .state { text-align: right; }
-.cflow[data-stage="ticket"] .stand { order: 5; }
-.cflow:not([data-stage="pay"]) .stand > .stand-k, .cflow:not([data-stage="pay"]) .stand > .progress { display: none; }
+/* 3.4 pay */
+.pay-main { display: flex; flex-direction: column; gap: 20px; }
+.pay-h #pay-warning { font: inherit; color: inherit; }
+.payrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 22px; align-items: start; }
+.qrcol { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+/* the handoff draws a 240 px box; the live page keeps the code itself at least 290 px wide, because a long payment link was tested to need that to scan */
+.qr { width: 100%; max-width: 322px; aspect-ratio: 1; background: #FFFDF8; border-radius: 18px; padding: 16px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.qr .code { width: 100%; height: 100%; scroll-margin-top: 96px; }
+.qr .code svg { display: block; width: 100%; height: 100%; }
+.page .qrtog { min-height: 36px; font-size: 12px; white-space: normal; text-align: center; }
+.cprows { min-width: 0; }
+.cprow { display: grid; grid-template-columns: 28px auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--cb-border); }
+.cpn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--cb-border-hover); display: flex; align-items: center; justify-content: center; font: 700 12px var(--cb-font-body); color: var(--cb-ink); }
+.cpk { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); white-space: nowrap; }
+.cpv { font: 600 14px var(--cb-font-body); color: var(--cb-ink); overflow-wrap: anywhere; min-width: 0; }
+.cpv .amt, .cpv .amt .u { font: inherit; color: inherit; }
+.page .cpbtn { margin: 0; min-height: 40px; min-width: 84px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--cb-border-hover); background: transparent; color: var(--cb-ink); font: 600 12px var(--cb-font-body); white-space: nowrap; }
+.page .cpbtn:hover { background: transparent; color: var(--cb-ink); border-color: #3FB89A; transform: none; }
+.page .cpbtn.copied { color: var(--cb-pass); }
+.cpnote { margin: 12px 0 0; font: 400 12px/1.6 var(--cb-font-body); color: var(--cb-ink-3); }
+.cpwallet { display: flex; flex-direction: column; gap: 4px; padding-top: 14px; margin-top: 12px; border-top: 1px solid var(--cb-border); }
+.cpwallet a { font: 700 14px var(--cb-font-body); color: var(--cb-accent-text); text-decoration: none; }
+.cpwallet a:hover { text-decoration: underline; }
+.wallet-note { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); }
+/* the tracker: Backup, payment, received, ticket; dots on a 2px rail that turns green as each step is done */
+#progress-card { gap: 20px; }
+.stand { display: flex; flex-direction: column; gap: 14px; }
+.tracker { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 16px 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tracker li { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; padding: 0; border: 0; text-align: left; }
+.tracker .tdot { display: flex; align-items: center; }
+.tracker .dot { width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid var(--cb-border-hover); background: transparent; }
+.tracker .rail { flex: 1; height: 2px; margin: 0 4px 0 6px; border-radius: 1px; background: var(--cb-border-strong); transition: background .4s; }
+.tracker li:last-child .rail { visibility: hidden; }
+.tracker .what { font: 600 13px var(--cb-font-body); color: var(--cb-ink); }
+.tracker .state { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); overflow-wrap: anywhere; }
+.tracker li.done .dot { border-color: var(--cb-pass); background: var(--cb-pass); }
+.tracker li.done .rail { background: var(--cb-pass); }
+.tracker li.done .state { color: var(--cb-pass); }
+.tracker li.wait .dot { border-color: #3FB89A; box-shadow: 0 0 0 4px rgba(63,184,154,.18); }
+.tracker li.warn .dot { border-color: var(--cb-wait); }
+.tracker li.warn .state { color: var(--cb-wait); }
+.tracker li.bad .dot { border-color: var(--cb-fail); }
+.tracker li.bad .state { color: var(--cb-fail); }
 #host-seen { font-size: 13px; color: var(--cb-ink-3); }
-.pnote { font-size: 14px; color: var(--cb-ink-2); }
+.pnote { margin: 0; font: 400 13px/1.6 var(--cb-font-body); color: var(--cb-ink-3); }
 .pnote:empty { display: none; }
-.risk { font-size: 15px; }
+.risk { font-size: 14px; }
 .risk:before { display: block; content: "✕"; font: 700 14px/1.4 var(--cb-font-display); color: var(--cb-fail); margin-bottom: 2px; }
 .risk.late { border-color: var(--warn-edge); background: var(--warn-box); }
 .risk.late:before { content: "!"; color: var(--cb-wait); }
-.paymore { display: flex; flex-direction: column; gap: 10px; } /* the transaction ID check and the two buttons, always shown (the "More" fold is gone) */
-.paymore .btns { margin: 0; }
-.confirmrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; padding: 14px 16px; border: 1px solid var(--cb-border); border-radius: 14px; background: var(--cb-surface); }
-.confirmrow > p { flex: 1 1 260px; color: var(--cb-ink-2); }
-.earlier { margin: 12px 0; }
-.earlier .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-#leave-box { margin-top: 8px; }
-/* Back to the amount, Start over and Download backup file: one row from 1280 px wide (561 px with the usual padding did not fit the 534 px column) */
-#leave-box .btns { gap: 10px; }
-.page #leave-box .btns > button { padding: 0 13px; }
+.paymore { display: flex; flex-direction: column; gap: 14px; }
+.footrow { padding-top: 14px; border-top: 1px solid var(--cb-border); gap: 10px; }
+.copyrow { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+.copyrow input { flex: 1 1 200px; min-width: 0; }
+.earlier { display: flex; flex-direction: column; gap: 8px; }
+.earlier .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
 
-/* 4 · the refund ticket */
-.cflow[data-stage="ticket"] #progress-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 18px 48px; align-items: start; }
-.cflow[data-stage="ticket"] #progress-card > * { grid-column: 1; }
-.cflow[data-stage="ticket"] #progress-card > #refund-area, .cflow[data-stage="ticket"] #progress-card > #refund-result, .cflow[data-stage="ticket"] #progress-card > #rebid-row, .cflow[data-stage="ticket"] #progress-card > .tk-back { grid-column: 2; }
-@media (max-width: 999px) { .cflow[data-stage="ticket"] #progress-card > * { grid-column: 1 !important; } }
-.ticket-h { font-size: clamp(34px, 5vw, 46px); }
-.ticket { background: linear-gradient(160deg, var(--cb-yours-bg), var(--cb-yours-bg-2)); border: 1px solid color-mix(in srgb, var(--cb-action) 45%, transparent); border-radius: 18px; padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; }
-.tk-head { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
-.tk-kicker { font: 400 12.5px var(--cb-font-body); color: var(--cb-ink-3); letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
-.tk-head .chip { text-transform: uppercase; }
-.tk-amount { font: 700 clamp(34px, 5vw, 46px)/1.1 var(--cb-font-display); letter-spacing: -.02em; }
-.tk-amount .amt { font: inherit; }
-.tk-amount .amt .z { color: var(--cb-ink-4); }
-.tk-amount .amt .u { font: 700 .6em var(--cb-font-display); color: var(--cb-ink-2); } /* the unit is part of the amount figure (Archivo), as on the stat tiles */
-.tk-sub { color: var(--cb-ink-2); }
-.tk-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 16px; margin-top: 8px; font-size: 13px; }
-.tk-dl dt { color: var(--cb-ink-3); padding: 8px 0; border-top: 1px solid var(--cb-rule); }
-.tk-dl dd { padding: 8px 0; border-top: 1px solid var(--cb-rule); min-width: 0; overflow-wrap: anywhere; color: var(--cb-ink-2); }
-.chip.refunded { color: var(--cb-ink-3); }
-.fold { border-top: 1px solid var(--cb-rule); border-bottom: 1px solid var(--cb-rule); }
-.fold > summary { cursor: pointer; list-style: none; min-height: 52px; display: flex; align-items: center; gap: 6px; font: 700 16px var(--cb-font-display); }
-.fold > summary::-webkit-details-marker { display: none; }
-.fold > summary::before { content: "▸"; }
-.fold[open] > summary::before { content: "▾"; }
-.fold-n { margin-left: auto; font: 400 13px var(--cb-font-body); }
-.tledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 16px; padding-bottom: 12px; }
-.tledger > div { padding: 10px 0; }
-.tl-l { font-size: 13px; color: var(--cb-ink-3); }
-.tl-v { font: 600 15px/1.35 var(--cb-font-body); margin-top: 2px; }
+/* 3.5 the refund ticket */
+.tkcard { border-radius: 22px; padding: 24px; background: linear-gradient(160deg, rgba(63,184,154,.16), rgba(63,184,154,.04)); border: 1px solid rgba(63,184,154,.45); display: flex; flex-direction: column; gap: 14px; }
+.tkcard[hidden] { display: none; }
+.tk-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tk-kicker { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); }
+.tkbadge { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--cb-border-hover); color: var(--cb-ink-3); font: 600 11px var(--cb-font-body); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.tkbadge.pass { border-color: rgba(95,212,154,.5); color: var(--cb-pass); }
+.tkbadge.fail { border-color: rgba(255,138,128,.55); color: var(--cb-fail); }
+.tk-amt #tk-amount { font: 700 clamp(44px, 7vw, 60px)/1 var(--cb-font-display); letter-spacing: -.03em; color: var(--cb-ink); }
+.tk-amt .amt { font: inherit; color: inherit; }
+.tk-amt .amt .u { font: 700 20px var(--cb-font-display); letter-spacing: 0; color: var(--cb-ink-3); margin-left: 8px; }
+.tk-sub { margin: 0; font: 400 14px var(--cb-font-body); color: var(--cb-ink); }
+.ccard { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.ccard[hidden] { display: none; }
+.ck { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); }
+#refund-explain { margin: 0; font: 400 14px/1.6 var(--cb-font-body); color: var(--cb-ink); }
+.page .cmuted { align-self: flex-start; margin: 0; min-height: 48px; padding: 0 22px; border-radius: 999px; background: rgba(var(--cb-overlay-rgb), .08); border: 1px solid var(--cb-border-strong); color: var(--cb-ink-3); font: 700 15px var(--cb-font-body); }
+.page .cmuted:hover { background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink); border-color: var(--cb-border-hover); transform: none; }
+#refund-result { margin: 0; }
+#refund-result[data-state] { border: 0; background: transparent; padding: 0; color: var(--cb-ink-2); font-size: 13px; }
+#refund-result[data-state]:before { display: inline-block; margin-right: 8px; }
+#refund-result[data-state="sent"]:before, #refund-result[data-state="resent"]:before { content: "↗"; color: var(--cb-wait); }
+#refund-result[data-state="confirmed"]:before { content: "✓"; color: var(--cb-pass); font-weight: 600; }
+.tkfolds { border-top: 1px solid var(--cb-border); }
+.tkfold { border-bottom: 1px solid var(--cb-border); padding: 14px 0; }
+.tkfold > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 12px; font: 700 15px var(--cb-font-display); color: var(--cb-ink); }
+.tkfold > summary::-webkit-details-marker { display: none; }
+.fold-n { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); white-space: nowrap; }
+.tkfold > :not(summary) { margin-top: 10px; }
+.tkfold .cfold { padding-top: 10px; }
+.tledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 16px; }
+.tledger > div { padding: 8px 0; }
+.tl-l { font-size: 12px; color: var(--cb-ink-3); }
+.tl-v { font: 600 14px/1.35 var(--cb-font-body); margin-top: 2px; }
 .tl-v.ok { color: var(--cb-pass); } .tl-v.bad { color: var(--cb-fail); } .tl-v.warn { color: var(--cb-wait); } .tl-v.teal { color: var(--cb-accent-text); }
-.tl-s { font-size: 13px; color: var(--cb-ink-3); margin-top: 2px; }
-#ticket-checks .subhd { font-size: 16px; }
-.summary { font-size: 14px; color: var(--cb-ink-2); margin-bottom: 8px; overflow-wrap: anywhere; }
-.tc-lines { margin: 0; padding-bottom: 12px; }
+.tl-s { font-size: 12px; color: var(--cb-ink-3); margin-top: 2px; }
+.summary { font: 400 13px/1.6 var(--cb-font-body); color: var(--cb-ink-2); overflow-wrap: anywhere; }
 .tc-lines ul { display: flex; flex-direction: column; gap: 4px; }
-.tc-not { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cb-rule); color: var(--cb-ink-3); }
+.tc-not { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cb-border); color: var(--cb-ink-3); }
 .tc-not-k { margin-bottom: 4px; }
-#ticket-checks .tk-fold + .tk-fold { border-top: 0; }
+.tk-dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 16px; font-size: 13px; }
+.tk-dl dt { color: var(--cb-ink-3); padding: 8px 0; border-top: 1px solid var(--cb-border); }
+.tk-dl dd { padding: 8px 0; border-top: 1px solid var(--cb-border); min-width: 0; overflow-wrap: anywhere; color: var(--cb-ink-2); }
 .devchecks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 20px; border-top: 0; }
-.devchecks .chk { border-bottom: 0; border-top: 1px solid var(--cb-rule); background: transparent; }
+.devchecks .chk { border-bottom: 0; border-top: 1px solid var(--cb-border); background: transparent; }
 .devchecks .chk > .row, .devchecks .chk.stack > .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm chip"; padding: 8px 0; min-height: 0; }
 .devchecks .chk .id { display: none; }
-.devchecks .chk .nm { font: 400 14px/1.4 var(--cb-font-body); }
-.devchecks .chk .nm small { font-size: 12.5px; }
-.devchecks .chk .row > .chip { font: 400 12.5px/1.4 var(--cb-font-body); letter-spacing: 0; text-transform: none; background: transparent; border: 0; padding: 0; }
+.devchecks .chk .nm { font: 400 13px/1.4 var(--cb-font-body); }
+.devchecks .chk .nm small { font-size: 12px; }
+.devchecks .chk .row > .chip { font: 400 12px/1.4 var(--cb-font-body); letter-spacing: 0; text-transform: none; background: transparent; border: 0; padding: 0; }
 .devchecks .chk .row > .chip svg { display: none; }
 .devchecks .chk .nm:before { display: inline-block; width: 18px; font-weight: 600; }
 .devchecks .chk.pass .nm:before { content: "✓"; color: var(--cb-pass); }
 .devchecks .chk.fail .nm:before { content: "✕"; color: var(--cb-fail); }
 .devchecks .chk.nc .nm:before { content: "○"; color: var(--cb-ink-3); }
-.devchecks .chk.fail { background: transparent; }
 .devchecks .chk.fail .nm { color: var(--cb-fail); }
-.proofrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 0; }
+.proofrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .proofrow .hint { margin: 0; flex: 1 1 200px; }
 .rsect { display: flex; flex-direction: column; gap: 12px; }
-.rsect > p { margin: 0; color: var(--cb-ink-2); }
-.rsect.warn > p { color: var(--cb-ink); }
-#refund-area .subhd { font: 700 13px var(--cb-font-display); color: var(--cb-ink-3); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
-#refund-btn { align-self: flex-start; background: rgba(var(--cb-overlay-rgb), .10); border-color: transparent; color: var(--cb-ink); min-height: 50px; padding: 0 24px; font-weight: 600; }
-#refund-result { margin: 0; }
-#refund-result[data-state] { border: 0; background: transparent; padding: 0; color: var(--cb-ink-2); font-size: 15px; }
-#refund-result[data-state]:before { display: inline-block; margin-right: 8px; }
-#refund-result[data-state="sent"]:before, #refund-result[data-state="resent"]:before { content: "↗"; color: var(--cb-wait); }
-#refund-result[data-state="confirmed"]:before { content: "✓"; color: var(--cb-pass); font-weight: 600; }
-.tk-back { margin: 8px 0 0; }
-.pill-back.big { min-height: 48px; padding: 0 22px; border: 1.5px solid var(--cb-ink); color: var(--cb-ink); font-weight: 600; gap: 10px; }
-.pill-back.big:hover { gap: 14px; }
+.rsect > p { margin: 0; color: var(--cb-ink-2); font-size: 14px; }
+.saved { color: var(--cb-pass); font-weight: 600; }
+#auction-proof { display: flex; flex-direction: column; gap: 10px; }
 
-/* the aside: About this campaign (always visible), the recount link, the footer line */
-.aside-sect .subhd { padding-bottom: 8px; }
-#about-text { color: var(--cb-ink-2); margin-bottom: 12px; max-width: 62ch; font-size: 14px; }
-.savebox { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--cb-rule); }
-.savebox p + p { margin-top: 10px; }
-.aside-recount { margin: 0; }
-.link-arrow { color: var(--cb-accent-text); text-decoration: none; font-weight: 500; min-height: 44px; display: inline-flex; align-items: center; }
-.link-arrow:hover { color: var(--cb-ink); }
-.afoot { padding-top: 16px; border-top: 1px solid var(--cb-rule); font-size: 13px; color: var(--cb-ink-3); }
+/* 3.6 done */
+#done-card { padding-top: 24px; }
+.donemark { width: 60px; height: 60px; border-radius: 50%; background: rgba(95,212,154,.14); border: 1px solid rgba(95,212,154,.5); display: flex; align-items: center; justify-content: center; font: 700 26px var(--cb-font-display); color: var(--cb-pass); }
 
-@media (max-width: 999px) {
-  .cflow[data-stage="pay"] #progress-card { border-left: 0; padding-left: 0; border-top: 1px solid var(--cb-border); padding-top: 22px; }
-  .before { border-left: 0; padding-left: 0; }
+/* 3.7 closed: two columns from 980 px (1.6fr and 1fr), stacked below */
+.cclosed { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; align-items: start; margin-top: -8px; animation: cbin .35s ease; }
+.cclosed[hidden] { display: none; }
+@media (min-width: 980px) { .cclosed { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); } }
+.cc-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.cc-h { margin: 0; font: 700 clamp(32px, 5vw, 48px)/1.1 var(--cb-font-display); letter-spacing: -.03em; color: var(--cb-ink); overflow-wrap: anywhere; }
+.cc-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.cc-fact { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 16px 18px; }
+.cc-fk { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); }
+.cc-fv { display: block; padding-top: 6px; font: 700 22px var(--cb-font-display); color: var(--cb-ink); }
+.cc-fv .amt, .cc-fv .amt .u { font: inherit; color: inherit; }
+.cc-fs { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); }
+.cc-note { font: 400 14px var(--cb-font-body); color: var(--cb-ink-2); }
+.cc-list { display: flex; flex-direction: column; }
+.cc-lhd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; }
+.cc-lt { font: 700 18px var(--cb-font-display); color: var(--cb-ink); }
+.cc-lt sup { font: 600 11px var(--cb-font-body); color: var(--cb-accent-text); }
+.cc-hint { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); white-space: nowrap; }
+.cc-scroll { overflow-x: auto; }
+.cc-table { min-width: 600px; }
+.cc-tr { display: grid; grid-template-columns: 1.3fr .8fr 1.5fr 1fr 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--cb-border); font: 400 13px var(--cb-font-body); color: var(--cb-ink); }
+.cc-table.fund .cc-tr { grid-template-columns: 1.3fr .8fr 1fr 1.5fr 1fr 1fr; }
+.cc-th { padding: 8px 0; border-bottom-color: var(--cb-border-hover); font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); }
+.cc-tr .r { text-align: right; }
+.cc-tr b { font-weight: 600; }
+.cc-tr .amt { font-weight: inherit; }
+.cc-k { display: flex; flex-direction: column; gap: 3px; }
+.cc-ref { font-size: 12px; color: var(--cb-ink-3); }
+.cc-res.won { color: var(--cb-pass); } .cc-res.lost { color: var(--cb-ink-3); }
+.cc-blk { color: var(--cb-ink-3); }
+.cc-mark { margin: 6px 0; padding: 12px 14px; border-radius: 12px; background: rgba(63,184,154,.10); border: 1px solid rgba(63,184,154,.35); font: 700 13px var(--cb-font-body); color: var(--cb-ink); }
+.cc-mark .amt { font-weight: inherit; }
+.page .cc-more { align-self: flex-start; margin-top: 12px; min-height: 44px; padding: 0 18px; }
+.cc-foot { margin: 8px 0 0; padding-top: 14px; border-top: 1px solid var(--cb-border); font: 400 12px/1.7 var(--cb-font-body); color: var(--cb-ink-3); }
+.cc-foot sup { color: var(--cb-accent-text); }
+.cc-empty { padding: 14px 0; color: var(--cb-ink-3); font-size: 13px; }
+.cc-rules { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; }
+.cc-rk { font: 600 11px var(--cb-font-body); letter-spacing: .14em; color: var(--cb-ink-3); padding-bottom: 10px; }
+.cc-rule { display: flex; flex-direction: column; gap: 4px; padding: 11px 0; border-top: 1px solid var(--cb-border); }
+.cc-rp, .page .cc-rbtn { display: flex; justify-content: space-between; gap: 14px; font: 400 13px var(--cb-font-body); }
+.cc-rp span, .cc-rbtn > span:first-child { color: var(--cb-ink-3); white-space: nowrap; }
+.cc-rp b, .cc-rv b { color: var(--cb-ink); text-align: right; font-weight: 600; }
+.page .cc-rbtn { align-items: center; width: 100%; min-height: 28px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: left; white-space: normal; color: inherit; }
+.page .cc-rbtn:hover { background: transparent; transform: none; }
+.cc-rv { display: flex; align-items: center; gap: 8px; }
+.cc-chev { display: inline-block; color: var(--cb-ink-3); font-size: 11px; transition: transform .25s ease; }
+.cc-rbtn[aria-expanded=true] .cc-chev { transform: rotate(180deg); }
+.cc-rsub { font: 400 12px/1.55 var(--cb-font-body); color: var(--cb-ink-3); text-align: right; animation: cbin .2s ease; }
+.cc-fold { border-top: 1px solid var(--cb-border); padding: 12px 0; }
+.cc-fold > summary { cursor: pointer; list-style: none; font: 600 13px var(--cb-font-body); color: var(--cb-accent-text); }
+.cc-fold > summary::-webkit-details-marker { display: none; }
+.cc-zones, .cc-nc { margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font: 400 12px/1.6 var(--cb-font-body); color: var(--cb-ink-2); }
+.cc-note2 { margin: 0; padding: 12px 0; border-top: 1px solid var(--cb-border); font: 400 12px/1.6 var(--cb-font-body); color: var(--cb-ink-2); }
+.cc-links { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--cb-border); }
+.cc-card { font: 700 14px var(--cb-font-body); color: var(--cb-ink); text-decoration: none; }
+.cc-bk { font: 400 13px var(--cb-font-body); color: var(--cb-accent-text); }
+
+/* phone (under 760 px): one line instead of the step pills; the facts as one list card */
+@media (max-width: 759px) {
+  .stepper { display: none; }
+  .cc-facts { grid-template-columns: minmax(0, 1fr); gap: 0; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 4px 18px; }
+  .cc-fact { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 0; background: transparent; border: 0; border-top: 1px solid var(--cb-border); border-radius: 0; }
+  .cc-fact:first-child { border-top: 0; }
+  .cc-fk { white-space: nowrap; }
+  .cc-fr { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+  .cc-fv { padding-top: 0; font-size: 16px; }
 }
-@media (max-width: 639px) {
-  .flowbar { gap: 8px; }
-  .stepper { gap: 2px; font-size: 12px; }
-  .stepper li { padding: 6px 9px; }
-  .flow-h { font-size: 32px; }
-  .pay-backup .flow-h { font-size: 32px; }
-  .ticket { padding: 20px; }
-  .tk-dl { grid-template-columns: 96px minmax(0, 1fr); }
-  /* the ticket step on a phone: heading and ticket, the backup box, the refund, the closed folds with the proof button, the transaction id,
-     and Start over last; 24px between sections and a thin line above each; the back link is the one at the top of the page */
-  .cflow[data-stage="ticket"] #progress-card { display: flex; flex-direction: column; align-items: stretch; gap: 24px; } /* every section as wide as the screen allows */
-  .cflow[data-stage="ticket"] #ticket-h { order: 1; }
-  .cflow[data-stage="ticket"] #ticket-view { order: 2; }
-  .cflow[data-stage="ticket"] #stand { order: 3; }
-  .cflow[data-stage="ticket"] #proof { order: 4; }
-  .cflow[data-stage="ticket"] #refund-area { order: 5; }
-  .cflow[data-stage="ticket"] #refund-result { order: 6; }
-  .cflow[data-stage="ticket"] #rebid-row { order: 7; }
-  .cflow[data-stage="ticket"] #tk-when { order: 8; }
-  .cflow[data-stage="ticket"] #ticket-checks { order: 9; margin-top: -24px; } /* the folds sit together as one group */
-  .cflow[data-stage="ticket"] #unconfirmed { order: 10; }
-  .cflow[data-stage="ticket"] #pay-more { order: 11; }
-  .cflow[data-stage="ticket"] #tk-when + #ticket-checks .tk-fold:first-of-type { border-top: 0; }
-  .cflow[data-stage="ticket"] #stand:not(:empty), .cflow[data-stage="ticket"] #refund-area, .cflow[data-stage="ticket"] #pay-more { border-top: 1px solid var(--cb-border); padding-top: 24px; }
-  .cflow[data-stage="ticket"] #backup2, .cflow[data-stage="ticket"] .tk-back { display: none; } /* the same download is in the backup box; the back link is at the top */
-  .cflow[data-stage="ticket"] #progress-card #backup3, .cflow[data-stage="ticket"] #refund-btn, .cflow[data-stage="ticket"] #proof-btn, .cflow[data-stage="ticket"] #start-over { width: 100%; min-height: 52px; margin: 0; }
-  .cflow[data-stage="ticket"] #backup-nudge .btns, .cflow[data-stage="ticket"] #leave-box .btns { flex-direction: column; align-items: stretch; gap: 10px; }
-  .cflow[data-stage="ticket"] .proofrow { flex-direction: column; align-items: stretch; }
-  .cflow[data-stage="ticket"] .proofrow .hint { flex: none; } /* its 200px basis is a width in a row, but would be a height in this column */
-}
+@media (min-width: 760px) { .ministep { display: none; } }
+@media (max-width: 639px) { .tracker { padding: 14px; gap: 6px; } .tk-dl { grid-template-columns: 96px minmax(0, 1fr); } }
+/* a phone under 480 px: the page's own tracker labels ("Contribution received") do not fit four columns, so two rows of two */
+@media (max-width: 479px) { .tracker { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; } .tracker li:nth-child(2n) .rail { visibility: hidden; } }

@@ -32,7 +32,7 @@ const clone = () => JSON.parse(JSON.stringify(good));
     // 1. nothing answers, no file
     let p = await open([DEAD, 'http://127.0.0.1:8']);
     await settle(p);
-    check('no relay answers: the verdict is "cannot conclude", never a pass', (await p.getAttribute('#verdict', 'data-kind')) === 'cannot' && (await p.locator('#n-pass').isHidden() || (await t(p, '#n-pass')) === '0'));
+    check('no relay answers: the verdict is "cannot conclude", never a pass', (await p.getAttribute('#verdict', 'data-kind')) === 'cannot' && (await p.locator('#rules .rrow.pass').count()) === 0);
     const tried = await t(p, '#saved-tried');
     check('it names every relay address it tried, with the reason', await p.isVisible('#saved-card') && tried.includes(DEAD) && tried.includes('http://127.0.0.1:8') && /Failed to fetch|could not be reached/.test(tried), tried.slice(0, 200));
     check('and offers to load a saved copy', await p.isVisible('#saved-file'));
@@ -41,7 +41,7 @@ const clone = () => JSON.parse(JSON.stringify(good));
     await p.setInputFiles('#saved-file', GOOD);
     await settle(p); await p.waitForFunction(() => /saved copy/i.test(document.querySelector('#verdict-title').textContent), null, { timeout: 600000 });
     const title = await t(p, '#verdict-title'), banners = await t(p, '#banners');
-    check('the host\'s export gives "All checks pass for the saved copy" with the LIMITED tag, every check passing', (await p.getAttribute('#verdict', 'data-kind')) === 'partial' && title === 'All checks pass for the saved copy' && /LIMITED/.test(await t(p, '#verdict-kicker')) && Number(await t(p, '#n-fail')) === 0 && Number(await t(p, '#n-pass')) >= 8, `${title} pass=${await t(p, '#n-pass')}`);
+    check('the host\'s export gives "All checks pass for the saved copy" with the LIMITED tag, every check passing', (await p.getAttribute('#verdict', 'data-kind')) === 'partial' && title === 'All checks pass for the saved copy' && /LIMITED/.test(await t(p, '#verdict-kicker')) && (await p.locator('#rules .rrow.fail').count()) === 0 && (await p.locator('#rules .rrow.pass').count()) >= 8, `${title} pass=${(await p.locator('#rules .rrow.pass').count())}`);
     check('the page says plainly that the result comes from a file, not from a relay', /comes from a saved copy of the list that you loaded, not from a relay/.test(banners) && /not from a relay/.test(await t(p, '#verdict-text')) && await p.isVisible('#saved-using'), banners.slice(0, 160));
     check('"Not checked" names the missing agreement with relays', /came from a saved file/.test(await t(p, '#notchecked-line')));
     await p.screenshot({ path: `${SHOTS}/saved-copy-result.png`, fullPage: true });
@@ -67,7 +67,7 @@ const clone = () => JSON.parse(JSON.stringify(good));
       await p.waitForFunction(() => /saved copy/i.test(document.querySelector('#verdict-title').textContent) || document.querySelector('#verdict-text').textContent.includes('saved copy') || document.querySelector('#verdict-title').textContent.includes('Cannot'), null, { timeout: 120000 });
       await p.waitForTimeout(1500);
       const kind = await p.getAttribute('#verdict', 'data-kind'), vt = await t(p, '#verdict-text'), vh = await t(p, '#verdict-title');
-      check(`refused, and no pass: ${label}`, kind === 'cannot' && !/All checks pass/.test(vh) && (await p.locator('#rules .chk.pass').count()) === 0 && /saved copy|not a saved copy|does not check out/.test(vh + ' ' + vt), `${kind} | ${vh} | ${vt.slice(0, 150)}`);
+      check(`refused, and no pass: ${label}`, kind === 'cannot' && !/All checks pass/.test(vh) && (await p.locator('#rules .rrow.pass').count()) === 0 && /saved copy|not a saved copy|does not check out/.test(vh + ' ' + vt), `${kind} | ${vh} | ${vt.slice(0, 150)}`);
       await p.context().close();
     }
     // 5. a second export (from another campaign), when given
@@ -76,7 +76,7 @@ const clone = () => JSON.parse(JSON.stringify(good));
       await p.goto(`${BASE}/recount.html#c=${process.env.EXTRA_ID}&relay=${DEAD}`);
       await p.setInputFiles('#saved-file', process.env.EXTRA);
       await p.waitForFunction(() => /saved copy/i.test(document.querySelector('#verdict-title').textContent), null, { timeout: 600000 });
-      check('an export made by the host program for a second campaign also recounts', Number(await t(p, '#n-fail')) === 0 && Number(await t(p, '#n-pass')) >= 8, await t(p, '#verdict-title'));
+      check('an export made by the host program for a second campaign also recounts', (await p.locator('#rules .rrow.fail').count()) === 0 && (await p.locator('#rules .rrow.pass').count()) >= 8, await t(p, '#verdict-title'));
       await p.context().close();
     }
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 200));

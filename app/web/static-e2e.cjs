@@ -48,8 +48,8 @@ const CASES = [
       for (let attempt = 1; attempt <= 3; attempt++) {
         p = await open(`${BASE}/recount.html#c=${id}&relay=${BASE}/relays/a&relay=${BASE}/relays/b`);
         await p.waitForFunction(() => (k => k && k !== 'working')(document.querySelector('#verdict').dataset.kind), null, { timeout: 600000 });
-        got = { kind: await p.getAttribute('#verdict', 'data-kind'), pass: Number(await p.textContent('#n-pass')), fail: Number(await p.textContent('#n-fail')), attempt };
-        failing = await p.evaluate(() => [...document.querySelectorAll('#rules .chk.fail .cid')].map((e) => e.firstChild.textContent));
+        got = { kind: await p.getAttribute('#verdict', 'data-kind'), pass: await p.locator('#rules .rrow.pass').count(), fail: await p.locator('#rules .rrow.fail').count(), attempt };
+        failing = await p.evaluate(() => [...document.querySelectorAll('#rules .rrow.fail .rr-id')].map((e) => e.textContent));
         const oneServer = /Only one public server/.test(await p.textContent('#banners'));
         if (!(oneServer && got.kind !== kind) || attempt === 3) break;
         await p.close();
