@@ -9,10 +9,18 @@
 .cwrap.qwide { max-width: 1160px; }
 .cwrap.qwide > .cleft { width: 100%; max-width: 680px; margin: 0 auto; }
 @media (min-width: 980px) { .cwrap.qwide { display: grid; grid-template-columns: minmax(0, 680px) minmax(300px, 1fr); gap: 36px; align-items: start; } .cwrap.qwide > .cleft { margin: 0; } }
-.cright .cv-tail { gap: 10px; }
-.cright .savebox { padding: 0; border: 0; gap: 8px; }
-.cright .savebox p { margin: 0; font: 400 12px/1.6 var(--cb-font-body); color: var(--cb-ink-2); }
-.cright .afoot { margin: 0; }
+/* round 13: the folds row under the questions (I have a backup file, Who can see what, Not checked by a recount), the panels full width under it, then
+   the recount link; on a phone each fold on its own line, at least 44 px */
+.qfolds { border-top: 1px solid var(--cb-border); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+.qf-row { display: flex; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.page .qf-btn { margin: 0; min-height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--cb-accent-text); font: 600 14px var(--cb-font-body); white-space: nowrap; }
+.page .qf-btn:hover { background: transparent; color: var(--cb-ink); transform: none; }
+.qf-btn::before { content: "▸"; display: inline-block; margin-right: 6px; transition: transform .2s; }
+.qf-btn[aria-expanded="true"]::before { transform: rotate(90deg); }
+.qf-panel { padding: 4px 0 0; }
+.qf-panel .cv-zones, .qf-panel .cv-nc { margin: 0; font-size: 13px; }
+.qf-recount { margin: 0; }
+@media (max-width: 719px) { .qf-row { flex-direction: column; gap: 0; } .page .qf-btn { min-height: 44px; text-align: left; } }
 .cscreen { display: flex; flex-direction: column; gap: 20px; padding-top: 12px; animation: cbin .35s ease; min-width: 0; }
 .cscreen[hidden] { display: none; }
 #banners:empty, #memory-note:empty { display: none; }
@@ -121,6 +129,7 @@
 .tracker li:last-child .rail { visibility: hidden; }
 .tracker .what { font: 600 13px var(--cb-font-body); color: var(--cb-ink); }
 .tracker .state { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); overflow-wrap: anywhere; }
+.tracker .state:empty { display: none; } /* round 13: no caption while waiting */
 .tracker li.done .dot { border-color: var(--cb-pass); background: var(--cb-pass); }
 .tracker li.done .rail { background: var(--cb-pass); }
 .tracker li.done .state { color: var(--cb-pass); }

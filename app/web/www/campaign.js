@@ -4,7 +4,6 @@
 import init, * as W from './pkg/ll_web.js';
 import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine } from './public.js';
 import { setNetwork, setup, setCampaignLabel, markReady, statusBadgeHTML } from './ui.js';
-import { NOT_CHECKED } from './capabilities.js';
 
 const $ = (s) => document.querySelector(s);
 const cfg = linkParams();
@@ -53,7 +52,7 @@ async function main() {
 
   const base = { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server };
   const links = { contribute: sibling('contribute', { ...base, endpoints: [] }), recount: sibling('recount', base), card: sibling('card', base) };
-  campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links, notChecked: NOT_CHECKED });
+  campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links }); // round 13: no "Not checked by a recount" here (the recount page lists it)
   $('#nav-card').href = links.card; $('#nav-recount').href = links.recount;
 }
 

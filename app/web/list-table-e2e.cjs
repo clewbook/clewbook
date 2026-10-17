@@ -57,7 +57,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
       return { lefts: [...tr.querySelectorAll('td')].map((td) => Math.round(td.getBoundingClientRect().left)), idBelow: ref ? ref.getBoundingClientRect().top >= k.bottom - 1 : true };
     }));
     check('at 1280 the columns run left to right in that order and line up from row to row; the id sits beneath the kind', geo.every((g) => g.lefts.every((x, i) => i === 0 || x > g.lefts[i - 1])) && geo.every((g) => same(g.lefts, geo[0].lefts)) && geo.every((g) => g.idBelow), JSON.stringify(geo[0]));
-    check('five column headers on an auction (no Amount), short on screen and full for screen readers, the table keeps its roles', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'What happened', 'Block', 'Price paid']) && same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.getAttribute('aria-label') || x.textContent)), ['Entry and short id', 'Result', 'What happened to the money', 'Block', 'Price paid']) && (await p.getAttribute('.entries', 'role')) === 'table' && (await p.$$eval('#entries td[role=cell]', (t) => t.length)) === 46);
+    check('five column headers on an auction (no Amount), short on screen and full for screen readers, the table keeps its roles', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'Action', 'Block', 'Price paid']) && same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.getAttribute('aria-label') || x.textContent)), ['Entry and short id', 'Result', 'Action: what happened to the money', 'Block', 'Price paid']) && (await p.getAttribute('.entries', 'role')) === 'table' && (await p.$$eval('#entries td[role=cell]', (t) => t.length)) === 46);
     // round 8: at 1280 one quiet header row names the columns, so a bare number reads as a block; each label sits over its own column
     const hd = await p.evaluate(() => {
       const ths = [...document.querySelectorAll('.entries thead th')], tr = document.querySelector('#entries tr:not(.sum):not([hidden])'), tds = [...tr.querySelectorAll('td')];
@@ -91,7 +91,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check('a counted contribution: Contribution, its id beneath, Counted, 0.0015 TAZ, Kept by the campaign, its block, a dash', same(rows[2].cells, ['Contribution', 'f82faee7…03c47', 'Counted', '0.0015 TAZ', 'Kept by the campaign', '4,500,977', '–']), JSON.stringify(rows[2].cells));
     check('the payment over the hard cap: Over the cap, Refunded by ticket', same(rows[1].cells, ['Contribution', 'abeb3fa3…08a23', 'Over the cap', '0.0015 TAZ', 'Refunded by ticket', '4,500,980', '–']), JSON.stringify(rows[1].cells));
     check('its close: one line, "Closed at block 4,501,065: soft cap met", across all six columns', same(rows[0].cells, ['Closed at block 4,501,065: soft cap met']) && (await p.$eval('#entries tr.sum td', (d) => d.colSpan)) === 6, JSON.stringify(rows[0].cells));
-    check('a fundraiser keeps the amount column: six headers, six cells a row', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'Amount', 'What happened', 'Block', 'Price paid']) && rows.slice(1).every((r) => same(r.classes, ['k', 'res', 'am', 'what', 'blk', 'pr'])));
+    check('a fundraiser keeps the amount column: six headers, six cells a row', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'Amount', 'Action', 'Block', 'Price paid']) && rows.slice(1).every((r) => same(r.classes, ['k', 'res', 'am', 'what', 'blk', 'pr'])));
     z = await zeros(p);
     check('capped fundraiser page: no amount with trailing zeros, and no dimmed digits', z.text.length === 0 && z.dim === 0, JSON.stringify(z));
     await p.context().close();
@@ -154,6 +154,16 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
         return { n: withN.length, bare: cells.every((td) => lab(td) === 'none' || lab(td) === 'normal'), dashes: dash.length, text: withN[0].textContent, under: Math.abs(bh.left - c0.left) < 2, wide: document.documentElement.scrollWidth <= innerWidth };
       });
       check(`390 ${theme}: the BLOCK header sits over the block numbers; each block number is the bare number and a dash stays a dash`, ph.n > 0 && ph.bare && ph.dashes > 0 && /^4,49\d,\d{3}$/.test(ph.text) && ph.under && ph.wide, JSON.stringify(ph));
+      await p.context().close();
+    }
+    // round 13: the relay footnote is the last thing in the content, just above the site footer, even on a short page (one row); no "Not checked by a
+    // recount" fold on the campaign page (the recount page lists it); the network label reads "Mainnet" (the testnet one stays "Testnet")
+    for (const [w, id] of [[1280, CAPPED], [390, CAPPED], [1280, AUCTION]]) {
+      p = await open(id, w);
+      const f = await p.evaluate(() => { const foot = document.querySelector('#pl-foot'), main = document.querySelector('main'), sf = document.querySelector('.sitefoot').getBoundingClientRect(), fr = foot.getBoundingClientRect();
+        const after = [...main.querySelectorAll('*')].filter((e) => e.getClientRects().length && !foot.contains(e) && e !== foot && e.getBoundingClientRect().top > fr.bottom - 1).length;
+        return { after, gap: Math.round(sf.top - fr.bottom), short: document.documentElement.scrollHeight <= innerHeight + 2, nc: /Not checked by a recount/.test(document.querySelector('#view').textContent), net: document.querySelector('.cv-fact:last-child .cv-fv').textContent, hasNcFold: !!document.querySelector('#nc-fold') }; });
+      check(`${w} ${id.slice(0, 8)}: the footnote is the last element above the footer (nothing below it in the content, at most 40 px above the footer); no "Not checked by a recount" here`, f.after === 0 && f.gap >= 0 && f.gap <= 40 && !f.nc && !f.hasNcFold && f.net === 'Testnet', JSON.stringify(f));
       await p.context().close();
     }
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));

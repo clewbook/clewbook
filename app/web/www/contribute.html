@@ -74,14 +74,22 @@
         <div class="cbtnrow"><button type="submit" id="create" class="cprimary create" disabled>Create my payment →</button><span class="cwhy" id="create-why"></span></div>
       </div>
     </form>
-    <details class="cfold" id="restore-fold">
-      <summary>▸ I have a backup file</summary>
-      <div class="cfold-b">
+    <!-- round 13: three small folds on one row (closed at first; each opens full width under the row, any number at once), then the recount link -->
+    <div class="qfolds" id="qfolds">
+      <div class="qf-row">
+        <button type="button" class="qf-btn" id="restore-fold" aria-expanded="false" aria-controls="qf-backup">I have a backup file</button>
+        <button type="button" class="qf-btn" id="who-fold" aria-expanded="false" aria-controls="qf-who">Who can see what</button>
+        <button type="button" class="qf-btn" id="nc-fold" aria-expanded="false" aria-controls="qf-nc">Not checked by a recount</button>
+      </div>
+      <div class="qf-panel cfold-b" id="qf-backup" hidden>
         <p>Restore a contribution you started earlier, on this or another device.</p>
         <label class="filebtn"><input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file">Choose backup file</label>
         <p class="cmsg bad" id="restore-error" role="alert" hidden></p>
       </div>
-    </details>
+      <div class="qf-panel cfold-b" id="qf-who" hidden></div>
+      <div class="qf-panel cfold-b" id="qf-nc" hidden><ul class="cv-nc" id="qf-nc-list"></ul></div>
+      <p class="qf-recount"><a class="link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
+    </div>
   </section>
 
   <!-- 3.3 backup and 3.4 pay -->
@@ -109,7 +117,7 @@
           <div class="cprow"><span class="cpn">2</span><span class="cpk">Amount</span><b class="cpv" id="qc-amount"></b><button type="button" class="cpbtn" data-copy="pay-amt">Copy</button></div>
           <div class="cprow"><span class="cpn">3</span><span class="cpk">Message</span><b class="cpv" id="qc-memo"></b><button type="button" class="cpbtn" data-copy="memo">Copy</button></div>
           <p class="cpnote">All three must match (paying more is fine), or the payment is not counted.</p>
-          <div class="cpwallet"><a id="paylink" href="#">Open in my wallet app ↗</a><span class="wallet-note">(Connects with Vizor, Noir coming soon)</span></div>
+          <div class="cpwallet"><a id="paylink" href="#">Open in my wallet app ↗</a><span class="wallet-note">(Connects with Vizor)</span></div>
           <pre id="pay-to" class="sr"></pre><pre id="memo" class="sr"></pre><span id="pay-amt" class="sr"></span>
         </div>
       </div>
@@ -206,14 +214,6 @@
   <!-- question 1 and 2 (round 12): the campaign's facts beside the form, in the Rules card of the campaign page; under the form on a phone -->
   <div class="cright" id="about" hidden>
     <div id="about-card"></div>
-    <div hidden>
-      <div class="savebox" id="savebox">
-        <p class="t-sm">The list is public, but a server can stop showing part of it. A copy you keep can be loaded on the recount page to compare it later.</p>
-        <p><button type="button" class="coutline" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></p>
-      </div>
-      <p class="aside-recount" id="recount-row"><a class="link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
-      <p class="afoot" id="footer">Your secret stays in this browser. Nothing here is sent anywhere except the payment details you choose to pay with.</p>
-    </div>
   </div>
   </div>
 </main>

@@ -99,6 +99,18 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     // round 11: question 1 is headed "Bid" (handoff 3.1); that bid amounts stay off the public record is said in "About this campaign"
     // round 12: the facts card beside the question says it, behind the "Bid amounts" row's ▾ (the sentence is in the page, shown on a tap)
     await p.click('#about-facts .cv-row:has(dt:text-is("Bid amounts")) .cv-more');
+    // round 13: the card ends at Ticket window: no folds, no Save a copy, no recount link and no privacy line in it; the three folds and the recount link
+    // are in the left column, in this order, closed at first
+    const card = await p.evaluate(() => { const c = document.querySelector('#about'), rows = [...c.querySelectorAll('.cv-row dt')].map((d) => d.textContent), q = document.querySelector('#qfolds');
+      return { last: rows[rows.length - 1], folds: c.querySelectorAll('details').length, save: !!c.querySelector('#save-copy'), recount: !!c.querySelector('#recount-btn'), secret: /Your secret stays in this browser/.test(c.textContent),
+        left: !!document.querySelector('#form-card #qfolds'), order: [...q.querySelectorAll('.qf-btn')].map((b) => `${b.textContent}:${b.getAttribute('aria-expanded')}`), panelsHidden: [...q.querySelectorAll('.qf-panel')].every((x) => x.hidden),
+        link: q.querySelector('.qf-recount a') ? q.querySelector('.qf-recount a').textContent : null, linkBelow: q.querySelector('.qf-recount').getBoundingClientRect().top >= q.querySelector('.qf-row').getBoundingClientRect().bottom }; });
+    check('question 1: the facts card ends at "Ticket window" with no folds, Save a copy, recount link or privacy line; the left column has I have a backup file, Who can see what, Not checked by a recount (closed), then "Recount this campaign →" under them',
+      card.last === 'Ticket window' && card.folds === 0 && !card.save && !card.recount && !card.secret && card.left && JSON.stringify(card.order) === JSON.stringify(['I have a backup file:false', 'Who can see what:false', 'Not checked by a recount:false']) && card.panelsHidden && card.link === 'Recount this campaign →' && card.linkBelow, JSON.stringify(card));
+    await p.click('#who-fold'); await p.click('#nc-fold');
+    const opened = await p.evaluate(() => { const q = document.querySelector('#qfolds'), row = q.querySelector('.qf-row').getBoundingClientRect(), a = document.querySelector('#qf-who').getBoundingClientRect(), b = document.querySelector('#qf-nc').getBoundingClientRect();
+      return { both: !document.querySelector('#qf-who').hidden && !document.querySelector('#qf-nc').hidden, under: a.top >= row.bottom && b.top >= row.bottom, full: Math.abs(a.width - row.width) < 2, words: /Sealed to the campaign/.test(document.querySelector('#qf-who').textContent) && /Ticket anchors/.test(document.querySelector('#qf-nc').textContent) }; });
+    check('opening Who can see what and Not checked by a recount: both open at once, each full width under the row, with the same words as before', opened.both && opened.under && opened.full && opened.words, JSON.stringify(opened));
     check('auction page, open: the question says "Bid" and the facts card says that bid amounts stay off the public record', /off the public record/.test(await text(p, '#about-facts')) && await p.isVisible('#about-facts .cv-row:has(dt:text-is("Bid amounts")) .cv-sub') && (await text(p, '#form-title')) === 'Bid');
     await p.context().close();
 
@@ -165,6 +177,9 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     // round 11 (handoff section 9): the demo is in the header, named "Testnet demo, no real money"; the footer pill is gone
     check('the footer has no demo pill; the header names "Testnet demo" with "Testnet demo, no real money"', !(await p.$('.sitefoot .demo-pill')) && !/testnet demo/i.test(await p.textContent('.sitefoot')) && (await text(p, '.bar .demo-link')) === 'Testnet demo' && (await p.getAttribute('.bar .demo-link', 'title')) === 'Testnet demo, no real money');
     check('pay step: the tracker (Backup, payment, received, ticket) is shown, "About this campaign" is not', (await p.isVisible('#stand')) && (await p.isVisible('#s-ticket')) && (await p.isHidden('#about')));
+    // round 13: no waiting captions; the state of each step stays readable for a screen reader
+    const trk = await p.evaluate(() => [...document.querySelectorAll('.tracker li')].map((li) => ({ id: li.id, caption: li.querySelector('.state').textContent, shown: li.querySelector('.state').getClientRects().length > 0, sr: (li.querySelector('.st-sr') || {}).textContent })));
+    check('pay step, waiting: the four steps show only their title and dot (no "not yet", "waiting for you to pay", "waiting"); each keeps its state for a screen reader', trk.length === 4 && trk.every((x) => !x.shown) && trk.find((x) => x.id === 's-seen').sr === 'waiting for you to pay' && trk.find((x) => x.id === 's-received').sr === 'waiting' && trk.find((x) => x.id === 's-ticket').sr === 'waiting' && ['saved', 'not yet'].includes(trk.find((x) => x.id === 's-backup').sr), JSON.stringify(trk));
     const box = await p.evaluate(() => {
       const w = document.querySelector('#pay-warning'), cs = getComputedStyle(w), qr = document.querySelector('#qr');
       return { border: parseFloat(cs.borderTopWidth), color: cs.color, before: !!(w.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING), text: w.textContent.replace(/\s+/g, ' ').trim(), why: document.querySelector('#pay-why').open, whyText: document.querySelector('#pay-why p').textContent };
@@ -173,7 +188,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     check('pre-payment line: the reasons sit behind a closed "Why?" (one sentence about a smaller or second payment)', box.why === false && /smaller or second payment is not refunded/.test(box.whyText));
     const wl = await p.evaluate(() => { const m = document.querySelector('#pay-main'); const a = document.querySelector('#paylink'), n = document.querySelector('.cpwallet .wallet-note'); const r = (e) => e.getBoundingClientRect();
       return { note: n ? n.innerText.trim() : null, below: !!n && r(n).top >= r(a).bottom, old: /works with some wallets only|most reliable way/.test(m.innerText), link: a.textContent, wide: document.documentElement.scrollWidth <= innerWidth + 1 }; });
-    check('pay step: "(Connects with Vizor, Noir coming soon)" on its own line under "Open in my wallet app ↗" (under the three copy rows), and the old sentence is gone', wl.note === '(Connects with Vizor, Noir coming soon)' && wl.below && !wl.old && wl.link === 'Open in my wallet app ↗' && wl.wide, JSON.stringify(wl));
+    check('pay step: "(Connects with Vizor)" on its own line under "Open in my wallet app ↗" (under the three copy rows), no second wallet named anywhere on the page, and the old sentence is gone', wl.note === '(Connects with Vizor)' && !new RegExp(['N', 'oir'].join('')).test(await p.evaluate(() => document.body.textContent)) && wl.below && !wl.old && wl.link === 'Open in my wallet app ↗' && wl.wide, JSON.stringify(wl));
     await p.screenshot({ path: `${SHOTS}/polish-a-warning.png`, fullPage: true });
     const first = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), RAISE.id);
 

@@ -63,7 +63,7 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
   };
   // round 11: the recount page's tools open from their action buttons (one at a time); round 12: the contributor page's Save a copy is in its facts card
   const openTool = async (q, act) => { await q.waitForSelector(`#${act}:not([hidden])`, { timeout: 60000 }); if ((await q.getAttribute(`#${act}`, 'aria-expanded')) !== 'true') await q.click(`#${act}`); };
-  const openAbout = async (q) => { await q.waitForSelector('#about:not([hidden]) #save-copy', { timeout: 30000 }); }; // round 12: the facts card beside the questions is always open
+  const openAbout = async (q) => { await q.waitForSelector('#about:not([hidden]) .cv-row', { timeout: 30000 }); }; // round 12: the facts card beside the questions is always open
   try {
     // ---------- memory (the recount page shows every state; the contributor page only a list that got shorter or changed) ----------
     let v = await visit(good.ledger, contribute);
@@ -120,7 +120,7 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
     v = await visit(good.ledger, contribute, c3);
     check('storage blocked, contributor page: the page still works (campaign details shown) and adds no memory line (the backup line says it once)', !v.st && (await v.p.isVisible('#about')), JSON.stringify(v.st));
     await openAbout(v.p);
-    check('  ... and the Save a copy button is still there', await v.p.isVisible('#save-copy'));
+    check('  ... and the facts card is there, with no Save a copy button in it (round 13: the recount page keeps the list)', (await v.p.isVisible('#about .cv-row')) && (await v.p.locator('#save-copy').count()) === 0);
     await v.p.fill('#amount', (Number(good.rules.min_contribution_zat) / 1e8 + 0.0001).toFixed(8)); await v.p.click('#to-addr'); await v.p.fill('#refund', good.rules.pay_to); await v.p.click('#create');
     await v.p.waitForSelector('#pay-card:not([hidden])', { timeout: 20000 }).catch(() => {});
     check('  ... and making a payment code still works, with a plain warning that this browser will not keep the secret (download the backup)', (await v.p.isVisible('#pay-card')) && (await t(v.p, '#banners')) === 'This browser cannot save your secret, so download your backup file now.', (await t(v.p, '#banners')).slice(0, 160));
@@ -144,16 +144,17 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
 
     // ---------- the Save a copy button, on both pages ----------
     served = good.ledger; finalServed = FINAL;
-    let p = await ctx.newPage(); await wire(p); await p.goto(contribute);
-    await openAbout(p); await p.waitForTimeout(1500);
+    // round 13: the contribute page no longer has Save a copy; the recount page's "Keep a copy" saves the same file, with and without the signed record
+    let p = await ctx.newPage(); await wire(p); await p.goto(recount);
+    await openTool(p, 'act-copy'); await p.waitForTimeout(1500);
     let dl = p.waitForEvent('download'); await p.click('#save-copy'); let d = await dl;
     let saved = JSON.parse(fs.readFileSync(await d.path(), 'utf8'));
-    check('contributor page: "Save a copy" downloads the full list as a saved copy that holds the signed record', saved.kind === 'ledger-export' && saved.campaign === ID && saved.ledger.length === 2 && saved.final && saved.final.sig === FINAL.sig && /^campaign-[0-9a-f]{8}-list-2-entries\.json$/.test(d.suggestedFilename()), d.suggestedFilename());
+    check('recount page: "Save a copy" downloads the full list as a saved copy that holds the signed record', saved.kind === 'ledger-export' && saved.campaign === ID && saved.ledger.length === 2 && saved.final && saved.final.sig === FINAL.sig && /^campaign-[0-9a-f]{8}-list-2-entries\.json$/.test(d.suggestedFilename()), d.suggestedFilename());
     check('  ... and it holds nothing private (rules, list, record only)', !/ledger_sk|payload_sk|amount_key|seed|wallet/i.test(JSON.stringify(saved).replace(/"note":"[^"]*"/, '')));
     await p.close();
     finalServed = null;
-    p = await ctx.newPage(); await wire(p); await p.goto(contribute);
-    await openAbout(p); await p.waitForTimeout(1500);
+    p = await ctx.newPage(); await wire(p); await p.goto(recount);
+    await openTool(p, 'act-copy'); await p.waitForTimeout(1500);
     dl = p.waitForEvent('download'); await p.click('#save-copy'); d = await dl;
     saved = JSON.parse(fs.readFileSync(await d.path(), 'utf8'));
     check('with no signed record anywhere, the copy is still saved (the record field is empty)', saved.ledger.length === 2 && saved.final === null);

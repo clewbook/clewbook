@@ -31,7 +31,7 @@ const relays = ['http://127.0.0.1:8787', 'http://127.0.0.1:8788'];
   }
   check('genuine payment sent', txid.length === 64, txid);
 
-  await page.waitForFunction(() => /seen/.test(document.querySelector('#s-seen .state').textContent), null, { timeout: 300000 });
+  await page.waitForFunction(() => /seen/.test((document.querySelector('#s-seen .st-sr') || {}).textContent || ''), null, { timeout: 300000 });
   check('the page found its own payment on the network', true);
   const state = await page.evaluate((id) => JSON.parse(localStorage.getItem(`ll:${id}`)), ID);
   const [t, a] = state.txid.split(':');

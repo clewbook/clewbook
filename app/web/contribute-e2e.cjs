@@ -107,7 +107,7 @@ const log = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}
   check('it lists "it pays you" and "the list shows the amount you meant to pay" as checked, and the proof and the anchor as not checked', /The list shows the amount you meant to pay\..*It pays you \(its refund output pays the address you gave\)\./.test(ck) && /The proof\.\s?Its chain state\./.test(nck) && !/That it pays you/.test(nck), tcs.slice(-200));
   check('no red notice for a good ticket', await page.isHidden('#tc-bad'));
   check('payment form is gone once the ticket is received', !(await page.isVisible('#pay-card')) && !(await page.isVisible('#form-card')));
-  const seenText = await page.textContent('#s-seen .state');
+  const seenText = await page.textContent('#s-seen .st-sr'); // round 13: the tracker's state is for screen readers; the caption shows only when it adds something
   check('the page found its own payment', /seen/.test(seenText), seenText);
   check('"Refund me" appears (before the deadline)', await page.isVisible('#refund-btn'));
 

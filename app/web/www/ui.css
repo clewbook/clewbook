@@ -202,6 +202,10 @@ button { font: inherit; color: inherit; }
 /* ============ CAMPAIGN FRAME AND VIEW (design rounds 11 and 12): the page column, Back, the status line, the two button styles, the campaign
    view (the closed page of the handoff, also the campaign page when open) and the Rules card. Shared by campaign.html and contribute.html. */
 .cwrap { max-width: 680px; margin: 0 auto; padding: 24px 0 72px; display: flex; flex-direction: column; gap: 24px; }
+/* round 13: one shared space under the top row (Back and the step pills) before the status line: the column's 24 px plus this; less on a phone */
+:root { --top-gap: 14px; }
+@media (max-width: 719px) { :root { --top-gap: 10px; } }
+.ctop { margin-bottom: var(--top-gap); }
 .cwrap.wide { max-width: 1160px; }
 .page.campaign { padding: 0 var(--cb-gutter); max-width: none; animation: none; }
 /* buttons: primary (teal fill), outline, quiet, danger; hover lifts, press scales, disabled is grey with no hover */
@@ -245,8 +249,17 @@ button { font: inherit; color: inherit; }
 #banners:empty { display: none; }
 
 /* the view: two columns from 980 px (1.6fr and 1fr, gap 36), stacked below */
-.cv { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; align-items: start; margin-top: -8px; animation: cb-in .35s ease; }
-@media (min-width: 980px) { .cv { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); } }
+.cv { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "aside" "foot"; grid-template-rows: auto auto 1fr; gap: 36px; align-items: start; margin-top: -8px; animation: cb-in .35s ease; flex: 1 0 auto; }
+@media (min-width: 980px) { .cv { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); grid-template-areas: "main aside" "foot aside"; grid-template-rows: 1fr auto; } }
+.cv > .cv-main { grid-area: main; } .cv > .cv-rules { grid-area: aside; } .cv > .cv-foot { grid-area: foot; align-self: end; }
+/* round 13: the view fills the window's height so the relay footnote sits at the bottom of the content, just above the site footer; on a longer page
+   it simply follows the content */
+.page.campaign, .page.cpage { display: flex; flex-direction: column; }
+.page.campaign > .cwrap, .page.cpage > .cwrap { flex: 1 0 auto; width: 100%; }
+.page.campaign > .cwrap, .page.cpage > .cwrap.wide { padding-bottom: 32px; }
+.page.campaign .cview { flex: 1 0 auto; display: flex; flex-direction: column; }
+.page.cpage .cleft { flex: 1 0 auto; }
+.page.cpage #closed-card:not([hidden]) { flex: 1 0 auto; display: flex; flex-direction: column; }
 .cv-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .cv .cv-h { margin: 0; font: 700 clamp(32px, 5vw, 48px)/1.1 var(--cb-font-display); letter-spacing: -.03em; color: var(--cb-ink); overflow-wrap: anywhere; }
 .cv-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
@@ -260,6 +273,7 @@ button { font: inherit; color: inherit; }
 .cv-note2 { font: 400 14px var(--cb-font-body); color: var(--cb-ink-2); }
 .cv-note2.bid-note { flex-basis: 100%; }
 .cv-list { display: flex; flex-direction: column; }
+.cv-act + .cv-list { margin-top: 16px; } /* round 13: more room between the buttons and "Public list" */
 .cv-lhd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; }
 .page .cv-lt { margin: 0; min-height: 0; padding: 0; border: 0; border-radius: 4px; background: none; font: 700 18px var(--cb-font-display); color: var(--cb-ink); cursor: pointer; box-shadow: none; transform: none; }
 .page .cv-lt:hover { background: none; color: var(--cb-ink); transform: none; }

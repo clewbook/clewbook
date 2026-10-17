@@ -189,7 +189,7 @@ export function whoSeesWhat() {
 
 /** The Rules card: RULES, label and value rows (a row with an explanation shows its value and a ▾ that opens it), the two folds, then `tail`.
  *  rows: { k, v, html, sub, dim, link: { href, text, id } }. */
-export function rulesCard({ id = 'facts', rows, note = '', tail = [], notChecked = [] }) {
+export function rulesCard({ id = 'facts', rows, note = '', tail = [], notChecked = [], folds = true }) {
   const card = el('aside', 'cv-rules rules');
   card.append(el('span', 'cv-rk', 'RULES'));
   const dl = el('dl', 'cv-dl'); dl.id = id;
@@ -215,9 +215,12 @@ export function rulesCard({ id = 'facts', rows, note = '', tail = [], notChecked
   });
   card.append(dl);
   const fold = (title, body, fid) => { const d = el('details', 'cv-fold fold'); if (fid) d.id = fid; d.append(el('summary', '', `▸ ${title}`), body); card.append(d); };
-  fold('Who can see what', whoSeesWhat(), id === 'facts' ? 'take' : `${id}-take`);
-  const nc = el('ul', 'cv-nc nclist'); if (id === 'facts') nc.id = 'nc-list'; for (const [what, why] of notChecked) nc.append(el('li', '', `${what}: ${why}`));
-  fold('Not checked by a recount', nc, id === 'facts' ? 'nc-fold' : `${id}-nc`);
+  if (folds) fold('Who can see what', whoSeesWhat(), id === 'facts' ? 'take' : `${id}-take`);
+  // round 13: no "Not checked by a recount" on the campaign pages (the recount page lists what it does not check); the contribute questions show it in their own row
+  if (folds && notChecked.length) {
+    const nc = el('ul', 'cv-nc nclist'); if (id === 'facts') nc.id = 'nc-list'; for (const [what, why] of notChecked) nc.append(el('li', '', `${what}: ${why}`));
+    fold('Not checked by a recount', nc, id === 'facts' ? 'nc-fold' : `${id}-nc`);
+  }
   if (note) { const n = el('p', 'cv-note rule-note', note); if (id === 'facts') n.id = 'rule-note'; card.append(n); }
   if (tail.length) { const t = el('div', 'cv-tail'); t.append(...tail); card.append(t); }
   return card;
@@ -304,7 +307,7 @@ export function campaignView(box, v) {
     if (auction) facts.push(['TERMS', `${c.items} ${c.items === 1 ? 'item' : 'items'}`, uniform ? 'one price for every winner' : 'pay your bid']);
     else if (c.cap) facts.push(['TERMS', `Soft cap ${c.goal}`, `hard cap ${c.cap} ${c.ticker}`]);
     else facts.push(['TERMS', `Goal ${c.goal} ${c.ticker}`, '']);
-    facts.push(['NETWORK', c.network === 'main' ? 'Zcash Mainnet' : 'Testnet', '']);
+    facts.push(['NETWORK', c.network === 'main' ? 'Mainnet' : 'Testnet', '']);
   } else {
     const raisedZat = entries.filter((e) => e.kind === 'issue').reduce((t, e) => t + (e.contribution && e.contribution.value_zat != null ? e.contribution.value_zat : 0), 0);
     if (auction) { facts.push(['ITEMS', String(c.items), 'one per winning bid']); facts.push(uniform ? ['RESERVE', zat(c.reserve_zat), 'lowest price an item sells for', true] : ['SMALLEST BID', zat(c.min_zat), '', true]); }
@@ -358,7 +361,7 @@ export function campaignView(box, v) {
   const card = el('div', 'cv-scroll'); card.id = 'entries-card';
   const table = el('table', `ledger entries ${auction ? 'auc' : 'fund'}`); table.setAttribute('role', 'table'); table.setAttribute('aria-label', 'Public list, newest first');
   const thead = el('thead', 'lhead'); thead.setAttribute('role', 'rowgroup'); const htr = el('tr'); htr.setAttribute('role', 'row');
-  for (const [t, label, cls] of [['Entry', 'Entry and short id', ''], ['Result', '', ''], ...(auction ? [] : [['Amount', '', 'r']]), ['What happened', 'What happened to the money', ''], ['Block', '', ''], ['Price paid', '', 'r']]) {
+  for (const [t, label, cls] of [['Entry', 'Entry and short id', ''], ['Result', '', ''], ...(auction ? [] : [['Amount', '', 'r']]), ['Action', 'Action: what happened to the money', ''], ['Block', '', ''], ['Price paid', '', 'r']]) {
     const th = el('th', cls, t); th.scope = 'col'; th.setAttribute('role', 'columnheader'); if (label) th.setAttribute('aria-label', label); htr.append(th);
   }
   thead.append(htr); table.append(thead);
@@ -399,7 +402,7 @@ export function campaignView(box, v) {
   const ol = el('ol', 'cv-relays relays'); ol.id = 'relay-list';
   v.relays.forEach((url, i) => { const info = (v.ok || []).find((r) => r.url === url); const li = el('li', info ? '' : 'bad', `${hostOf(url)}: ${info ? n(info.entries.length) : 'no usable answer'}${i === v.relays.length - 1 ? '.' : ';'}`); ol.append(li); });
   foot.append(ol);
-  main.append(foot);
+  // round 13: the footnote is its own part of the view, pinned to the bottom of the content (under the list's column on a wide screen, last on a phone)
 
   // RULES
   const status = closed ? 'Closed' : left == null ? 'Open (the chain height could not be read)' : left > 0 ? 'Open' : 'Deadline passed, not yet closed';
@@ -407,7 +410,7 @@ export function campaignView(box, v) {
   const bk = el('p', 'bk-link'); const bka = el('a', 'cv-bk', 'Have a ticket backup file? Open it here'); bka.href = 'recount.html#ticket-box'; bk.append(bka);
   const aside = rulesCard({ rows: campaignRuleRows(c, { status, left, secPerBlock: v.secPerBlock }), notChecked: v.notChecked || [],
     note: uniform ? 'A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.' : '', tail: [card2, bk] });
-  grid.append(main, aside);
+  grid.append(main, aside, foot);
   box.append(grid);
   decorateAmounts(box);
 }

@@ -39,7 +39,7 @@ export function cardModel(summary, rules, secondsPerBlock = null) {
   const { uniform, checks } = appliesTo(rules);
   const terms = [
     ['Type', rules.mode === 'auction' ? (uniform ? 'Auction, one price for every winner' : 'Auction') : 'Fundraiser'],
-    ['Network', summary.network === 'main' ? 'Zcash Mainnet' : `${net.label} (${net.money})`],
+    ['Network', summary.network === 'main' ? 'Mainnet' : `${net.label} (${net.money})`],
     // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
     ...(rules.mode !== 'raise' ? [['Items for sale', String(summary.items)]] : summary.cap_zat == null ? [['Goal', { amount: summary.goal_zat, ticker: net.ticker }]] : [
       ['Soft cap', { amount: summary.goal_zat, ticker: net.ticker }],

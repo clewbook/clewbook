@@ -9,7 +9,7 @@ import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
-import { campaignView, metaLine, rulesCard } from './public.js';
+import { campaignView, metaLine, rulesCard, whoSeesWhat } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -210,6 +210,7 @@ function memoryStep() {
 }
 
 function wireSaveCopy() {
+  if (!$('#save-copy')) return; // round 13: the contribute page has no Save a copy button (the recount page's "Keep a copy" saves the same file)
   $('#save-copy').addEventListener('click', async () => {
     if (!rulesJson || !view.entries) return;
     downloadCopy(buildCopy({ rulesText: rulesJson, id: cfg.id, entries: view.entries, finalText: await fetchFinal(cfg.relays, cfg.id), challenges: [] }));
@@ -495,7 +496,7 @@ function renderAbout() {
   const key = JSON.stringify(rows);
   if ($('#about-card').dataset.key !== key) { // redrawn only when a fact changes, so an opened ▾ stays open across the page's refresh
     $('#about-card').dataset.key = key;
-    $('#about-card').replaceChildren(rulesCard({ id: 'about-facts', rows, notChecked: NOT_CHECKED, tail: [$('#savebox'), $('#recount-row'), $('#footer')] }));
+    $('#about-card').replaceChildren(rulesCard({ id: 'about-facts', rows, folds: false })); // round 13: the card ends at its Ticket window row
     decorateAmounts($('#about-card'));
   }
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
@@ -539,10 +540,15 @@ function renderBanners() {
   if (tip == null && !refused) box.append(line("We can't reach the network right now, so some details may be out of date."));
 }
 
-function setStep(id, done, text) {
+/** One step of the tracker. `text` is its full state, always there for a screen reader; `shown` is the small caption, only when it adds something the
+ *  dot and the title do not (round 13: no caption while waiting, none that only repeats the title). */
+function setStep(id, done, text, shown = '') {
   const li = $(id);
   li.classList.toggle('done', done);
-  li.querySelector('.state').textContent = text;
+  li.querySelector('.state').textContent = shown;
+  let sr = li.querySelector('.st-sr');
+  if (!sr) { sr = Object.assign(document.createElement('span'), { className: 'sr st-sr' }); li.append(sr); }
+  sr.textContent = text;
 }
 
 function renderAuction() {
@@ -629,13 +635,13 @@ function renderProgress() {
   $('#finish').hidden = !doneTrue();
   if (!has) return;
   $('#backup-saved').checked = !!state.backupDownloaded || savedTick;
-  setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet');
+  setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet', !state.backupDownloaded && savedTick ? 'saved, by your word' : '');
   $('#s-backup').classList.toggle('warn', !(state.backupDownloaded || savedTick)); // not saved yet: the yellow ring
   const t = !!state.ticket;
   setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : 'waiting for you to pay');
   setStep('#s-received', t, t ? 'done' : 'waiting');
   const tcv = ticketCheck && ticketCheck.verdict;
-  setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…');
+  setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…', t && tcv === 'fail' ? 'did NOT pass a check' : '');
   $('#s-ticket').classList.toggle('bad', t && tcv === 'fail');
   { let first = true; for (const li of document.querySelectorAll('.progress li')) { if (li.id === 's-backup') continue; const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }
   renderTicketView(tcv);
@@ -875,7 +881,7 @@ function renderAllInner() {
     if (cc.dataset.key !== key) {
       cc.dataset.key = key;
       const tail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
-      campaignView(cc, { c: campaign, id: cfg.id, entries: view.entries, ok: view.ok, relays: cfg.relays, single: view.kind === 'single', tip, secPerBlock, links: { recount: `recount.html#${tail}`, card: `card.html#${tail}` }, notChecked: NOT_CHECKED });
+      campaignView(cc, { c: campaign, id: cfg.id, entries: view.entries, ok: view.ok, relays: cfg.relays, single: view.kind === 'single', tip, secPerBlock, links: { recount: `recount.html#${tail}`, card: `card.html#${tail}` } }); // round 13: no "Not checked by a recount" fold on the closed page
     }
   } else cc.dataset.key = '';
   $('#cname').hidden = closedView() || !campaign;
@@ -1370,6 +1376,10 @@ function wire() {
   $('#backup3').addEventListener('click', () => downloadBackup());
   $('#rebid').addEventListener('click', () => { leaveTo = 'over'; leavePayment(); });
   $('#restore').addEventListener('change', onRestore);
+  // the folds row under the questions: each button opens its own panel under the row; several may be open
+  for (const b of document.querySelectorAll('.qf-btn')) b.addEventListener('click', () => { const o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); $(`#${b.getAttribute('aria-controls')}`).hidden = !o; });
+  $('#qf-who').append(whoSeesWhat());
+  $('#qf-nc-list').append(...NOT_CHECKED.map(([what, why]) => Object.assign(document.createElement('li'), { textContent: `${what}: ${why}` })));
   for (const b of document.querySelectorAll('[data-copy]')) {
     let t = null;
     b.addEventListener('click', async () => {
