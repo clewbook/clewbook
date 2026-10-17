@@ -97,7 +97,9 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.waitForSelector('#form-title', { timeout: 60000 });
     await p.waitForFunction(() => document.querySelector('#form-title').textContent === 'Bid', null, { timeout: 60000 });
     // round 11: question 1 is headed "Bid" (handoff 3.1); that bid amounts stay off the public record is said in "About this campaign"
-    check('auction page, open: the question says "Bid" and the page says that bid amounts stay off the public record', /off the public record/.test(await text(p, '#about-text')) && (await text(p, '#form-title')) === 'Bid');
+    // round 12: the facts card beside the question says it, behind the "Bid amounts" row's ▾ (the sentence is in the page, shown on a tap)
+    await p.click('#about-facts .cv-row:has(dt:text-is("Bid amounts")) .cv-more');
+    check('auction page, open: the question says "Bid" and the facts card says that bid amounts stay off the public record', /off the public record/.test(await text(p, '#about-facts')) && await p.isVisible('#about-facts .cv-row:has(dt:text-is("Bid amounts")) .cv-sub') && (await text(p, '#form-title')) === 'Bid');
     await p.context().close();
 
     p = await newPage();
@@ -266,6 +268,58 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     await p.reload(); await p.waitForSelector('footer .theme-seg button', { timeout: 60000 }); await p.emulateMedia({ colorScheme: 'light' }); await p.waitForTimeout(200); t0 = await th();
     check('theme: System survives a reload and keeps following the device (now light)', t0.theme === 'light' && t0.pressed === 'System', JSON.stringify(t0));
     await p.context().close();
+
+    // ---------- round 12: the demo button, the phone footer and menu (owner rule M1), the facts as one list on a phone (owner rule M2) ----------
+    const www = spawn('python3', ['-m', 'http.server', String(Number(PORT) + 1), '--bind', '127.0.0.1', '--directory', 'app/web/www'], { stdio: 'ignore' });
+    await new Promise((r) => setTimeout(r, 1200));
+    const WWW = `http://127.0.0.1:${Number(PORT) + 1}`;
+    try {
+      // the demo button: a neutral outlined pill on the plain pages, the amber "you are here" item inside the demo
+      p = await newPage({ viewport: { width: 1280, height: 900 } });
+      await p.goto(`${WWW}/index.html`); await p.waitForSelector('.nav .demo-link');
+      const dl = await p.evaluate(() => { const d = document.querySelector('.nav .demo-link'), cs = getComputedStyle(d), cur = getComputedStyle(document.querySelector('.nav a[aria-current]'));
+        return { tag: d.tagName, text: d.textContent, title: d.title, label: d.getAttribute('aria-label'), bw: cs.borderTopWidth, bg: cs.backgroundColor, curBg: cur.backgroundColor, curBw: cur.borderTopWidth, weight: cs.fontWeight, family: cs.fontFamily.split(',')[0].replace(/"/g, ''), h: Math.round(d.getBoundingClientRect().height), navH: Math.round(document.querySelector('.nav a[aria-current]').getBoundingClientRect().height) }; });
+      check('demo button: a link "Testnet demo", "Testnet demo, no real money", outlined (1px), no fill, Chivo Mono 600, the size of the nav items, not like the filled current item', dl.tag === 'A' && dl.text === 'Testnet demo' && dl.title === 'Testnet demo, no real money' && dl.label === 'Testnet demo, no real money' && dl.bw === '1px' && dl.bg === 'rgba(0, 0, 0, 0)' && dl.weight === '600' && dl.family === 'Chivo Mono' && Math.abs(dl.h - dl.navH) <= 1 && dl.curBg !== dl.bg && dl.curBw === '0px', JSON.stringify(dl));
+      const desk = await p.evaluate(() => ({ replay: !!document.querySelector('.sitefoot #replay-intro')?.offsetParent, theme: !!document.querySelector('.sitefoot .theme-seg')?.offsetParent }));
+      check('1280: the footer still has Replay intro and the Theme control', desk.replay && desk.theme, JSON.stringify(desk));
+      await p.context().close();
+      p = await newPage({ viewport: { width: 1280, height: 900 } }); tip = RAISE.deadline - 100;
+      await p.goto(link(RAISE)); await p.waitForSelector('.nav .demo-link');
+      const cur = await p.evaluate(() => { const d = document.querySelector('.nav .demo-link'); return { tag: d.tagName, current: d.getAttribute('aria-current'), color: getComputedStyle(d).color, text: d.textContent }; });
+      check('inside the demo: the "Testnet demo" item is the amber "you are here" span', cur.tag === 'SPAN' && cur.current === 'page' && cur.text === 'Testnet demo' && /rgb\(122, 86, 0\)/.test(cur.color), JSON.stringify(cur));
+      await p.context().close();
+      // a phone: the footer is its line only; the menu holds Replay intro and Theme (rows at least 48 px) after a hairline
+      for (const [where, url] of [['plain pages', `${WWW}/index.html`], ['the demo', link(RAISE)]]) {
+        p = await newPage({ viewport: { width: 390, height: 844 } }); tip = RAISE.deadline - 100;
+        await p.goto(url); await p.waitForSelector('.menu-btn');
+        const foot = await p.evaluate(() => ({ text: document.querySelector('.sitefoot').innerText.replace(/\s+/g, ' ').trim(), replay: !!document.querySelector('.sitefoot #replay-intro')?.offsetParent, theme: !!document.querySelector('.sitefoot .theme-seg')?.offsetParent }));
+        check(`390, ${where}: the footer shows only "Clewbook · Private Markets. Public Accounting." (no Replay intro, no Theme control)`, foot.text === 'Clewbook · Private Markets. Public Accounting.' && !foot.replay && !foot.theme, JSON.stringify(foot));
+        await p.click('.menu-btn');
+        const menu = await p.evaluate(() => [...document.querySelectorAll('.menu-panel > *')].map((x) => ({ tag: x.tagName, text: x.textContent.replace(/\s+/g, ' ').trim(), h: Math.round(x.getBoundingClientRect().height) })));
+        const first = where === 'the demo' ? 'Testnet demo · you are here' : 'Testnet demono real money';
+        const ok = menu[0].text === first && menu.slice(1, 4).map((m) => m.text).join('|') === 'Campaigns|Recount|Host' && menu[4].tag === 'HR' && menu[5].text === 'Replay intro' && /^ThemeSystemLightDark$/.test(menu[6].text) && menu.filter((m) => m.tag !== 'HR').every((m) => m.h >= 48);
+        check(`390, ${where}: the menu: the demo row first, Campaigns, Recount, Host, a hairline, Replay intro, Theme; every row at least 48 px`, ok, JSON.stringify(menu));
+        await p.click('.menu-panel .theme-seg button[data-theme="dark"]'); await p.reload(); await p.waitForSelector('.menu-btn'); await p.click('.menu-btn');
+        const kept = await p.evaluate(() => ({ theme: document.documentElement.dataset.theme, pressed: [...document.querySelectorAll('.menu-panel .theme-seg button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent).join() }));
+        check(`390, ${where}: Dark chosen in the menu is kept after a reload`, kept.theme === 'dark' && kept.pressed === 'Dark', JSON.stringify(kept));
+        await p.click('.menu-panel > a.replay'); await p.waitForTimeout(1500);
+        // the menu row does what the footer link does: on the home page the intro plays again (the page reloads with it); elsewhere it opens ./#intro
+        const rep = await p.evaluate(() => ({ url: location.href, intro: document.documentElement.classList.contains('with-intro'), menu: !!document.querySelector('.menu-panel') }));
+        check(`390, ${where}: "Replay intro" in the menu closes the menu and replays the intro (as the footer link does)`, (where === 'plain pages' ? rep.intro : /\/(index\.html)?#intro$/.test(rep.url)) && !rep.menu, JSON.stringify(rep));
+        await p.context().close();
+      }
+      // a phone: the facts are one list card, a row per fact; from 720 px three cards in a row
+      for (const [w, want] of [[390, 'list'], [1280, 'grid']]) {
+        p = await newPage({ viewport: { width: w, height: 900 } }); tip = MISSED.deadline + 5;
+        await p.goto(link(MISSED).replace('contribute.html', 'campaign.html')); await p.waitForSelector('.cv-facts .cv-fact');
+        const f = await p.evaluate(() => { const box = document.querySelector('.cv-facts'), cs = getComputedStyle(box), facts = [...box.querySelectorAll('.cv-fact')].map((x) => x.getBoundingClientRect());
+          return { cols: cs.gridTemplateColumns.split(' ').length, n: facts.length, stacked: facts.every((r, i) => i === 0 || r.top >= facts[i - 1].bottom - 1), oneCard: cs.borderTopWidth === '1px' && getComputedStyle(box.querySelector('.cv-fact')).backgroundColor === 'rgba(0, 0, 0, 0)',
+            sideBySide: facts.every((r, i) => i === 0 || Math.abs(r.top - facts[0].top) < 1), labelLeft: [...box.querySelectorAll('.cv-fact')].every((x) => x.querySelector('.cv-fk').getBoundingClientRect().left < x.querySelector('.cv-fv').getBoundingClientRect().left) }; });
+        if (want === 'list') check('390: the facts (OUTCOME, TERMS, NETWORK) are one list card, a row per fact, label left and value right', f.cols === 1 && f.n === 3 && f.stacked && f.oneCard && f.labelLeft, JSON.stringify(f));
+        else check('1280: the facts stay three cards in a row', f.cols >= 3 && f.n === 3 && f.sideBySide && !f.oneCard, JSON.stringify(f));
+        await p.context().close();
+      }
+    } finally { www.kill(); }
 
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));
   } finally {

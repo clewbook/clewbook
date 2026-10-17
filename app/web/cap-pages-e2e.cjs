@@ -28,14 +28,14 @@ const noDash = (t) => !/\s-\s|—|–/.test(t) && !t.split(/\s+/).some((w) => /^
   await p.waitForFunction(() => /Room left/.test(document.querySelector('#about-facts').textContent), null, { timeout: 60000 });
   let f = await facts(p, '#about-facts');
   check('contribute: "Soft cap", "Hard cap" and the room left are shown, and no "Goal"', /^0\.002 TAZ/.test(f['Soft cap'] || '') && /^0\.003 TAZ/.test(f['Hard cap'] || '') && /^0\.003 TAZ/.test(f['Room left under the hard cap'] || '') && !('Goal' in f), JSON.stringify(f).slice(0, 300));
-  check('contribute: the status line names both caps', (await p.textContent('#status-text')).trim() === 'Fundraiser, soft cap 0.002 TAZ, hard cap 0.003 TAZ', await p.textContent('#status-text'));
+  check('contribute: the status line names both caps', (await p.textContent('#status-text')).trim() === 'Fundraiser · soft cap 0.002 TAZ · hard cap 0.003 TAZ', await p.textContent('#status-text')); // round 11 format
   check('contribute: no cap note before paying (owner decision: the paragraph is removed)', (await p.locator('#cap-note').count()) === 0);
-  check('contribute: the about text has no hyphens or dashes', noDash(await p.textContent('#about-text')));
-  await p.fill('#amount', '0.0031'); await p.fill('#refund', E.REFUND); await p.click('#create');
+  check('contribute: the facts card beside the question has no hyphens or dashes', noDash(await p.textContent('#about-facts'))); // round 12: the about text became this card
+  await p.fill('#amount', '0.0031'); await p.press('#amount', 'Enter'); // round 11: two questions; Continue stays off for an amount that does not fit
   await p.waitForTimeout(500);
   const err = (await p.textContent('#amount-error')).trim();
-  check('contribute: an amount larger than the room left is refused, saying the room under the amount box', /more than the room left under the hard cap \(0\.003 TAZ\)/.test(err) && await p.isHidden('#pay-card'), err);
-  await p.fill('#amount', '0.003'); await p.click('#create');
+  check('contribute: an amount larger than the room left is refused, saying the room under the amount box', /more than the room left under the hard cap \(0\.003 TAZ\)/.test(err) && await p.isDisabled('#to-addr') && await p.isHidden('#pay-card'), err);
+  await p.fill('#amount', '0.003'); await p.click('#to-addr'); await p.fill('#refund', E.REFUND); await p.click('#create');
   await p.waitForSelector('#pay-card:not([hidden])', { timeout: 20000 }).catch(() => {});
   check('contribute: an amount that fits makes a payment code', await p.isVisible('#pay-card'));
   await p.close();

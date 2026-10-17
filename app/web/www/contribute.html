@@ -17,8 +17,10 @@
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
   <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
+<div class="aurora" aria-hidden="true"><div></div></div>
 <main class="page cpage">
   <div class="cwrap" id="cwrap">
+  <div class="cleft">
   <p class="crumb sr" id="crumb">&nbsp;</p>
   <p class="sr" id="page-title">&nbsp;</p>
   <div class="sr"><p id="contrib-to" hidden>Contributing to</p><p id="contrib-name" hidden></p><span id="campaign-id"></span></div>
@@ -78,20 +80,6 @@
         <p>Restore a contribution you started earlier, on this or another device.</p>
         <label class="filebtn"><input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file">Choose backup file</label>
         <p class="cmsg bad" id="restore-error" role="alert" hidden></p>
-      </div>
-    </details>
-    <details class="cfold" id="about" hidden>
-      <summary>▸ About this campaign</summary>
-      <div class="cfold-b">
-        <div id="about-text" class="t-sm"></div>
-        <dl id="about-facts" class="kv pl short"></dl>
-        <section class="before" id="before"><span class="t-k" id="before-h">BEFORE YOU PAY</span><ul class="before-list" id="before-list"></ul></section>
-        <div class="savebox">
-          <p class="t-sm">The list is public, but a server can stop showing part of it. A copy you keep can be loaded on the recount page to compare it later.</p>
-          <p><button type="button" class="coutline" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></p>
-        </div>
-        <p class="aside-recount"><a class="link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
-        <p class="afoot" id="footer">Your secret stays in this browser. Nothing here is sent anywhere except the payment details you choose to pay with.</p>
       </div>
     </details>
   </section>
@@ -213,6 +201,19 @@
 
   <!-- 3.7 a contribute link opened when the campaign takes no more payments -->
   <section class="cclosed" id="closed-card" hidden></section>
+  </div>
+  </div>
+  <!-- question 1 and 2 (round 12): the campaign's facts beside the form, in the Rules card of the campaign page; under the form on a phone -->
+  <div class="cright" id="about" hidden>
+    <div id="about-card"></div>
+    <div hidden>
+      <div class="savebox" id="savebox">
+        <p class="t-sm">The list is public, but a server can stop showing part of it. A copy you keep can be loaded on the recount page to compare it later.</p>
+        <p><button type="button" class="coutline" id="save-copy">Save a copy of the full list</button> <span class="muted t-sm" id="save-copy-note"></span></p>
+      </div>
+      <p class="aside-recount" id="recount-row"><a class="link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
+      <p class="afoot" id="footer">Your secret stays in this browser. Nothing here is sent anywhere except the payment details you choose to pay with.</p>
+    </div>
   </div>
   </div>
 </main>

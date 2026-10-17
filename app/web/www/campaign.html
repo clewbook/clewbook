@@ -15,60 +15,16 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./" aria-current="page">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
+<div class="aurora" aria-hidden="true"><div></div></div>
 <main class="page campaign">
+  <div class="cwrap wide">
   <a id="nav-card" href="#" hidden>Capability card</a>
-  <div class="back-row"><a class="pill-back" href="./">← Campaigns</a></div>
-  <div class="chead">
-    <div class="kickrow"><span id="status-chip"></span><span class="kick"><span id="title">Campaign</span><span class="kick-dot" aria-hidden="true"> · </span><span id="short-id"></span></span><span class="sr" id="campaign-id" aria-hidden="true"></span></div>
-    <h1 class="cname" id="display-name" hidden></h1>
-    <p class="goalline sr" id="status-line" hidden><span id="status-text"></span></p>
-  </div>
+  <div class="ctop"><a class="cback" href="./">← Campaigns</a></div>
+  <div class="chead" id="status-line"><span id="status-chip"></span><span class="cmeta" id="status-text"></span><span class="sr" id="campaign-id" aria-hidden="true"></span><span class="sr" id="short-id"></span><span class="sr" id="title"></span></div>
   <div id="banners"></div>
-
-  <div class="cbody" id="about" hidden>
-    <div class="cmain">
-      <div class="tiles" id="tiles"></div>
-      <div class="actions" id="links" hidden>
-        <a class="btn" id="contribute-link" href="#">Contribute</a>
-        <a class="btn sec recount-btn" id="recount-link" href="#">↻ Recount</a>
-      </div>
-      <p class="closed-note" id="closed-note" hidden></p>
-      <p class="bid-note" id="bid-note" hidden>Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives.</p>
-
-      <section class="plist" id="public-list" hidden>
-        <div class="plhd"><button type="button" class="plt pl-toggle" id="pl-toggle" aria-expanded="false" aria-controls="list-facts"><span class="pl-arrow" aria-hidden="true"></span>Public list<sup>1</sup></button><span class="t-label" id="entries-hint">AS PUBLISHED</span></div>
-        <dl class="lfacts" id="list-facts" hidden></dl>
-        <section id="entries-card" hidden>
-          <table class="ledger entries" role="table" aria-label="Public list, newest first"><thead class="lhead" role="rowgroup"><tr role="row"><th scope="col" role="columnheader" aria-label="Entry and short id">Entry</th><th scope="col" role="columnheader">Result</th><th scope="col" role="columnheader" class="r" id="entries-h-amount">Amount</th><th scope="col" role="columnheader" aria-label="What happened to the money">What happened</th><th scope="col" role="columnheader">Block</th><th scope="col" role="columnheader" class="r">Price paid</th></tr></thead><tbody id="entries" role="rowgroup"></tbody></table>
-          <button type="button" class="pl-more" id="entries-more" aria-controls="entries" aria-expanded="false" hidden></button>
-        </section>
-        <p class="pl-empty" id="entries-empty" hidden>No entries yet.</p>
-      </section>
-    </div>
-
-    <aside class="rules">
-      <span class="t-k">RULES</span>
-      <dl class="kv rkv" id="facts"></dl>
-      <details class="fold" id="take"><summary>Who can see what</summary>
-        <ul class="zones">
-          <li><span class="zm open" aria-hidden="true"></span><div><b>Public, on the signed list</b><p>Transaction id, block height and ticket data; the amount in a fundraiser, and every bid once an auction closes. No names, no refund addresses.</p></div></li>
-          <li><span class="zm half" aria-hidden="true"></span><div><b>Sealed to the campaign</b><p>Your refund address, inside the payment message. The host can open every message, so it can see which payments share a refund address.</p></div></li>
-          <li><span class="zm full" aria-hidden="true"></span><div><b>Only on your device</b><p>Your one time secret and the backup file you download. Relays keep only a sealed copy of your refund ticket.</p></div></li>
-        </ul>
-      </details>
-      <details class="fold" id="nc-fold"><summary>Not checked by a recount</summary><ul class="nclist" id="nc-list"></ul></details>
-      <p class="rule-note" id="rule-note" hidden></p>
-      <a class="card-link" id="card-link" href="#">Capability card →</a>
-      <p class="bk-link"><a href="recount.html#ticket-box">Have a ticket backup file? Open it here</a></p>
-    </aside>
-  </div>
-
-  <div class="allc"><a class="pill-back big" href="./">← All campaigns</a></div>
-  <div class="pl-foot" id="pl-foot" hidden>
-    <p class="foot1"><sup>1</sup> <span id="relay-live"></span> Recount is the independent check.</p>
-    <div class="readfrom"><span class="rf-l">Read from</span> <ol class="relays" id="relay-list"></ol></div>
+  <div id="view" class="cview"></div>
   </div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>

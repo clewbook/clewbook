@@ -61,9 +61,9 @@ let served = good.ledger, finalServed = FINAL; // what the stand-in relay shows 
     const cov = await p.evaluate(() => (document.querySelector('#coverage-line') || { textContent: '' }).textContent);
     return { p, st, cov };
   };
-  // round 11: the recount page's tools open from their action buttons (one at a time); the contributor page's Save a copy is in "About this campaign"
+  // round 11: the recount page's tools open from their action buttons (one at a time); round 12: the contributor page's Save a copy is in its facts card
   const openTool = async (q, act) => { await q.waitForSelector(`#${act}:not([hidden])`, { timeout: 60000 }); if ((await q.getAttribute(`#${act}`, 'aria-expanded')) !== 'true') await q.click(`#${act}`); };
-  const openAbout = async (q) => { await q.waitForSelector('#about:not([hidden])', { timeout: 30000 }); if (!(await q.evaluate(() => document.querySelector('#about').open))) await q.click('#about > summary'); };
+  const openAbout = async (q) => { await q.waitForSelector('#about:not([hidden]) #save-copy', { timeout: 30000 }); }; // round 12: the facts card beside the questions is always open
   try {
     // ---------- memory (the recount page shows every state; the contributor page only a list that got shorter or changed) ----------
     let v = await visit(good.ledger, contribute);

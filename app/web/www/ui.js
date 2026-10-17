@@ -101,8 +101,9 @@ function themeSeg() {
 const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
 // ---------- the frame: footer controls (replay intro) and the phone menu ----------
-// The header's last nav item is "Testnet demo": a gold link, or inside the demo a marked "you are here" item (the demo build writes that one). Under
-// 720 px the nav folds into the menu, where the demo is the first row. The footer keeps Replay intro and the Theme control (design round 11).
+// The header's last nav item is "Testnet demo": a neutral outlined link, or inside the demo the amber "you are here" item (the demo build writes that one).
+// Under 720 px the nav folds into the menu, where the demo is the first row; Replay intro and the Theme control follow a hairline there (owner rule M1),
+// and the phone footer shows only its line.
 function mountChrome({ host }) {
   const foot = document.querySelector('footer.sitefoot');
   const ctl = foot && foot.querySelector('.foot-ctl');
@@ -131,6 +132,10 @@ function mountChrome({ host }) {
       panel.append(a);
     }
     for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    // owner rule M1: Replay intro and the Theme control, after a hairline (the phone footer no longer shows them)
+    const replay = document.getElementById('replay-intro');
+    if (replay || document.getElementById('theme-ctl')) panel.append(Object.assign(document.createElement('hr'), { className: 'menu-div' }));
+    if (replay) { const r = document.createElement('a'); r.className = 'replay'; r.href = replay.getAttribute('href'); r.textContent = 'Replay intro'; r.addEventListener('click', (e) => { e.preventDefault(); close(); replay.click(); }); panel.append(r); }
     if (document.getElementById('theme-ctl')) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row); }
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     applyTheme(themeChoice());

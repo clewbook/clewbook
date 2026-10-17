@@ -25,7 +25,7 @@ const txt = async (p, s) => ((await p.textContent(s)) || '').replace(/\s+/g, ' '
   // ---- campaign page ----
   let p = await open(`${base}campaign.html${tail}`);
   await p.waitForSelector('#links:not([hidden])', { timeout: 60000 });
-  const facts = await txt(p, '#about'); // design round 2: the stat tiles (goal, deadline) and the RULES column together
+  const facts = await txt(p, '#view'); // round 12: the shared campaign view (fact cards and the Rules card); the ticket window's meaning is behind its ▾
   check('campaign page shows type, goal, status, deadline', /Fundraiser/.test(facts) && /Goal/.test(facts) && /Status/.test(facts) && /Deadline/.test(facts), facts.slice(0, 120));
   check('campaign page shows the ticket window in blocks, with what it means', /Ticket window\d+ blocks/.test(facts) && /Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund\./.test(facts), facts.slice(facts.indexOf('Ticket window'), facts.indexOf('Ticket window') + 120));
   const lf = await txt(p, '#list-facts');

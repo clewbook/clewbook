@@ -43,9 +43,9 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check('auction: every entry row has five cells in order: kind and id, result, what happened, block, price paid (no amount column); the close is one summary cell', rows.every((r) => (r.seq === '6' ? same(r.classes, ['sum']) : same(r.classes, ['k', 'res', 'what', 'blk', 'pr']))));
     const won = rows.find((r) => r.seq === '1'), lost = rows.find((r) => r.seq === '5');
     check('a won bid: Bid, its short id beneath, Won, 0.002 TAZ sent back, its block, the price 0.0029 TAZ', same(won.cells, ['Bid', 'd3d2dbea…0fa27', 'Won', '0.002 TAZ sent back', '4,498,797', '0.0029 TAZ']), JSON.stringify(won.cells));
-    check('a lost bid: Bid, its short id beneath, Lost, Refunded by ticket, its block, a dash for the price', same(lost.cells, ['Bid', '1837c09a…f9685', 'Lost', 'Refunded by ticket', '4,498,813', '—']), JSON.stringify(lost.cells));
+    check('a lost bid: Bid, its short id beneath, Lost, Refunded by ticket, its block, an en dash for the price (round 12: the wording rules allow no em dash)', same(lost.cells, ['Bid', '1837c09a…f9685', 'Lost', 'Refunded by ticket', '4,498,813', '–']), JSON.stringify(lost.cells));
     check('the lowest winning bid: Won, Nothing sent back, the price', same(rows.find((r) => r.seq === '3').cells, ['Bid', '0ada1546…43350', 'Won', 'Nothing sent back', '4,498,806', '0.0029 TAZ']), JSON.stringify(rows.find((r) => r.seq === '3').cells));
-    check('a settlement: Settlement, its id, Settled, what came back, no block in the data (a dash), the price', same(rows[1].cells, ['Settlement', 'c307f8f2…289b9', 'Settled', '0.0015 TAZ sent back', '—', '0.0029 TAZ']), JSON.stringify(rows[1].cells));
+    check('a settlement: Settlement, its id, Settled, what came back, no block in the data (a dash), the price', same(rows[1].cells, ['Settlement', 'c307f8f2…289b9', 'Settled', '0.0015 TAZ sent back', '–', '0.0029 TAZ']), JSON.stringify(rows[1].cells));
     check('the close of a one-price auction: one line, "Auction settled at block 4,498,865 for 0.0029 TAZ"', same(rows[3].cells, ['Auction settled at block 4,498,865 for 0.0029 TAZ']), JSON.stringify(rows[3].cells));
     const band = await p.evaluate(() => {
       const tr = document.querySelector('#entries tr.sum'), td = tr.querySelector('td'), cs = getComputedStyle(td), t = document.querySelector('.entries').getBoundingClientRect(), r = td.getBoundingClientRect();
@@ -88,8 +88,8 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     p = await open(CAPPED, 1280);
     rows = await rowsOf(p);
     check('capped fundraiser, 4 entries: no "Show older", every row shown', !(await p.isVisible('#entries-more')) && rows.length === 4 && rows.every((r) => r.shown) && (await p.textContent('#entries-hint')).trim() === 'AS PUBLISHED');
-    check('a counted contribution: Contribution, its id beneath, Counted, 0.0015 TAZ, Kept by the campaign, its block, a dash', same(rows[2].cells, ['Contribution', 'f82faee7…03c47', 'Counted', '0.0015 TAZ', 'Kept by the campaign', '4,500,977', '—']), JSON.stringify(rows[2].cells));
-    check('the payment over the hard cap: Over the cap, Refunded by ticket', same(rows[1].cells, ['Contribution', 'abeb3fa3…08a23', 'Over the cap', '0.0015 TAZ', 'Refunded by ticket', '4,500,980', '—']), JSON.stringify(rows[1].cells));
+    check('a counted contribution: Contribution, its id beneath, Counted, 0.0015 TAZ, Kept by the campaign, its block, a dash', same(rows[2].cells, ['Contribution', 'f82faee7…03c47', 'Counted', '0.0015 TAZ', 'Kept by the campaign', '4,500,977', '–']), JSON.stringify(rows[2].cells));
+    check('the payment over the hard cap: Over the cap, Refunded by ticket', same(rows[1].cells, ['Contribution', 'abeb3fa3…08a23', 'Over the cap', '0.0015 TAZ', 'Refunded by ticket', '4,500,980', '–']), JSON.stringify(rows[1].cells));
     check('its close: one line, "Closed at block 4,501,065: soft cap met", across all six columns', same(rows[0].cells, ['Closed at block 4,501,065: soft cap met']) && (await p.$eval('#entries tr.sum td', (d) => d.colSpan)) === 6, JSON.stringify(rows[0].cells));
     check('a fundraiser keeps the amount column: six headers, six cells a row', same(await p.$$eval('.entries thead th', (t) => t.map((x) => x.textContent)), ['Entry', 'Result', 'Amount', 'What happened', 'Block', 'Price paid']) && rows.slice(1).every((r) => same(r.classes, ['k', 'res', 'am', 'what', 'blk', 'pr'])));
     z = await zeros(p);
@@ -102,7 +102,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     const refunded = rows.find((r) => r.cells[0] === 'Contribution'), aside = rows.find((r) => r.cells[0] === 'Set aside');
     check('goal missed: the close reads "Closed at block 4,499,121: goal missed"', same(rows[0].cells, ['Closed at block 4,499,121: goal missed']), JSON.stringify(rows[0].cells));
     check('goal missed: a contribution reads Refunded, Refunded by ticket', refunded && refunded.cells[2] === 'Refunded' && refunded.cells[4] === 'Refunded by ticket' && /^0\.\d*[1-9] TAZ$/.test(refunded.cells[3]), refunded && JSON.stringify(refunded.cells));
-    check('a payment set aside: Set aside, its id, Not counted, its amount, the rest dashes but the block', aside && aside.cells[2] === 'Not counted' && /^0\.\d*[1-9] TAZ$/.test(aside.cells[3]) && aside.cells[4] === '—' && /^[\d,]+$/.test(aside.cells[5]) && aside.cells[6] === '—', aside && JSON.stringify(aside.cells));
+    check('a payment set aside: Set aside, its id, Not counted, its amount, the rest dashes but the block', aside && aside.cells[2] === 'Not counted' && /^0\.\d*[1-9] TAZ$/.test(aside.cells[3]) && aside.cells[4] === '–' && /^[\d,]+$/.test(aside.cells[5]) && aside.cells[6] === '–', aside && JSON.stringify(aside.cells));
     await p.context().close();
     p = await open(OPEN, 1280);
     rows = await rowsOf(p);
@@ -124,40 +124,36 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
       }
     }
 
-    // ---------- 6. phone width: two lines a row, no sideways scroll; light and dark ----------
+    // ---------- 6. phone width (round 12, handoff 3.7): the table keeps its columns and header row and scrolls sideways inside its own box (at least
+    // 600 px wide); the page itself never scrolls sideways; each entry stays one row; the close band spans the table; light and dark ----------
     for (const theme of ['light', 'dark']) {
       for (const id of [AUCTION, CAPPED, OPEN]) {
         p = await open(id, 390, theme);
         await p.click('#entries-more').catch(() => {}); // the longest list there is
         const m = await p.evaluate(() => {
-          const sums = [...document.querySelectorAll('#entries tr.sum')].map((tr) => tr.getBoundingClientRect().right <= window.innerWidth - 15);
-          const lines = [...document.querySelectorAll('#entries tr:not(.sum)')].filter((tr) => !tr.hidden).map((tr) => {
-            const top = (el) => (el && el.getClientRects().length ? Math.round(el.getBoundingClientRect().top) : null);
-            const one = [top(tr.querySelector('.ek')), top(tr.querySelector('.res')), top(tr.querySelector('.am:not(.none)') || tr.querySelector('.pr:not(.none)'))].filter((x) => x != null);
-            const two = [top(tr.querySelector('.ref')), top(tr.querySelector('.blk')), top(tr.querySelector('.what'))].filter((x) => x != null);
-            return { one: Math.max(...one) - Math.min(...one) <= 3, two: two.every((t) => t > Math.max(...one)), right: Math.max(...[...tr.querySelectorAll('td, .ek, .ref')].map((e) => e.getBoundingClientRect().right)) };
-          });
-          return { wide: document.documentElement.scrollWidth <= window.innerWidth, lines, sums, vw: window.innerWidth, theme: document.documentElement.dataset.theme };
+          const t = document.querySelector('.entries'), box = t.parentElement, head = t.querySelector('thead').getBoundingClientRect();
+          const sums = [...document.querySelectorAll('#entries tr.sum')].map((tr) => Math.abs(tr.querySelector('td').getBoundingClientRect().width - t.getBoundingClientRect().width) < 1);
+          const rows = [...document.querySelectorAll('#entries tr:not(.sum)')].filter((tr) => !tr.hidden).map((tr) => { const tops = [...tr.querySelectorAll('td')].map((td) => Math.round(td.getBoundingClientRect().top)); return Math.max(...tops) - Math.min(...tops) <= 1; });
+          return { wide: document.documentElement.scrollWidth <= window.innerWidth, scrolls: getComputedStyle(box).overflowX === 'auto' && box.scrollWidth > box.clientWidth, tableW: Math.round(t.getBoundingClientRect().width), headShown: head.height > 0 && head.top < t.querySelector('tbody').getBoundingClientRect().top,
+            rows: rows.length, oneRow: rows.every(Boolean), sums, theme: document.documentElement.dataset.theme };
         });
-        check(`390 ${theme} ${id.slice(0, 8)}: no sideways scroll; each row is two lines (kind, result, amounts / id, block, what happened) and the close line wraps inside the page`, m.wide && m.theme === theme && m.lines.length > 0 && m.lines.every((l) => l.one && l.two && l.right <= m.vw - 15) && m.sums.every(Boolean), JSON.stringify({ wide: m.wide, theme: m.theme, sums: m.sums, bad: m.lines.filter((l) => !(l.one && l.two && l.right <= m.vw - 15)).slice(0, 2) }));
+        check(`390 ${theme} ${id.slice(0, 8)}: no sideways page scroll; the table (at least 600 px) scrolls inside its box with its header row; each entry one row; the close band spans the table`, m.wide && m.scrolls && m.tableW >= 600 && m.headShown && m.rows > 0 && m.oneRow && m.sums.every(Boolean) && m.theme === theme, JSON.stringify(m));
         if (theme === 'light' && id === AUCTION) await p.screenshot({ path: `${SHOTS}/list-table-390.png`, fullPage: true });
         await p.context().close();
       }
     }
-    // round 8: on a phone there are no columns, so the header row is out of sight and a muted "Block" sits before each block number (never before a dash)
+    // round 12: the header row is shown on a phone too (the handoff keeps the table's columns), so a block number stays a bare number under BLOCK
     for (const theme of ['light', 'dark']) {
       p = await open(AUCTION, 390, theme);
       await p.click('#entries-more').catch(() => {});
       const ph = await p.evaluate(() => {
-        const cells = [...document.querySelectorAll('#entries tr:not(.sum):not([hidden]) td.blk')];
+        const cells = [...document.querySelectorAll('#entries tr:not(.sum):not([hidden]) td.blk')], ths = [...document.querySelectorAll('.entries thead th')];
         const lab = (td) => getComputedStyle(td, '::before').content;
         const withN = cells.filter((td) => /^[0-9,]+$/.test(td.textContent)), dash = cells.filter((td) => !/^[0-9,]+$/.test(td.textContent));
-        const head = document.querySelector('.entries thead').getBoundingClientRect();
-        return { n: withN.length, labelled: withN.every((td) => lab(td) === '"Block "'), dashes: dash.length, dashBare: dash.every((td) => lab(td) === 'none' || lab(td) === 'normal'),
-          muted: withN.length ? getComputedStyle(withN[0], '::before').color !== getComputedStyle(withN[0]).color : false, text: withN.length ? withN[0].textContent : '',
-          headHidden: head.right < 0 || head.bottom < 0, wide: document.documentElement.scrollWidth <= innerWidth };
+        const bh = ths.find((th) => th.textContent === 'Block').getBoundingClientRect(), c0 = withN[0].getBoundingClientRect();
+        return { n: withN.length, bare: cells.every((td) => lab(td) === 'none' || lab(td) === 'normal'), dashes: dash.length, text: withN[0].textContent, under: Math.abs(bh.left - c0.left) < 2, wide: document.documentElement.scrollWidth <= innerWidth };
       });
-      check(`390 ${theme}: the header row is out of sight; every block number reads "Block 4,498,…" with the word muted; a dash has no label; the cell text stays the number`, ph.n > 0 && ph.labelled && ph.dashes > 0 && ph.dashBare && ph.muted && /^4,49\d,\d{3}$/.test(ph.text) && ph.headHidden && ph.wide, JSON.stringify(ph));
+      check(`390 ${theme}: the BLOCK header sits over the block numbers; each block number is the bare number and a dash stays a dash`, ph.n > 0 && ph.bare && ph.dashes > 0 && /^4,49\d,\d{3}$/.test(ph.text) && ph.under && ph.wide, JSON.stringify(ph));
       await p.context().close();
     }
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));
