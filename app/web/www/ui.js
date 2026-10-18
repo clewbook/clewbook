@@ -175,6 +175,18 @@ export function setNetwork(network) {
 /** The page has what it needs to show something (its first answer from the relays, or nothing to wait for): loadguard.js stops watching. */
 export function markReady() { document.documentElement.dataset.ready = '1'; }
 
+/** The refund a ticket must pay back, for the ticket check's "pays you" line (zatoshis), or null when nothing can be compared.
+ *  Fundraiser: the list shows the contribution, so the refund must be exactly that minus the fee.
+ *  Auction: the list hides the amount, so the page uses the amount it asked this contributor to pay. A ticket that pays back less than that
+ *  minus the fee fails. A larger payment counts in full and its ticket refunds more, so a refund of at least that much is expected
+ *  exactly as the ticket's own opening states it (the check then confirms that opening against the ticket's commitment). */
+export function expectedRefundZat(listedZat, intendedZat, openingZat, feeZat) {
+  if (listedZat != null) return listedZat - feeZat;
+  if (intendedZat == null) return null;
+  const least = intendedZat - feeZat;
+  return openingZat != null && openingZat >= least ? openingZat : least;
+}
+
 /** The label at the top right of every page: the campaign's own name when it has one (always set as plain text), else the short id.
  *  `name` must come from rules that were checked against the campaign id (campaign_summary does that); the full id is in the tooltip. */
 export function setCampaignLabel(id, name, prefix = '') {

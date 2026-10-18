@@ -37,6 +37,7 @@ The browser and scenario tests run against the test network, most of them with r
 | A cheating host that wrongly rejects a valid payment is caught by the recount (R8) once the contributor publishes proof | `contribute-e2e-reject.cjs`, 11 checks |
 | The "Publish proof" button: nothing is published without the press; underpaid, replayed and wrongful rejects; overpayment | `app/web/challenge.sh` with `challenge-e2e.cjs`, 22 checks |
 | Junk and malformed tickets show a red notice and are never shown as received and checked | `app/web/junk-ticket.sh`, 45 checks |
+| The ticket check fails a ticket that pays back less than the amount paid minus the fee, on auctions as well as fundraisers | `app/web/ticket-amount-e2e.cjs`, 8 checks |
 | Campaign and recount pages, relay and server failures | `pages-e2e.cjs` |
 | Uniform-price auction recount and contributor page | `recount-auction-e2e.cjs` (7), `auction-page-e2e.cjs` (17) |
 | Host set-up page and dashboard, from creating a campaign to closing it | `setup-e2e.cjs` and `dashboard-view-e2e.cjs` (33, via `host-pages.sh`), `app/web/dashboard.sh` (25) |

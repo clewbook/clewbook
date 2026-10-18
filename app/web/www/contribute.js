@@ -7,7 +7,7 @@
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
-import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady } from './ui.js';
+import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel } from './public.js';
 
@@ -1362,8 +1362,8 @@ async function checkTicket() {
     fee_zat: campaign.fee_zat, current_branch: branch, scanned_to: c.scanned ?? null, spent: c.spent || null, known_txids: known,
     listed_contribution_zat: state.ticket.entry.contribution.value_zat ?? null, intended_contribution_zat: state.amountZat ?? null, paid_zat: state.paidZat ?? null,
     opening, refund_receiver_hex: state.refund ? (W.refund_receiver_hex(state.refund) || null) : null,
-    // for a fundraiser the amount is public, so the refund must be exactly the contribution minus the fee
-    expected_value_zat: state.ticket.entry.contribution.value_zat != null ? state.ticket.entry.contribution.value_zat - campaign.fee_zat : null,
+    // fundraiser: exactly the listed contribution minus the fee; auction: at least the amount this page asked the contributor to pay, minus the fee
+    expected_value_zat: expectedRefundZat(state.ticket.entry.contribution.value_zat ?? null, state.amountZat ?? null, opening ? opening.value_zat : null, campaign.fee_zat),
   })));
   const pr = proofResults.get(state.ticket.entry.ticket.txid);
   if (pr) {
