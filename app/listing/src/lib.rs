@@ -12,6 +12,7 @@ pub mod fetch;
 pub mod host;
 pub mod job;
 pub mod names;
+pub mod notify;
 pub mod record;
 #[cfg(feature = "recount")]
 pub mod recount;

@@ -761,6 +761,89 @@ function renderPay(p) {
   // the rows show a short form; Copy copies the whole value (the full text is in the hidden lines above)
   for (const [id, v, n] of [['#qc-addr', p.pay_to, 7], ['#qc-memo', p.memo, 6]]) { const el = $(id); el.textContent = v.length > 2 * n + 1 ? `${v.slice(0, n)}…${v.slice(-n)}` : v; el.title = v; }
   $('#qc-amount').innerHTML = amountHTML(state.amountZat, p.ticker);
+  lastPay = p;
+  renderNoir();
+}
+
+// ---------- Pay with Noir (only when the Noir browser extension is present; without it nothing on the page changes) ----------
+let noir = null; // the extension, once found
+let noirBusy = false;
+let lastPay = null; // the payment the pay step shows: exactly the address, amount and message the code and the link carry
+
+const findNoir = () => (window.noirwallet && window.noirwallet.isNoirWallet ? window.noirwallet : null);
+/** As the extension's own kit does: found at once, or on its initialized event, for at most 3 seconds. */
+function detectNoir() {
+  if (findNoir()) return Promise.resolve(findNoir());
+  return new Promise((done) => {
+    const t = setTimeout(() => done(findNoir()), 3000);
+    window.addEventListener('noirwallet#initialized', () => { clearTimeout(t); done(findNoir()); }, { once: true });
+  });
+}
+const noirApi = () => (noir.zcash && typeof noir.zcash.request === 'function' ? noir.zcash : noir);
+
+/** The shielded address Noir shares (it returns the account's transparent and shielded addresses): the first unified address found in its
+ * answer, whatever its shape (u1 on mainnet, utest1 on testnet). */
+function noirAddress(res) {
+  const found = [];
+  const walk = (v, depth) => {
+    if (typeof v === 'string') found.push(v);
+    else if (v && typeof v === 'object' && depth < 3) for (const x of Object.values(v)) walk(x, depth + 1);
+  };
+  walk(res, 0);
+  return found.find((s) => /^(u1|utest1)[0-9a-z]+$/.test(s)) || null;
+}
+
+function renderNoir() {
+  $('.wallet-note').textContent = noir ? '(Connects with Vizor and Noir)' : '(Connects with Vizor)';
+  // never twice: once a payment is sent, seen or ticketed, the button is gone
+  $('#noir-pay').hidden = !(noir && state && !state.ticket && !state.txid && !state.manualTxid && !state.noirSent);
+}
+
+function noirSay(text, bad) {
+  const m = $('#noir-msg');
+  m.textContent = text; m.hidden = !text; m.classList.toggle('bad', !!bad);
+}
+
+async function onNoirPay() {
+  const p = lastPay;
+  if (noirBusy || !noir || !p || !campaign) return;
+  if (!/^[0-9]+(\.[0-9]{1,8})?$/.test(p.amount) || new TextEncoder().encode(p.memo).length > 512) {
+    noirSay('This payment cannot be sent with Noir. Use the link or the code instead.', true);
+    return;
+  }
+  const btn = $('#noir-pay');
+  noirBusy = true; btn.disabled = true; btn.textContent = 'Waiting for Noir…'; noirSay('', false);
+  const net = (n) => (n === 'test' ? 'test' : 'main');
+  try {
+    const api = noirApi();
+    const addr = noirAddress(await api.request({ method: 'zcash_requestAccounts' }));
+    if (!addr) { noirSay('Noir did not share a shielded address. Nothing was sent. Pay with the link or the code instead.', true); return; }
+    const has = addr.startsWith('utest1') ? 'test' : 'main', want = net(campaign.network);
+    if (has !== want) {
+      noirSay(`Noir is on the ${has} network, but this campaign is on the ${want} network. Nothing was sent. Use the Noir extension for the ${want} network and try again.`, true);
+      return;
+    }
+    const res = await api.request({ method: 'zcash_sendTransaction', params: [{ to: p.pay_to, amount: p.amount, memo: p.memo }] });
+    const txid = typeof res === 'string' ? res : res && (res.txid || res.transactionId || res.hash);
+    if (typeof txid === 'string' && /^[0-9a-fA-F]{64}$/.test(txid)) {
+      // kept the same way as a pasted transaction ID; arrival and the ticket are still found by scanning the chain, as for any wallet
+      state.manualTxid = txid.toLowerCase(); $('#manual-txid').value = state.manualTxid;
+      noirSay('Sent with Noir. This page now waits to see your payment on the network, as with any wallet.', false);
+    } else {
+      state.noirSent = true;
+      noirSay('Noir says it sent the payment, without a transaction ID. This page waits to see your payment on the network.', false);
+    }
+    save();
+    refresh();
+  } catch (e) {
+    const text = String((e && e.message) || e || '');
+    if ((e && e.code === 4001) || /reject|denied|cancel/i.test(text)) noirSay('Cancelled in Noir. Nothing was sent.', false);
+    else if (/insufficient|not enough|balance|funds/i.test(text)) noirSay('Noir does not have enough funds for this payment and its fee. Nothing was sent.', true);
+    else noirSay('Noir could not complete the payment. Check its activity list before you try again, so you do not pay twice.', true);
+  } finally {
+    noirBusy = false; btn.disabled = false; btn.textContent = 'Pay with Noir';
+    renderNoir();
+  }
 }
 
 function paymentFromState() {
@@ -1401,6 +1484,7 @@ function wire() {
   });
   $('#refund-no').addEventListener('click', () => { $('#refund-confirm').hidden = true; $('#refund-btn').hidden = false; });
   $('#refund-yes').addEventListener('click', onRefundConfirmed);
+  $('#noir-pay').addEventListener('click', onNoirPay);
   $('#manual-txid-save').addEventListener('click', () => {
     const v = $('#manual-txid').value.trim().toLowerCase();
     if (/^[0-9a-f]{64}$/.test(v)) { state.manualTxid = v; save(); refresh(); }
@@ -1436,6 +1520,7 @@ async function main() {
   renderAll();
   takeHandedBackup();
   setInterval(refresh, POLL_MS);
+  detectNoir().then((w) => { if (w) { noir = w; renderNoir(); } });
 }
 
 main().catch((e) => { $('#banners').append(banner('bad', `Something went wrong: ${e.message || e}`)); });

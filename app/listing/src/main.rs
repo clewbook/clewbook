@@ -93,6 +93,17 @@ enum Cmd {
         interval: u64,
         #[arg(long, default_value_t = 10)]
         per_minute: u32,
+        /// Telegram notices for new requests: the conf file with token= and chat_id= (mode 600, read for every notice). Without it, off.
+        #[arg(long, default_value = ll_listing::notify::DEFAULT_CONF)]
+        telegram_conf: PathBuf,
+        /// At most this many Telegram messages in any hour.
+        #[arg(long, default_value_t = 20)]
+        telegram_per_hour: usize,
+    },
+    /// Send one test message with the Telegram conf file (nothing else happens).
+    TelegramTest {
+        #[arg(long, default_value = ll_listing::notify::DEFAULT_CONF)]
+        telegram_conf: PathBuf,
     },
     /// Add a record from a file (the same checks as the endpoint).
     Submit { file: PathBuf },
@@ -195,8 +206,14 @@ fn main() -> Result<()> {
                 println!("  {:?} {}… host {}: {}", s.state, &s.campaign[..8], s.host, s.reason);
             }
         }
-        Cmd::Serve { pass, listen, interval, per_minute } => {
-            let cfg = config(cli.dir, &pass)?;
+        Cmd::Serve { pass, listen, interval, per_minute, telegram_conf, telegram_per_hour } => {
+            let mut cfg = config(cli.dir, &pass)?;
+            cfg.notify = Some(ll_listing::notify::NotifyConfig { conf: telegram_conf.clone(), per_hour: telegram_per_hour });
+            match ll_listing::notify::load(&telegram_conf) {
+                ll_listing::notify::Conf::Off => println!("telegram notices: off (no {})", telegram_conf.display()),
+                ll_listing::notify::Conf::Invalid(why) => println!("telegram notices: off ({why})"),
+                ll_listing::notify::Conf::On(_) => println!("telegram notices: on, at most {telegram_per_hour} messages an hour"),
+            }
             ll_listing::serve::serve(cfg, &listen, per_minute, Duration::from_secs(interval), tip_source(&pass))?;
         }
         Cmd::Submit { file } => {
@@ -226,6 +243,14 @@ fn main() -> Result<()> {
                     if left == 0 { "removed on the next pass unless the host key is approved".to_string() } else { format!("removed in {} unless the host key is approved", job::plain_duration(left)) });
             }
         }
+        Cmd::TelegramTest { telegram_conf } => match ll_listing::notify::load(&telegram_conf) {
+            ll_listing::notify::Conf::Off => bail!("no Telegram conf file at {}", telegram_conf.display()),
+            ll_listing::notify::Conf::Invalid(why) => bail!("the Telegram conf file cannot be used: {why}"),
+            ll_listing::notify::Conf::On(t) => match t.send("Clewbook listing: test message. Notices for new listing requests are on.") {
+                Ok(()) => println!("test message sent"),
+                Err(e) => bail!("{e}"),
+            },
+        },
         Cmd::Approve { key, label } => println!("{}", job::approve(&plain, &key, &label)?),
         Cmd::Label { key, label } => println!("{}", job::set_label(&plain, &key, &label)?),
         Cmd::Revoke { key } => println!("{}", job::revoke(&plain, &key)?),

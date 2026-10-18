@@ -80,6 +80,8 @@ pub struct JobConfig {
     pub queue_ttl: u64,
     /// At most this many mainnet records waiting for mainnet listing to open (they are never removed by time, so this caps them).
     pub max_mainnet_waiting: usize,
+    /// Telegram notices for the operator (None: off). Used by the endpoint's passes only.
+    pub notify: Option<crate::notify::NotifyConfig>,
     /// Mainnet only: the published NU7 activation height. A new mainnet campaign whose deadline is not before it is refused (its tickets
     /// would not survive the upgrade).
     pub nu7_mainnet_height: Option<u32>,
@@ -92,7 +94,7 @@ impl JobConfig {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         JobConfig {
             dir: dir.into(), allowed_networks: vec!["test".into()], fetch: FetchPolicy::default(), max_records_per_key: 10, max_records: 1000,
-            max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, max_mainnet_waiting: 100, nu7_mainnet_height: None,
+            max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, max_mainnet_waiting: 100, notify: None, nu7_mainnet_height: None,
             #[cfg(feature = "recount")]
             recount: None,
         }

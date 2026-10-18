@@ -218,6 +218,16 @@ cp /etc/clewbook-listing/hand-campaigns.json $W/campaigns.json.new && mv -T $W/c
 
 Undo the switch before removing the listing service, or the symlink points at nothing and the home page lists nothing. A page sync to the server must keep skipping `campaigns.json`.
 
+## Telegram notices
+
+Optional. When a new request enters the queue (testnet, waiting for approval, or mainnet, waiting for mainnet listing), the endpoint's pass sends one Telegram message to the operator: the network, the campaign's name and short id, the host fingerprint, whether the host is already approved, and the approve command to copy. Several new requests in one pass share one message (ten spelled out, the rest counted); each request is named in one delivered message at most; at most 20 messages go out in any hour (`--telegram-per-hour`), and requests over that wait for the next message. When the pass fails three times in a row, one message says so.
+
+- **Settings live only on the server**: `/etc/clewbook-listing/telegram.conf` (`--telegram-conf`), owned by the listing user, mode 600, with the lines `token=<bot token>` and `chat_id=<chat id>`. Without the file the notices are off; a file others can read is refused. It is read for every notice, so a change needs no restart.
+- **The token is never logged or printed.** An error names only an HTTP status, or says Telegram could not be reached.
+- **Telegram never holds up a pass**: messages go out from a thread of their own, with a 10 second limit. A failed message is tried on the next pass, at most three times per request.
+- `cb-listing telegram-test` sends one test message with the conf file.
+- Tests: the unit tests in `app/listing/src/notify.rs`, against a stand in for the Telegram API on this computer.
+
 ## Mainnet
 
 Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. The review of what mainnet would need is `app/listing/MAINNET-REVIEW.md`.

@@ -117,7 +117,8 @@
           <div class="cprow"><span class="cpn">2</span><span class="cpk">Amount</span><b class="cpv" id="qc-amount"></b><button type="button" class="cpbtn" data-copy="pay-amt">Copy</button></div>
           <div class="cprow"><span class="cpn">3</span><span class="cpk">Message</span><b class="cpv" id="qc-memo"></b><button type="button" class="cpbtn" data-copy="memo">Copy</button></div>
           <p class="cpnote">All three must match (paying more is fine), or the payment is not counted.</p>
-          <div class="cpwallet"><a id="paylink" href="#">Open in my wallet app ↗</a><span class="wallet-note">(Connects with Vizor)</span></div>
+          <div class="cpwallet"><a id="paylink" href="#">Open in my wallet app ↗</a><span class="wallet-note">(Connects with Vizor)</span>
+            <button type="button" class="coutline noirpay" id="noir-pay" hidden>Pay with Noir</button><p class="noir-msg" id="noir-msg" role="status" hidden></p></div>
           <pre id="pay-to" class="sr"></pre><pre id="memo" class="sr"></pre><span id="pay-amt" class="sr"></span>
         </div>
       </div>

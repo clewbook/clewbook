@@ -118,6 +118,10 @@
 .cpwallet a { font: 700 14px var(--cb-font-body); color: var(--cb-accent-text); text-decoration: none; }
 .cpwallet a:hover { text-decoration: underline; }
 .wallet-note { font: 400 12px var(--cb-font-body); color: var(--cb-ink-3); }
+/* Pay with Noir: only when the Noir browser extension is present */
+.page .noirpay { align-self: flex-start; margin-top: 8px; }
+.noir-msg { margin: 4px 0 0; font: 400 13px/1.5 var(--cb-font-body); color: var(--cb-ink-3); }
+.noir-msg.bad { color: var(--cb-danger-text); }
 /* the tracker: Backup, payment, received, ticket; dots on a 2px rail that turns green as each step is done */
 #progress-card { gap: 20px; }
 .stand { display: flex; flex-direction: column; gap: 14px; }

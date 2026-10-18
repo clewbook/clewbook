@@ -66,22 +66,54 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
     let last: Arc<Mutex<Option<(u64, u32, String)>>> = Arc::new(Mutex::new(None));
     {
         let (cfg, tip, last) = (cfg.clone(), tip.clone(), last.clone());
-        std::thread::spawn(move || loop {
-            match pass_tips(&cfg, tip.as_ref()) {
-                Ok(tips) => {
-                    let t = cfg.allowed_networks.first().and_then(|n| tips(n)).unwrap_or(0);
-                    match run_pass_with(&cfg, &tips, crate::host::now_secs()) {
-                        Ok(s) => {
-                            let summary = crate::job::describe(&s);
-                            println!("pass at block {t}: {summary}");
-                            *last.lock().unwrap_or_else(|p| p.into_inner()) = Some((crate::host::now_secs(), t, summary));
+        // Telegram notices go out from a thread of their own, one at a time: a pass never waits for Telegram
+        let sending = Arc::new(Mutex::new(()));
+        let notice = move |cfg: &JobConfig, what: Option<String>| {
+            let Some(n) = cfg.notify.clone() else { return };
+            let (cfg, sending) = (cfg.clone(), sending.clone());
+            std::thread::spawn(move || {
+                let Ok(_one_at_a_time) = sending.try_lock() else { return };
+                let now = crate::host::now_secs();
+                let log = match &what { None => crate::notify::after_pass(&cfg, &n, now), Some(text) => crate::notify::alert(&cfg, &n, now, text) };
+                for line in log {
+                    println!("{line}");
+                }
+            });
+        };
+        std::thread::spawn(move || {
+            let (mut failed_in_a_row, mut alerted) = (0u32, false);
+            loop {
+                let outcome = match pass_tips(&cfg, tip.as_ref()) {
+                    Ok(tips) => {
+                        let t = cfg.allowed_networks.first().and_then(|n| tips(n)).unwrap_or(0);
+                        match run_pass_with(&cfg, &tips, crate::host::now_secs()) {
+                            Ok(s) => {
+                                let summary = crate::job::describe(&s);
+                                println!("pass at block {t}: {summary}");
+                                *last.lock().unwrap_or_else(|p| p.into_inner()) = Some((crate::host::now_secs(), t, summary));
+                                Ok(())
+                            }
+                            Err(e) => { println!("pass failed: {e:#}"); Err(format!("{e:#}")) }
                         }
-                        Err(e) => println!("pass failed: {e:#}"),
+                    }
+                    Err(e) => { println!("pass skipped: {e:#}"); Err(format!("{e:#}")) }
+                };
+                match outcome {
+                    Ok(()) => {
+                        (failed_in_a_row, alerted) = (0, false);
+                        notice(&cfg, None);
+                    }
+                    Err(e) => {
+                        failed_in_a_row += 1;
+                        if failed_in_a_row >= 3 && !alerted {
+                            alerted = true;
+                            let why: String = e.lines().next().unwrap_or("").chars().take(200).collect();
+                            notice(&cfg, Some(format!("Clewbook listing: the listing pass failed {failed_in_a_row} times in a row. The home page keeps its last good list. Last reason: {why}")));
+                        }
                     }
                 }
-                Err(e) => println!("pass skipped: {e:#}"),
+                std::thread::sleep(interval);
             }
-            std::thread::sleep(interval);
         });
     }
     let mut buckets: HashMap<String, (Instant, u32)> = HashMap::new();
