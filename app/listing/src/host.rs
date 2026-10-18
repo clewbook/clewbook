@@ -63,6 +63,17 @@ pub fn load_key(runs_dir: &Path) -> Result<SigningKey> {
     Ok(SigningKey::from_bytes(&sk))
 }
 
+/// The host key for the dashboard's "Submit for listing": made once if there is none (as `host-key init`), otherwise the existing one, which
+/// is never replaced. Returns the public key, its fingerprint, and whether it was made now.
+pub fn ensure_key(runs_dir: &Path) -> Result<(String, String, bool)> {
+    let made = !key_path(runs_dir).exists();
+    if made {
+        init_key(runs_dir)?;
+    }
+    let (pk, fp) = describe_key(runs_dir)?;
+    Ok((pk, fp, made))
+}
+
 /// What `host-key show` prints: the public key and its fingerprint, never the secret.
 pub fn describe_key(runs_dir: &Path) -> Result<(String, String)> {
     let k = load_key(runs_dir)?;
@@ -92,14 +103,66 @@ pub fn record_for(runs_dir: &Path, campaign_dir: &Path, relays: Vec<String>, now
     ListingRecord::make(&id, &rules.network, relays, &host, &ledger, now)
 }
 
-/// Sends a record to a listing endpoint (`<url>/v1/records`) and returns its answer.
-pub fn post(url: &str, record: &ListingRecord) -> Result<String> {
+/// What a listing endpoint said about a record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PostOutcome {
+    /// Stored (HTTP 2xx), with the endpoint's message.
+    Accepted(String),
+    /// Refused (HTTP 4xx or 5xx), with the status and the endpoint's reason in its own words.
+    Refused(u16, String),
+    /// No answer (no connection, a timeout, a bad address).
+    Unreachable(String),
+}
+
+/// The "message" of a listing endpoint's JSON answer, or the answer itself (shortened) when it is not that shape.
+fn message_of(body: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(body).ok().and_then(|v| v["message"].as_str().map(str::to_string))
+        .unwrap_or_else(|| body.trim().chars().take(300).collect())
+}
+
+/// Sends a record to a listing endpoint (`<url>/v1/records`) and says what happened.
+pub fn post_outcome(url: &str, record: &ListingRecord) -> Result<PostOutcome> {
     let body = serde_json::to_vec(record)?;
     let agent = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(20)).redirects(0).build();
-    match agent.post(&format!("{}/v1/records", url.trim_end_matches('/'))).set("content-type", "application/json").send_bytes(&body) {
-        Ok(r) => Ok(r.into_string().unwrap_or_default()),
-        Err(ureq::Error::Status(code, r)) => bail!("the listing endpoint refused it (HTTP {code}): {}", r.into_string().unwrap_or_default()),
-        Err(e) => bail!("the listing endpoint could not be reached: {e}"),
+    Ok(match agent.post(&format!("{}/v1/records", url.trim_end_matches('/'))).set("content-type", "application/json").send_bytes(&body) {
+        Ok(r) => PostOutcome::Accepted(message_of(&r.into_string().unwrap_or_default())),
+        Err(ureq::Error::Status(code, r)) => PostOutcome::Refused(code, message_of(&r.into_string().unwrap_or_default())),
+        Err(e) => PostOutcome::Unreachable(e.to_string()),
+    })
+}
+
+/// Asks a listing endpoint what became of the request for one campaign (`<url>/v1/records/<id>`): its state and a plain reason. A refusal
+/// to answer (too many requests, a server fault) comes back as `Refused`, no answer at all as `Unreachable`.
+pub fn status_outcome(url: &str, campaign: &str) -> Result<StatusOutcome> {
+    ensure!(campaign.len() == 64 && campaign.bytes().all(|b| b.is_ascii_hexdigit()), "not a campaign id");
+    let agent = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(20)).redirects(0).build();
+    let parse = |body: String| -> (String, String) {
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+        (v["state"].as_str().unwrap_or("").chars().take(60).collect(), v["reason"].as_str().unwrap_or("").chars().take(400).collect())
+    };
+    Ok(match agent.get(&format!("{}/v1/records/{}", url.trim_end_matches('/'), campaign.to_lowercase())).call() {
+        Ok(r) => { let (s, why) = parse(r.into_string().unwrap_or_default()); StatusOutcome::Known(s, why) }
+        Err(ureq::Error::Status(404, r)) => { let (s, why) = parse(r.into_string().unwrap_or_default()); StatusOutcome::Known(if s.is_empty() { "Not found".into() } else { s }, why) }
+        Err(ureq::Error::Status(code, r)) => StatusOutcome::Refused(code, message_of(&r.into_string().unwrap_or_default())),
+        Err(e) => StatusOutcome::Unreachable(e.to_string()),
+    })
+}
+
+/// What a listing endpoint said when asked about a request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatusOutcome {
+    /// The state ("Waiting", "Listed", "Not listed", "Waiting for mainnet listing to open", or "Not found") and its reason.
+    Known(String, String),
+    Refused(u16, String),
+    Unreachable(String),
+}
+
+/// Sends a record to a listing endpoint (`<url>/v1/records`) and returns its answer.
+pub fn post(url: &str, record: &ListingRecord) -> Result<String> {
+    match post_outcome(url, record)? {
+        PostOutcome::Accepted(m) => Ok(m),
+        PostOutcome::Refused(code, m) => bail!("the listing endpoint refused it (HTTP {code}): {m}"),
+        PostOutcome::Unreachable(e) => bail!("the listing endpoint could not be reached: {e}"),
     }
 }
 

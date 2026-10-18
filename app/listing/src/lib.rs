@@ -1,4 +1,4 @@
-//! PROTOTYPE, testnet only, not merged and not deployed: listing other hosts' campaigns on a home page by an approved host key.
+//! Listing other hosts' campaigns on a home page by an approved host key (testnet listed; mainnet requests queued until mainnet listing opens).
 //!
 //! - `record`: the signed listing record (host key and campaign ledger key over the same domain tagged bytes);
 //! - `host`: the host's long lived key (made once, kept in a mode 600 file, never printed) and making a record for a campaign folder;

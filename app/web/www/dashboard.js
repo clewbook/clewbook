@@ -1,5 +1,5 @@
-// Host dashboard: function only. It shows what the host program reports and sends the two requests a host
-// can make from here (watch, close); setting up a campaign is on its own page (setup.html). It never sets
+// Host dashboard: function only. It shows what the host program reports and sends the requests a host
+// can make from here (close, submit for listing); setting up a campaign is on its own page (setup.html). It never sets
 // styles: it only toggles the `hidden` attribute and class names, and every look lives in ui.css and dashboard.css.
 import { setup, setNetwork, decorateAmounts, checkRow, chipHTML, etaText, statusBadgeHTML, outcomeWords, markReady } from './ui.js';
 import { measureBlocks } from './blocktime.js';
@@ -213,7 +213,81 @@ function render(s) {
     li.append(dot, what, st);
     return li;
   }));
+  renderListing(s);
   decorateAmounts(document.querySelector('main'));
+}
+
+const ISSUE = 'https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us';
+
+/** The listing section: the last answer kept for this campaign, and what the request would hold (shown in the confirm box). */
+function renderListing(s) {
+  $('#listing-section').hidden = false;
+  const l = s.listing;
+  const box = $('#listing-result');
+  box.hidden = !l;
+  $('#listing-btn').textContent = l && l.state === 'sent' ? 'Send again' : 'Submit for listing';
+  if (l) {
+    const sent = l.state === 'sent';
+    box.className = `notice ${sent ? 'info' : 'bad'}`;
+    $('#listing-result-k').textContent = sent ? 'Sent' : 'Not listed';
+    $('#listing-result-text').textContent = sent ? 'Sent, waiting for approval.' : l.message;
+    const fp = $('#listing-result-fp');
+    fp.hidden = !(sent && l.fingerprint);
+    if (sent && l.fingerprint) {
+      fp.replaceChildren('Your host fingerprint: ', Object.assign(document.createElement('b'), { textContent: l.fingerprint }), '. Send it to the Clewbook team ',
+        Object.assign(document.createElement('a'), { href: ISSUE, textContent: 'with a short note about you', target: '_blank', rel: 'noopener' }), ' so they can approve it.');
+    }
+    $('#listing-result-mainnet').hidden = !(sent && l.network === 'main');
+    $('#listing-result-more').textContent = `${sent ? `The listing server said: ${l.message}. ` : ''}${l.at ? `Sent ${new Date(l.at * 1000).toLocaleString()}.` : ''}${sent ? ' Sending again replaces the earlier request.' : ''}`;
+    // the last answer to "Check status" (state and reason from the listing server's last pass)
+    const c = l.checked;
+    $('#listing-status').hidden = !c;
+    if (c) {
+      $('#listing-status-state').textContent = `Status: ${c.state}.`;
+      $('#listing-status-reason').textContent = c.reason ? `${c.reason.charAt(0).toUpperCase()}${c.reason.slice(1)}.` : '';
+      $('#listing-status-at').textContent = `Checked ${new Date(c.at * 1000).toLocaleString()}.`;
+    }
+  }
+  $('#listing-mainnet-line').hidden = s.network !== 'main';
+  if (config) $('#listing-url').textContent = config.listing_url;
+  const fp = config && config.host_fingerprint;
+  const item = (t) => { const li = document.createElement('li'); li.textContent = t; return li; };
+  $('#listing-what').replaceChildren(
+    item(`The campaign: ${s.id}`),
+    item(`Its relays: ${s.relays.map((r) => r.url).join(', ')}`),
+    item(fp ? `Your host public key, with its fingerprint ${fp}` : 'Your host public key and its fingerprint. The key is made on this computer the first time you send (the file host_key.json in this program\'s runs folder, readable only by you) and is used for all your campaigns.'),
+    item('Two signatures: one by your host key, one by this campaign\'s own key'),
+  );
+}
+
+async function onListingCheck() {
+  const err = $('#listing-check-error'), btn = $('#listing-check');
+  say(err, '');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    await api(`campaigns/${selected}/listing-status`, {});
+    await refresh();
+  } catch (e) {
+    say(err, e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Check status';
+  }
+}
+
+async function onListingSend() {
+  const err = $('#listing-error'), btn = $('#listing-yes');
+  say(err, '');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api(`campaigns/${selected}/listing`, { confirm: true });
+    $('#listing-confirm').hidden = true;
+    try { config = await api('config'); } catch { /* the fingerprint shows on the next refresh */ }
+    await refresh();
+  } catch (e) {
+    say(err, e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send the request';
+  }
 }
 
 async function refresh() {
@@ -231,7 +305,7 @@ async function refresh() {
       return o;
     }));
     if (selected && campaigns.some((c) => c.id === selected)) render(await api(`campaigns/${selected}`));
-    else { $('#live').hidden = true; $('#dmore').hidden = true; $('#close-section').hidden = true; $('#warnings-section').hidden = true; }
+    else { $('#live').hidden = true; $('#dmore').hidden = true; $('#close-section').hidden = true; $('#warnings-section').hidden = true; $('#listing-section').hidden = true; }
   } catch (e) {
     const b = $('#banner');
     say(b, "The dashboard can't reach the host program right now. Start it with: cb-host serve");
@@ -332,7 +406,7 @@ async function main() {
   if (config) { if (config.network === 'main') $('#net-note').remove(); else $('#net-note').textContent = 'Test network: no real money.'; }
   const measure = async () => { const m = await measureBlocks(config ? config.network : 'test'); if (m.secondsPerBlock) { measured = m; } measuredAt = Date.now(); };
   measure().then(refresh);
-  $('#campaign-select').addEventListener('change', (e) => { selected = e.target.value; refresh(); });
+  $('#campaign-select').addEventListener('change', (e) => { selected = e.target.value; $('#listing-confirm').hidden = true; say($('#listing-check-error'), ''); refresh(); });
   $('#close-btn').addEventListener('click', () => {
     if (current && current.phase === 'closed') { onFinishClose(); return; } // "Try again": the address and the confirmation were given at the first close
     $('#close-confirm-text').textContent = 'This cannot be undone. Closing records the result for everyone to see, sends the money the campaign keeps to the address below, and sends refunds to the others.';
@@ -341,6 +415,10 @@ async function main() {
   $('#close-no').addEventListener('click', () => { $('#close-confirm').hidden = true; });
   $('#close-yes').addEventListener('click', onCloseNow);
   $('#export-btn').addEventListener('click', exportCopy);
+  $('#listing-btn').addEventListener('click', () => { say($('#listing-error'), ''); $('#listing-confirm').hidden = false; });
+  $('#listing-no').addEventListener('click', () => { $('#listing-confirm').hidden = true; });
+  $('#listing-yes').addEventListener('click', onListingSend);
+  $('#listing-check').addEventListener('click', onListingCheck);
   $('#copy-link').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('#contribute-link').textContent); $('#copy-link').textContent = 'Copied'; } catch { $('#copy-link').textContent = 'Select the link and copy it'; }
   });

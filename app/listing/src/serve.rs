@@ -1,5 +1,6 @@
-//! The submission endpoint (PROTOTYPE): POST /v1/records with one listing record; GET /v1/health (200 with the time and block of the last
-//! good pass, 503 when there was none in the last three intervals).
+//! The submission endpoint: POST /v1/records with one listing record; GET /v1/records/<campaign id> (the request's state and a plain reason
+//! from the last pass, nothing else); GET /v1/health (200 with the time and block of the last good pass, 503 when there was none in the
+//! last three intervals). Every request counts toward the same per source limit.
 //!
 //! It only accepts and stores: the size (at most 4 KB, read no further), the shape and both signatures are checked, and the caps applied. It never
 //! fetches anything because of a request: the relays named in records are read by the periodic pass, at most once per record per pass, so the
@@ -120,6 +121,10 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
                     }
                 }
             }
+            ("GET", url) if url.starts_with("/v1/records/") => match crate::job::record_status(&cfg, &url["/v1/records/".len()..]) {
+                Some((state, reason)) => json_value(200, serde_json::json!({ "state": state, "reason": reason })),
+                None => json_value(404, serde_json::json!({ "state": "Not found", "reason": "the listing server has no request for this campaign" })),
+            },
             _ => json(404, "no such endpoint"),
         };
         let _ = req.respond(resp);

@@ -144,6 +144,9 @@ enum Cmd {
         /// Mainnet only: the published NU7 activation height (a campaign that could still be running then is refused)
         #[arg(long)]
         nu7_mainnet_height: Option<u32>,
+        /// The listing server that the dashboard's "Submit for listing" sends to
+        #[arg(long, default_value = "https://listing.clewbook.xyz")]
+        listing_url: String,
     },
     /// Publish the whole ledger and sealed tickets to a relay (also remembers it, so `watch`
     /// keeps publishing there)
@@ -231,7 +234,7 @@ enum Cmd {
         #[arg(long)]
         out: PathBuf,
     },
-    /// PROTOTYPE (listing, testnet only): the host's long lived key, kept in <runs dir>/host_key.json (mode 600, never printed)
+    /// The host's long lived key for listing requests, kept in <runs dir>/host_key.json (mode 600, never printed)
     HostKey {
         #[command(subcommand)]
         action: HostKeyAction,
@@ -239,7 +242,8 @@ enum Cmd {
         #[arg(long, default_value = "runs", global = true)]
         runs_dir: PathBuf,
     },
-    /// PROTOTYPE (listing, testnet only): write a listing record for one campaign, signed by the host key and by the campaign's ledger key,
+    /// Write a listing request for one campaign, signed by the host key and by the campaign's ledger key (the dashboard's Submit for listing
+    /// sends the same),
     /// and optionally send it to a listing endpoint
     ListingRecord {
         /// The campaign folder
@@ -1613,8 +1617,8 @@ fn main() -> Result<()> {
             };
             create(&run, RunConfig { backend, devtool, wallet, identity, min_confirmations }, &network, &mode, goal_zat, items, deadline_in, &relay, min_contribution_zat, uniform, ticket_k, MainnetCheck { confirmed: confirm_mainnet, nu7_height: nu7_mainnet_height }, name, early_close, cap_zat)
         }
-        Cmd::Serve { runs_dir, www, listen, network, backend, devtool, relay, page_base, server, nu7_mainnet_height } => {
-            dashboard::serve(dashboard::Config { runs_dir, www, listen, network, backend, devtool, relays: relay, page_base, server, nu7_mainnet_height })
+        Cmd::Serve { runs_dir, www, listen, network, backend, devtool, relay, page_base, server, nu7_mainnet_height, listing_url } => {
+            dashboard::serve(dashboard::Config { runs_dir, www, listen, network, backend, devtool, relays: relay, page_base, server, nu7_mainnet_height, listing_url })
         }
         Cmd::Publish { run, relay } => {
             let r = Run::load(&run)?;

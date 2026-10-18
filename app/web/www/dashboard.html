@@ -98,6 +98,32 @@
       <p class="mt3"><button type="button" class="secondary" id="export-btn">Download a public copy of the list</button> <span class="muted t-sm" id="export-note">A file anyone can load on the recount page when no relay answers. It holds no key and nothing private.</span></p>
       <p class="error" id="export-error" role="alert" hidden></p>
     </section>
+    <section class="sect" id="listing-section" hidden>
+      <div class="hd"><h2>Listing on app.clewbook.xyz</h2></div>
+      <p class="muted t-sm">Ask for this campaign to be shown on the Clewbook home page. Your link works for anyone either way.</p>
+      <div id="listing-result" class="notice info" role="status" hidden>
+        <div class="k" id="listing-result-k"></div>
+        <p id="listing-result-text"></p>
+        <p id="listing-result-fp" hidden></p>
+        <p id="listing-result-mainnet" hidden>Mainnet campaigns are listed once mainnet listing opens after the next network upgrade. Your request is kept until then.</p>
+        <p class="muted t-sm" id="listing-result-more"></p>
+        <p id="listing-status" hidden><b id="listing-status-state"></b> <span id="listing-status-reason"></span> <span class="muted t-sm" id="listing-status-at"></span></p>
+        <p id="listing-check-error" class="notice bad" role="alert" hidden></p>
+        <button type="button" class="secondary" id="listing-check">Check status</button>
+      </div>
+      <button type="button" class="secondary" id="listing-btn">Submit for listing</button>
+      <div id="listing-confirm" class="notice info" hidden>
+        <div class="k">Before you send</div>
+        <p>This sends one short signed request to the Clewbook listing server (<span id="listing-url"></span>). It holds:</p>
+        <ul class="plainlist" id="listing-what"></ul>
+        <p>No money moves, and no key or other secret leaves this computer. You send no label: the Clewbook team chooses the label shown with your campaigns.</p>
+        <p>The Clewbook team approves listings by hand. Approval is for your host key, so once it is approved, your later campaigns are listed on their own.</p>
+        <p id="listing-mainnet-line" hidden>Mainnet campaigns are listed once mainnet listing opens after the next network upgrade. Your request is kept until then.</p>
+        <p id="listing-error" class="notice bad" role="alert" hidden></p>
+        <div class="do"><button type="button" id="listing-yes">Send the request</button>
+        <button type="button" id="listing-no" class="secondary">Not now</button></div>
+      </div>
+    </section>
   </div>
 
   <div>

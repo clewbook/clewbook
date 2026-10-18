@@ -5,7 +5,8 @@
 //!                                # starts a comment. The label is only ever taken from here, never from a record.
 //!   revoked_hosts.txt            host keys whose campaigns must disappear (same form)
 //!   hidden.txt                   campaign ids or host keys never to list (same form)
-//!   reserved.txt                 names no campaign may look like; a line "contains:<word>" refuses any name with that word in it
+//!   reserved.txt                 names no campaign may look like; a line "contains:<word>" refuses any name with that word in it, and a line
+//!                                "relay:<word>" refuses any relay address with that word in it (labels are never checked against this file)
 //!   state/seen.json              per campaign: when its record was first seen, since when it waits in the queue, when it was first listed
 //!   out/campaigns.json           the combined list for the home page, written atomically: first the fixed entries of the hand kept list
 //!                                (--hand-list, exactly as written there), then {"id","relays","host":{"label","fingerprint"}} for each
@@ -19,6 +20,10 @@
 //!
 //! A campaign stays listed after its deadline (history and proof): the deadline is checked only before a campaign is listed for the first
 //! time. A record from a host that is never approved is removed after `queue_ttl` (7 days by default); the host may send it again.
+//!
+//! A mainnet record while mainnet listing is off (no `--network main`) is accepted and kept: it waits, marked as mainnet, until mainnet
+//! listing opens. It is never listed, never recounted and never removed by time before then; its relays are read only for its name. Its
+//! host may be approved meanwhile. At most `max_mainnet_waiting` such records are kept.
 //!
 //! A pass reads every record and decides. Records are only ever added by a submission (the HTTP endpoint or `submit`); nothing here writes to
 //! any relay, and nothing is deleted from any relay.
@@ -34,6 +39,27 @@ use std::path::{Path, PathBuf};
 
 /// The word no label and no listed campaign name may contain, in any look alike spelling.
 pub const RESERVED_WORD: &str = "clewbook";
+/// Whether a campaign name contains the built in reserved word (Clewbook, in any look alike spelling). Other reserved words live only in
+/// the server's `reserved.txt` (`contains:<word>` for names, `relay:<word>` for relay addresses), never in the code.
+pub fn reserved_word_in_name(name: &str) -> Option<&'static str> {
+    contains_reserved(name, RESERVED_WORD).then_some(RESERVED_WORD)
+}
+
+/// The words relay addresses may not contain: the `relay:<word>` lines of reserved.txt, in their order (put a longer word first, so the
+/// reason names it). Clewbook is not one of them: the project's own relay is relay.clewbook.xyz.
+pub fn relay_words(cfg: &JobConfig) -> Vec<String> {
+    read_lines(&cfg.p("reserved.txt")).iter().filter_map(|l| l.strip_prefix("relay:").map(|w| w.trim().to_string())).filter(|w| !w.is_empty()).collect()
+}
+
+/// Refuses relay addresses that contain one of `words`, in any case or look alike spelling.
+pub fn check_relays(relays: &[String], words: &[String]) -> Result<()> {
+    for r in relays {
+        if let Some(w) = words.iter().find(|w| contains_reserved(r, w)) {
+            bail!("a relay address contains a reserved word ({w}): {}", r.chars().take(80).collect::<String>());
+        }
+    }
+    Ok(())
+}
 /// The largest hand kept list read.
 pub const MAX_HAND_LIST_BYTES: usize = 1 << 20;
 
@@ -52,6 +78,8 @@ pub struct JobConfig {
     pub hand_list: Option<PathBuf>,
     /// Seconds a record from a host that is never approved waits in the queue before it is removed.
     pub queue_ttl: u64,
+    /// At most this many mainnet records waiting for mainnet listing to open (they are never removed by time, so this caps them).
+    pub max_mainnet_waiting: usize,
     /// Mainnet only: the published NU7 activation height. A new mainnet campaign whose deadline is not before it is refused (its tickets
     /// would not survive the upgrade).
     pub nu7_mainnet_height: Option<u32>,
@@ -64,7 +92,7 @@ impl JobConfig {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         JobConfig {
             dir: dir.into(), allowed_networks: vec!["test".into()], fetch: FetchPolicy::default(), max_records_per_key: 10, max_records: 1000,
-            max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, nu7_mainnet_height: None,
+            max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, max_mainnet_waiting: 100, nu7_mainnet_height: None,
             #[cfg(feature = "recount")]
             recount: None,
         }
@@ -72,6 +100,11 @@ impl JobConfig {
     fn p(&self, rel: &str) -> PathBuf {
         self.dir.join(rel)
     }
+}
+
+/// A mainnet record while mainnet listing is off here: kept, never listed, never recounted and never removed by time until it opens.
+pub fn waits_for_mainnet(cfg: &JobConfig, network: &str) -> bool {
+    network == "main" && !cfg.allowed_networks.iter().any(|n| n == "main")
 }
 
 /// A key list file: the first word of each line that is not a comment, lowercased.
@@ -172,6 +205,7 @@ pub fn load_records(cfg: &JobConfig) -> Vec<ListingRecord> {
 pub fn submit(cfg: &JobConfig, bytes: &[u8]) -> Result<String> {
     ensure!(bytes.len() <= MAX_RECORD_BYTES, "a listing record is at most {MAX_RECORD_BYTES} bytes");
     let r = ListingRecord::parse_and_verify(bytes)?;
+    check_relays(&r.relays, &relay_words(cfg))?;
     let hidden = read_list(&cfg.p("hidden.txt"));
     let revoked = read_list(&cfg.p("revoked_hosts.txt"));
     ensure!(!revoked.contains(&r.host_pubkey), "this host key was revoked");
@@ -183,16 +217,23 @@ pub fn submit(cfg: &JobConfig, bytes: &[u8]) -> Result<String> {
     }
     let same_key = all.iter().filter(|x| x.host_pubkey == r.host_pubkey && x.campaign != r.campaign).count();
     ensure!(same_key < cfg.max_records_per_key, "this host key already has {} records here", cfg.max_records_per_key);
+    let waits = waits_for_mainnet(cfg, &r.network);
     if existing.is_none() {
         ensure!(all.len() < cfg.max_records, "the listing is full");
-        let approved = read_list(&cfg.p("approved_hosts.txt"));
-        if !approved.contains(&r.host_pubkey) {
-            let queued = all.iter().filter(|x| !approved.contains(&x.host_pubkey)).count();
-            ensure!(queued < cfg.max_queue, "the queue for hosts not approved yet is full");
+        if waits {
+            let waiting = all.iter().filter(|x| waits_for_mainnet(cfg, &x.network)).count();
+            ensure!(waiting < cfg.max_mainnet_waiting, "the list of mainnet campaigns waiting for mainnet listing to open is full");
+        } else {
+            let approved = read_list(&cfg.p("approved_hosts.txt"));
+            if !approved.contains(&r.host_pubkey) {
+                let queued = all.iter().filter(|x| !approved.contains(&x.host_pubkey) && !waits_for_mainnet(cfg, &x.network)).count();
+                ensure!(queued < cfg.max_queue, "the queue for hosts not approved yet is full");
+            }
         }
     }
     write_atomic(&cfg.p(&format!("records/{}.json", r.campaign)), &serde_json::to_vec_pretty(&r)?)?;
-    Ok(format!("received: campaign {}…, host {}", &r.campaign[..8], r.host_fingerprint()))
+    let note = if waits { "; mainnet listing is not open yet, so it is kept until it opens" } else { "" };
+    Ok(format!("received: campaign {}…, host {}{note}", &r.campaign[..8], r.host_fingerprint()))
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
@@ -209,6 +250,9 @@ pub enum State {
     Fixed,
     /// An approved host's new campaign that passed every other check and waits for its first recount.
     Checking,
+    /// A mainnet record while mainnet listing is off: kept until it opens, never listed or recounted before then, never removed by time.
+    #[serde(rename = "waiting_mainnet")]
+    WaitingMainnet,
 }
 
 /// A listed campaign whose recount fails: it stays listed, and the operator decides whether to hide it.
@@ -267,6 +311,8 @@ pub fn plain_duration(secs: u64) -> String {
 /// Reads the campaign from its relays: at least one must answer, and every relay that answers must serve rules that pass the checks.
 fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, require_open: bool) -> Result<ll_core::rules::Rules> {
     let tip = tips(&r.network).ok_or_else(|| anyhow!("the chain height of network {:?} could not be read this pass", r.network))?;
+    // records stored before a word was reserved are checked again here
+    check_relays(&r.relays, &relay_words(cfg))?;
     let mut first: Option<ll_core::rules::Rules> = None;
     let mut errors = vec![];
     for relay in &r.relays {
@@ -289,6 +335,25 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
             }
             Ok(rules)
         }
+        Some(_) => bail!("not every relay serves this campaign ({})", errors.join("; ")),
+        None => bail!("{}", errors.join("; ")),
+    }
+}
+
+/// A waiting mainnet record: its relays' rules must match it (id, ledger key, network), for its name and the name checks. No chain height
+/// is read and no deadline is checked: nothing about it is decided until mainnet listing opens.
+fn check_waiting(r: &ListingRecord, cfg: &JobConfig) -> Result<ll_core::rules::Rules> {
+    check_relays(&r.relays, &relay_words(cfg))?;
+    let main = ["main".to_string()];
+    let (mut first, mut errors) = (None, vec![]);
+    for relay in &r.relays {
+        match get_text(&format!("{relay}/v1/campaigns/{}", r.campaign), &cfg.fetch).and_then(|t| r.check_against_rules(&t, 0, &main, false)) {
+            Ok(rules) => { first.get_or_insert(rules); }
+            Err(e) => errors.push(format!("{}: {e}", host_of(relay))),
+        }
+    }
+    match first {
+        Some(rules) if errors.is_empty() => Ok(rules),
         Some(_) => bail!("not every relay serves this campaign ({})", errors.join("; ")),
         None => bail!("{}", errors.join("; ")),
     }
@@ -349,6 +414,7 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
     // first, each record on its own: hidden, revoked, or the campaign as its relays serve it
     struct Checked { r: ListingRecord, approved: bool, checked: Result<ll_core::rules::Rules>, name: Option<String> }
     let mut seen = vec![];
+    let mut waiting: Vec<(ListingRecord, bool, Result<ll_core::rules::Rules>)> = vec![];
     for r in records {
         let fp = r.host_fingerprint();
         let st = seen_state.entry(r.campaign.clone()).or_insert_with(|| Seen { first_seen: now, ..Default::default() });
@@ -361,6 +427,13 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
             continue;
         }
         let is_approved = approved.contains(&r.host_pubkey);
+        if waits_for_mainnet(cfg, &r.network) {
+            // its queue time starts only once mainnet listing opens
+            st.queued_since = None;
+            let checked = check_waiting(&r, cfg);
+            waiting.push((r, is_approved, checked));
+            continue;
+        }
         if is_approved {
             st.queued_since = None;
         } else if st.queued_since.is_none() {
@@ -382,14 +455,30 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
         seen.push(Checked { approved: is_approved, r, checked, name });
     }
     let reserved_hit = |n: &str| {
-        if contains_reserved(n, RESERVED_WORD) {
-            return Some(format!("the name contains a reserved word ({RESERVED_WORD})"));
+        if let Some(w) = reserved_word_in_name(n) {
+            return Some(format!("the name contains a reserved word ({w})"));
         }
-        reserved.iter().find_map(|res| match res.strip_prefix("contains:") {
-            Some(word) => contains_reserved(n, word).then(|| format!("the name contains a reserved word ({word})")),
+        reserved.iter().filter(|res| !res.starts_with("relay:")).find_map(|res| match res.strip_prefix("contains:") {
+            Some(word) => contains_reserved(n, word.trim()).then(|| format!("the name contains a reserved word ({})", word.trim())),
             None => collides(n, res).then(|| "the name looks like a reserved name".to_string()),
         })
     };
+    // mainnet records while mainnet listing is off: shown in the queue and the status, never listed, never recounted
+    for (r, is_approved, checked) in waiting {
+        let fp = r.host_fingerprint();
+        let name = checked.as_ref().ok().and_then(|x| x.name.clone());
+        let problem = match &checked { Err(e) => Some(e.to_string()), Ok(_) => name.as_deref().and_then(|n| reserved_hit(n)) };
+        let note = format!("mainnet listing is not open yet; {}; host key {}",
+            match &problem { Some(p) => format!("as it stands it would be refused when it opens: {p}"), None => "kept until it opens, never listed or recounted before then".into() },
+            if is_approved { "approved" } else { "not approved yet" });
+        let since = seen_state.get(&r.campaign).map(|s| s.first_seen).unwrap_or(now);
+        queue.push(QueueItem {
+            fingerprint: fp.clone(), host_pubkey: r.host_pubkey.clone(), campaign: r.campaign.clone(), network: r.network.clone(), name: name.clone(),
+            relays: r.relays.clone(), created: r.created, checks_pass: problem.is_none(), note: note.clone(),
+            queued_since: since, expires_at: 0, kind: "mainnet".into(), recount: None, attention: None,
+        });
+        status.push(Status { campaign: r.campaign.clone(), host: fp, state: State::WaitingMainnet, reason: note, name, recount: None, attention: None });
+    }
     // then the names. A campaign listed by the last pass keeps its place: a newcomer whose name looks like it is refused. Newcomers whose names
     // look like each other are ALL refused until the operator hides one: the record's own time is the host's word, so it cannot decide.
     let mut verdict: HashMap<String, Result<(), String>> = HashMap::new();
@@ -657,6 +746,35 @@ pub fn hide(cfg: &JobConfig, what: &str, hide: bool) -> Result<String> {
     })
 }
 
+/// What anyone may learn about the request for one campaign (`GET /v1/records/<campaign id>`): a plain state and a plain reason from the
+/// last pass, nothing else (no host key, no label, no recount details). States: "Waiting", "Listed", "Not listed", "Waiting for mainnet
+/// listing to open". None: no request for this campaign here.
+pub fn record_status(cfg: &JobConfig, campaign: &str) -> Option<(&'static str, String)> {
+    let id = campaign.to_lowercase();
+    if !is_hex64(&id) {
+        return None;
+    }
+    let has_record = cfg.p(&format!("records/{id}.json")).exists();
+    let last = fs::read(cfg.p("out/status.json")).ok().and_then(|b| serde_json::from_slice::<Vec<serde_json::Value>>(&b).ok()).unwrap_or_default()
+        .into_iter().find(|s| s["campaign"] == id.as_str());
+    let received = || ("Waiting", "received; it is checked on the next pass (every 10 minutes)".to_string());
+    let Some(s) = last else { return has_record.then(received) };
+    let reason = s["reason"].as_str().unwrap_or("").to_string();
+    Some(match s["state"].as_str().unwrap_or("") {
+        "listed" | "fixed" => ("Listed", "shown on the home page".into()),
+        "queued" => ("Waiting", "waiting for the Clewbook team to approve the host key".into()),
+        "checking" => ("Waiting", "every other check passed; waiting for its first recount".into()),
+        "waiting_mainnet" => ("Waiting for mainnet listing to open", "mainnet campaigns are listed once mainnet listing opens after the next network upgrade; the request is kept until then".into()),
+        // a request sent again after it expired waits again
+        "expired" if has_record => received(),
+        "expired" => ("Not listed", reason),
+        "hidden" => ("Not listed", "this campaign is not listed here".into()),
+        "revoked" => ("Not listed", "this host key was revoked".into()),
+        "refused" => ("Not listed", reason),
+        _ => received(),
+    })
+}
+
 pub fn read_queue(cfg: &JobConfig) -> Result<Vec<serde_json::Value>> {
     let t = fs::read_to_string(cfg.p("out/queue.json")).context("no queue yet: run a pass first")?;
     Ok(serde_json::from_str(&t)?)
@@ -666,7 +784,7 @@ pub fn read_queue(cfg: &JobConfig) -> Result<Vec<serde_json::Value>> {
 pub fn describe(status: &[Status]) -> String {
     let mut by: BTreeMap<String, usize> = BTreeMap::new();
     for s in status {
-        *by.entry(format!("{:?}", s.state).to_lowercase()).or_default() += 1;
+        *by.entry(serde_json::to_value(&s.state).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default().replace('_', " ")).or_default() += 1;
     }
     by.iter().map(|(k, v)| format!("{v} {k}")).collect::<Vec<_>>().join(", ")
 }

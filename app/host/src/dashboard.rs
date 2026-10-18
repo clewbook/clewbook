@@ -37,6 +37,8 @@ pub struct Config {
     pub page_base: String,
     pub server: String,
     pub nu7_mainnet_height: Option<u32>,
+    /// The listing server that "Submit for listing" sends to (`<url>/v1/records`).
+    pub listing_url: String,
 }
 
 #[derive(Default, Clone)]
@@ -476,6 +478,7 @@ fn status(st: &State, c: &Campaign) -> Value {
         "closing": c.closing.load(Ordering::SeqCst),
         "close_unfinished": crate::close_unfinished(&c.run),
         "close_log": *lock(&c.last_close),
+        "listing": listing_state(&c.run.dir),
     })
 }
 
@@ -549,6 +552,74 @@ fn close_campaign(c: &Campaign, body: &Value) -> Result<Value> {
 // ---------- HTTP ----------
 
 type Resp = tiny_http::Response<std::io::Cursor<Vec<u8>>>;
+
+// ---------- listing ----------
+
+/// Where the answer to the last "Submit for listing" is kept: the campaign folder's private files (no secret in it).
+fn listing_path(run_dir: &Path) -> PathBuf {
+    run_dir.join("private").join("listing.json")
+}
+
+fn listing_state(run_dir: &Path) -> Value {
+    std::fs::read(listing_path(run_dir)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null)
+}
+
+/// The host key's fingerprint, if this dashboard has made one (never the secret).
+fn host_fingerprint(runs_dir: &Path) -> Option<String> {
+    ll_listing::host::key_path(runs_dir).exists().then(|| ll_listing::host::describe_key(runs_dir).ok().map(|(_, fp)| fp)).flatten()
+}
+
+/// The record "Submit for listing" sends: the host key is made once if there is none (as `cb-host host-key init`; an existing one is never
+/// replaced), and the record is made exactly as `cb-host listing-record` makes it for this folder (its rules, its ledger key, the relays
+/// in private/relays). It carries no name and no label: the listing reads the name from the relays, and only the operator sets labels.
+pub(crate) fn listing_record(runs_dir: &Path, campaign_dir: &Path, now: u64) -> Result<(ll_listing::record::ListingRecord, String, bool)> {
+    let (_, fp, made) = ll_listing::host::ensure_key(runs_dir)?;
+    let rec = ll_listing::host::record_for(runs_dir, campaign_dir, vec![], now)?;
+    Ok((rec, fp, made))
+}
+
+/// "Submit for listing": the built in reserved word check on the name first (nothing is sent if it fails), then the signed record is sent. The
+/// answer is kept in the campaign folder so the page can show it later. No money moves and no secret leaves this computer.
+fn submit_listing(st: &State, c: &Campaign, body: &Value) -> Result<Value> {
+    if body["confirm"] != Value::Bool(true) {
+        return Err(anyhow!("Confirm the request first."));
+    }
+    let rules = &c.run.rules;
+    let save = |v: Value| -> Result<Value> {
+        crate::write_private(&listing_path(&c.run.dir), &serde_json::to_vec_pretty(&v)?)?;
+        Ok(json!({ "ok": true, "listing": v }))
+    };
+    let base = |state: &str, message: String, fp: Option<String>| json!({
+        "state": state, "message": message, "at": now(), "network": rules.network, "fingerprint": fp, "url": st.cfg.listing_url,
+    });
+    let known_fp = host_fingerprint(&st.cfg.runs_dir);
+    if let Some(w) = rules.name.as_deref().and_then(ll_listing::job::reserved_word_in_name) {
+        return save(base("refused", format!("Not sent: the campaign name contains a word the listing does not accept ({w}). A campaign's name cannot change, so this campaign cannot be listed."), known_fp));
+    }
+    let (rec, fp, _made) = listing_record(&st.cfg.runs_dir, &c.run.dir, now())?;
+    match ll_listing::host::post_outcome(&st.cfg.listing_url, &rec)? {
+        ll_listing::host::PostOutcome::Accepted(m) => save(base("sent", m, Some(fp))),
+        ll_listing::host::PostOutcome::Refused(code, m) => save(base("refused", if code == 429 { "The listing server is busy (too many requests from this address). Wait a minute and send again.".into() } else { format!("The listing server refused it: {m}.") }, Some(fp))),
+        ll_listing::host::PostOutcome::Unreachable(_) => Err(anyhow!("The listing server could not be reached. Nothing was sent; try again later.")),
+    }
+}
+
+/// "Check status": asks the listing server about this campaign's request and keeps the answer with the last one sent (shown on the page).
+fn check_listing(st: &State, c: &Campaign) -> Result<Value> {
+    let mut l = listing_state(&c.run.dir);
+    if !l.is_object() {
+        return Err(anyhow!("Nothing was sent for this campaign yet."));
+    }
+    let checked = match ll_listing::host::status_outcome(&st.cfg.listing_url, &c.id)? {
+        ll_listing::host::StatusOutcome::Known(state, reason) => json!({ "state": state, "reason": reason, "at": now() }),
+        ll_listing::host::StatusOutcome::Refused(429, _) => return Err(anyhow!("The listing server is busy (too many requests from this address). Wait a minute and check again.")),
+        ll_listing::host::StatusOutcome::Refused(_, m) => return Err(anyhow!("The listing server did not answer the question: {m}.")),
+        ll_listing::host::StatusOutcome::Unreachable(_) => return Err(anyhow!("The listing server could not be reached. Try again later.")),
+    };
+    l["checked"] = checked;
+    crate::write_private(&listing_path(&c.run.dir), &serde_json::to_vec_pretty(&l)?)?;
+    Ok(json!({ "ok": true, "listing": l }))
+}
 
 fn header(k: &str, v: &str) -> tiny_http::Header {
     tiny_http::Header::from_bytes(k.as_bytes(), v.as_bytes()).expect("static header")
@@ -630,6 +701,7 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
             (tiny_http::Method::Get, ["config"]) => json_response(200, json!({
                 "ok": true, "network": st.cfg.network, "ticker": if st.cfg.network == "main" { "ZEC" } else { "TAZ" },
                 "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true,
+                "listing_url": st.cfg.listing_url, "host_fingerprint": host_fingerprint(&st.cfg.runs_dir),
             })),
             (tiny_http::Method::Get, ["campaigns"]) => {
                 let list: Vec<Value> = lock(&st.campaigns).iter().rev().map(|c| {
@@ -650,6 +722,20 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
                 Some(c) => match crate::public_copy(&c.run) {
                     Ok(v) => json_response(200, v),
                     Err(e) => fail(500, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "listing"]) => match find(st, id) {
+                Some(c) => match submit_listing(st, &c, &body) {
+                    Ok(v) => json_response(200, v),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "listing-status"]) => match find(st, id) {
+                Some(c) => match check_listing(st, &c) {
+                    Ok(v) => json_response(200, v),
+                    Err(e) => fail(400, e),
                 },
                 None => fail(404, anyhow!("No such campaign.")),
             },
@@ -728,6 +814,88 @@ mod restart_hint_tests {
         let h = restart_hint(&args, 4242, Path::new("runs/dash/campaign-1"));
         assert!(h.contains("./app/target/release/cb-host serve --network main --runs-dir 'runs/my dash' --listen 127.0.0.1:8780") || h.contains("--runs-dir 'runs/my dash'"), "{h}");
         assert!(h.contains("kill 4242") && h.contains("./run.sh restart dashboard") && h.contains("runs/dash/campaign-1") && h.contains("Last network check"), "{h}");
+    }
+
+    /// An invented campaign folder (rules, secrets, relays; no wallet, no money), as the dashboard leaves one.
+    fn invented_campaign(root: &Path, network: &str) -> PathBuf {
+        let s = ll_core::keys::CampaignSecrets::generate();
+        let rules = json!({"v":1,"network":network,"mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":5000000,"ticket_k":30,
+            "close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,"campaign_ufvk":"uvftest1x",
+            "ledger_pubkey":s.ledger_pubkey_hex().unwrap(),"payload_pubkey":s.payload_pubkey_hex().unwrap(),"name":"Garden Fund"}).to_string();
+        let dir = root.join(format!("campaign-{network}"));
+        std::fs::create_dir_all(dir.join("private")).unwrap();
+        std::fs::write(dir.join("rules.json"), &rules).unwrap();
+        std::fs::write(dir.join("secrets.json"), serde_json::to_vec(&s).unwrap()).unwrap();
+        std::fs::write(dir.join("private/relays"), "https://relay.example.org\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn submit_for_listing_signs_the_same_record_as_the_command_and_never_replaces_the_host_key() {
+        let root = std::env::temp_dir().join(format!("ll-dash-listing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let runs = root.join("runs");
+        for network in ["test", "main"] {
+            let dir = invented_campaign(&root, network);
+            let now = 1_790_000_000;
+            // the first press makes the host key (mode 600); later presses use the same key
+            let first = !ll_listing::host::key_path(&runs).exists();
+            let (rec, fp, made) = listing_record(&runs, &dir, now).unwrap();
+            assert_eq!(made, first);
+            let key_bytes = std::fs::read(ll_listing::host::key_path(&runs)).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(std::fs::metadata(ll_listing::host::key_path(&runs)).unwrap().permissions().mode() & 0o777, 0o600);
+            }
+            // byte for byte the record `cb-host listing-record` makes for this folder at the same time, and it verifies
+            let cli = ll_listing::host::record_for(&runs, &dir, vec![], now).unwrap();
+            assert_eq!(serde_json::to_vec(&rec).unwrap(), serde_json::to_vec(&cli).unwrap());
+            let bytes = serde_json::to_vec(&rec).unwrap();
+            let parsed = ll_listing::record::ListingRecord::parse_and_verify(&bytes).unwrap();
+            assert_eq!((parsed.network.as_str(), parsed.relays.clone(), fp.clone()), (network, vec!["https://relay.example.org".to_string()], rec.host_fingerprint()));
+            // no name, no label, no secret in what is sent
+            let v: Value = serde_json::from_slice(&bytes).unwrap();
+            assert!(v.get("name").is_none() && v.get("label").is_none(), "{v}");
+            let secrets = std::fs::read_to_string(dir.join("secrets.json")).unwrap();
+            let sk: Value = serde_json::from_str(&secrets).unwrap();
+            for val in sk.as_object().unwrap().values().filter_map(|x| x.as_str()).filter(|x| x.len() >= 32) {
+                assert!(!String::from_utf8_lossy(&bytes).contains(val), "a secret value is in the record");
+            }
+            // pressed again: the same key, never replaced
+            let (_, fp2, made2) = listing_record(&runs, &dir, now + 1).unwrap();
+            assert!(!made2 && fp2 == fp);
+            assert_eq!(std::fs::read(ll_listing::host::key_path(&runs)).unwrap(), key_bytes);
+            assert!(ll_listing::host::init_key(&runs).is_err(), "an existing host key is never replaced");
+            assert_eq!(host_fingerprint(&runs), Some(fp));
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// TEST TOOL for the listing end to end run (ignored; run on request): writes two invented campaign folders a dashboard can load, one
+    /// testnet and one mainnet, under `$LL_LISTING_E2E/test/campaign-1` and `$LL_LISTING_E2E/main/campaign-1`. Fresh random keys, no wallet,
+    /// no money; the wallet folder only names a network so the folder loads (its watcher then reports that it cannot check the network).
+    #[test]
+    #[ignore]
+    fn make_invented_dashboard_folders_for_the_listing_end_to_end_run() {
+        let Ok(root) = std::env::var("LL_LISTING_E2E") else { return };
+        for (network, name) in [("test", "Garden Fund"), ("main", "Harbour Fund")] {
+            let dir = Path::new(&root).join(network).join("campaign-1");
+            assert!(!dir.exists(), "{} exists already", dir.display());
+            let s = ll_core::keys::CampaignSecrets::generate();
+            let rules: ll_core::rules::Rules = serde_json::from_value(json!({"v":1,"network":network,"mode":"raise","goal_zat":5000000,"start_height":100,
+                "deadline_height":5000000,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,
+                "campaign_ufvk":"uvftest1x","ledger_pubkey":s.ledger_pubkey_hex().unwrap(),"payload_pubkey":s.payload_pubkey_hex().unwrap(),"name":name})).unwrap();
+            std::fs::create_dir_all(dir.join("ledger")).unwrap();
+            std::fs::create_dir_all(dir.join("wallet1")).unwrap();
+            std::fs::write(dir.join("rules.json"), serde_json::to_vec_pretty(&rules).unwrap()).unwrap();
+            std::fs::write(dir.join("rules_id"), hex::encode(rules.id().unwrap())).unwrap();
+            crate::write_private(&dir.join("secrets.json"), &serde_json::to_vec(&s).unwrap()).unwrap();
+            std::fs::write(dir.join("config.json"), serde_json::to_vec(&json!({"backend":"libs","devtool":"x","wallet":"wallet1","identity":"wallet1.age"})).unwrap()).unwrap();
+            std::fs::write(dir.join("wallet1/keys.toml"), "network = \"test\"\n").unwrap();
+            crate::write_private(&dir.join("wallet1.age"), b"").unwrap();
+            crate::write_private(&dir.join("private/relays"), format!("{}\n", std::env::var("LL_LISTING_E2E_RELAY").unwrap()).as_bytes()).unwrap();
+        }
     }
 
     #[test]

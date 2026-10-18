@@ -5,7 +5,7 @@ The home page of app.clewbook.xyz lists two kinds of campaigns:
 - the **fixed entries**: the project's own campaigns, in a hand kept list that only the operator edits;
 - the campaigns of **approved hosts**: hosts send a signed listing request, the listing job checks it, and the operator approves the host key.
 
-The job is `cb-listing` (crate `app/listing`). Hosts make their key and their requests with `cb-host host-key` and `cb-host listing-record` (see `docs/HOSTING.md` section 7). The job runs **testnet only**: mainnet campaigns of approved hosts are refused unless mainnet is switched on explicitly. It is not switched on (see "Mainnet" below and `app/listing/MAINNET-REVIEW.md`).
+The job is `cb-listing` (crate `app/listing`). Hosts send their requests with the **Submit for listing** button on the host dashboard, or with `cb-host host-key` and `cb-host listing-record` (see `docs/HOSTING.md` section 7). The job lists **testnet only**. A mainnet request is accepted and kept in the queue, marked as mainnet, but it is never listed or recounted until mainnet listing is switched on explicitly. It is not switched on (see "Mainnet" below and `app/listing/MAINNET-REVIEW.md`).
 
 Tests: `app/listing/tests/e2e.rs`, `app/listing/tests/recount.rs` and the unit tests in `app/listing/src` (`cargo test -p ll-listing` in `app`).
 
@@ -16,12 +16,13 @@ Tests: `app/listing/tests/e2e.rs`, `app/listing/tests/recount.rs` and the unit t
    - listed;
    - queued (the host key is not approved yet);
    - checking (it waits for its first recount);
+   - waiting for mainnet (a mainnet record while mainnet listing is off);
    - refused (with the reason);
    - hidden, revoked or expired.
 3. The pass writes, each file atomically:
    - `out/campaigns.json`, the combined list for the home page;
    - `out/status.json`, why each record and each fixed entry is where it is, with its last recount;
-   - `out/queue.json`, the hosts waiting for approval, and listed campaigns flagged "attention".
+   - `out/queue.json`, the hosts waiting for approval, the mainnet records waiting for mainnet listing, and listed campaigns flagged "attention".
 4. The operator approves a host key with a **label**. From the next pass on, that host's campaigns that pass every check are listed.
 
 ## The listing record
@@ -54,7 +55,8 @@ The record carries **no label**: a record with a `label` field is refused (`list
    - a newer record for the same campaign replaces the older one.
 2. **Each pass, for each record:**
    - **Hidden or revoked**: not fetched at all.
-   - **Expiry**: a record whose host was never approved is removed after 7 days (`--queue-days`). The queue shows how long each entry has left.
+   - **Expiry**: a record whose host was never approved is removed after 7 days (`--queue-days`). The queue shows how long each entry has left. A mainnet record waiting for mainnet listing never expires; its 7 days start when mainnet listing opens.
+   - **Mainnet while mainnet listing is off**: the record is kept and shown as `waiting_mainnet`, approved host or not. Its relays are read only to check that they serve its rules and to get its name, so the name checks can be reported early; no chain height is read, no deadline is checked, nothing is recounted and nothing is listed. At most 100 such records are kept (`--max-mainnet-waiting`); further mainnet requests are refused at submission until there is room. They also count toward the existing caps (10 per host key, 1000 in all).
    - **The relays**: every relay named must serve rules that hash to the campaign id, carry the record's ledger key and network, and pass the rules' own validation. At least one must answer, and every relay that answers must pass.
    - **The network**: only `test` unless mainnet is allowed.
    - **The deadline**: it must still be ahead, but only before the campaign is first listed. A listed campaign stays listed after its deadline, as a closed campaign.
@@ -62,7 +64,7 @@ The record carries **no label**: a record with a `label` field is refused (`list
 3. **Names**, for campaigns of approved hosts:
    - The comparison form of a name folds case and accents, maps Cyrillic and Greek look-alikes, digits that pass for letters, "rn"/"m", "vv"/"w" and "cl"/"d", and drops everything but letters and digits.
    - Two names collide when these forms are equal or one or two edits apart, depending on length.
-   - The word Clewbook, in any spelling, and the names in `reserved.txt` are refused.
+   - The word Clewbook, in any spelling (built in), and the names and words in `reserved.txt` are refused. Any other reserved word lives only in `reserved.txt` on the server, never in the code. Labels are not checked against `reserved.txt`: only the operator writes them.
    - A campaign already listed keeps its place. Newcomers that look alike are all refused until the operator hides one.
    - Letters outside plain Latin are named in the queue.
 4. **The recount check**:
@@ -98,7 +100,7 @@ The record carries **no label**: a record with a `label` field is refused (`list
 | Recheck of a fixed entry | every 24 h (`--recheck-fixed-hours`) |
 
 - Order: new campaigns of approved hosts first, then listed campaigns that are due, then testnet records waiting for approval (for the operator's information), then the fixed entries.
-- A queued **mainnet** record is never recounted.
+- A **mainnet** record is never recounted while mainnet listing is off, nor while its host is not approved.
 - Results are cached by ledger head and close state: nothing is recounted unless one of them moved, or the recheck time has passed. The recheck time matters because a payment the host ignores does not move the ledger.
 - Measured on 16 October 2026 against public servers: 2,300 to 5,400 blocks took 45 to 98 s and 4 to 11 MB of compact blocks, with about 2 kB from the relay.
 
@@ -156,7 +158,7 @@ On 16 October 2026 it used 14 MB of memory at its peak.
 | `records/` | stored records |
 | `approved_hosts.txt` | key, then label |
 | `revoked_hosts.txt`, `hidden.txt` | revoked host keys; hidden campaign ids or host keys |
-| `reserved.txt` | names no campaign may look like; a line `contains:<word>` refuses any name containing that word |
+| `reserved.txt` | names no campaign may look like; a line `contains:<word>` refuses any name containing that word; a line `relay:<word>` refuses any relay address containing that word (put a longer word before a shorter one it contains, so the reason names it) |
 | `state/seen.json`, `state/recount.json` | what the job remembers between passes |
 | `out/campaigns.json`, `out/status.json`, `out/queue.json` | the outputs |
 
@@ -170,7 +172,7 @@ Run on the server. From another computer, put `ssh <server>` in front; quote a l
 
 ```
 L="sudo -u clewbook-listing /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing"
-$L queue                                   # hosts waiting for approval, and ATTENTION items
+$L queue                                   # hosts waiting for approval, MAINNET records waiting, and ATTENTION items
 $L approve <fingerprint> --label 'Garden Collective'
 $L label <fingerprint> 'New Label'         # change a label
 $L hide <campaign id>                      # or a fingerprint: every campaign of that host
@@ -218,7 +220,9 @@ Undo the switch before removing the listing service, or the symlink points at no
 
 ## Mainnet
 
-Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet). The review of what mainnet would need is `app/listing/MAINNET-REVIEW.md`.
+Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. The review of what mainnet would need is `app/listing/MAINNET-REVIEW.md`.
+
+**Status lookup.** `GET /v1/records/<campaign id>` answers with the request's state from the last pass and a plain reason, nothing else: `Waiting` (received, or waiting for approval, or waiting for its first recount), `Listed`, `Not listed` (with the reason: refused, expired, hidden or revoked), or `Waiting for mainnet listing to open`; `Not found` when there is no request for that campaign. It counts toward the same per source limit as submissions. The dashboard's **Check status** button calls it.
 
 ## Known limits
 

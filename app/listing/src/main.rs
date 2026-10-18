@@ -1,4 +1,4 @@
-//! cb-listing (PROTOTYPE, testnet only): the listing job and its operator commands. See src/job.rs for the data folder.
+//! cb-listing: the listing job and its operator commands. See src/job.rs for the data folder.
 
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "cb-listing", about = "PROTOTYPE: list campaigns of approved hosts (testnet only by default)")]
+#[command(name = "cb-listing", about = "Lists the campaigns of approved hosts on the home page. Mainnet requests are queued until mainnet listing opens.")]
 struct Cli {
     /// The listing data folder.
     #[arg(long, global = true, default_value = "runs/listing")]
@@ -20,7 +20,7 @@ struct Cli {
 
 #[derive(clap::Args, Clone)]
 struct PassArgs {
-    /// Networks that may be listed (repeat). Default: test only.
+    /// Networks that may be listed (repeat). Without main, mainnet requests are kept in the queue until mainnet listing opens.
     #[arg(long = "network", default_value = "test")]
     networks: Vec<String>,
     /// The testnet chain server, for the height and the recount (an address you choose, never one from a record).
@@ -56,6 +56,9 @@ struct PassArgs {
     /// TEST ONLY: allow plain http relays on this computer (127.0.0.1, ::1, localhost). Never on a server.
     #[arg(long)]
     test_allow_loopback: bool,
+    /// TEST ONLY: no recount before listing (for invented campaigns that have no chain history). Never on a server.
+    #[arg(long)]
+    test_no_recount: bool,
     /// Seconds to wait for a relay to connect, and for its whole answer.
     #[arg(long, default_value_t = 5)]
     connect_timeout: u64,
@@ -71,13 +74,16 @@ struct PassArgs {
     /// Days a record from a host that is never approved stays in the queue before it is removed.
     #[arg(long, default_value_t = 7)]
     queue_days: u64,
+    /// While mainnet listing is off, at most this many mainnet records are kept waiting for it to open (they are never removed by time).
+    #[arg(long, default_value_t = 100)]
+    max_mainnet_waiting: usize,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
     /// One pass: check every record and write out/campaigns.json, out/status.json and out/queue.json.
     Run(PassArgs),
-    /// The submission endpoint (POST /v1/records), with a pass every --interval seconds.
+    /// The endpoint (POST /v1/records, GET /v1/records/<campaign id>, GET /v1/health), with a pass every --interval seconds.
     Serve {
         #[command(flatten)]
         pass: PassArgs,
@@ -90,7 +96,7 @@ enum Cmd {
     },
     /// Add a record from a file (the same checks as the endpoint).
     Submit { file: PathBuf },
-    /// Show the queue of hosts that are not approved yet (from the last pass).
+    /// Show the queue of hosts that are not approved yet, and mainnet records waiting for mainnet listing to open (from the last pass).
     Queue,
     /// Approve a host key (full key or fingerprint) with the display label shown for its campaigns.
     Approve { key: String, #[arg(long)] label: String },
@@ -139,6 +145,7 @@ fn config(dir: PathBuf, p: &PassArgs) -> Result<JobConfig> {
     cfg.allowed_networks = p.networks.clone();
     cfg.hand_list = p.hand_list.clone();
     cfg.queue_ttl = p.queue_days * 24 * 3600;
+    cfg.max_mainnet_waiting = p.max_mainnet_waiting;
     cfg.nu7_mainnet_height = p.nu7_mainnet_height;
     let chain: Arc<dyn ll_listing::chain::Chain> = Arc::new(ll_listing::chain::GrpcChain::new(&p.chain_server, &p.chain_server_main));
     cfg.recount = Some(ll_listing::recount::Setup {
@@ -148,6 +155,9 @@ fn config(dir: PathBuf, p: &PassArgs) -> Result<JobConfig> {
             recheck: Duration::from_secs(p.recheck_hours * 3600), recheck_fixed: Duration::from_secs(p.recheck_fixed_hours * 3600), ..Default::default()
         },
     });
+    if p.test_no_recount {
+        cfg.recount = None;
+    }
     cfg.fetch = FetchPolicy {
         test_allow_loopback: p.test_allow_loopback,
         connect_timeout: Duration::from_secs(p.connect_timeout),
@@ -203,6 +213,11 @@ fn main() -> Result<()> {
                 if item["kind"] == "attention" {
                     println!("ATTENTION {}  host {}  name {}  {}", item["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""), item["fingerprint"].as_str().unwrap_or(""),
                         item["name"].as_str().map(|n| format!("{n:?}")).unwrap_or_else(|| "(none)".into()), item["note"].as_str().unwrap_or(""));
+                    continue;
+                }
+                if item["kind"] == "mainnet" {
+                    println!("MAINNET {}  host {}  name {}  {}; waits until mainnet listing opens (never removed by time)", item["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""),
+                        item["fingerprint"].as_str().unwrap_or(""), item["name"].as_str().map(|n| format!("{n:?}")).unwrap_or_else(|| "(none)".into()), item["note"].as_str().unwrap_or(""));
                     continue;
                 }
                 let left = item["expires_at"].as_u64().map(|t| t.saturating_sub(now)).unwrap_or(0);

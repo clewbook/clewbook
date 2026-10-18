@@ -459,9 +459,10 @@ fn mainnet_needs_its_own_allowance_and_a_close_before_nu7() {
     let m = Camp::on(&w.root, "Main Garden", false, "main");
     m.register(&w.relay);
     w.submit(&m);
-    // refused while only testnet is listed (the default)
+    // kept waiting, never recounted, while only testnet is listed (the default)
     let st = w.pass(150, NOW);
-    assert!(own(&st, &m.id).reason.contains("not listed here"), "{:?}", own(&st, &m.id));
+    assert_eq!(own(&st, &m.id).state, State::WaitingMainnet, "{:?}", own(&st, &m.id));
+    assert!(own(&st, &m.id).recount.is_none() && w.chain.calls.load(Ordering::SeqCst) == 0, "no scan while mainnet listing is off");
     // a queued mainnet record (host not approved) is never recounted, even with mainnet allowed
     let mut queued = w.cfg.clone();
     queued.allowed_networks = vec!["test".into(), "main".into()];

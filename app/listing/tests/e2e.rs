@@ -23,8 +23,13 @@ fn scratch(name: &str) -> PathBuf {
 
 /// An invented testnet campaign: rules and secrets in a campaign folder, as cb-host would leave them (no wallet, no money).
 fn campaign(dir: &Path, name: &str, relays: &[String], deadline: u32) -> (String, String) {
+    campaign_on(dir, name, relays, deadline, "test")
+}
+
+/// The same on a chosen network (an invented mainnet campaign holds no wallet and no money either).
+fn campaign_on(dir: &Path, name: &str, relays: &[String], deadline: u32, network: &str) -> (String, String) {
     let s = CampaignSecrets::generate();
-    let rules = serde_json::json!({"v":1,"network":"test","mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":deadline,"ticket_k":30,
+    let rules = serde_json::json!({"v":1,"network":network,"mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":deadline,"ticket_k":30,
         "close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,"campaign_ufvk":"uvftest1x",
         "ledger_pubkey":s.ledger_pubkey_hex().unwrap(),"payload_pubkey":s.payload_pubkey_hex().unwrap(),"name":name}).to_string();
     let r: ll_core::rules::Rules = serde_json::from_str(&rules).unwrap();
@@ -435,5 +440,205 @@ fn labels_follow_the_name_rules_and_reserve_clewbook() {
     assert!(job::approve(&c, &b, "Gаrden Collective").unwrap_err().to_string().contains("another approved host"));
     job::approve(&c, &b, "School Friends").unwrap();
     assert!(job::set_label(&c, &b, "Garden Collectives").is_err());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn operator_words_in_reserved_txt_cover_names_and_relays_but_not_the_operators_labels() {
+    // invented words; the real ones live only in the server's reserved.txt
+    let root = scratch("words");
+    let (_server, relay) = ll_relay::spawn(&root.join("relay"), "127.0.0.1:0").unwrap();
+    let relays = vec![relay.clone()];
+    let campaigns = root.join("campaigns");
+    let runs = root.join("host");
+    let pk = host::init_key(&runs).unwrap();
+    let data = root.join("listing");
+    let hand_path = root.join("hand.json");
+    let mut c = cfg(&data);
+    c.max_records_per_key = 20;
+    // without the file nothing but Clewbook is reserved: the code holds no other word
+    let (free_id, free_rules) = campaign(&campaigns, "Morvey Before", &relays, 5_000_000);
+    register(&relay, &free_id, &free_rules);
+    job::approve(&c, &pk, "Morvey Labs").unwrap();
+    submit_record(&c, &runs, &campaigns.join(&free_id[..8])).unwrap();
+    assert_eq!(state_of(&job::run_pass(&c, TIP).unwrap(), &free_id).0, State::Listed);
+    // the operator's file: names (contains:) and relay addresses (relay:), longer word first
+    std::fs::write(data.join("reserved.txt"), "# operator words\ncontains:zmorvey\ncontains:morvey\nrelay:zmorvey\nrelay:morvey\n").unwrap();
+    // the label rule: the operator may use both words (approve and label); Clewbook stays refused
+    job::set_label(&c, &pk, "zmorvey").unwrap();
+    assert!(job::set_label(&c, &pk, "Clewbook zmorvey").is_err());
+    // names a host submits: plain, mixed case, look alike letters, inside a longer name
+    let mut refused = vec![];
+    for (name, word) in [("morvey", "morvey"), ("MorVEY Garden", "morvey"), ("M0rv3y Drive", "morvey"), ("Fund of mоrvеу", "morvey"),
+                         ("The Morvey Fund 2026", "morvey"), ("zmorvey", "zmorvey"), ("Zmorvey Presale", "zmorvey"), ("SuperZm0rv3yFund", "zmorvey")] {
+        let (id, rules) = campaign(&campaigns, name, &relays, 5_000_000);
+        register(&relay, &id, &rules);
+        submit_record(&c, &runs, &campaigns.join(&id[..8])).unwrap();
+        refused.push((id, word));
+    }
+    let (ok_id, ok_rules) = campaign(&campaigns, "Morven Day Garden", &relays, 5_000_000);
+    register(&relay, &ok_id, &ok_rules);
+    submit_record(&c, &runs, &campaigns.join(&ok_id[..8])).unwrap();
+    // a fixed entry is not affected, whatever its campaign is called
+    let (fixed_id, fixed_rules) = campaign(&campaigns, "Morvey Fixed Entry", &relays, 5_000_000);
+    register(&relay, &fixed_id, &fixed_rules);
+    let hand = format!("{{\"campaigns\":[{{\"id\":\"{fixed_id}\",\"relays\":[\"{relay}\"]}}]}}");
+    std::fs::write(&hand_path, &hand).unwrap();
+    c.hand_list = Some(hand_path);
+    let st = job::run_pass(&c, TIP).unwrap();
+    for (id, word) in &refused {
+        let (s, r) = state_of(&st, id);
+        assert!(s == State::Refused && r == format!("the name contains a reserved word ({word})"), "{id}: {s:?} {r}");
+    }
+    assert_eq!(state_of(&st, &ok_id).0, State::Listed);
+    assert_eq!(state_of(&st, &fixed_id).0, State::Fixed);
+    // as before: names are checked on every pass, so a listed campaign whose name gets a reserved word is taken off the list
+    assert_eq!(state_of(&st, &free_id), (State::Refused, "the name contains a reserved word (morvey)".to_string()));
+    let out: serde_json::Value = serde_json::from_slice(&std::fs::read(data.join("out/campaigns.json")).unwrap()).unwrap();
+    let ids: Vec<&str> = out["campaigns"].as_array().unwrap().iter().map(|e| e["id"].as_str().unwrap()).collect();
+    assert_eq!(ids[0], fixed_id.as_str(), "the fixed entry first");
+    assert!(ids.contains(&ok_id.as_str()));
+    assert_eq!(out["campaigns"][1]["host"]["label"], "zmorvey", "the operator's label is shown");
+    // a relay address with either word is refused at submission (Clewbook is allowed there: the project's own relay)
+    let (rid, _) = campaign(&campaigns, "Relay Word", &["https://relay.morvey.example".into()], 5_000_000);
+    let e = submit_record(&c, &runs, &campaigns.join(&rid[..8])).unwrap_err().to_string();
+    assert!(e.contains("a relay address contains a reserved word (morvey)"), "{e}");
+    let (rid2, _) = campaign(&campaigns, "Relay Word Two", &["https://zm0rv3y-relay.example".into()], 5_000_000);
+    assert!(submit_record(&c, &runs, &campaigns.join(&rid2[..8])).unwrap_err().to_string().contains("(zmorvey)"));
+    let (rid3, _) = campaign(&campaigns, "Relay Word Three", &["https://relay.clewbook.xyz".into()], 5_000_000);
+    submit_record(&c, &runs, &campaigns.join(&rid3[..8])).unwrap();
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn mainnet_records_wait_while_mainnet_listing_is_off_and_testnet_is_unchanged() {
+    let root = scratch("mainnet-wait");
+    let (_server, relay) = ll_relay::spawn(&root.join("relay"), "127.0.0.1:0").unwrap();
+    let relays = vec![relay.clone()];
+    let campaigns = root.join("campaigns");
+    let runs = root.join("host");
+    let pk = host::init_key(&runs).unwrap();
+    let data = root.join("listing");
+    let mut c = cfg(&data);
+    c.max_mainnet_waiting = 2;
+    assert_eq!(JobConfig::new(&data).max_mainnet_waiting, 100, "the default cap");
+    // a testnet and a mainnet campaign from the same host, not approved yet
+    let (tid, trules) = campaign(&campaigns, "Garden Fund", &relays, 5_000_000);
+    register(&relay, &tid, &trules);
+    let (mid, mrules) = campaign_on(&campaigns, "Harbour Fund", &relays, 5_000_000, "main");
+    register(&relay, &mid, &mrules);
+    assert!(!submit_record(&c, &runs, &campaigns.join(&tid[..8])).unwrap().contains("mainnet"));
+    let msg = submit_record(&c, &runs, &campaigns.join(&mid[..8])).unwrap();
+    assert!(msg.contains("mainnet listing is not open yet, so it is kept until it opens"), "{msg}");
+    let now = host::now_secs();
+    let st = job::run_pass_at(&c, TIP, now).unwrap();
+    assert_eq!(state_of(&st, &tid).0, State::Queued, "testnet: queued as before");
+    let (s, r) = state_of(&st, &mid);
+    assert!(s == State::WaitingMainnet && r.contains("mainnet listing is not open yet") && r.contains("not approved yet"), "{s:?} {r}");
+    // the queue shows it, marked as mainnet, with no expiry; its name was read from the relay
+    let q = job::read_queue(&c).unwrap();
+    let m = q.iter().find(|x| x["campaign"] == mid.as_str()).unwrap();
+    assert_eq!((m["kind"].as_str(), m["network"].as_str(), m["expires_at"].as_u64(), m["name"].as_str()), (Some("mainnet"), Some("main"), Some(0), Some("Harbour Fund")));
+    assert_eq!(q.iter().find(|x| x["campaign"] == tid.as_str()).unwrap()["kind"], "approval");
+    // past the queue time: the testnet record expires as before, the mainnet one stays
+    let later = now + c.queue_ttl + 60;
+    let st = job::run_pass_at(&c, TIP, later).unwrap();
+    assert_eq!(state_of(&st, &tid).0, State::Expired);
+    assert_eq!(state_of(&st, &mid).0, State::WaitingMainnet);
+    assert!(data.join(format!("records/{mid}.json")).exists() && !data.join(format!("records/{tid}.json")).exists());
+    // approving the host lists its testnet campaign, never the mainnet one, and nothing mainnet is recounted (no recount is set up here,
+    // and a waiting record is never a recount candidate: it never reaches that step)
+    job::approve(&c, &pk, "Harbour Collective").unwrap();
+    submit_record(&c, &runs, &campaigns.join(&tid[..8])).unwrap();
+    let st = job::run_pass_at(&c, TIP, later + 60).unwrap();
+    assert_eq!(state_of(&st, &tid).0, State::Listed);
+    let (s, r) = state_of(&st, &mid);
+    assert!(s == State::WaitingMainnet && r.contains("host key approved"), "{s:?} {r}");
+    assert_eq!(listed(&c), vec![tid.clone()]);
+    assert!(st.iter().find(|x| x.campaign == mid).unwrap().recount.is_none());
+    // the cap: two waiting mainnet records at most (a newer record for one already waiting still replaces it)
+    let (m2, r2) = campaign_on(&campaigns, "Second Harbour", &relays, 5_000_000, "main");
+    register(&relay, &m2, &r2);
+    submit_record(&c, &runs, &campaigns.join(&m2[..8])).unwrap();
+    let (m3, _) = campaign_on(&campaigns, "Third Harbour", &relays, 5_000_000, "main");
+    let e = submit_record(&c, &runs, &campaigns.join(&m3[..8])).unwrap_err().to_string();
+    assert!(e.contains("waiting for mainnet listing to open is full"), "{e}");
+    std::thread::sleep(Duration::from_millis(1100));
+    submit_record(&c, &runs, &campaigns.join(&mid[..8])).unwrap();
+    // a reserved word in a waiting mainnet name is reported now, in the queue, so the operator sees it before mainnet opens
+    let (m4, r4) = campaign_on(&root.join("more"), "Clewbook Harbour", &relays, 5_000_000, "main");
+    register(&relay, &m4, &r4);
+    std::fs::remove_file(data.join(format!("records/{m2}.json"))).unwrap();
+    submit_record(&c, &runs, &root.join("more").join(&m4[..8])).unwrap();
+    let st = job::run_pass_at(&c, TIP, later + 120).unwrap();
+    let (s, r) = state_of(&st, &m4);
+    assert!(s == State::WaitingMainnet && r.contains("would be refused when it opens: the name contains a reserved word (clewbook)"), "{s:?} {r}");
+    // once mainnet listing is turned on (the existing switches), the waiting record is decided like any other
+    let mut open = c.clone();
+    open.allowed_networks = vec!["test".into(), "main".into()];
+    open.nu7_mainnet_height = Some(9_000_000);
+    let st = job::run_pass_at(&open, TIP, later + 180).unwrap();
+    assert_eq!(state_of(&st, &mid).0, State::Listed, "{:?}", state_of(&st, &mid));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_status_lookup_says_only_the_state_and_a_plain_reason() {
+    let root = scratch("lookup");
+    let (_server, relay) = ll_relay::spawn(&root.join("relay"), "127.0.0.1:0").unwrap();
+    let relays = vec![relay.clone()];
+    let campaigns = root.join("campaigns");
+    let runs = root.join("host");
+    let pk = host::init_key(&runs).unwrap();
+    let data = root.join("listing");
+    let c = cfg(&data);
+    let port = { let l = TcpListener::bind("127.0.0.1:0").unwrap(); l.local_addr().unwrap().port() };
+    let sc = c.clone();
+    std::thread::spawn(move || {
+        ll_listing::serve::serve(sc, &format!("127.0.0.1:{port}"), 60, Duration::from_secs(3600), Arc::new(|_: &str| Ok(TIP))).unwrap();
+    });
+    std::thread::sleep(Duration::from_millis(400));
+    let base = format!("http://127.0.0.1:{port}");
+    let ask = |id: &str| match host::status_outcome(&base, id).unwrap() {
+        host::StatusOutcome::Known(s, r) => (s, r),
+        other => panic!("{other:?}"),
+    };
+    // nothing sent yet, and a malformed id
+    let (tid, trules) = campaign(&campaigns, "Garden Fund", &relays, 5_000_000);
+    register(&relay, &tid, &trules);
+    assert_eq!(ask(&tid).0, "Not found");
+    match ureq::get(&format!("{base}/v1/records/not-an-id")).call() {
+        Err(ureq::Error::Status(404, r)) => assert_eq!(serde_json::from_str::<serde_json::Value>(&r.into_string().unwrap()).unwrap()["state"], "Not found"),
+        other => panic!("{other:?}"),
+    }
+    // received, then waiting for approval, then listed
+    submit_record(&c, &runs, &campaigns.join(&tid[..8])).unwrap();
+    assert_eq!(ask(&tid), ("Waiting".into(), "received; it is checked on the next pass (every 10 minutes)".into()));
+    job::run_pass(&c, TIP).unwrap();
+    assert_eq!(ask(&tid), ("Waiting".into(), "waiting for the Clewbook team to approve the host key".into()));
+    job::approve(&c, &pk, "Garden Collective").unwrap();
+    job::run_pass(&c, TIP).unwrap();
+    assert_eq!(ask(&tid), ("Listed".into(), "shown on the home page".into()));
+    // the answer holds the state and the reason, nothing else
+    let raw: serde_json::Value = serde_json::from_str(&ureq::get(&format!("{base}/v1/records/{tid}")).call().unwrap().into_string().unwrap()).unwrap();
+    let keys: Vec<&String> = raw.as_object().unwrap().keys().collect();
+    assert_eq!(keys, vec!["reason", "state"]);
+    // a mainnet request waits for mainnet listing; a hidden campaign is not listed
+    let (mid, mrules) = campaign_on(&campaigns, "Harbour Fund", &relays, 5_000_000, "main");
+    register(&relay, &mid, &mrules);
+    submit_record(&c, &runs, &campaigns.join(&mid[..8])).unwrap();
+    job::hide(&c, &tid, true).unwrap();
+    job::run_pass(&c, TIP).unwrap();
+    assert_eq!(ask(&mid).0, "Waiting for mainnet listing to open");
+    assert!(ask(&mid).1.contains("the request is kept until then"));
+    assert_eq!(ask(&tid), ("Not listed".into(), "this campaign is not listed here".into()));
+    // a refusal carries the pass's own reason
+    std::fs::write(data.join("reserved.txt"), "contains:garden\n").unwrap();
+    job::hide(&c, &tid, false).unwrap();
+    let (gid, grules) = campaign(&campaigns, "Garden Two", &relays, 5_000_000);
+    register(&relay, &gid, &grules);
+    submit_record(&c, &runs, &campaigns.join(&gid[..8])).unwrap();
+    job::run_pass(&c, TIP).unwrap();
+    assert_eq!(ask(&gid), ("Not listed".into(), "the name contains a reserved word (garden)".into()));
     let _ = std::fs::remove_dir_all(&root);
 }

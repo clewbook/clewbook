@@ -108,4 +108,21 @@ mod tests {
         assert!(contains_reserved("clewb00k presale", "Clewbook"));
         assert!(!contains_reserved("Garden Fund", "clewbook"));
     }
+
+    #[test]
+    fn an_operator_word_is_caught_plain_mixed_case_look_alike_and_inside_a_longer_name() {
+        // invented words: the operator's own words live only in the server's reserved.txt, never in the code
+        for name in ["morvey", "Morvey", "MORVEY", "mOrVeY", "m0rv3y", "mоrvеу" /* Cyrillic о, е and у */, "Morvεy" /* Greek ε */,
+                     "My Morvey Garden", "TheMorveyFund", "Fund-of-morvey!", "zmorvey", "Zmorvey Presale", "Superzmorveyfund"] {
+            assert!(contains_reserved(name, "morvey"), "{name:?}");
+        }
+        for name in ["zmorvey", "ZMORVEY", "Zm0rv3y", "zmоrvеу drive"] {
+            assert!(contains_reserved(name, "zmorvey"), "{name:?}");
+        }
+        for name in ["Morven Fund", "Morse Code Club", "Garden Fund"] {
+            assert!(!contains_reserved(name, "morvey"), "{name:?} must stay allowed");
+        }
+        // spaces and signs are ignored, as for Clewbook ("clew book")
+        assert!(contains_reserved("Mor Vey Club", "morvey"));
+    }
 }
