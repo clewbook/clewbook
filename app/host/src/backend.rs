@@ -16,8 +16,8 @@ pub struct AccountInfo {
 }
 
 /// A transaction to build: pay `value_zat` to `to_address`, spending exactly the notes
-/// locked by `lock_owners`, with the outgoing viewing key discarded. Tickets never expire
-/// (`no_expiry`); a sweep uses the normal expiry.
+/// locked by `lock_owners`, with the outgoing viewing key discarded. Refund tickets, sweeps
+/// and auction settlements all set `no_expiry` (expiry height 0), so they never expire.
 pub struct SpendRequest {
     pub to_address: String,
     pub value_zat: u64,
