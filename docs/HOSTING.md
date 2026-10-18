@@ -157,7 +157,7 @@ Then:
 2. Send a listing request: `cb-host listing-record --run runs/<campaign folder> --runs-dir runs --out listing-request.json --post https://listing.clewbook.xyz`. It writes the same request as the button to the file and sends it to `https://listing.clewbook.xyz/v1/records`. Its relays come from the campaign's `private/relays`, or repeat `--relay https://<your_relay_address>`. The answer says "received"; nothing is decided at that moment.
 3. Then the same two steps as above.
 
-What approval means: **we show your campaign under Clewbook with your label. It is not an audit**, and it says nothing about what the campaign is for. The label shown with your campaigns ("Hosted by <label>") comes from us, never from your request; it follows the same rules as campaign names, and it may not contain the word Clewbook. Campaign names that look like a name already listed, or like the word Clewbook in any spelling, are refused.
+What approval means: **we show your campaign under Clewbook with your label. It is not an audit**, and it says nothing about what the campaign is for. Once your host key is approved, your campaign's own page and its contribute page show one small line under the campaign's name: "Hosted by <label>". The home page never shows it. The label comes from us, never from your request; it follows the same rules as campaign names, and it may not contain the word Clewbook. Campaign names that look like a name already listed, or like the word Clewbook in any spelling, are refused.
 
 Some things to know:
 

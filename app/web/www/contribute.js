@@ -9,7 +9,7 @@ import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
-import { campaignView, metaLine, rulesCard, whoSeesWhat } from './public.js';
+import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -441,6 +441,7 @@ function renderAbout() {
   $('#q-rules').replaceChildren(...qr.map(([k, v]) => { const d = document.createElement('div'); d.append(Object.assign(document.createElement('span'), { textContent: k }), Object.assign(document.createElement('b'), { textContent: v })); return d; }));
   $('#addr-prefix').textContent = campaign.network === 'test' ? 'utest1' : 'u1';
   $('#cname').textContent = campaignName(); $('#cname').hidden = false;
+  showHostedBy();
   $('#amount-label').innerHTML = `${raise ? 'Amount' : 'Your bid'} (<span class="ticker">${campaign.ticker}</span>)`;
   $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
   const closed = view.entries.some((e) => e.kind === 'close');
@@ -846,6 +847,18 @@ async function onNoirPay() {
   }
 }
 
+/** "Hosted by <label>" under the campaign's name in the header (the closed page draws its own, in the shared campaign view). The label comes
+ *  only from this site's campaigns.json (see public.js); it is set as plain text and stays hidden when there is none. */
+let hostedByLabel; // undefined: not asked yet; null: none
+function showHostedBy() {
+  const line = $('#hosted-by-c');
+  if (hostedByLabel === undefined && cfg.id) {
+    hostedByLabel = null;
+    hostLabel(cfg.id).then((label) => { if (label) { hostedByLabel = label; line.textContent = `Hosted by ${label}`; line.title = 'Name given by Clewbook to an approved host.'; } showHostedBy(); });
+  }
+  line.hidden = !hostedByLabel || $('#cname').hidden;
+}
+
 function paymentFromState() {
   return JSON.parse(W.build_payment(rulesJson, state.seed, state.refund, state.amountZat));
 }
@@ -968,6 +981,7 @@ function renderAllInner() {
     }
   } else cc.dataset.key = '';
   $('#cname').hidden = closedView() || !campaign;
+  showHostedBy();
   // the Done screen
   if (showDone && campaign) {
     $('#done-h').textContent = campaign.mode === 'raise' ? "You're in." : 'Your bid is in.';

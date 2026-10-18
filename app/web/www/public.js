@@ -6,6 +6,58 @@ import { amountHTML, outcomeWords, decorateAmounts } from './ui.js';
 
 export const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
 
+// ---------- "Hosted by <label>" (owner decisions 16 Oct) ----------
+// Only on an opened campaign (campaign page, contribute page), never on the home page. The label comes only from this site's own
+// campaigns.json: the host object the listing job writes for an approved host, looked up by the campaign id; never from the link, a relay,
+// the rules or anything the host sends. Campaigns of the hand kept list have no host object, so they show nothing.
+const MAX_LABEL = 60;
+/** The campaign name rules (as ll_core::rules::check_name): 1 to 60 characters, ordinary spaces only, no control, invisible or direction
+ *  changing characters, no < or >. A label that breaks them is not shown. */
+export function labelOk(s) {
+  if (typeof s !== 'string') return false;
+  const n = [...s].length;
+  if (n === 0 || n > MAX_LABEL || s !== s.trim() || s.includes('  ')) return false;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    const invisible = cp === 0xAD || cp === 0x34F || cp === 0x61C || cp === 0x115F || cp === 0x1160 || cp === 0x17B4 || cp === 0x17B5 || (cp >= 0x180B && cp <= 0x180E)
+      || (cp >= 0x200B && cp <= 0x200F) || (cp >= 0x2028 && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x206F) || cp === 0x3164 || (cp >= 0xFE00 && cp <= 0xFE0F)
+      || cp === 0xFEFF || cp === 0xFFA0 || (cp >= 0xFFF9 && cp <= 0xFFFB) || (cp >= 0xE0000 && cp <= 0xE0FFF);
+    if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F) || invisible || ch === '<' || ch === '>' || (/\s/.test(ch) && ch !== ' ')) return false;
+  }
+  return true;
+}
+let hostLabels = null; // read once per page: campaign id -> label
+async function loadHostLabels() {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 5000); // never holds anything up: the page does not wait for it
+  try {
+    const r = await fetch('campaigns.json', { cache: 'no-store', signal: ctl.signal });
+    if (!r.ok) return new Map();
+    const j = await r.json();
+    const m = new Map();
+    for (const c of j && Array.isArray(j.campaigns) ? j.campaigns : []) {
+      const label = c && c.host && c.host.label;
+      if (typeof c.id === 'string' && /^[0-9a-f]{64}$/.test(c.id) && labelOk(label)) m.set(c.id, label);
+    }
+    return m;
+  } catch { return new Map(); } finally { clearTimeout(t); }
+}
+/** The approved host's label for a campaign, or null. */
+export function hostLabel(id) {
+  if (!hostLabels) hostLabels = loadHostLabels();
+  return hostLabels.then((m) => m.get(id) || null);
+}
+/** Fills a "Hosted by" line (plain text only) once the label is known; it stays hidden when there is none. */
+export function fillHostedBy(line, id) {
+  line.hidden = true;
+  hostLabel(id).then((label) => {
+    if (!label || !line.isConnected) return;
+    line.textContent = `Hosted by ${label}`;
+    line.title = 'Name given by Clewbook to an approved host.';
+    line.hidden = false;
+  });
+}
+
 export function linkParams() {
   const p = new URLSearchParams(location.hash.slice(1));
   const clean = (u) => u.replace(/\/$/, '');
@@ -298,7 +350,9 @@ export function campaignView(box, v) {
   box.replaceChildren();
   const grid = el('div', 'cv'), main = el('div', 'cmain cv-main');
   const h1 = el('h1', 'cv-h cname', c.name || `${auction ? 'Auction' : 'Fundraiser'} ${v.id.slice(0, 8)}…`); h1.id = 'display-name';
-  main.append(h1);
+  const hosted = el('p', 'hostedby', ''); hosted.id = 'hosted-by';
+  main.append(h1, hosted);
+  fillHostedBy(hosted, v.id);
 
   // the facts: closed, outcome, terms and network; otherwise the campaign page's open cards
   const facts = [];
