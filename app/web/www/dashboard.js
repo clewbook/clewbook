@@ -132,7 +132,7 @@ function render(s) {
     ['Raised so far', `${coin(s.counts.raised_zat)} ${ticker}`],
     ['Ticket window', `${s.ticket_k} blocks`],
     ['Smallest contribution', `${coin(s.min_zat)} ${ticker}`],
-    ['Network', s.network === 'main' ? 'Main network' : 'Test network (no real money)'],
+    ['Network', s.network === 'main' ? 'Main network' : 'Testnet'],
     ['Last network check', s.last_check.seconds_ago == null ? 'not yet' : `${s.last_check.seconds_ago} seconds ago${s.last_check.ok ? '' : ' (failed)'}`],
   ]);
   const c = s.counts;

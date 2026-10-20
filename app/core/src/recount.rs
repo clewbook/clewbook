@@ -108,7 +108,12 @@ pub fn replayed_keys(rules: &Rules, notes: &[ChainNote], rejected: &BTreeSet<Str
 pub fn replayed_keys_until(rules: &Rules, end: u32, notes: &[ChainNote], rejected: &BTreeSet<String>) -> BTreeSet<(String, u32)> {
     let in_range = |n: &ChainNote| n.height.is_some_and(|h| h >= rules.start_height && h <= end);
     let mut keys = BTreeSet::new();
-    let mut order: Vec<&ChainNote> = notes.iter().filter(|n| !n.is_change && in_range(n) && n.memo_text.as_deref().is_some_and(is_payload_shaped)).collect();
+    // A payment below the campaign minimum is never a contribution (the host skips it without an entry), so it cannot use up a message
+    // either: otherwise a small copy mined first would turn the real payment into a "replay" (the encrypted bids research, flaw 2).
+    let mut order: Vec<&ChainNote> = notes
+        .iter()
+        .filter(|n| !n.is_change && in_range(n) && n.value_zat >= rules.min_contribution_zat && n.memo_text.as_deref().is_some_and(is_payload_shaped))
+        .collect();
     order.sort_by(|x, y| x.height.cmp(&y.height).then(x.tx_index.cmp(&y.tx_index)).then(x.txid.cmp(&y.txid)).then(x.action.cmp(&y.action)));
     // A payment the host rejected (for instance because it was smaller than the amount sealed in its message) does not use up the
     // message: a later payment with the same message can still be the contribution. Only an accepted payment does.
@@ -211,8 +216,8 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
             if let Some(amt) = opened.and_then(|p| p.amount_zat) {
                 if n.value_zat < amt {
                     a.false_rejects.push(format!(
-                        "{}:{} was accepted as a contribution, but the published secret opens a message promising at least {amt} zat and only {} zat were paid",
-                        n.txid, n.action, n.value_zat
+                        "{}:{} was accepted as a contribution, but the published secret opens a message promising at least {} and only {} were paid",
+                        n.txid, n.action, rules.amount(amt), rules.amount(n.value_zat)
                     ));
                 }
             }
@@ -485,20 +490,20 @@ pub fn recount_with(
         if c.close_height <= rules.deadline_height {
             // early: only a fundraiser whose rules allow it, and only as "goal met" (R7 checks the goal really was met by then)
             if !rules.allows_early_close() {
-                r2.push(format!("closed at {} before the deadline {}", c.close_height, rules.deadline_height));
+                r2.push(format!("closed at block {} before the deadline, block {}", c.close_height, rules.deadline_height));
             } else if c.outcome != "goal_met" {
-                r2.push(format!("closed early at {} (before the deadline {}) with outcome {:?}; an early close is allowed only once the goal is met", c.close_height, rules.deadline_height, c.outcome));
+                r2.push(format!("closed early at block {} (before the deadline, block {}) with outcome {:?}; an early close is allowed only once the goal is met", c.close_height, rules.deadline_height, c.outcome));
             }
         }
     }
     let info2 = match close {
         Some(c) if rules.allows_early_close() && c.close_height <= rules.deadline_height => vec![format!(
-            "closed early at {} ({} blocks before the deadline), which this campaign's rules allow once the goal is met; payments after block {} do not count",
+            "closed early at block {} ({} blocks before the deadline), which this campaign's rules allow once the goal is met; payments after block {} do not count",
             c.close_height, rules.deadline_height - c.close_height, c.close_height
         )],
         _ => vec![],
     };
-    results.push(rule("R2", "ledger is signed, chained, gap-free, closed at most once after the deadline", r2, info2));
+    results.push(rule("R2", "ledger is signed, chained, with no gaps, closed at most once after the deadline", r2, info2));
 
     // a fundraiser closed early (allowed by its rules) is closed from its close height on; payments after it do not count
     let end = contribution_end(rules, ledger);
@@ -608,9 +613,9 @@ pub fn recount_with(
         let due = h + rules.ticket_k;
         match n.nf.as_deref().and_then(|nf| a.first_issue.get(nf)) {
             Some(issued) if *issued <= due => {}
-            Some(issued) => r4b.push(format!("{}:{} ticketed at {issued} (the height the host reports), due by {due}", n.txid, n.action)),
+            Some(issued) => r4b.push(format!("{}:{} ticketed in block {issued} (the block the host reports), due by block {due}", n.txid, n.action)),
             None if tip <= due => pending += 1,
-            None => r4.push(format!("{}:{} (height {h}) has no ticket, due by {due}", n.txid, n.action)),
+            None => r4.push(format!("{}:{} (block {h}) has no ticket, due by block {due}", n.txid, n.action)),
         }
     }
     let info4 = if pending > 0 { vec![format!("{pending} contribution(s) still inside the K-block window")] } else { vec![] };
@@ -632,7 +637,7 @@ pub fn recount_with(
             continue;
         };
         let by_ticket = a.tickets.get(&nf).is_some_and(|t| t.contains(&s.txid));
-        let evidence = format!("nullifier {nf} spent by {} at height {h}, not by its ticket", s.txid);
+        let evidence = format!("nullifier {nf} spent by {} in block {h}, not by its ticket", s.txid);
         match (h <= end, by_ticket) {
             (true, true) => totals.withdrawn_zat += n.value_zat,
             (true, false) => r5.push(evidence),
@@ -670,7 +675,7 @@ pub fn recount_with(
                 }
                 if let Some(plan) = &a.plan {
                     if c.clearing_price_zat != Some(plan.price_zat) {
-                        r7.push(format!("declared clearing price {:?} differs from the recomputed {} (reserve {}, {} winner(s))", c.clearing_price_zat, plan.price_zat, plan.reserve_zat, plan.winners.len()));
+                        r7.push(format!("declared clearing price {} differs from the recomputed {} (reserve {}, {} winner(s))", c.clearing_price_zat.map_or("none".to_string(), |p| rules.amount(p)), rules.amount(plan.price_zat), rules.amount(plan.reserve_zat), plan.winners.len()));
                     }
                 }
                 if c.outcome != "auction" {
@@ -709,12 +714,12 @@ pub fn recount_with(
         .filter_map(|n| {
             let s = n.spent_by.as_ref()?;
             Some(format!(
-                "host swept a payment it rejected: {} zat ({}:{}), spent by {} at height {}. If this was a genuine contribution, its contributor can still publish a challenge.",
-                n.value_zat,
+                "host swept a payment it rejected: {} ({}:{}), spent by {} in {}. If this was a genuine contribution, its contributor can still publish a challenge.",
+                rules.amount(n.value_zat),
                 n.txid,
                 n.action,
                 s.txid,
-                s.height.map_or("unconfirmed".to_string(), |h| h.to_string())
+                s.height.map_or("a transaction not yet in a block".to_string(), |h| format!("block {h}"))
             ))
         })
         .collect();
@@ -723,7 +728,7 @@ pub fn recount_with(
         warnings.push(format!(
             "{} payment(s) repeated the sealed message of an earlier payment and were set aside as non-refundable donations (one payment code paid twice counts once): {}",
             a.replayed.len(),
-            a.replayed.iter().map(|n| format!("{}:{} ({} zat)", n.txid, n.action, n.value_zat)).collect::<Vec<_>>().join(", ")
+            a.replayed.iter().map(|n| format!("{}:{} ({})", n.txid, n.action, rules.amount(n.value_zat))).collect::<Vec<_>>().join(", ")
         ));
     }
     let mut auction = None;
@@ -739,7 +744,7 @@ pub fn recount_with(
 }
 
 fn zec(zat: u64) -> String {
-    format!("{}.{:08}", zat / 100_000_000, zat % 100_000_000)
+    crate::coin(zat)
 }
 
 /// The recount's text report. Shared by the command line and the browser so both print
@@ -747,7 +752,8 @@ fn zec(zat: u64) -> String {
 pub fn render(report: &Report, rules: &Rules) -> String {
     use std::fmt::Write;
     let mut o = String::new();
-    let _ = writeln!(o, "Recount at height {} (campaign {}, deadline {})", report.tip, report.phase, rules.deadline_height);
+    let _ = writeln!(o, "Recount at block {} (campaign {}, deadline block {})", report.tip, report.phase, rules.deadline_height);
+    let unit = if rules.network == "main" { "ZEC" } else { "TAZ" };
     for r in &report.results {
         let _ = writeln!(o, "  {} {}  {}", r.id, if r.waiting { "WAIT" } else if r.pass { "PASS" } else { "FAIL" }, r.title);
         for d in &r.details {
@@ -757,7 +763,7 @@ pub fn render(report: &Report, rules: &Rules) -> String {
     let t = &report.totals;
     let visible = report.goal_met.is_some() || report.winners.is_some();
     if visible {
-        let _ = writeln!(o, "  Totals: raised {} ZEC in {} contribution(s)", zec(t.raised_zat), t.contributions);
+        let _ = writeln!(o, "  Totals: raised {} {unit} in {} contribution(s)", zec(t.raised_zat), t.contributions);
         let _ = writeln!(
             o,
             "          withdrawn early {}, refunded {}, kept {}, still pending {}",
@@ -783,7 +789,7 @@ pub fn render(report: &Report, rules: &Rules) -> String {
         }
         let _ = writeln!(
             o,
-            "  Non-refundable donations (no valid memo or rejected): {} ZEC in {} payment(s)",
+            "  Non-refundable donations (no valid memo or rejected): {} {unit} in {} payment(s)",
             zec(t.donations_zat),
             t.donations
         );

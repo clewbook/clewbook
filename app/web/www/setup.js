@@ -46,7 +46,7 @@ function renderTerms() {
     row('Smallest contribution', min),
     row('Deadline', Number.isInteger(n) && n > 0 ? `${measured.tip != null ? `about block ${(measured.tip + n).toLocaleString('en-US')} (now ${measured.tip.toLocaleString('en-US')}, plus ${n.toLocaleString('en-US')})` : `${n.toLocaleString('en-US')} blocks from now`}${time ? `, ${time} from now` : ''}` : '<span class="dim">not entered yet</span>'),
     row('Ticket window', Number.isInteger(Number($('#ticketk').value)) && Number($('#ticketk').value) > 0 ? `${Number($('#ticketk').value).toLocaleString('en-US')} blocks${etaText(Number($('#ticketk').value), measured.secondsPerBlock) ? `, ${etaText(Number($('#ticketk').value), measured.secondsPerBlock)}` : ''}` : '<span class="dim">not entered yet</span>'),
-    row('Network', config ? (config.network === 'main' ? 'Zcash Mainnet' : 'Test network (no real money)') : ''),
+    row('Network', config ? (config.network === 'main' ? 'Zcash Mainnet' : 'Testnet') : ''),
   ].join('');
   decorateAmounts($('#terms'));
 }

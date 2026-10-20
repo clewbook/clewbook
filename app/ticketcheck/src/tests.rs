@@ -246,3 +246,40 @@ fn your_amount_exact_under_over() {
     assert!(failing(&ch).is_empty(), "{ch:?}");
     assert!(ch.iter().any(|x| x.id == "your_amount" && x.detail.contains("more than the") && x.detail.contains("the whole payment counts")));
 }
+
+#[test]
+fn an_auction_ticket_that_pays_back_less_fails_in_the_library_without_help_from_the_page() {
+    // flaw 1 (encrypted bids research): the list of a sealed-bid auction hides the amount, and before this fix a page that passed no expected
+    // refund got a pass for any value. The sample ticket refunds 990 000 of 1 000 000 with a fee of 10 000.
+    let f = v2();
+    let mut i = inputs2(&f);
+    i.expected_value_zat = None;
+    i.listed_contribution_zat = None;
+    // the amount the bidder meant to pay is known: at least that minus the fee
+    i.intended_contribution_zat = Some(1_000_000);
+    assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+    i.intended_contribution_zat = Some(1_500_000);
+    let ch = check(&i);
+    assert_eq!(failing(&ch), vec!["pays_you"], "{ch:?}");
+    assert!(ch.iter().any(|x| x.detail == "the ticket pays you 990000 zatoshi but your contribution minus the fee is 1490000"), "{ch:?}");
+    i.intended_contribution_zat = Some(1_000_001);
+    assert_eq!(failing(&check(&i)), vec!["pays_you"]);
+    // the bidder paid more than they meant: the whole payment counts, so a larger refund is right
+    i.intended_contribution_zat = Some(900_000);
+    assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+    // the payment itself is known: the refund must be exactly the payment minus the fee
+    i.paid_zat = Some(1_000_000);
+    assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+    i.paid_zat = Some(1_200_000);
+    let ch = check(&i);
+    assert_eq!(failing(&ch), vec!["pays_you"], "{ch:?}");
+    assert!(ch.iter().any(|x| x.detail == "the ticket pays you 990000 zatoshi but your payment minus the fee is 1190000"), "{ch:?}");
+    // nothing known on this device: not compared, as before (the address is still checked)
+    i.paid_zat = None;
+    i.intended_contribution_zat = None;
+    assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+    // a fundraiser is unchanged: the list's amount decides through the expected refund the page passes
+    i.listed_contribution_zat = Some(1_000_000);
+    i.expected_value_zat = Some(990_000);
+    assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+}

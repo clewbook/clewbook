@@ -121,7 +121,7 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 - **No outside review.** The code and the design have not been reviewed by anyone outside the project. The tests and evidence here are ours.
 - **Some heights are the host's own statement:** when a ticket was issued (R4b) and when an early close happened.
 - **The host sees every bid** in an auction as it arrives, and could bid itself from another wallet.
-- **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade (NU7) is announced for 5 November 2026. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before that date.
+- **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade (NU7) has no confirmed date; the project assumes 5 November 2026. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before the project's assumed upgrade date.
 - **Network addresses are not hidden:** relays and public chain servers see who contacts them.
 
 All limits: [docs/LIMITS.md](docs/LIMITS.md). Who can do what, and what stops them: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). Mainnet and the upgrade: [docs/MAINNET.md](docs/MAINNET.md).

@@ -111,7 +111,7 @@ async function getText(url) {
 }
 
 /** Reads rules, ledger and challenges from one relay and checks what it can: the rules must hash to the
- *  campaign id, and the ledger must be signed, chained and gap-free. */
+ *  campaign id, and the ledger must be signed, chained and with no gaps. */
 export async function readRelay(url, id) {
   try {
     const rules = await getText(`${url}/v1/campaigns/${id}`);
@@ -127,7 +127,7 @@ export async function readRelay(url, id) {
 }
 
 /** A saved copy of the public list (the host's export or backup: rules + signed list), checked the way a relay's copy is: the rules must hash to the
- *  campaign id and the list must be signed, chained and gap-free. Returns the same shape as `judge`, as a single source marked `fromFile`; throws a plain
+ *  campaign id and the list must be signed, chained and with no gaps. Returns the same shape as `judge`, as a single source marked `fromFile`; throws a plain
  *  message when the file is not usable. */
 export function fromSavedCopy(text, id) {
   let d;

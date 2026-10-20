@@ -41,3 +41,10 @@ pub fn memo_text(memo: &[u8]) -> Option<String> {
     let end = memo.iter().rposition(|b| *b != 0).map_or(0, |i| i + 1);
     String::from_utf8(memo[..end].to_vec()).ok()
 }
+
+/// An amount in zatoshis as a decimal coin amount, trimmed: no trailing zeros and no decimal point for a whole amount, never rounded
+/// (990000 is "0.0099", 100000000 is "1").
+pub fn coin(zat: u64) -> String {
+    let (whole, frac) = (zat / 100_000_000, zat % 100_000_000);
+    if frac == 0 { whole.to_string() } else { format!("{whole}.{frac:08}").trim_end_matches('0').to_string() }
+}

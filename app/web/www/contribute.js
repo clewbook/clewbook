@@ -492,7 +492,7 @@ function renderAbout() {
     rows.push({ k: 'Public list', v: `${seen.size} ${seen.size === 1 ? 'contribution' : 'contributions'}, ${coin(total)} ${t}`, dim: 'taken back included' });
     rows.push({ k: 'Live totals', link: { href: `recount.html#c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`, text: 'See live totals (the recount)' } });
   }
-  if (campaign.network !== 'main') rows.push({ k: 'Network', v: 'Test network: no real money' });
+  if (campaign.network !== 'main') rows.push({ k: 'Network', v: 'Testnet' });
   rows.push({ k: 'Ticket window', v: `${campaign.ticket_k} blocks`, sub: 'Your refund ticket is issued within this window, and if the campaign has not closed this long after the deadline you may claim your own refund.' }); // always the last row
   const key = JSON.stringify(rows);
   if ($('#about-card').dataset.key !== key) { // redrawn only when a fact changes, so an opened ▾ stays open across the page's refresh

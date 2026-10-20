@@ -18,7 +18,7 @@ PAGES = {"index.html", "recount.html", "campaign.html", "card.html", "badge.html
 FILES = PAGES | {
     "robots.txt", "campaigns.json",
     "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css",
-    "loadguard.js", "start.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
+    "loadguard.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
     "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js",
 }
 PATTERNS = [re.compile(p) for p in (

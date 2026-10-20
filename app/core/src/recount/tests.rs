@@ -364,7 +364,7 @@ fn sweeping_a_rejected_payment_warns_with_the_amount_but_does_not_fail() {
     let r = f.run(&l, &[spent(a.clone(), "host-spend", 160)], &[], 170);
     assert!(r.all_pass(), "{:?}", failing(&r));
     assert_eq!(r.warnings.len(), 1);
-    assert!(r.warnings[0].contains("1250000 zat") && r.warnings[0].contains("host-spend"));
+    assert!(r.warnings[0].contains("host swept a payment it rejected: 0.0125 TAZ (") && r.warnings[0].contains("host-spend"));
     // A challenge is valid at any time, including after the host spent the money.
     let r = f.run(&l, &[spent(a.clone(), "host-spend", 160)], &[challenge(&a, 7)], 100_000);
     assert!(failing(&r).contains(&"R8"));
@@ -384,7 +384,7 @@ fn a_replayed_payload_is_one_contribution_and_one_donation_with_a_plain_note() {
     let r = f.run(&l, &[original.clone(), copy.clone()], &[], 150);
     assert!(r.all_pass(), "{:?}", failing(&r));
     assert_eq!((r.totals.contributions, r.totals.donations, r.totals.donations_zat), (1, 1, 400_000));
-    assert!(r.warnings.iter().any(|w| w.contains("repeated the sealed message of an earlier payment") && w.contains("400000 zat")), "{:?}", r.warnings);
+    assert!(r.warnings.iter().any(|w| w.contains("repeated the sealed message of an earlier payment") && w.contains(" (0.004 TAZ)")), "{:?}", r.warnings);
 }
 
 #[test]
@@ -447,7 +447,7 @@ fn a_message_copied_into_an_earlier_payment_takes_the_contributors_place_but_is_
     assert!(r.all_pass(), "{:?}", failing(&r));
     assert_eq!((r.totals.contributions, r.totals.raised_zat, r.totals.donations_zat), (1, 20_000, 5_000_000));
     let w = r.warnings.join(" ");
-    assert!(w.contains("repeated the sealed message of an earlier payment") && w.contains("5000000 zat"), "{w}");
+    assert!(w.contains("repeated the sealed message of an earlier payment") && w.contains(" (0.05 TAZ)"), "{w}");
     // a host that rejects the earlier payment and tickets the later one: a reject does not use up the message, so this is consistent for
     // the public (it cannot see why); the contributor's published secret shows the earlier payment was a valid contribution after all (R8)
     let l = f.ledger(vec![f.entry("issue", &victim), f.entry("reject", &copier)]);
@@ -480,7 +480,7 @@ fn a_copier_paying_less_does_not_take_the_contributors_place() {
     assert!(f.run(&l, &[victim.clone(), copy.clone()], &[], 150).all_pass(), "without the secret the public cannot see the promised amount");
     let r = f.run(&l, &[victim.clone(), copy.clone()], &[challenge(&copy, 1)], 150);
     assert_eq!(failing(&r), vec!["R8"]);
-    assert!(r.results.iter().find(|x| x.id == "R8").unwrap().details.iter().any(|d| d.contains("promising at least 1000000") && d.contains("only 20000")));
+    assert!(r.results.iter().find(|x| x.id == "R8").unwrap().details.iter().any(|d| d.contains("promising at least 0.01 TAZ and only 0.0002 TAZ were paid")));
 }
 
 #[test]
@@ -494,7 +494,7 @@ fn a_copier_paying_exactly_the_same_amount_still_wins_but_costs_them_the_whole_a
     let r = f.run(&l, &[victim.clone(), copy.clone()], &[], 150);
     assert!(r.all_pass(), "{:?}", failing(&r));
     assert_eq!((r.totals.contributions, r.totals.raised_zat, r.totals.donations_zat), (1, 1_000_000, 1_000_000));
-    assert!(r.warnings.iter().any(|w| w.contains("repeated the sealed message of an earlier payment") && w.contains("1000000 zat")), "{:?}", r.warnings);
+    assert!(r.warnings.iter().any(|w| w.contains("repeated the sealed message of an earlier payment") && w.contains(" (0.01 TAZ)")), "{:?}", r.warnings);
     // a challenge cannot revive the later payment: it is a repeat, not a new contribution
     assert!(f.run(&l, &[victim.clone(), copy.clone()], &[challenge(&victim, 1)], 150).all_pass());
 }
@@ -591,8 +591,11 @@ fn the_validity_rule_names_each_problem_with_a_code() {
     assert_eq!(check(&p(3, [0xff; 43], None), &f.id, 50_000, 10_000), Err(Invalid::ReceiverBytes));
     assert_eq!(check(&p(3, valid_receiver(), None), &f.id, 10_000, 10_000), Err(Invalid::NothingToRefund { paid: 10_000, fee: 10_000 }));
     // the reason starts with plain words (the contribute page matches "underpaid" at the start) and ends with the code
-    let u = Invalid::Underpaid { paid: 1, promised: 2 }.reason();
+    let u = Invalid::Underpaid { paid: 1, promised: 2 }.reason(&f.rules);
     assert!(u.starts_with("underpaid:") && u.ends_with("[underpaid]"), "{u}");
+    // amounts are trimmed and carry the network's unit (test rules: TAZ)
+    assert_eq!(u, "underpaid: 0.00000001 TAZ were paid but the sealed message promises at least 0.00000002 TAZ, so this payment is not a contribution [underpaid]");
+    assert_eq!(Invalid::NothingToRefund { paid: 10_000, fee: 10_000 }.reason(&f.rules), "0.0001 TAZ leaves nothing to refund after the 0.0001 TAZ fee [nothing_to_refund]");
 }
 
 #[test]
@@ -638,7 +641,7 @@ fn an_early_close_once_the_goal_is_met_passes_and_later_payments_do_not_count() 
         assert_eq!(r.phase, "closed", "closed from the early close on, although the deadline has not come");
         assert_eq!(r.totals.contributions, 2, "the payment after the close height is not counted");
         assert_eq!(r.totals.donations, 0, "and it is not a donation either: it is a late payment");
-        assert!(r.results[1].details.iter().any(|d| d.contains("closed early at 150")), "{:?}", r.results[1].details);
+        assert!(r.results[1].details.iter().any(|d| d.contains("closed early at block 150 (")), "{:?}", r.results[1].details);
     }
 }
 
@@ -708,7 +711,7 @@ fn a_ticket_issued_late_but_honestly_fails_r4b_only() {
     let l = f.ledger(vec![issued_at(&f, &a, 125)]); // due by 120
     let r = f.run(&l, &[a.clone()], &[], 150);
     assert_eq!(failing(&r), vec!["R4b"]);
-    assert!(by_id(&r, "R4b").details[0].contains("ticketed at 125 (the height the host reports), due by 120"), "{:?}", by_id(&r, "R4b").details);
+    assert!(by_id(&r, "R4b").details[0].contains("ticketed in block 125 (the block the host reports), due by block 120"), "{:?}", by_id(&r, "R4b").details);
     assert!(by_id(&r, "R4b").title.contains("host reported"));
 }
 
@@ -889,4 +892,23 @@ fn a_cap_is_for_fundraisers_only_at_least_the_goal_and_leaves_older_ids_unchange
     let mut auction = fx("auction").rules;
     auction.cap_zat = Some(4_000_000);
     assert!(auction.validate().is_err(), "an auction has items, not a cap");
+}
+
+// Flaw 2 (encrypted bids research, 13-flaws-found.md): a copy of the message in a payment BELOW the minimum, mined first. The host writes no
+// entry for it (host/src/main.rs, the `min_contribution_zat` test in `issue_pending`) and tickets the real payment. The recount must agree:
+// the small copy does not use up the message, so an honest host passes, and a host that writes nothing is caught.
+#[test]
+fn a_copy_below_the_minimum_mined_first_does_not_use_up_the_message() {
+    let f = v2fx(1_000_000);
+    let mut copy = f.note(2, 19_999, 119, f.good_memo(1)); // below min_contribution_zat (20 000), same sealed message
+    copy.nf = Some(hex::encode([202u8; 32]));
+    let victim = f.note(1, 1_000_000, 120, f.good_memo(1));
+    // the honest host: a ticket for the real payment, nothing for the small copy
+    let honest = f.run(&f.ledger(vec![f.entry("issue", &victim)]), &[victim.clone(), copy.clone()], &[], 150);
+    assert!(failing(&honest).is_empty(), "an honest host must pass: {:?}", failing(&honest));
+    assert_eq!(honest.totals.contributions, 1);
+    assert_eq!(honest.totals.raised_zat, 1_000_000);
+    // a host that writes nothing at all can no longer keep the real payment as a donation unnoticed
+    let silent = f.run(&f.ledger(vec![]), &[victim, copy], &[], 150);
+    assert_eq!(failing(&silent), vec!["R4"], "the real payment has no ticket");
 }

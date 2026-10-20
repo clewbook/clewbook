@@ -146,16 +146,17 @@ impl Invalid {
         }
     }
 
-    /// The reason in a reject entry: plain words first (pages match on how it starts), the code last in brackets.
-    pub fn reason(&self) -> String {
+    /// The reason in a reject entry: plain words first (pages match on how it starts), the code last in brackets. Amounts are trimmed and
+    /// carry the network's unit (`rules.network`).
+    pub fn reason(&self, rules: &crate::rules::Rules) -> String {
         let text = match self {
             Invalid::OtherCampaign => "payload is for another campaign".to_string(),
             Invalid::Underpaid { paid, promised } => {
-                format!("underpaid: {paid} zat were paid but the sealed message promises at least {promised} zat, so this payment is not a contribution")
+                format!("underpaid: {} were paid but the sealed message promises at least {}, so this payment is not a contribution", rules.amount(*paid), rules.amount(*promised))
             }
             Invalid::ReceiverType(t) => format!("unsupported refund receiver type {t}"),
             Invalid::ReceiverBytes => "the refund address in the sealed message is not a valid address, so no refund can be built for it".to_string(),
-            Invalid::NothingToRefund { paid, fee } => format!("{paid} zat leave nothing to refund after the {fee} zat fee"),
+            Invalid::NothingToRefund { paid, fee } => format!("{} leaves nothing to refund after the {} fee", rules.amount(*paid), rules.amount(*fee)),
         };
         format!("{text} [{}]", self.code())
     }

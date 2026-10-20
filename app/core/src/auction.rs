@@ -92,11 +92,11 @@ pub fn check_uniform(
         }
         if by_ticket {
             // after settle_by (inside the window it is a default, handled above)
-            r9.push(format!("winner {nf} left by its own refund ticket at block {h}, after the settlement deadline {settle_by}: the host did not settle in time"));
+            r9.push(format!("winner {nf} left by its own refund ticket at block {h}, after the settlement deadline, block {settle_by}: the host did not settle in time"));
             continue;
         }
         if h > settle_by {
-            r9.push(format!("winner {nf} was settled at block {h}, after the settlement deadline {settle_by}"));
+            r9.push(format!("winner {nf} was settled at block {h}, after the settlement deadline, block {settle_by}"));
         }
         let txid = sp.txid.clone();
         settlements.push((nf.clone(), v, txid.clone()));
@@ -124,7 +124,7 @@ pub fn check_uniform(
             None => r9.push(format!("settlement transaction {txid} could not be inspected")),
             Some(f) => {
                 if f.fee_zat != fee as i64 {
-                    r9.push(format!("settlement {txid} pays a fee of {} zat, expected exactly {fee}", f.fee_zat));
+                    r9.push(format!("settlement {txid} pays a fee of {}, expected exactly {}", if f.fee_zat < 0 { format!("minus {}", rules.amount(f.fee_zat.unsigned_abs())) } else { rules.amount(f.fee_zat.unsigned_abs()) }, rules.amount(fee)));
                 }
                 if f.has_transparent || f.has_sapling || f.has_orchard {
                     r11.push(format!("settlement {txid} has parts outside the Ironwood pool"));
@@ -138,20 +138,20 @@ pub fn check_uniform(
         let got: Vec<u64> = extra.treasury_notes.iter().filter(|t| t.txid == txid).map(|t| t.value_zat).collect();
         match got.as_slice() {
             [x] if *x == price => {}
-            [] => r9.push(format!("settlement {txid}: the treasury received nothing, expected {price} zat")),
-            [x] if *x < price => r9.push(format!("settlement {txid}: the treasury received {x} zat, short of the price {price}")),
-            [x] => r9.push(format!("settlement {txid}: the treasury received {x} zat, more than the price {price}")),
-            many => r9.push(format!("settlement {txid}: the treasury received {} notes ({many:?}), expected one of {price} zat", many.len())),
+            [] => r9.push(format!("settlement {txid}: the treasury received nothing, expected {}", rules.amount(price))),
+            [x] if *x < price => r9.push(format!("settlement {txid}: the treasury received {}, short of the price {}", rules.amount(*x), rules.amount(price))),
+            [x] => r9.push(format!("settlement {txid}: the treasury received {}, more than the price {}", rules.amount(*x), rules.amount(price))),
+            many => r9.push(format!("settlement {txid}: the treasury received {} notes ({}), expected one of {}", many.len(), many.iter().map(|v| rules.amount(*v)).collect::<Vec<_>>().join(", "), rules.amount(price))),
         }
         // nothing back to the campaign account
         // A note of 0 zat is only the shape of the transaction (the wallet pads with a zero-valued change
         // note); it carries no value and is allowed.
         for c in notes.iter().filter(|c| c.txid == txid && c.value_zat > 0) {
-            r11.push(format!("settlement {txid} created a note of {} zat for the campaign account (value returned to its own address)", c.value_zat));
+            r11.push(format!("settlement {txid} created a note of {} for the campaign account (value returned to its own address)", rules.amount(c.value_zat)));
         }
     }
     if report.settled > 0 || !plan.defaulted.is_empty() {
-        i9.push(format!("{} winner(s) settled at price {price} zat (reserve {}), fee {fee} each; the host had until block {settle_by} ({} blocks after the deadline)", report.settled, plan.reserve_zat, settle_by - rules.deadline_height));
+        i9.push(format!("{} winner(s) settled at price {} (reserve {}), fee {} each; the host had until block {settle_by} ({} blocks after the deadline)", report.settled, rules.amount(price), rules.amount(plan.reserve_zat), rules.amount(fee), settle_by - rules.deadline_height));
     }
     if report.awaiting > 0 {
         i9.push(format!("{} winner(s) still waiting to be settled (the host has until block {settle_by})", report.awaiting));
@@ -166,9 +166,9 @@ pub fn check_uniform(
     let expected = report.settled as u64 * price;
     report.treasury_total_zat = actual;
     if actual != expected {
-        r10.push(format!("the treasury received {actual} zat from the settlements; {} settled winner(s) x price {price} = {expected} zat", report.settled));
+        r10.push(format!("the treasury received {} from the settlements; {} settled winner(s) x price {} = {}", rules.amount(actual), report.settled, rules.amount(price), rules.amount(expected)));
     }
-    let i10 = vec![format!("treasury received {actual} zat from {} settlement(s)", report.settled)];
+    let i10 = vec![format!("treasury received {} from {} settlement(s)", rules.amount(actual), report.settled)];
 
     // R12: winners' opt-in proofs of delivery (SPEC §8.5)
     let payload_pk = hex32(&rules.payload_pubkey).ok();
@@ -205,7 +205,7 @@ pub fn check_uniform(
                 }
                 Some(k) if k.delivered.contains(&excess) => {
                     report.proofs_ok += 1;
-                    i12.push(format!("winner {nf}: excess delivered ({excess} zat in settlement {txid}), shown with the winner's own viewing key"));
+                    i12.push(format!("winner {nf}: excess delivered ({} in settlement {txid}), shown with the winner's own viewing key", rules.amount(excess)));
                 }
                 Some(k) => r12.push(format!(
                     "excess not delivered to winner {nf}: settlement {txid} should pay {excess} zat to the refund address; the winner's viewing key opens outputs of {:?} zat",
@@ -214,7 +214,7 @@ pub fn check_uniform(
             }
         } else if c.complaint {
             report.complaints += 1;
-            warnings.push(format!("winner {nf} says the excess of {excess} zat from settlement {txid} did not arrive; this cannot be verified unless the winner publishes their viewing key (SPEC §8.5)"));
+            warnings.push(format!("winner {nf} says the excess of {} from settlement {txid} did not arrive; this cannot be verified unless the winner publishes their viewing key (SPEC §8.5)", rules.amount(excess)));
         }
     }
     if report.proofs_ok == 0 && r12.is_empty() && report.settled > 0 {

@@ -285,8 +285,8 @@ fn relay_fix_hint(current: Option<&str>, folder: &Path) -> String {
 /// The note about payments that have no refund ticket yet, before the campaign is closed: none, a quiet "waiting" note (normal for a minute), or a
 /// warning when the allowed window has passed. `late`: payments more than `k` blocks old without a ticket; `waiting`: newer ones.
 /// The warning for a payment the program has failed to ticket many checks in a row (a failure on the host's side).
-pub(crate) fn skip_warning(key: &str, value_zat: Option<u64>, passes: u64, reason: &str) -> String {
-    let amount = value_zat.map(|v| format!(", {}.{:08}", v / 100_000_000, v % 100_000_000)).unwrap_or_default();
+pub(crate) fn skip_warning(key: &str, value_zat: Option<u64>, passes: u64, reason: &str, rules: &ll_core::rules::Rules) -> String {
+    let amount = value_zat.map(|v| format!(", {}", rules.amount(v))).unwrap_or_default();
     format!(
         "The payment {key}{amount} has had no refund ticket for the last {passes} checks in a row. The reason each time: {reason}. \
          What you can do: check that this computer can reach the network (the last network check above should be recent); stopping and \
@@ -388,7 +388,7 @@ fn status(st: &State, c: &Campaign) -> Value {
     if closed.is_none() {
         for (key, passes, reason) in crate::long_skips(&c.run) {
             let value = notes.iter().find(|n| format!("{}:{}", n.txid, n.action) == key).map(|n| n.value_zat);
-            w.push(warn("bad", skip_warning(&key, value, passes, &reason)));
+            w.push(warn("bad", skip_warning(&key, value, passes, &reason, &c.run.rules)));
         }
     }
     if held < unspent.len() {
@@ -644,7 +644,7 @@ fn static_file(st: &State, path: &str) -> Resp {
     let (name, ctype): (String, &str) = match path {
         "/" | "/dashboard.html" => ("dashboard.html".into(), "text/html; charset=utf-8"),
         "/setup.html" => ("setup.html".into(), "text/html; charset=utf-8"),
-        "/dashboard.js" | "/setup.js" | "/ui.js" | "/brand.js" | "/blocktime.js" => (path[1..].to_string(), "text/javascript; charset=utf-8"),
+        "/dashboard.js" | "/setup.js" | "/ui.js" | "/brand.js" | "/blocktime.js" | "/loadguard.js" => (path[1..].to_string(), "text/javascript; charset=utf-8"),
         "/dashboard.css" | "/setup.css" | "/ui.css" => (path[1..].to_string(), "text/css; charset=utf-8"),
         "/favicon.ico" => return respond(204, "text/plain", vec![]),
         // the logo and icons: a flat file name of letters, digits and dashes with one of three known endings

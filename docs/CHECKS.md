@@ -9,7 +9,7 @@ The recount runs in the browser as WebAssembly (and as a command-line tool, `cb-
 | Check | What it covers |
 |---|---|
 | R1 | The published rules (and, for an auction, the revealed key) match what the campaign committed to. |
-| R2 | The public list is signed, chained, gap-free, and closed at most once, after the deadline. |
+| R2 | The public list is signed, chained, with no gaps, and closed at most once, after the deadline. |
 | R3 | Every entry in the public list is a real payment to the campaign. |
 | R4 | Every contribution has a refund ticket on the list once the ticket window has passed (inside it, the ticket is pending). |
 | R4b | Each ticket was issued within the ticket window, going by the issue height the host itself writes (host reported: the recount cannot check that height). Until 14 October 2026 R4 and R4b were one check. |

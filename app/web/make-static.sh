@@ -32,7 +32,7 @@ cat > "$OUT/index.html" <<HTML
 <div class="dhero"><span class="dk2"><span class="tn">TESTNET</span><span class="dm">DEMO</span></span><h1 class="dh1">Try it with test money</h1>
 <p class="dlede">Test coins (TAZ) have no value. All campaigns here exist only for Recount and verification purposes.</p></div>
 <div class="dcards">
-<section class="dc one"><span class="dc-k">01 · START HERE</span><h2>Tested milestones</h2><p>13 finished test campaigns. Five were built to cheat, so you can watch a recount catch them.</p><div class="sp"></div><a class="dbtn pri" href="$PREFIX/proofs/">Open tested milestones →</a></section>
+<section class="dc one"><span class="dc-k">01 · START HERE</span><h2>Tested milestones</h2><p>13 finished test campaigns. Five show a host breaking a rule, so you can watch a recount catch them.</p><div class="sp"></div><a class="dbtn pri" href="$PREFIX/proofs/">Open tested milestones →</a></section>
 <section class="dc"><span class="dc-k">02</span><h2>Check a saved copy</h2><p>Saved a campaign's list? Load it on the recount page.</p><div class="sp"></div><a class="dbtn" href="$PREFIX/recount.html">Open recount</a></section>
 <section class="dc"><span class="dc-k">03</span><h2>Mainnet</h2><p>Real campaigns run on Zcash Mainnet, on the main site.</p><div class="sp"></div><a class="dbtn" href="https://app.clewbook.xyz/">Go to main site ↗</a></section>
 </div>

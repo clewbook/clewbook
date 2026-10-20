@@ -235,10 +235,24 @@ fn pays_you(i: &Inputs, b: &orchard::Bundle<orchard::bundle::Authorized, zcash_p
     if ExtractedNoteCommitment::from(note.commitment()) != *action.cmx() {
         return c("pays_you", Fail, "the refund output of this ticket does not pay the address you gave the amount the campaign says");
     }
-    match i.expected_value_zat {
-        Some(v) if v != o.value_zat => c("pays_you", Fail, format!("the ticket pays you {} zatoshi but your contribution minus the fee is {v}", o.value_zat)),
-        Some(_) => c("pays_you", Pass, format!("its refund output pays exactly {} zatoshi (your contribution minus the fee) to the address you gave", o.value_zat)),
-        None => c("pays_you", Pass, format!("its refund output pays exactly {} zatoshi to the address you gave", o.value_zat)),
+    // A sealed-bid auction's list hides the amount, so when the page passes no expected refund the library works it out itself from what
+    // this device knows: the payment it saw (the refund is exactly that minus the fee), or else the amount the contributor meant to pay
+    // (the refund is at least that minus the fee; a larger payment counts in full). A ticket that pays back less fails here, in the
+    // library, not only on the page (the encrypted bids research, flaw 1).
+    let auction = match (i.listed_contribution_zat, i.paid_zat, i.intended_contribution_zat) {
+        (Some(_), _, _) => None,
+        (None, Some(p), _) => Some((p.saturating_sub(i.fee_zat), true)),
+        (None, None, Some(m)) => Some((m.saturating_sub(i.fee_zat), false)),
+        (None, None, None) => None,
+    };
+    match (i.expected_value_zat, auction) {
+        (Some(v), _) if v != o.value_zat => c("pays_you", Fail, format!("the ticket pays you {} zatoshi but your contribution minus the fee is {v}", o.value_zat)),
+        (Some(_), _) => c("pays_you", Pass, format!("its refund output pays exactly {} zatoshi (your contribution minus the fee) to the address you gave", o.value_zat)),
+        (None, Some((v, true))) if o.value_zat != v => c("pays_you", Fail, format!("the ticket pays you {} zatoshi but your payment minus the fee is {v}", o.value_zat)),
+        (None, Some((v, false))) if o.value_zat < v => c("pays_you", Fail, format!("the ticket pays you {} zatoshi but your contribution minus the fee is {v}", o.value_zat)),
+        (None, Some((v, true))) => c("pays_you", Pass, format!("its refund output pays exactly {v} zatoshi (your payment minus the fee) to the address you gave")),
+        (None, Some((v, false))) => c("pays_you", Pass, format!("its refund output pays {} zatoshi to the address you gave, at least your bid minus the fee ({v})", o.value_zat)),
+        (None, None) => c("pays_you", Pass, format!("its refund output pays exactly {} zatoshi to the address you gave", o.value_zat)),
     }
 }
 

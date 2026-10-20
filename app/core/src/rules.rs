@@ -113,6 +113,11 @@ impl Rules {
         Ok(hash(b"ledgerlab_rules", to_canonical(self)?.as_bytes()))
     }
 
+    /// An amount as people read it: trimmed (no trailing zeros, never rounded) with this network's unit, for example "0.0099 TAZ" or "1 ZEC".
+    pub fn amount(&self, zat: u64) -> String {
+        format!("{} {}", crate::coin(zat), if self.network == "main" { "ZEC" } else { "TAZ" })
+    }
+
     /// After this height a contributor's page may broadcast their own ticket if the host has
     /// not closed: deadline + K (`ticket_k`). The contribute page, the recount page and the recount's
     /// hint all use this one rule. `close_grace` is kept in the rules (it is part of every campaign's
@@ -199,6 +204,17 @@ mod name_tests {
 
     fn base() -> Rules {
         serde_json::from_str(r#"{"v":1,"network":"test","mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":200,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,"campaign_ufvk":"uvftest1x","ledger_pubkey":"aa","payload_pubkey":"bb"}"#).unwrap()
+    }
+
+    #[test]
+    fn amounts_are_trimmed_with_the_networks_unit() {
+        let mut r = base();
+        assert_eq!(r.amount(990_000), "0.0099 TAZ");
+        assert_eq!(r.amount(1), "0.00000001 TAZ");
+        assert_eq!(r.amount(0), "0 TAZ");
+        r.network = "main".into();
+        assert_eq!(r.amount(100_000_000), "1 ZEC");
+        assert_eq!(r.amount(123_456_789), "1.23456789 ZEC");
     }
 
     #[test]

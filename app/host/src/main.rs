@@ -928,7 +928,7 @@ fn issue_pending(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote
                     bail!("replayed payload: the same sealed message was already used by an earlier payment");
                 }
                 // the one validity rule (shared with the recount): a payload that fails it is rejected here, before any lock or build
-                ll_core::payload::check(&p, &run.rules_id, n.value_zat, r.refund_fee_zat).map_err(|e| anyhow!(e.reason()))?;
+                ll_core::payload::check(&p, &run.rules_id, n.value_zat, r.refund_fee_zat).map_err(|e| anyhow!(e.reason(r)))?;
                 Ok(p)
             });
         let result = match opened {
@@ -2214,8 +2214,8 @@ mod close_resume_tests {
         assert_eq!(long_skips(&run), vec![("aa:0".to_string(), 10, "proposal failed: something on the host's side".to_string())], "waiting for confirmations is never counted");
         pass(&[]);
         assert!(long_skips(&run).is_empty(), "a payment that is no longer skipped starts again from zero");
-        let text = crate::dashboard::skip_warning("aa:0", Some(1_500_000), 10, "proposal failed: X");
-        assert!(text.contains("aa:0, 0.01500000") && text.contains("10 checks in a row") && text.contains("proposal failed: X") && text.contains("Do not move this payment"), "{text}");
+        let text = crate::dashboard::skip_warning("aa:0", Some(1_500_000), 10, "proposal failed: X", &run.rules);
+        assert!(text.contains(&format!("aa:0, {}", run.rules.amount(1_500_000))) && text.contains(if run.rules.network == "main" { "0.015 ZEC" } else { "0.015 TAZ" }) && text.contains("10 checks in a row") && text.contains("proposal failed: X") && text.contains("Do not move this payment"), "{text}");
         assert!(!text.split_whitespace().any(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).contains('-')) && !text.contains('—'), "no hyphens or dashes: {text}");
         let _ = fs::remove_dir_all(&d);
     }

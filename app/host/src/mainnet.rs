@@ -37,7 +37,7 @@ pub fn nu7_guard(network: &str, tip: Option<u32>, blocks_needed: u32, now_unix: 
                 bail!("The mainnet NU7 upgrade is already active (block {h}). This build's libraries do not know the mainnet NU7 parameters, so it cannot make valid refund tickets yet.");
             }
             if t.saturating_add(blocks_needed) >= h {
-                bail!("This campaign could still be running when the NU7 upgrade activates at block {h} (it needs about {blocks_needed} blocks and the chain is at {t}). Refund tickets signed before the upgrade stop working after it. Choose a shorter deadline.");
+                bail!("This campaign could still be running when the NU7 upgrade activates at block {h} (it needs ≈ {blocks_needed} blocks and the chain is at block {t}). Refund tickets signed before the upgrade stop working after it. Choose a shorter deadline.");
             }
             Ok(())
         }
