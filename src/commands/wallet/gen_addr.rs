@@ -3,7 +3,10 @@ use crate::rng::OsRng;
 use uuid::Uuid;
 use zcash_client_backend::data_api::{Account, WalletWrite};
 use zcash_client_sqlite::{WalletDb, util::SystemClock};
-use zcash_keys::{address::Address, keys::UnifiedAddressRequest};
+use zcash_keys::{
+    address::Address,
+    keys::{ReceiverRequirement, UnifiedAddressRequest},
+};
 
 use crate::{
     commands::{inspect::address::inspect, select_account},
@@ -20,6 +23,11 @@ pub(crate) struct Command {
     /// The UUID of the account to list addresses for
     account_id: Option<Uuid>,
 
+    /// An address with Orchard and Sapling receivers only (no Ironwood receiver), for a sender that does not accept Ironwood addresses yet,
+    /// such as a testnet faucet
+    #[arg(long)]
+    without_ironwood: bool,
+
     /// A flag indicating whether a QR code should be displayed for the address.
     #[cfg(feature = "qr")]
     #[arg(long, default_value = "true")]
@@ -35,9 +43,13 @@ impl Command {
         let account = select_account(&db_data, self.account_id)?;
 
         println!("Account {:?}", account.id());
-        let (ua, _) = db_data
-            .get_next_available_address(account.id(), UnifiedAddressRequest::AllAvailableKeys)?
-            .unwrap();
+        let request = if self.without_ironwood {
+            UnifiedAddressRequest::custom(ReceiverRequirement::Require, ReceiverRequirement::Allow, ReceiverRequirement::Omit)
+                .map_err(|e| anyhow::anyhow!("{e:?}"))?
+        } else {
+            UnifiedAddressRequest::AllAvailableKeys
+        };
+        let (ua, _) = db_data.get_next_available_address(account.id(), request)?.unwrap();
         let ua_str = ua.encode(&params);
         println!("     Address: {ua_str}");
 

@@ -1,0 +1,35 @@
+{
+  "v": 1,
+  "network": "test",
+  "mode": "sealed_auction",
+  "items": 2,
+  "start_height": 4521808,
+  "deadline_height": 4521837,
+  "ticket_k": 10,
+  "close_grace": 10,
+  "reissue_window": 20,
+  "refund_fee_zat": 10000,
+  "min_contribution_zat": 30000,
+  "ufvk_hash": "9ec89334443528242dabc5401388c06eb26e10685ad03c776a89a862a39183c3",
+  "pay_to": "utest1604t930py8zfcajl8n2jvyxeckq0uw5hlavlp0pl9fn73ps7w77mm6zxa2kg7q2hcwt33qt8k6qf77n2ynke9vumn2laa2y40eys92r3eymkxrd4wnw4s99j0zlfupxmk0lvct63gxd504434juhrukfex2e9xf03n7aegs00qgy759x",
+  "treasury_address": "utest140x5uqtud6s3px9kx9cfxpplz9qzmwyq0lycutlrlc0gtnhd98mxd4d7gxtjnhzz04zn3zh99re6xsvtxjjvkdz6nnyxkdgzy754wjt66ypv00dj85u6mwmzjsgqgwspfuvyl5vqm2tt8yhss4rhck6aace3ahznk0reudp5xyjelv37",
+  "treasury_ufvk": "uvftest1y5m6hjs5d2k82te03sq7e3zul5qn2pjz59834e0phvulwxly8msnkzxddww4gezymmnh46wdzcy289s5uuz263eexxwnylr5asveewsnla5m8ket6x2gpzydlnn9qd9fgsrz9vhfynu28cyc7hs8rlegeukep9r9q935eq6d9mk8raefcjruymjeej9x53rk3gkq5sx0eut50t5u4f6ylvlft35nnzk85y8zyw7nkujad9grtusv4nase9y76ufu034c74dw6c67lqlk7h0r2mfq9fmvh2k3e94zd0m7hujzdjdm7gkt8k3c6a6x2wge64wku2x8d3qhhzrd6lz5swj0375j0v4nfepx4hsn5s3g0tpj2vs892r6g5typmpjrzyd7a5yz9kaghll3j6q0fzftrp7n4czqg3xm5zmelspcc3mcd2yw4ckcayqkdl8hyw8tzhfhq5lncw30jvw8sqdzcygmsueu4v5udynnhegq39nscylxkuv",
+  "name": "Sealed proof P1, uniform price B",
+  "sealed": {
+    "tranches_zat": [
+      30000,
+      100000
+    ],
+    "pricing": "uniform",
+    "drand_chain": "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+    "drand_round": 33230999,
+    "claim_after": 4522108,
+    "coin_zat": 5000,
+    "coin_cutoff": 10,
+    "coin_sending": {
+      "mode": "at_once"
+    }
+  },
+  "ledger_pubkey": "51fa9c4612ea62641d5d52bde34f627fc7f065ffb62fa5bf4b206a59cacd31cf",
+  "payload_pubkey": "5babc803c7aae0bfc715882eb4235772ca87405af819a0afed77a725d9402a12"
+}

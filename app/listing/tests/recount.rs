@@ -124,7 +124,7 @@ impl Camp {
 
     fn close(&self, outcome: &str) -> Entry {
         let mut e = Entry::new(&self.id, "close");
-        e.close = Some(Close { close_height: 205, outcome: outcome.into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None });
+        e.close = Some(Close { close_height: 205, outcome: outcome.into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
         e
     }
 

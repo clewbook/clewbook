@@ -91,3 +91,8 @@ select { min-height: 44px; border: 1px solid var(--cb-border); border-radius: 99
 .dmore { margin-top: 36px; }
 .dtile .tv .amt { white-space: normal; overflow-wrap: anywhere; font: inherit; }
 .dtile .tv .amt .u { font: 700 .8em var(--cb-font-display); color: var(--cb-ink-2); } /* the unit as on the campaign tiles */
+/* a note in the warning list can be hidden: the × sits inside the note, on the right, centred on its text, within the note's own padding */
+#warning-list .notice.closable { position: relative; padding-right: 52px; }
+#warning-list .notice .note-x { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); width: 30px; height: 30px; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 8px; background: transparent; color: var(--cb-ink-2); font: 400 20px/30px var(--cb-font-body); text-align: center; cursor: pointer; box-shadow: none; }
+#warning-list .notice .note-x:hover { background: color-mix(in srgb, currentColor 12%, transparent); color: var(--cb-ink); }
+#warning-list .notice .note-x:focus-visible { outline: 2px solid var(--cb-focus); outline-offset: 1px; }

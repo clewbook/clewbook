@@ -6,6 +6,8 @@
 //! else), and whether the coin is still unspent. Not checked here: that it pays the contributor (needs the opening values,
 //! level 2), the zero-knowledge proof (level 3) and the anchor (level 4).
 
+pub mod late;
+
 use serde::{Deserialize, Serialize};
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::consensus::BranchId;
@@ -75,6 +77,9 @@ pub struct Inputs {
     /// Transactions the signed ledger names for this coin (its tickets, a settlement): a spend by one of them is expected.
     #[serde(default)]
     pub known_txids: Vec<String>,
+    /// Sealed bid auction, the early ticket (the independent review, H4): it must expire exactly at this block (the deadline), not never.
+    #[serde(default)]
+    pub expected_expiry: Option<u32>,
 }
 
 fn label_of(id: &str) -> &'static str {
@@ -160,9 +165,14 @@ pub fn check(i: &Inputs) -> Vec<Check> {
         Some(now) => c("network_version", Fail, format!("built for network version {tx_branch}, but the network now runs {now}: the campaign must re-issue it")),
     });
 
-    // no expiry
+    // no expiry, or (a sealed bid auction's early ticket) exactly the deadline
     let expiry = u32::from(tx.expiry_height());
-    out.push(if expiry == 0 { c("no_expiry", Pass, "it never expires") } else { c("no_expiry", Fail, format!("it expires at block {expiry}")) });
+    out.push(match i.expected_expiry {
+        Some(e) if expiry == e => c("expiry", Pass, format!("it expires at block {e}, the deadline, as an early ticket must")),
+        Some(e) => c("expiry", Fail, format!("it expires at block {expiry}, not at the deadline (block {e})")),
+        None if expiry == 0 => c("no_expiry", Pass, "it never expires"),
+        None => c("no_expiry", Fail, format!("it expires at block {expiry}")),
+    });
 
     // fee: the value leaving the Ironwood pool is the fee
     let fee = i64::from(*b.value_balance());
@@ -254,6 +264,18 @@ fn pays_you(i: &Inputs, b: &orchard::Bundle<orchard::bundle::Authorized, zcash_p
         (None, Some((v, false))) => c("pays_you", Pass, format!("its refund output pays {} zatoshi to the address you gave, at least your bid minus the fee ({v})", o.value_zat)),
         (None, None) => c("pays_you", Pass, format!("its refund output pays exactly {} zatoshi to the address you gave", o.value_zat)),
     }
+}
+
+/// SPEC §9.1, open_payouts: the outputs of a payment the host signed to a person (a refund, a winner's change, a return), as its outgoing viewing key
+/// opens them: (receiver, 43 bytes hex; value) for each output it opens. A version 6 transaction id covers every output, so what the key
+/// opens is what was mined under that id.
+pub fn recover_outputs(raw: &[u8], ovk: &[u8; 32]) -> Result<Vec<(String, u64)>, String> {
+    let tx = Transaction::read(raw, BranchId::Nu7).map_err(|e| format!("the transaction could not be read ({e})"))?;
+    let Some(b) = tx.ironwood_bundle() else { return Ok(vec![]) };
+    Ok(b.recover_outputs_with_ovks(&[orchard::keys::OutgoingViewingKey::from(*ovk)])
+        .into_iter()
+        .map(|r| (hex::encode(r.3.to_raw_address_bytes()), r.2.value().inner()))
+        .collect())
 }
 
 /// Overall: "fail" if any check failed, else "pass" (with the list of what was not checked).

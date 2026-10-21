@@ -55,7 +55,7 @@ pub fn campaign_summary(rules_json: &str, rules_id: &str) -> Result<String, JsEr
         return Err(plain("These campaign details do not match the campaign link. Do not pay; check the link you were given."));
     }
     rules.validate().map_err(|_| plain("The campaign details are incomplete."))?;
-    Ok(serde_json::json!({
+    let mut out = serde_json::json!({
         "mode": rules.mode, "network": rules.network, "ticker": ticker(&rules), "name": rules.name,
         "goal_zat": rules.goal_zat, "goal": rules.goal_zat.map(zat_to_coin), "items": rules.items,
         "start_height": rules.start_height, "deadline_height": rules.deadline_height,
@@ -65,8 +65,15 @@ pub fn campaign_summary(rules_json: &str, rules_id: &str) -> Result<String, JsEr
         "pay_to": rules.pay_to, "campaign_ufvk": rules.campaign_ufvk,
         "early_close": rules.allows_early_close(), "cap_zat": rules.cap_zat, "cap": rules.cap_zat.map(zat_to_coin),
         "pricing": rules.pricing, "settle_by": rules.settle_by(), "settle_window": rules.settle_window.unwrap_or(rules.ticket_k), "reserve_zat": rules.reserve_zat, "reserve": rules.reserve_zat.map(zat_to_coin), "treasury_address": rules.treasury_address,
-    })
-    .to_string())
+    });
+    // a sealed bid auction only (other campaigns' summaries stay exactly as they were)
+    if let Some(s) = &rules.sealed {
+        out["sealed"] = serde_json::json!({
+            "tranches_zat": s.tranches_zat, "tranches": s.tranches_zat.iter().map(|t| zat_to_coin(*t)).collect::<Vec<_>>(), "pricing": s.pricing,
+            "round": s.drand_round, "claim_after": s.claim_after, "cutoff": s.cutoff_height(rules.deadline_height), "timing": s.timing,
+        });
+    }
+    Ok(out.to_string())
 }
 
 /// The host's "last seen" signal, checked against the campaign: it must be signed with the campaign's ledger key and be for this campaign. Returns
@@ -206,7 +213,15 @@ pub fn open_ticket(seed_hex: &str, entry_json: &str, blob: &[u8]) -> Result<Stri
 /// The challenge that proves a rejected payment was valid (SPEC §4).
 #[wasm_bindgen]
 pub fn challenge_json(seed_hex: &str, txid: &str, action: u32) -> Result<String, JsError> {
-    let c = Challenge { txid: txid.to_lowercase(), action, eph_sk: hex::encode(keys_from(seed_hex)?.memo_ephemeral_key().to_bytes()), uivk: None, complaint: false };
+    let c = Challenge { txid: txid.to_lowercase(), action, eph_sk: hex::encode(keys_from(seed_hex)?.memo_ephemeral_key().to_bytes()), uivk: None, complaint: false, memo: None };
+    ll_core::canon::to_canonical(&c).map_err(|_| plain("The proof could not be prepared."))
+}
+
+/// The same for a blind bid auction made with open payouts: it carries the payment's memo, so a relay can check the secret opens it before it
+/// stores it (the second review, H2: junk secrets can no longer fill the challenge slots).
+#[wasm_bindgen]
+pub fn challenge_json_memo(seed_hex: &str, txid: &str, action: u32, memo: &str) -> Result<String, JsError> {
+    let c = Challenge { txid: txid.to_lowercase(), action, eph_sk: hex::encode(keys_from(seed_hex)?.memo_ephemeral_key().to_bytes()), uivk: None, complaint: false, memo: Some(memo.to_string()) };
     ll_core::canon::to_canonical(&c).map_err(|_| plain("The proof could not be prepared."))
 }
 
@@ -222,7 +237,7 @@ pub fn disclosure_json(seed_hex: &str, txid: &str, action: u32, uivk: &str, comp
     let c = Challenge {
         txid: txid.to_lowercase(), action,
         eph_sk: hex::encode(keys_from(seed_hex)?.memo_ephemeral_key().to_bytes()),
-        uivk: (!uivk.is_empty()).then(|| uivk.to_string()), complaint,
+        uivk: (!uivk.is_empty()).then(|| uivk.to_string()), complaint, memo: None,
     };
     ll_core::canon::to_canonical(&c).map_err(|_| plain("The proof could not be prepared."))
 }

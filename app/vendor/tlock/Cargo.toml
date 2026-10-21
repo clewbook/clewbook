@@ -1,0 +1,37 @@
+# A copy of the tlock crate 0.0.10 (MIT, https://github.com/thibmeu/tlock-rs, by Thibault Meunier), changed only so that it never panics
+# on bad input (a panic in WebAssembly stops the whole page) and so that it can check a drand round's signature. See PATCHES.md.
+[package]
+edition = "2024"
+name = "tlock"
+version = "0.0.10"
+license = "MIT"
+publish = false
+
+[features]
+# As in the original crate: the RFC 9380 hash to curve domain that drand quicknet uses.
+default = ["rfc9380"]
+rfc9380 = []
+
+[lib]
+name = "tlock"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+ark-bls12-381 = "0.6"
+ark-ec = "0.6"
+ark-ff = "0.6"
+ark-serialize = "0.6"
+itertools = "0.15"
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "thread_rng"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_with = "3"
+sha2 = "0.10"
+thiserror = "2.0"
+tracing = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
+
+[dev-dependencies]
+hex = "0.4"

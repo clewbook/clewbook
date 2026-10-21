@@ -85,6 +85,11 @@ pub struct JobConfig {
     /// Mainnet only: the published NU7 activation height. A new mainnet campaign whose deadline is not before it is refused (its tickets
     /// would not survive the upgrade).
     pub nu7_mainnet_height: Option<u32>,
+    /// Our relay on each network (network, url). A Blind bid auction is listed only if its record names ours: ours refuses entries added
+    /// once the bids are about to open, so the recount sees a late added bid as relays that disagree (the second review, M2 and M3).
+    pub our_relays: Vec<(String, String)>,
+    /// The second review, M6: at most this many new records from one address while their hosts are not approved, per queue time.
+    pub max_queue_per_source: usize,
     /// The recount check (None: no recount, as before; the command line always sets it).
     #[cfg(feature = "recount")]
     pub recount: Option<crate::recount::Setup>,
@@ -95,6 +100,8 @@ impl JobConfig {
         JobConfig {
             dir: dir.into(), allowed_networks: vec!["test".into()], fetch: FetchPolicy::default(), max_records_per_key: 10, max_records: 1000,
             max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, max_mainnet_waiting: 100, notify: None, nu7_mainnet_height: None,
+            our_relays: vec![("test".into(), "https://relay-test.clewbook.xyz".into()), ("main".into(), "https://relay.clewbook.xyz".into())],
+            max_queue_per_source: 5,
             #[cfg(feature = "recount")]
             recount: None,
         }
@@ -205,6 +212,16 @@ pub fn load_records(cfg: &JobConfig) -> Vec<ListingRecord> {
 
 /// Accepts one submitted record: size, shape and both signatures (no network), the caps, then stores it. Returns a plain sentence.
 pub fn submit(cfg: &JobConfig, bytes: &[u8]) -> Result<String> {
+    submit_from(cfg, bytes, None)
+}
+
+/// Our relay for `network`, if one is configured.
+pub fn our_relay<'a>(cfg: &'a JobConfig, network: &str) -> Option<&'a str> {
+    cfg.our_relays.iter().find(|(n, _)| n == network).map(|(_, u)| u.trim_end_matches('/'))
+}
+
+/// A submission from `source` (the client address the endpoint sees; `None` from the command line, which has no budget).
+pub fn submit_from(cfg: &JobConfig, bytes: &[u8], source: Option<&str>) -> Result<String> {
     ensure!(bytes.len() <= MAX_RECORD_BYTES, "a listing record is at most {MAX_RECORD_BYTES} bytes");
     let r = ListingRecord::parse_and_verify(bytes)?;
     check_relays(&r.relays, &relay_words(cfg))?;
@@ -230,6 +247,17 @@ pub fn submit(cfg: &JobConfig, bytes: &[u8]) -> Result<String> {
             if !approved.contains(&r.host_pubkey) {
                 let queued = all.iter().filter(|x| !approved.contains(&x.host_pubkey) && !waits_for_mainnet(cfg, &x.network)).count();
                 ensure!(queued < cfg.max_queue, "the queue for hosts not approved yet is full");
+                // the second review, M6: host keys cost nothing, so new records from hosts not approved are also counted per address
+                if let Some(src) = source {
+                    let now = crate::host::now_secs();
+                    let path = cfg.p("state/sources.json");
+                    let mut book: BTreeMap<String, Vec<u64>> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+                    book.retain(|_, v| { v.retain(|t| now < t.saturating_add(cfg.queue_ttl)); !v.is_empty() });
+                    let mine = book.entry(src.to_string()).or_default();
+                    ensure!(mine.len() < cfg.max_queue_per_source, "this address has sent {} requests from hosts not approved yet; try again after {}", cfg.max_queue_per_source, plain_duration(cfg.queue_ttl));
+                    mine.push(now);
+                    write_atomic(&path, &serde_json::to_vec(&book)?)?;
+                }
             }
         }
     }
@@ -329,10 +357,21 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
     }
     match first {
         Some(rules) if errors.is_empty() => {
+            // the second review, M2 and M3: a Blind bid auction is listed here only if it publishes to our relay, which refuses entries added
+            // once the bids are about to open; read from ours too, a bid added late on another relay shows as relays that disagree
+            if rules.is_sealed() {
+                let ours = our_relay(cfg, &rules.network).ok_or_else(|| anyhow!("no relay of ours is set for network {:?}", rules.network))?;
+                ensure!(r.relays.iter().any(|u| u.trim_end_matches('/') == ours),
+                    "a Blind bid auction is listed here only if it publishes to {ours}, which refuses late entries; this one does not");
+            }
             // as cb-host's guard (app/host/src/mainnet.rs): the campaign's whole life (deadline, ticket window, close grace, re-issue window)
             // and a margin of 50 blocks must end before the NU7 activation; its refund tickets would not survive the upgrade
             if let (true, "main", Some(nu7)) = (require_open, rules.network.as_str(), cfg.nu7_mainnet_height) {
-                let end = rules.deadline_height.saturating_add(rules.ticket_k).saturating_add(rules.close_grace).saturating_add(rules.reissue_window).saturating_add(50);
+                // a sealed bid auction lives until its late tickets are done (the review, L7: from the late ticket block)
+                let end = match rules.sealed.as_ref() {
+                    Some(s) => ll_core::sealed::life_end(&rules, s),
+                    None => rules.deadline_height.saturating_add(rules.ticket_k).saturating_add(rules.close_grace).saturating_add(rules.reissue_window).saturating_add(50),
+                };
                 ensure!(tip < nu7 && end < nu7, "the campaign could still be running at the NU7 upgrade (block {nu7}; it runs until about block {end}): its refund tickets would not survive it");
             }
             Ok(rules)

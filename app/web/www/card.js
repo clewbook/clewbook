@@ -1,7 +1,7 @@
 // The capability card: reads the campaign's rules from a relay, lets the WebAssembly module check them against the campaign id, and prints what
 // they say (see capabilities.js). Nothing here is typed in by hand except the descriptions of the engine's own checks.
 import init, * as W from './pkg/ll_web.js';
-import { linkParams, readRelay, sibling, observedBlockSeconds, badgeSnippet, badgeSrc, DEFAULT_ENDPOINTS } from './public.js';
+import { linkParams, readRelay, sibling, observedBlockSeconds, badgeSnippet, badgeSrc, DEFAULT_ENDPOINTS, milestones, backToMilestones } from './public.js';
 import { setNetwork, setup, decorateAmounts, amountHTML, mountHash, cidEl, chipHTML, CHECKS, etaText, setCampaignLabel, markReady } from './ui.js';
 import { cardModel } from './capabilities.js';
 
@@ -41,7 +41,8 @@ async function main() {
   try { summary = JSON.parse(W.campaign_summary(rulesText, cfg.id)); } catch (e) { banner('bad', String(e.message || e)); return; }
   setCampaignLabel(cfg.id, summary.name);
   setNetwork(summary.network);
-  { const rb = document.querySelector('#recount-btn'); rb.href = sibling('recount', { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server }); rb.hidden = false; }
+  const ms = milestones(), on = (h) => (ms ? ms.onward(h) : h); // opened from the demo's Tested milestones page
+  { const rb = document.querySelector('#recount-btn'); rb.href = on(sibling('recount', { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server })); rb.hidden = false; }
   const rules = JSON.parse(rulesText);
   const endpoints = cfg.endpoints.length ? cfg.endpoints : DEFAULT_ENDPOINTS[summary.network] || [];
   const spb = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), (await tipFrom([cfg.server, ...endpoints].filter(Boolean))));
@@ -65,8 +66,9 @@ async function main() {
   $('#not-checked').replaceChildren(...m.notChecked.map(([what, why]) => row({ name: what[0].toUpperCase() + what.slice(1), small: why, chip: 'nc', word: 'Not checked' })));
   $('#levels').replaceChildren(...m.levels.map((l) => row({ id: `L${l.level}`, name: l.what, small: `Runs: ${l.when}`, chip: l.chip === 'nc' ? 'nc' : 'yes', word: l.chip === 'nc' ? 'Not built' : l.level === 3 ? 'On request' : 'Automatic', idsLine: l.ids })));
   const base = { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server };
-  $('#campaign-link').href = $('#nav-campaign').href = sibling('campaign', base);
-  $('#recount-link').href = $('#nav-recount').href = sibling('recount', base);
+  $('#campaign-link').href = $('#nav-campaign').href = on(sibling('campaign', base));
+  $('#recount-link').href = $('#nav-recount').href = on(sibling('recount', base));
+  if (ms && ms.direct) backToMilestones($('#nav-campaign'), ms);
   // the badge box (moved here from the campaign page in design round 2, owner decision): the snippet a host pastes, and a preview
   const links = { contribute: sibling('contribute', { ...base, endpoints: [] }), recount: sibling('recount', base) };
   const snippet = badgeSnippet(links);

@@ -15,6 +15,7 @@ fn inputs(f: &Fx, raw: &[u8]) -> Inputs {
         raw_hex: hex::encode(raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(),
         fee_zat: 10_000, current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: None, refund_receiver_hex: None, expected_value_zat: None, listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
+        expected_expiry: None,
     }
 }
 
@@ -137,6 +138,7 @@ fn inputs2(f: &V2) -> Inputs {
         raw_hex: hex::encode(&f.raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(), fee_zat: 10_000,
         current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: Some(f.opening), refund_receiver_hex: Some(f.receiver.clone()), expected_value_zat: Some(f.opening.value_zat), listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
+        expected_expiry: None,
     }
 }
 
@@ -282,4 +284,84 @@ fn an_auction_ticket_that_pays_back_less_fails_in_the_library_without_help_from_
     i.listed_contribution_zat = Some(1_000_000);
     i.expected_value_zat = Some(990_000);
     assert_eq!(status(&check(&i), "pays_you"), Status::Pass);
+}
+
+#[test]
+fn h4_an_early_ticket_must_expire_exactly_at_the_deadline() {
+    // the fixture ticket never expires: as an early ticket (expected to expire at the deadline) it fails, naming the block
+    let f = fx();
+    let mut i = inputs(&f, &f.raw);
+    i.expected_expiry = Some(4_472_000);
+    let ch = check(&i);
+    assert_eq!(status(&ch, "expiry"), Status::Fail);
+    assert!(ch.iter().any(|x| x.id == "expiry" && x.detail.contains("not at the deadline (block 4472000)")), "{ch:?}");
+    assert!(ch.iter().all(|x| x.id != "no_expiry"));
+    // asked for no expiry (a refund ticket, or a sealed auction's signed refund), it passes as before
+    assert_eq!(status(&check(&inputs(&f, &f.raw)), "no_expiry"), Status::Pass);
+}
+
+#[test]
+fn c1_outputs_open_only_with_the_payments_own_key() {
+    // the fixture ticket was made without an outgoing viewing key: a key opens nothing, and garbage is an error, not a crash
+    let f = fx();
+    assert_eq!(recover_outputs(&f.raw, &[5u8; 32]).unwrap(), vec![]);
+    assert!(recover_outputs(&[1, 2, 3], &[5u8; 32]).is_err());
+}
+
+/// The late ticket the private chain check of phase 7 made (app/web/testdata/sealed-late.json), opened as its page would.
+fn late_fixture() -> (Vec<u8>, [u8; 32], late::LateExpect) {
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/testdata/sealed-late.json")).unwrap()).unwrap();
+    let s = |k: &str| v[k].as_str().unwrap().to_string();
+    let keys = ll_core::keys::ContributorKeys::from_hex(&s("seed_hex")).unwrap();
+    let plain = keys.encryption_key().unseal(&hex::decode(s("blob_hex")).unwrap()).unwrap();
+    let part = ll_core::ticket_blob::LatePart::decode(&plain).unwrap();
+    let coin = &v["coin_entry"]["coin"];
+    let (_, receiver) = ll_core::receiver::orchard_receiver(&s("refund_address")).unwrap();
+    let e = late::LateExpect {
+        deposit_nf: ll_core::hex32(coin["nf"].as_str().unwrap()).unwrap(),
+        coin_txid: coin["txid"].as_str().unwrap().into(),
+        coin_index: coin["index"].as_u64().unwrap() as u32,
+        coin_value_zat: coin["value_zat"].as_u64().unwrap(),
+        page_key: late::page_public_key(&keys.page_secret()).unwrap(),
+        lock_time: v["rules"]["sealed"]["claim_after"].as_u64().unwrap() as u32,
+        refund_receiver: receiver,
+        refund_zat: v["paid_zat"].as_u64().unwrap() - v["rules"]["refund_fee_zat"].as_u64().unwrap(),
+        deposit_zat: v["paid_zat"].as_u64().unwrap(),
+        current_branch: Some(0x7719_0ad9),
+    };
+    (part.raw, part.ovk, e)
+}
+
+#[test]
+fn h5_a_late_ticket_for_another_network_version_is_refused() {
+    let (raw, ovk, e) = late_fixture();
+    assert!(late::check(&raw, BranchId::Nu7, &ovk, &e).is_ok());
+    let other = late::LateExpect { current_branch: Some(0x1234_5678), ..late_fixture().2 };
+    let err = late::check(&raw, BranchId::Nu7, &ovk, &other).unwrap_err();
+    assert!(err.contains("the network runs 12345678 now"), "{err}");
+    let unknown = late::LateExpect { current_branch: None, ..late_fixture().2 };
+    assert!(late::check(&raw, BranchId::Nu7, &ovk, &unknown).unwrap_err().contains("could not be asked"));
+}
+
+#[test]
+fn l3_a_late_ticket_whose_fee_the_network_would_not_relay_is_refused() {
+    let (raw, ovk, e) = late_fixture();
+    // the honest ticket pays exactly the least fee: two Ironwood actions and the coin input, 15000 zatoshis
+    assert_eq!(late::least_fee(2), 15_000);
+    assert!(late::check(&raw, BranchId::Nu7, &ovk, &e).is_ok());
+    // a coin worth nothing would leave only 10000 zatoshis of fee
+    let poor = late::LateExpect { coin_value_zat: 0, ..e };
+    let err = late::check(&raw, BranchId::Nu7, &ovk, &poor).unwrap_err();
+    assert!(err.contains("less than the 15000 the network needs"), "{err}");
+}
+
+#[test]
+fn second_review_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_refund_out_of_the_pool_is_refused() {
+    let (raw, ovk, e) = late_fixture();
+    let branch = zcash_protocol::consensus::BranchId::Nu7;
+    assert!(late::check(&raw, branch, &ovk, &e).is_ok(), "the honest late ticket passes");
+    // as if the ticket also spent another note worth 1,000 zatoshis that nobody pays back: more leaves the pool than the deposit allows
+    let more = late::LateExpect { deposit_zat: e.deposit_zat - 1_000, ..late_fixture().2 };
+    let err = late::check(&raw, branch, &ovk, &more).unwrap_err();
+    assert!(err.contains("only the deposit minus the refund"), "{err}");
 }

@@ -45,7 +45,7 @@ use zcash_keys::keys::UnifiedSpendingKey;
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::{
     PoolType, ShieldedPool, TxId,
-    consensus::{BlockHeight, BranchId, Network},
+    consensus::{BlockHeight, BranchId, Network, NetworkType, NetworkUpgrade, Parameters},
     value::Zatoshis,
 };
 use zip321::{Payment, TransactionRequest};
@@ -54,8 +54,65 @@ use ll_core::walletdb::{self, WalletNote};
 
 use crate::backend::{AccountInfo, ChainTip, SpendRequest, WalletBackend};
 
+mod sealed;
+pub use sealed::CoinInput;
+
 type Rng = UnwrapErr<SysRng>;
-type Db = WalletDb<rusqlite::Connection, Network, SystemClock, Rng>;
+type Db = WalletDb<rusqlite::Connection, Params, SystemClock, Rng>;
+
+/// The chain's consensus parameters: mainnet or testnet, or, in test builds with the `regtest` feature only, a private regtest chain with
+/// the activation heights its wallet was created with. Normal builds have no regtest network.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Params {
+    Net(Network),
+    #[cfg(feature = "regtest")]
+    Local(zcash_protocol::local_consensus::LocalNetwork),
+}
+
+impl Parameters for Params {
+    fn network_type(&self) -> NetworkType {
+        match self {
+            Params::Net(n) => n.network_type(),
+            #[cfg(feature = "regtest")]
+            Params::Local(l) => l.network_type(),
+        }
+    }
+    fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
+        match self {
+            Params::Net(n) => n.activation_height(nu),
+            #[cfg(feature = "regtest")]
+            Params::Local(l) => l.activation_height(nu),
+        }
+    }
+}
+
+/// The address of the private chain's light wallet service (zebrad's own, plain gRPC on this machine).
+#[cfg(feature = "regtest")]
+pub fn regtest_server() -> String {
+    std::env::var("CB_REGTEST_SERVER").unwrap_or_else(|_| "http://127.0.0.1:19067".into())
+}
+
+/// The private chain's current height, from its light wallet service (to give new regtest wallets a birthday after block 2).
+#[cfg(feature = "regtest")]
+pub fn regtest_tip() -> Result<u32> {
+    let rt = Runtime::new()?;
+    rt.block_on(async {
+        let channel = Channel::from_shared(regtest_server())?.connect().await?;
+        let mut c = CompactTxStreamerClient::new(channel);
+        Ok::<u32, anyhow::Error>(c.get_latest_block(service::ChainSpec {}).await?.into_inner().height as u32)
+    })
+}
+
+/// A regtest wallet's activation heights, as the wallet tool stores them in `keys.toml` (`[activation_heights]`, each a height or "never").
+#[cfg(feature = "regtest")]
+fn local_network(keys: &toml::Value) -> Result<zcash_protocol::local_consensus::LocalNetwork> {
+    let t = keys.get("activation_heights").and_then(|v| v.as_table()).context("a regtest wallet needs its activation heights")?;
+    let h = |k: &str| t.get(k).and_then(|v| v.as_integer()).map(|n| BlockHeight::from_u32(n as u32));
+    Ok(zcash_protocol::local_consensus::LocalNetwork {
+        overwinter: h("overwinter"), sapling: h("sapling"), blossom: h("blossom"), heartwood: h("heartwood"), canopy: h("canopy"),
+        nu5: h("nu5"), nu6: h("nu6"), nu6_1: h("nu6_1"), nu6_2: h("nu6_2"), nu6_3: h("nu6_3"), nu7: h("nu7"),
+    })
+}
 
 fn rng() -> Rng {
     UnwrapErr(SysRng)
@@ -64,7 +121,7 @@ fn rng() -> Rng {
 pub struct LibsBackend {
     wallet: PathBuf,
     identity: PathBuf,
-    params: Network,
+    params: Params,
     server: String,
     rt: Runtime,
     proving_key: Option<(u32, orchard::circuit::ProvingKey)>,
@@ -85,11 +142,13 @@ impl LibsBackend {
     pub fn new(wallet: PathBuf, identity: PathBuf) -> Result<Self> {
         let keys: KeysToml = toml::from_str(&fs::read_to_string(wallet.join("keys.toml"))?)?;
         let (params, server) = match keys.network.as_deref().unwrap_or("test") {
-            "test" => (Network::TestNetwork, "https://testnet.zec.rocks:443"),
-            "main" => (Network::MainNetwork, "https://zec.rocks:443"),
+            "test" => (Params::Net(Network::TestNetwork), "https://testnet.zec.rocks:443".to_string()),
+            "main" => (Params::Net(Network::MainNetwork), "https://zec.rocks:443".to_string()),
+            #[cfg(feature = "regtest")]
+            "regtest" => (Params::Local(local_network(&toml::from_str(&fs::read_to_string(wallet.join("keys.toml"))?)?)?), regtest_server()),
             other => bail!("unsupported network {other}"),
         };
-        Ok(Self { wallet, identity, params, server: server.into(), rt: Runtime::new()?, proving_key: None })
+        Ok(Self { wallet, identity, params, server, rt: Runtime::new()?, proving_key: None })
     }
 
     fn db(&self) -> Result<Db> {
@@ -105,8 +164,12 @@ impl LibsBackend {
         const KEEPALIVE_ANSWER: std::time::Duration = std::time::Duration::from_secs(20);
         let host = self.server.trim_start_matches("https://").split(':').next().unwrap_or_default().to_string();
         self.rt.block_on(async {
-            let endpoint = Channel::from_shared(self.server.clone())?
-                .tls_config(ClientTlsConfig::new().domain_name(host).assume_http2(true).with_webpki_roots())?
+            let mut endpoint = Channel::from_shared(self.server.clone())?;
+            // only a regtest node on this machine is reached without TLS
+            if !(cfg!(feature = "regtest") && self.server.starts_with("http://")) {
+                endpoint = endpoint.tls_config(ClientTlsConfig::new().domain_name(host).assume_http2(true).with_webpki_roots())?;
+            }
+            let endpoint = endpoint
                 .connect_timeout(CONNECT_TIMEOUT)
                 .tcp_keepalive(Some(KEEPALIVE_EVERY))
                 .http2_keep_alive_interval(KEEPALIVE_EVERY)
@@ -346,7 +409,10 @@ impl WalletBackend for LibsBackend {
         // The wallet's fee model always reserves a change output, which would make a two-payment transaction
         // cost one more logical action than it needs. So the proposal is made for the first payment, and a
         // two-payment, no-change step is rebuilt from its note selection below.
-        let request = TransactionRequest::new(vec![payment(&req.to_address, req.value_zat)?]).map_err(|e| anyhow!("{e:?}"))?;
+        // With further outputs the proposal only chooses the note: it asks for everything the outputs will carry, so the note is spent
+        // exactly (no change, no change output's fee), which a small deposit that pays a price and a little excess still covers.
+        let selection = req.value_zat + req.also_pay.iter().map(|(_, v)| *v).sum::<u64>();
+        let request = TransactionRequest::new(vec![payment(&req.to_address, selection)?]).map_err(|e| anyhow!("{e:?}"))?;
         let owners = NonEmptyBTreeSet::from_set(req.lock_owners.iter().map(|o| lock_owner(o)).collect())
             .context("no lock owners given")?;
         let policy = SpendPolicy::default().with_locked_input_policy(LockedInputPolicy::PreferLocked(owners));
@@ -399,9 +465,9 @@ impl WalletBackend for LibsBackend {
             &SystemClock,
             &mut rng(),
             account,
-            OvkPolicy::Discard,
+            req.ovk.map_or(OvkPolicy::Discard, |k| OvkPolicy::custom_from_common_bytes(&k)),
             &proposal,
-            req.no_expiry.then(|| BlockHeight::from_u32(0)),
+            req.expiry_height.or(req.no_expiry.then_some(0)).map(BlockHeight::from_u32),
             zcash_primitives::transaction::builder::BundlePadding::DEFAULT,
         )
         .map_err(|e| anyhow!("PCZT creation failed: {e:?}"))?;
@@ -487,6 +553,38 @@ impl WalletBackend for LibsBackend {
         Ok(txid)
     }
 
+    fn signed_refund(&mut self, owner: &str, to: &str, value_zat: u64) -> Result<(Vec<u8>, String)> {
+        self.signed_refund_impl(owner, to, value_zat)
+    }
+
+    fn finish_refund(&mut self, signed: &[u8], owner: &str, to: &str, value_zat: u64) -> Result<Vec<u8>> {
+        self.finish_refund_impl(signed, owner, to, value_zat)
+    }
+
+    fn late_ticket(&mut self, owner: &str, to: &str, value_zat: u64, coin: &CoinInput, lock_time: u32) -> Result<(Vec<u8>, String)> {
+        self.late_ticket_impl(owner, to, value_zat, coin, lock_time)
+    }
+
+    fn pay_coins(&mut self, outs: &[([u8; 33], u64)]) -> Result<(String, Vec<u32>)> {
+        self.pay_coins_impl(outs)
+    }
+
+    fn tip_time(&mut self) -> Result<u64> {
+        self.tip_time_impl()
+    }
+
+    fn payout_facts(&mut self, keys: &[(String, String)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
+        self.payout_facts_impl(keys)
+    }
+
+    fn coin_facts(&mut self, txids: &[String]) -> Result<Vec<ll_core::recount::CoinFact>> {
+        self.coin_facts_impl(txids)
+    }
+
+    fn block_times(&mut self, from: u32, to: u32) -> Result<Vec<(u32, u64)>> {
+        self.block_times_impl(from, to)
+    }
+
     fn tx_known(&mut self, txid: &str) -> Result<bool> {
         let mut hash = ll_core::hex32(txid)?.to_vec();
         hash.reverse();
@@ -552,8 +650,23 @@ mod connect_tests {
     use super::*;
     use std::time::{Duration, Instant};
 
+    /// Normal builds know only mainnet and testnet: a regtest wallet is refused (the private chain needs a build with `--features regtest`).
+    #[test]
+    fn a_regtest_wallet_needs_the_test_build() {
+        let dir = std::env::temp_dir().join(format!("ll-regtest-wallet-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("keys.toml"), "network = \"regtest\"\n[activation_heights]\nnu7 = 1\n").unwrap();
+        let r = LibsBackend::new(dir.clone(), dir.join("x.age"));
+        if cfg!(feature = "regtest") {
+            assert!(r.is_ok());
+        } else {
+            assert!(r.err().unwrap().to_string().contains("unsupported network regtest"));
+        }
+        let _ = fs::remove_dir_all(dir);
+    }
+
     fn backend(server: &str) -> LibsBackend {
-        LibsBackend { wallet: PathBuf::new(), identity: PathBuf::new(), params: Network::TestNetwork, server: server.into(), rt: Runtime::new().unwrap(), proving_key: None }
+        LibsBackend { wallet: PathBuf::new(), identity: PathBuf::new(), params: Params::Net(Network::TestNetwork), server: server.into(), rt: Runtime::new().unwrap(), proving_key: None }
     }
 
     /// A chain server that takes the connection and then says nothing (the way a stalled server behaves): the host must give up within the

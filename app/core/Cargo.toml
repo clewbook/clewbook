@@ -25,3 +25,10 @@ zcash_address.workspace = true
 zcash_protocol.workspace = true
 # Only to check that a refund receiver is a valid Orchard/Ironwood address (the same check the wallet makes when it pays it).
 orchard.workspace = true
+# The drand timelock for sealed bid auctions: a copy of tlock 0.0.10 that never panics on bad input (vendor/tlock, PATCHES.md).
+tlock = { path = "../vendor/tlock" }
+# The address of a transparent coin (HASH160 of a public key), for the sealed bid recount's coin check.
+ripemd = "0.1"
+sha2 = "0.10"
+# The secret the host's payload key shares with a bid page's key (X25519), for the outgoing viewing key of each payment (payout.rs).
+curve25519-dalek = "4.1"

@@ -20,6 +20,7 @@ Start with the [README](../README.md). Then, by what you want to know:
 | [THREAT_MODEL.md](THREAT_MODEL.md) | Who can do what, what stops them, and what is still open. |
 | [LIMITS.md](LIMITS.md) | Every known limitation, in detail. |
 | [MAINNET.md](MAINNET.md) | The main network, the NU7 network upgrade, and what the host program does until its libraries are updated. |
+| [BLIND_BIDS.md](BLIND_BIDS.md) | Blind bid auctions (test network): how they work, what they prevent, what they do not, and how each claim was checked. |
 
 ## Evidence
 

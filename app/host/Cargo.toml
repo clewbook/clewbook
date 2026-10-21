@@ -12,7 +12,7 @@ hex.workspace = true
 ll-core.workspace = true
 ll-listing = { path = "../listing", default-features = false } # PROTOTYPE (listing, testnet only)
 ll-relay = { path = "../relay" }
-pczt.workspace = true
+pczt = { workspace = true, features = ["io-finalizer", "zcp-builder"] }
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -34,12 +34,18 @@ zcash_client_sqlite = { version = "=0.23.0-pre.0", features = ["orchard", "serde
 zcash_keys = { version = "=0.17.0-pre.0", features = ["orchard", "unstable"] }
 zcash_protocol.workspace = true
 zip321 = "=0.10.0-pre.0"
+zcash_transparent = { version = "=0.11.0-pre.0", features = ["transparent-inputs"] }
+incrementalmerkletree = "0.9"
+secp256k1 = "0.33"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tiny_http = "0.12"
+ureq = "2"
 
 [features]
 # Fake cheating host for tests (sends a winner's excess elsewhere). Off in normal builds.
 test-cheats = []
+# A private regtest chain for tests (zebrad on this machine, plain gRPC). Off in normal builds, which know only mainnet and testnet.
+regtest = ["zcash_protocol/local-consensus"]
 
 # the program is built under its new name and under the old one (the old name keeps working)
 [[bin]]

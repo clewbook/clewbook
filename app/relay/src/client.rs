@@ -136,6 +136,11 @@ impl Relay {
         Ok(serde_json::from_slice(&raw).map_err(|e| anyhow!("relay sent unreadable challenges: {e}"))?)
     }
 
+    /// A sealed blob by its hash (a sealed bid auction's late ticket is fetched this way, from its coin entry's `blob_hash`).
+    pub fn blob(&self, rules_id: &str, hash: &str) -> Result<Vec<u8>, RelayError> {
+        self.get(&format!("campaigns/{rules_id}/blobs/{hash}"))
+    }
+
     pub fn ticket(&self, rules_id: &str, nf: &str) -> Result<Vec<u8>, RelayError> {
         self.get(&format!("campaigns/{rules_id}/tickets/{nf}"))
     }

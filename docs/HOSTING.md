@@ -170,6 +170,24 @@ A link to a campaign on those pages works without being listed: the pages take t
 
 How the listing job works, its checks and limits: `docs/LISTING.md`.
 
+## 7b. Blind bid auctions (test network only, not shipped)
+
+A blind bid auction (SPEC section 9) runs from its own host on port 8786 with its own campaigns folder, `runs/testnet-sealed`, never the
+ports or folders of other hosts: `app/sealed-testnet.sh dry-run | start | stop | status` (start needs `SEALED_RELAY`; there is no
+default). Create one on its set up page (the "Blind bid auction" choice appears when the host runs off mainnet) or with
+`cb-host create-sealed`. What the host must do:
+
+- **Fund the coin wallet** the dashboard shows, from your own money: it sends each bid page 0.00005 so that the person can take their deposit
+  back on their own if you never finish. Choose when they go out (at once, every N bids, every N minutes); near the cutoff they always go
+  out at once.
+- **Keep the program running** until the cutoff, 10 blocks before the deadline.
+- **Close after the deadline**, once drand round R is out (the dashboard shows R and its time) and before the late ticket block. Closing
+  opens the bids, pays each price into the auction's treasury, sends everyone else their signed refund, and publishes the viewing key once
+  the settlements are mined. If you do not, everyone takes their deposit back with their late ticket and the auction is shown as not
+  finished.
+
+Tested on private regtest chains only (`app/regtest/README.md`); not run on the public test network.
+
 ## 8. Mainnet
 
 Testnet campaigns have no restriction. For mainnet, the host program refuses to create a campaign that could still be open when the next Zcash network upgrade (NU7) activates. The upgrade already runs on testnet. The mainnet update of the libraries follows the upgrade and has not been done. Until you give the program the mainnet activation height (`--nu7-mainnet-height`), a campaign must end at least a week before 5 November 2026, the date announced for the upgrade (we have not confirmed it ourselves). Creating a mainnet campaign also needs an explicit confirmation (a tick box on the set up page, or `--confirm-mainnet`). After the upgrade, mainnet hosting waits for a library update. Real money runs so far were two small ones, described in `docs/EVIDENCE.md` section 8.

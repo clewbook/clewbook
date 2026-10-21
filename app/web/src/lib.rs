@@ -15,18 +15,41 @@ use zcash_client_backend::{
 };
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::transaction::Transaction;
-use zcash_protocol::consensus::{BlockHeight, BranchId, Network};
+use zcash_protocol::consensus::{BlockHeight, BranchId, Network, NetworkType, NetworkUpgrade, Parameters};
+
+/// The chain a recount reads: mainnet, testnet, or a private regtest chain (tests only; only a campaign whose own rules say "regtest" uses
+/// it, with the activation heights of app/regtest: every upgrade at block 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Params {
+    Net(Network),
+    Regtest(zcash_protocol::local_consensus::LocalNetwork),
+}
+
+impl Parameters for Params {
+    fn network_type(&self) -> NetworkType {
+        match self { Params::Net(n) => n.network_type(), Params::Regtest(l) => l.network_type() }
+    }
+    fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
+        match self { Params::Net(n) => n.activation_height(nu), Params::Regtest(l) => l.activation_height(nu) }
+    }
+}
+
+fn regtest() -> zcash_protocol::local_consensus::LocalNetwork {
+    let one = Some(BlockHeight::from_u32(1));
+    zcash_protocol::local_consensus::LocalNetwork { overwinter: one, sapling: one, blossom: one, heartwood: one, canopy: one, nu5: one, nu6: one, nu6_1: one, nu6_2: one, nu6_3: one, nu7: one }
+}
 
 use ll_core::{
     keys::ContributorKeys,
     ledger::{Entry, blob_hash, check_chain, verifying_key},
     payload::Payload,
     receiver::{TYPECODE_ORCHARD, network_type, orchard_receiver},
-    recount::{ChainNote, Challenge, DisclosureCheck, Extra, Spend, TxFacts, recount, recount_with, render},
+    recount::{ChainNote, Challenge, CoinFact, DisclosureCheck, Extra, Spend, TxFacts, recount, recount_with, render},
     rules::Rules,
 };
 
 mod contribute;
+mod sealed;
 
 fn js_err(e: impl std::fmt::Display) -> JsError {
     JsError::new(&e.to_string())
@@ -41,6 +64,20 @@ pub fn report_sealed(rules_json: &str, rules_id: &str, ledger_json: &str) -> Res
     let r = ll_core::recount::recount(&rules, rules_id, &ledger, &[], &[], 0, false);
     Ok(serde_json::json!({
         "all_pass": r.all_pass(),
+        "rules": r.results.iter().map(|x| serde_json::json!({"id": x.id, "title": x.title, "pass": x.pass, "waiting": x.waiting, "details": x.details})).collect::<Vec<_>>(),
+    })
+    .to_string())
+}
+
+/// A sealed bid auction before its viewing key is published, at chain height `tip` (no chain data needed): R1, R2, the waiting checks,
+/// and whether the host did not finish (no close by the late ticket block, or no viewing key soon after it).
+#[wasm_bindgen]
+pub fn report_sealed_at(rules_json: &str, rules_id: &str, ledger_json: &str, tip: u32) -> Result<String, JsError> {
+    let rules: Rules = serde_json::from_str(rules_json).map_err(js_err)?;
+    let ledger: Vec<Entry> = serde_json::from_str(ledger_json).map_err(js_err)?;
+    let r = ll_core::recount::recount(&rules, rules_id, &ledger, &[], &[], tip, false);
+    Ok(serde_json::json!({
+        "all_pass": r.all_pass(), "did_not_finish": r.did_not_finish, "tip": tip, "warnings": r.warnings,
         "rules": r.results.iter().map(|x| serde_json::json!({"id": x.id, "title": x.title, "pass": x.pass, "waiting": x.waiting, "details": x.details})).collect::<Vec<_>>(),
     })
     .to_string())
@@ -114,7 +151,7 @@ impl SpendWatch {
 
 #[wasm_bindgen]
 pub struct Recount {
-    params: Network,
+    params: Params,
     ufvk: UnifiedFullViewingKey,
     keys: ScanningKeys<u32, (u32, zip32::Scope)>,
     spend_ids: SpendIdentifiers<u32>,
@@ -123,6 +160,9 @@ pub struct Recount {
     /// Full transactions seen so far (raw bytes by txid) and what they showed.
     raw_txs: HashMap<String, Vec<u8>>,
     facts: Vec<TxFacts>,
+    /// Sealed bid auctions: the transparent outputs of the coin transactions named on the list, and the time of each block scanned.
+    coins: Vec<CoinFact>,
+    block_times: Vec<(u32, u64)>,
     last_height: u32,
     blocks: u32,
     actions: u64,
@@ -134,8 +174,9 @@ impl Recount {
     #[wasm_bindgen(constructor)]
     pub fn new(network: &str, ufvk: &str) -> Result<Recount, JsError> {
         let params = match network {
-            "test" => Network::TestNetwork,
-            "main" => Network::MainNetwork,
+            "test" => Params::Net(Network::TestNetwork),
+            "main" => Params::Net(Network::MainNetwork),
+            "regtest" => Params::Regtest(regtest()),
             n => return Err(js_err(format!("unsupported network {n}"))),
         };
         let ufvk = UnifiedFullViewingKey::decode(&params, ufvk).map_err(js_err)?;
@@ -149,6 +190,8 @@ impl Recount {
             by_nf: HashMap::new(),
             raw_txs: HashMap::new(),
             facts: vec![],
+            coins: vec![],
+            block_times: vec![],
             last_height: 0,
             blocks: 0,
             actions: 0,
@@ -158,6 +201,7 @@ impl Recount {
     /// Scans one CompactBlock (protobuf bytes). Blocks must be given in height order.
     pub fn scan_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
         let block = CompactBlock::decode(bytes).map_err(js_err)?;
+        self.block_times.push((block.height as u32, u64::from(block.time)));
         self.actions += block.vtx.iter().map(|t| (t.ironwood_actions.len() + t.actions.len()) as u64).sum::<u64>();
         let scanned = scan_block::<_, _, _, std::convert::Infallible>(&self.params, block, &self.keys, &self.spend_ids, None)
             .map_err(|e| js_err(format!("{e:?}")))?;
@@ -255,6 +299,31 @@ impl Recount {
         Ok(matched)
     }
 
+    /// Sealed bid auctions: the coin transactions named on the list (`coin` entries), which the recount fetches in full.
+    pub fn coin_txids(&self, ledger_json: &str) -> Result<Vec<String>, JsError> {
+        let ledger: Vec<Entry> = serde_json::from_str(ledger_json).map_err(js_err)?;
+        let mut t: Vec<String> = ledger.iter().filter_map(|e| e.coin.as_ref().map(|c| c.txid.clone())).collect();
+        t.sort();
+        t.dedup();
+        Ok(t)
+    }
+
+    /// Records the transparent outputs of a coin transaction (RawTransaction protobuf; height 0 or less when not mined).
+    pub fn add_coin_transaction(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        let raw = RawTransaction::decode(bytes).map_err(js_err)?;
+        let mined = u32::try_from(raw.height).ok().filter(|h| *h > 0 && *h != u32::MAX);
+        let tx = Transaction::read(&raw.data[..], BranchId::for_height(&self.params, BlockHeight::from_u32(mined.unwrap_or(self.last_height)))).map_err(js_err)?;
+        let txid = tx.txid().to_string();
+        self.coins.retain(|c| c.txid != txid);
+        let outs = tx.transparent_bundle().map_or(&[][..], |b| &b.vout[..]);
+        for (i, out) in outs.iter().enumerate() {
+            let mut w = vec![];
+            out.write(&mut w).map_err(js_err)?;
+            self.coins.push(CoinFact { txid: txid.clone(), index: i as u32, value_zat: out.value().into_u64(), script_hex: hex::encode(script_of(&w[8..])), height: mined });
+        }
+        Ok(outs.len() as u32)
+    }
+
     /// Runs the recount and returns the same text as `ll-recount`.
     pub fn report(&self, rules_json: &str, rules_id: &str, ledger_json: &str, challenges_json: &str) -> Result<String, JsError> {
         let rules: Rules = serde_json::from_str(rules_json).map_err(js_err)?;
@@ -272,10 +341,27 @@ impl Recount {
         let ledger: Vec<Entry> = serde_json::from_str(ledger_json).map_err(js_err)?;
         let challenges: Vec<Challenge> = serde_json::from_str(challenges_json).map_err(js_err)?;
         let treasury_notes: Vec<ChainNote> = if treasury_notes_json.is_empty() { vec![] } else { serde_json::from_str(treasury_notes_json).map_err(js_err)? };
+        // SPEC 9.1, open_payouts: who each payment the host signed to a person pays, opened with its key from the transactions already fetched
+        let payouts = ll_core::sealed_recount::payout_keys(&rules, &ledger, &self.notes)
+            .into_iter()
+            .map(|(txid, k)| {
+                let opened = match self.raw_txs.get(&txid) {
+                    None => Err("the transaction was not fetched".to_string()),
+                    Some(raw) => ll_core::hex32(&k).map_err(|e| e.to_string()).and_then(|ovk| ll_ticketcheck::recover_outputs(raw, &ovk)),
+                };
+                match opened {
+                    Ok(o) => ll_core::recount::PayoutFact { txid, outputs: o.into_iter().map(|(r, v)| ll_core::recount::PaidOutput { receiver_hex: r, value_zat: v }).collect(), error: None },
+                    Err(e) => ll_core::recount::PayoutFact { txid, outputs: vec![], error: Some(e) },
+                }
+            })
+            .collect();
         let extra = Extra {
             checks: self.disclosure_checks(&rules, rules_id, &challenges),
             treasury_notes,
             tx_facts: self.facts.clone(),
+            coins: self.coins.clone(),
+            block_times: self.block_times.clone(),
+            payouts,
         };
         let r = recount_with(&rules, rules_id, &ledger, &self.notes, &challenges, self.last_height, true, &extra);
         let t = &r.totals;
@@ -301,6 +387,16 @@ impl Recount {
             "auction": auction,
             "fingerprint": fingerprint,
         });
+        // a sealed bid auction only: its opened bids and outcome, and whether its host did not finish (other reports stay exactly as before)
+        if let Some(s) = &r.sealed {
+            out["sealed"] = serde_json::to_value(s).map_err(js_err)?;
+            // a check that waits, or cannot conclude (L2), is marked so, and is never shown as a failure of the host
+            for (i, _) in r.results.iter().enumerate().filter(|(_, x)| x.waiting) {
+                out["rules"][i]["waiting"] = true.into();
+            }
+            out["did_not_finish"] = r.did_not_finish.into();
+            out["totals_visible"] = (s.opened || s.void).into();
+        }
         // a fundraiser with a hard cap only: the cap and what is over it (a report without a cap stays exactly as before, and so does its hash)
         if let Some(cap) = rules.cap_zat {
             out["cap_zat"] = cap.into();
@@ -414,4 +510,14 @@ impl Recount {
     pub fn actions_seen(&self) -> f64 {
         self.actions as f64
     }
+}
+
+/// The script inside a serialized script field (a CompactSize length, then the bytes).
+fn script_of(field: &[u8]) -> &[u8] {
+    let (skip, len) = match field.first() {
+        Some(&n) if n < 0xfd => (1, n as usize),
+        Some(0xfd) if field.len() >= 3 => (3, u16::from_le_bytes([field[1], field[2]]) as usize),
+        _ => return &[],
+    };
+    field.get(skip..skip + len).unwrap_or(&[])
 }

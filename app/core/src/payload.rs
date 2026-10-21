@@ -108,6 +108,17 @@ impl Payload {
         Self::parse(&p)
     }
 
+    /// Opens the sealed part of a sealed bid memo (SPEC §9.3) with the campaign's payload secret key (host side).
+    pub fn open_sealed(sealed: &[u8], payload_sk: &SecretKey) -> Result<Self> {
+        let p = payload_sk.unseal(sealed).map_err(|_| anyhow!("payload does not open with this campaign's key"))?;
+        Self::parse(&p)
+    }
+
+    /// Opens the sealed part of a sealed bid memo (SPEC §9.3) with a published one-time secret (challenge, anyone).
+    pub fn open_sealed_challenged(sealed: &[u8], payload_pubkey: &[u8; 32], esk: &SecretKey) -> Result<Self> {
+        Self::parse(&open_with_ephemeral(sealed, &PublicKey::from(*payload_pubkey), esk)?)
+    }
+
     /// Opens a memo with a published one-time secret (challenge, anyone).
     pub fn open_challenged(memo: &str, payload_pubkey: &[u8; 32], esk: &SecretKey) -> Result<Self> {
         let sealed = sealed_bytes(memo).ok_or_else(|| anyhow!("not an LL1 payload"))?;

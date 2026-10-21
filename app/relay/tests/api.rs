@@ -20,7 +20,7 @@ fn campaign(seed: u8) -> Campaign {
         v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(5_000_000), items: None,
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-        pay_to: None, early_close: None, cap_zat: None, name: None,
+        pay_to: None, early_close: None, cap_zat: None, sealed: None, name: None,
         pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
     let id = hex::encode(rules.id().unwrap());
@@ -198,7 +198,7 @@ fn nothing_after_close() {
     let c = campaign(1);
     r.register(&c.rules).unwrap();
     let mut close = Entry::new(&c.id, "close");
-    close.close = Some(Close { close_height: 205, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None });
+    close.close = Some(Close { close_height: 205, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
     let ledger = c.chain(vec![c.issue(1, b"a"), close, c.issue(2, b"b")]);
     r.put_entry(&c.id, &ledger[0]).unwrap();
     r.put_entry(&c.id, &ledger[1]).unwrap();
@@ -281,7 +281,7 @@ fn reject(c: &Campaign, n: u8) -> Entry {
 }
 
 fn challenge(n: u8, action: u32, secret: u8) -> ll_core::recount::Challenge {
-    ll_core::recount::Challenge { txid: hex::encode([n; 32]), action, eph_sk: hex::encode([secret; 32]), uivk: None, complaint: false }
+    ll_core::recount::Challenge { txid: hex::encode([n; 32]), action, eph_sk: hex::encode([secret; 32]), uivk: None, complaint: false , memo: None }
 }
 
 #[test]
@@ -407,7 +407,7 @@ fn settlement_entries_may_follow_the_close_and_winners_statements_need_a_settlem
     let c = campaign(1);
     r.register(&c.rules).unwrap();
     let mut close = Entry::new(&c.id, "close");
-    close.close = Some(Close { close_height: 205, outcome: "auction".into(), winners: Some(vec![hex::encode([108u8; 32])]), ufvk: None, amount_key: None, clearing_price_zat: Some(190_000) });
+    close.close = Some(Close { close_height: 205, outcome: "auction".into(), winners: Some(vec![hex::encode([108u8; 32])]), ufvk: None, amount_key: None, clearing_price_zat: Some(190_000), drand_signature: None });
     let mut settle = Entry::new(&c.id, "settle");
     settle.settle = Some(ll_core::ledger::Settle { nf: hex::encode([108u8; 32]), txid: hex::encode([9u8; 32]), price_zat: 190_000, excess_zat: 100_000, fee_zat: 10_000 });
     let ledger = c.chain(vec![c.issue(8, b"w"), close, settle, c.issue(2, b"late")]);
@@ -485,7 +485,7 @@ fn a_heartbeat_must_be_signed_by_this_campaigns_key_and_be_for_it() {
 
 fn close_entry(c: &Campaign, height: u32) -> Entry {
     let mut e = Entry::new(&c.id, "close");
-    e.close = Some(ll_core::ledger::Close { close_height: height, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None });
+    e.close = Some(ll_core::ledger::Close { close_height: height, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
     e
 }
 

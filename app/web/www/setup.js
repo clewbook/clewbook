@@ -24,6 +24,54 @@ function toZat(text, what) {
 }
 const mode = () => document.querySelector('input[name=mode]:checked').value;
 const pricing = () => document.querySelector('input[name=pricing]:checked').value;
+const sealedPricing = () => document.querySelector('input[name=spricing]:checked').value;
+const sealedTiming = () => ($('#s-timing').hidden ? 'standard' : (document.querySelector('input[name=stiming]:checked') || { value: 'standard' }).value);
+// deposits are taken until the earlier of the ticket window and the 10 block cutoff for the host's small payment, before the deadline
+// (the same rule as the host's check, MIN_BID_WINDOW_BLOCKS in the core)
+const COIN_CUTOFF_BLOCKS = 10, MIN_BID_WINDOW = 10;
+const bidWindow = (deadlineIn, k) => deadlineIn - Math.max(k, COIN_CUTOFF_BLOCKS);
+function bidWindowError(deadlineIn, k) {
+  const w = bidWindow(deadlineIn, k), before = Math.max(k, COIN_CUTOFF_BLOCKS);
+  return w >= MIN_BID_WINDOW ? null : `This leaves ${Math.max(w, 0)} block(s) for deposits: a deposit must be made at least ${before} blocks before the deadline (the ticket window, or the ${COIN_CUTOFF_BLOCKS} block cutoff for the host's small payment if larger). Make the deadline at least ${before + MIN_BID_WINDOW} blocks, or the ticket window smaller.`;
+}
+/** The bidding window in words, for the summary. */
+function bidWindowText(n) {
+  const k = Number($('#ticketk').value);
+  if (!(Number.isInteger(n) && n > 0 && Number.isInteger(k) && k > 0)) return '<span class="dim">not entered yet</span>';
+  const w = bidWindow(n, k);
+  if (w < MIN_BID_WINDOW) return `<span class="dim">only ${Math.max(w, 0)} block(s): too short, at least ${MIN_BID_WINDOW} are needed</span>`;
+  const mins = measured.secondsPerBlock ? `, about ${Math.round((w * measured.secondsPerBlock) / 60).toLocaleString('en-US')} minutes from now` : '';
+  return measured.tip != null ? `Block ${(measured.tip + w).toLocaleString('en-US')}${mins}` : `${w.toLocaleString('en-US')} blocks from now${mins}`;
+}
+const SEALED_PRICING = { uniform: 'Everyone who wins pays the lowest winning bid', second: 'Everyone who wins pays the highest losing bid', pay_your_bid: 'Each winner pays their own bid' };
+/** The deposit sizes, smallest first, in zatoshis; throws a plain message. */
+function tranches() {
+  const t = $('#s-tranches').value.split(/[\n,]/).map((x) => x.trim()).filter(Boolean).map((x) => toZat(x, 'each deposit size'));
+  if (t.length < 1 || t.length > 10) throw new Error('Please give 1 to 10 deposit sizes.');
+  return [...new Set(t)].sort((a, b) => a - b);
+}
+function coinSending() {
+  const c = document.querySelector('input[name=scoins]:checked');
+  if (!c) throw new Error('Please choose when the small payments go out: at once, every few bids, or every few minutes.');
+  if (c.value === 'at_once') return { mode: 'at_once' };
+  const n = Number(c.value === 'every_bids' ? $('#s-coins-bids').value : $('#s-coins-min').value);
+  if (!Number.isInteger(n) || n < 1) throw new Error('Please enter a whole number for the small payments.');
+  // the same limits as the rules (1 to 1000 bids, 1 to 1440 minutes): refused here, before any wallet is made
+  const most = c.value === 'every_bids' ? 1000 : 1440;
+  if (n > most) throw new Error(c.value === 'every_bids' ? 'Please choose 1 to 1,000 bids for the small payments.' : 'Please choose 1 to 1,440 minutes (one day) for the small payments.');
+  return { mode: c.value, n };
+}
+
+/** The coin sending choice in words, for the summary. */
+function coinSendingText() {
+  const c = document.querySelector('input[name=scoins]:checked');
+  if (!c) return '<span class="dim">not chosen yet</span>';
+  if (c.value === 'at_once') return 'At once, one payment per bid';
+  const n = Number(c.value === 'every_bids' ? $('#s-coins-bids').value : $('#s-coins-min').value);
+  if (!Number.isInteger(n) || n < 1) return '<span class="dim">not a whole number yet</span>';
+  if (n > (c.value === 'every_bids' ? 1000 : 1440)) return `<span class="dim">${c.value === 'every_bids' ? 'at most 1,000 bids' : 'at most 1,440 minutes'}</span>`;
+  return `Every ${n.toLocaleString('en-US')} ${c.value === 'every_bids' ? (n === 1 ? 'bid' : 'bids') : (n === 1 ? 'minute' : 'minutes')}, and at once near the cutoff`;
+}
 
 function renderTerms() {
   const ticker = config ? config.ticker : 'TAZ';
@@ -37,6 +85,24 @@ function renderTerms() {
   let min = '';
   try { min = amountHTML(toZat($('#minimum').value, 'the smallest contribution'), ticker); } catch { min = '<span class="dim">not a number yet</span>'; }
   const time = Number.isInteger(n) && n > 0 ? (etaText(n, measured.secondsPerBlock) || 'the length of a block could not be measured') : '';
+  if (mode() === 'sealed_auction') {
+    let ts = '<span class="dim">not entered yet</span>';
+    try { ts = tranches().map((t) => amountHTML(t, ticker)).join(', '); } catch { /* not numbers yet */ }
+    $('#terms').innerHTML = [
+      row('Type', 'Blind bid auction'),
+      row('Items for sale', `${Number($('#s-items').value) || '<span class="dim">not entered yet</span>'}`),
+      row('Deposit sizes', ts),
+      row('How winners pay', SEALED_PRICING[sealedPricing()]),
+      row('Small payments', coinSendingText()),
+      row('Timing', sealedTiming() === 'quick' ? 'Quick test: blocks every 20 to 40 seconds, bids open 10 minutes after the deadline' : 'Standard'),
+      row('Deadline', Number.isInteger(n) && n > 0 ? `${measured.tip != null ? `about block ${(measured.tip + n).toLocaleString('en-US')}` : `${n.toLocaleString('en-US')} blocks from now`}${time ? `, ${time} from now` : ''}` : '<span class="dim">not entered yet</span>'),
+      row('Deposits accepted until', bidWindowText(n)),
+      row('When bids open', 'The drand round is chosen from the chain when the auction is made: after the deadline, with room for slow blocks'),
+      row('Network', config ? (config.network === 'main' ? 'Zcash Mainnet' : 'Testnet') : ''),
+    ].join('');
+    decorateAmounts($('#terms'));
+    return;
+  }
   $('#terms').innerHTML = [
     row('Type', mode() === 'raise' ? 'Fundraiser' : 'Auction'),
     row(mode() === 'raise' ? (cap != null ? 'Soft cap' : 'Goal') : 'Items for sale', goal),
@@ -73,13 +139,17 @@ function deadlineHint() {
 function ticketHint() {
   const k = Number($('#ticketk').value);
   const t = Number.isInteger(k) && k > 0 ? etaText(k, measured.secondsPerBlock) : null;
+  if (mode() === 'sealed_auction') { $('#ticketk-hint').textContent = 'Each deposit must get its tickets within this many blocks; the recount flags a late one.'; return; }
   $('#ticketk-hint').textContent = `Every contribution must get its refund ticket within this many blocks (the recount flags a late one), and after the deadline you have this many blocks to close before contributors may claim their own refunds. A longer window gives you more slack and contributors a longer wait. Whole number, 10 to 1000.${t ? ` ${k} blocks is ${t}.` : ''}`;
 }
 
 function modeChanged() {
-  const raise = mode() === 'raise';
+  ticketHint();
+  const raise = mode() === 'raise', sealed = mode() === 'sealed_auction';
   $('#goal-row').hidden = !raise;
-  $('#items-row').hidden = raise;
+  $('#items-row').hidden = raise || sealed;
+  $('#sealed-row').hidden = !sealed;
+  $('#minimum-row').hidden = sealed;
   renderTerms();
 }
 
@@ -90,6 +160,22 @@ async function onCreate(ev) {
   const btn = $('#create-btn');
   try {
     const m = mode();
+    if (m === 'sealed_auction') {
+      const windowError = bidWindowError(Number($('#deadline').value), Number($('#ticketk').value));
+      if (windowError) throw new Error(windowError);
+      const body = {
+        mode: m, items: Number($('#s-items').value), tranches_zat: tranches(), pricing: sealedPricing(), coin_sending: coinSending(), timing: sealedTiming(),
+        deadline_in: Number($('#deadline').value), ticket_k: Number($('#ticketk').value),
+        relays: $('#relays').value.split('\n').map((x) => x.trim()).filter(Boolean),
+      };
+      if ($('#s-reserve').value.trim()) body.reserve_zat = toZat($('#s-reserve').value, 'the reserve price');
+      const nm = $('#campaign-name').value.trim();
+      if (nm) body.name = nm;
+      btn.disabled = true; btn.textContent = 'Creating… this can take a few minutes';
+      await api('campaigns', body);
+      location.href = '/';
+      return;
+    }
     const body = {
       mode: m,
       deadline_in: Number($('#deadline').value),
@@ -134,6 +220,10 @@ async function main() {
   for (const el of document.querySelectorAll('.ticker')) el.textContent = config.ticker;
   // the hard cap field only when this host program knows the hard cap (an older one would ignore it and make a campaign without one)
   $('#cap-row').hidden = config.hard_cap !== true;
+  // the sealed bid auction only when this host program offers it (test network only for now)
+  $('#sealed-choice').hidden = config.sealed !== true;
+  // the quick test timing: test network only, and only from a host program that knows it (an older one would make a standard auction)
+  $('#s-timing').hidden = config.network === 'main' || config.sealed_quick_timing !== true;
   if (config.network === 'main') {
     $('#mainnet-banner').hidden = false; $('#confirm-row').hidden = false; $('#create-btn').disabled = true;
     $('#nu7-note').textContent = config.nu7_mainnet_height
@@ -149,7 +239,15 @@ async function main() {
   $('#early-close').addEventListener('change', renderTerms);
   for (const r of document.querySelectorAll('input[name=pricing]')) r.addEventListener('change', () => { $('#reserve-row').hidden = pricing() !== 'uniform'; renderTerms(); });
   for (const id of ['#goal', '#cap']) $(id).addEventListener('input', capWarn);
-  for (const id of ['#goal', '#cap', '#items', '#minimum', '#deadline', '#ticketk']) $(id).addEventListener('input', () => { deadlineHint(); ticketHint(); renderTerms(); });
+  for (const id of ['#goal', '#cap', '#items', '#minimum', '#deadline', '#ticketk', '#s-items', '#s-tranches']) $(id).addEventListener('input', () => { deadlineHint(); ticketHint(); renderTerms(); });
+  for (const r of document.querySelectorAll('input[name=spricing]')) r.addEventListener('change', renderTerms);
+  for (const r of document.querySelectorAll('input[name=scoins], input[name=stiming]')) r.addEventListener('change', renderTerms);
+  // typing a number chooses its line
+  for (const [id, v] of [['#s-coins-bids', 'every_bids'], ['#s-coins-min', 'every_minutes']]) {
+    const pick = () => { document.querySelector(`input[name=scoins][value=${v}]`).checked = true; renderTerms(); };
+    $(id).addEventListener('focus', pick);
+    $(id).addEventListener('input', pick);
+  }
   modeChanged(); deadlineHint(); ticketHint(); decorateAmounts(document.querySelector('main'));
   measured = await measureBlocks(config.network);
   deadlineHint(); ticketHint(); renderTerms(); decorateAmounts(document.querySelector('main'));

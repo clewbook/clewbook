@@ -1,0 +1,17 @@
+{
+ "note": "Public lists of three auctions from the private regtest chain (app/regtest checks), and two throwaway regtest payer seeds. No value anywhere.",
+ "N": "704e2910a0b57876256ec55fb0a0599bb4a54750889bd673f16a6e009d3cfab6",
+ "U": "720bdb000b92f2924dd37ce2018906f9a9f6d036ca6a0889b763b7ed537d079f",
+ "ordinary": "0e2fb4e07d7c0885407fe305cf24c0239a3f941b7d0259ebe9bdbf154f4f1d53",
+ "refund_address": "zuregtest1wcz5xmfk788znmvguze5h59zafqdg0ecmh8flvvqpuwehqrettw970w9f2x8ak53rld56kk9h9lk5mkgtfcw70dtmcz4tzqa0muqmup0ualdxc629xwfvhaxzeygyvjmfkseeqn4ksdvskj6hy3a936t73rvt37ja6chyday9sajv2pu",
+ "n1": {
+  "seed": "c2818bc411f7b105e069c154690d2562bda581dced60ae022bdba3345519fb14",
+  "tranche": 30000000,
+  "bid": 20000000
+ },
+ "u1": {
+  "seed": "0849a7dce4ca94ef00acb7676d761339b5950aefecdfc97ebbccf2b7e7715d8d",
+  "tranche": 30000000,
+  "bid": 20000000
+ }
+}

@@ -75,6 +75,9 @@ fn honest(u: &U) -> (Vec<Entry>, Vec<ChainNote>, Extra) {
         treasury_notes: vec![tnote("settle-a", 190_000), tnote("settle-b", 190_000)],
         tx_facts: vec![facts("settle-a"), facts("settle-b")],
         checks: vec![],
+        coins: vec![],
+        block_times: vec![],
+        payouts: vec![],
     };
     (l, notes, extra)
 }
@@ -318,7 +321,7 @@ fn a_settlement_entry_that_lies_fails_r9() {
     // no settlement entry at all
     let l = f.ledger(vec![f.entry("issue", &u.a), f.entry("issue", &u.b), f.entry("issue", &u.c), close_u(f, vec![nf(&u.a), nf(&u.b)], 190_000)]);
     assert_eq!(failing(&run(f, &l, &notes, &[], &extra, 220)), vec!["R9"]);
-    let _ = Close { close_height: 0, outcome: String::new(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None };
+    let _ = Close { close_height: 0, outcome: String::new(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None };
 }
 
 #[test]

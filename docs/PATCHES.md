@@ -39,7 +39,16 @@ git diff 5a26ee8 HEAD -- src Cargo.toml Cargo.lock
 **Where it is used.** The dashboard uses it to create a campaign's wallet. Some test scenarios use it to make real test network payments.
 The host's default wallet backend uses the Zcash libraries directly (`app/host/src/libs.rs`); the tool is the fallback backend.
 
-## 2. Library versions: published prereleases, no patched crates
+## 1b. A modified copy of the tlock library (blind bid auctions only)
+
+| | |
+|---|---|
+| **What** | tlock 0.0.10, the Rust library for drand timelock encryption by Thibault Meunier (https://github.com/thibmeu/tlock-rs, crates.io `tlock` 0.0.10). Our copy is `app/vendor/tlock`. It is used only by blind bid auctions (SPEC §9). |
+| **Licence** | Upstream's: MIT. Upstream's own note applies: "This software has not been audited." |
+| **Changes** | (1) `ibe::decrypt` returns an error instead of panicking when a ciphertext has the wrong length or fails its check (upstream panics; a panic inside the browser module stops the whole page, and a person who bids could cause it with a bad lock). (2) The helper `xor` no longer panics (its callers check lengths first). (3) Added `decrypt_exact`, which opens exactly 16 bytes and keeps trailing zero bytes (upstream's `decrypt` drops them, which would lose about one bid in 256 without the marker byte). (4) Added `verify_round` and `ibe::verify_signature`, which check a drand round's signature against the network's public key. Nothing else is changed. |
+| **Tests** | Upstream's tests pass on the copy; `app/core/src/bid.rs` tests open a bid locked to a real quicknet round with its published signature and check that altered, garbage and wrong round inputs are "no bid", never a panic. |
+
+## 2. Library versions: published prereleases, no patched crates except the tlock copy (1b)
 
 - Every library comes from crates.io. There is **no `[patch]` section and no git or local path dependency** in either workspace
   (`Cargo.toml`, `app/Cargo.toml`). A build from an empty cache downloads everything from crates.io (checked on 14 October 2026).

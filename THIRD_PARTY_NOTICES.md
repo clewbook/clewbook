@@ -19,6 +19,7 @@ Clewbook is licensed under the MIT licence or the Apache License 2.0, at your op
 | addchain | 0.3.0 | MIT OR Apache-2.0 |
 | adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
 | aead | 0.5.2 | MIT OR Apache-2.0 |
+| tlock (modified copy in `app/vendor/tlock`, docs/PATCHES.md) | 0.0.10 | MIT |
 | aead | 0.6.1 | MIT OR Apache-2.0 |
 | aes | 0.8.4 | MIT OR Apache-2.0 |
 | aes | 0.9.3 | MIT OR Apache-2.0 |

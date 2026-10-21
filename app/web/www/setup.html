@@ -22,7 +22,7 @@
   <div class="su-head">
   <p class="t-label su-k">Host · New campaign · Your computer</p>
   <h1 class="t-h1">Set up a campaign</h1>
-  <p class="t-lead">Choose what you are running and when it ends. Every contributor gets a signed refund ticket with no expiry height, whatever happens to you afterwards.</p>
+  <p class="t-lead">Choose what you are running and when it ends. Every contributor gets a refund signed in advance.</p>
   <p class="muted" id="net-note"></p>
   </div>
   <div id="banner" class="notice bad" hidden></div>
@@ -37,6 +37,7 @@
         <legend class="sr">Type of campaign</legend>
         <label class="choice"><input type="radio" name="mode" value="raise" checked><span><b>Fundraiser</b><small>If the goal is not reached by the deadline, everyone is refunded.</small></span></label>
         <label class="choice"><input type="radio" name="mode" value="auction"><span><b>Auction</b><small>The highest bids win, everyone else is refunded.</small></span></label>
+        <label class="choice" id="sealed-choice" hidden><input type="radio" name="mode" value="sealed_auction"><span><b>Blind bid auction</b><small>Each bid stays locked until a drand round after the deadline, so nobody, you included, can read a bid before bidding closes. Each person pays a deposit of one of the sizes you set; the highest bids win. Bids and refund addresses become public after the close. Test network only for now.</small></span></label>
       </fieldset>
       <label for="campaign-name">Name (optional)</label>
       <input id="campaign-name" autocomplete="off" maxlength="60" placeholder="For example: Community radio mast">
@@ -62,7 +63,7 @@
         <fieldset class="choices" id="pricing-row">
           <legend>How winners pay</legend>
           <label class="choice"><input type="radio" name="pricing" value="uniform" checked><span><b>Everyone who wins pays the same price</b><small>Everyone who wins pays the lowest winning bid; anything extra a winner sent comes back to them. Example: 3 items, and bids of 1.0, 0.8, 0.6 and 0.5. The three highest win and each pays 0.6: whoever bid 1.0 gets 0.4 back, whoever bid 0.8 gets 0.2 back, and whoever bid 0.5 is refunded. The winners' payments go to a treasury wallet that this program makes for the campaign, inside its folder; its viewing key is published so anyone can check what it received.</small></span></label>
-          <label class="choice"><input type="radio" name="pricing" value="pay_your_bid"><span><b>Each winner pays their own bid</b><small>The highest bids win, and each winner pays the whole amount they sent; nothing is paid back to a winner. Simpler, but a bidder who sends more than they meant to pays all of it.</small></span></label>
+          <label class="choice"><input type="radio" name="pricing" value="pay_your_bid"><span><b>Each winner pays their own bid</b><small>The highest bids win, and each winner pays the whole amount they sent; nothing is paid back to a winner. Simpler, but someone who sends more than they meant to pays all of it.</small></span></label>
         </fieldset>
         <div id="reserve-row">
           <label for="reserve">Reserve price (<span class="ticker">TAZ</span>)</label>
@@ -70,9 +71,38 @@
           <p class="hint">The lowest price an item can sell for. A bid must be at least the reserve plus the refund fee to win; if fewer bids reach it than there are items, every winner pays the reserve.</p>
         </div>
       </div>
+      <div id="sealed-row" hidden>
+        <label for="s-items">Number of items for sale</label>
+        <input id="s-items" inputmode="numeric" autocomplete="off" placeholder="1">
+        <label for="s-tranches">Deposit sizes (<span class="ticker">TAZ</span>), one per line, 1 to 10</label>
+        <textarea id="s-tranches" rows="3" autocomplete="off" spellcheck="false" placeholder="0.1&#10;0.5"></textarea>
+        <p class="hint" id="s-tranches-hint">A bid can be at most its deposit minus the refund fee. The deposit is public, so it shows the size of a bid, never the bid. Fewer sizes, further apart, hide bids better.</p>
+        <fieldset class="choices">
+          <legend>How winners pay</legend>
+          <label class="choice"><input type="radio" name="spricing" value="uniform" checked><span><b>Everyone who wins pays the same price</b><small>The lowest winning bid. The rest of each deposit comes back.</small></span></label>
+          <label class="choice"><input type="radio" name="spricing" value="second"><span><b>Everyone who wins pays the highest losing bid</b><small>Known as a second price auction: it rewards bidding what an item is worth to you.</small></span></label>
+          <label class="choice"><input type="radio" name="spricing" value="pay_your_bid"><span><b>Each winner pays their own bid</b><small>The rest of each winning deposit comes back.</small></span></label>
+        </fieldset>
+        <label for="s-reserve">Reserve price, if you want one (<span class="ticker">TAZ</span>)</label>
+        <input id="s-reserve" inputmode="decimal" autocomplete="off" placeholder="Leave empty for no reserve">
+        <fieldset class="choices" id="s-coins">
+          <legend>When the small payments go out</legend>
+          <p class="hint">Each bid gets 0.00005 from a coin wallet you fund, so the person can take their deposit back if you never finish. From 20 blocks before the cutoff they go out at once.</p>
+          <label class="choice"><input type="radio" name="scoins" value="at_once"><span><b>At once</b><small>One payment per bid, as soon as its ticket is written. Costs the most in fees.</small></span></label>
+          <label class="choice"><input type="radio" name="scoins" value="every_bids"><span><b>Every <input id="s-coins-bids" class="tiny" inputmode="numeric" value="5" aria-label="number of bids"> bids</b><small>Cheaper; the bids wait for their payment until enough have come.</small></span></label>
+          <label class="choice"><input type="radio" name="scoins" value="every_minutes"><span><b>Every <input id="s-coins-min" class="tiny" inputmode="numeric" value="30" aria-label="number of minutes"> minutes</b><small>Cheaper; payments go out together on a timer.</small></span></label>
+        </fieldset>
+        <fieldset class="choices" id="s-timing">
+          <legend>Timing</legend>
+          <label class="choice"><input type="radio" name="stiming" value="standard" checked><span><b>Standard</b><small>Allows for blocks every 20 to 80 seconds on the test network. The bids open at least 30 minutes after the deadline.</small></span></label>
+          <label class="choice"><input type="radio" name="stiming" value="quick"><span><b>Quick test</b><small>Test network only. Allows for blocks every 20 to 40 seconds, and the bids open 10 minutes after the deadline, so a trial takes about half as long. If blocks come slower than 40 seconds, bidding stops early and the auction may end void, with every deposit sent back.</small></span></label>
+        </fieldset>
+      </div>
+      <div id="minimum-row">
       <label for="minimum">Smallest contribution (<span class="ticker">TAZ</span>)</label>
       <input id="minimum" inputmode="decimal" autocomplete="off" value="0.0002">
       <p class="hint" id="minimum-hint"></p>
+      </div>
       <label for="deadline">Deadline: blocks from now</label>
       <input id="deadline" inputmode="numeric" autocomplete="off" value="500">
       <p class="hint" id="deadline-hint"></p>
@@ -96,7 +126,7 @@
     </section>
 
     <section class="su-key">
-      <div class="notice info"><div class="k">Your campaign key</div><h3>Back up the campaign folder</h3><p>Creating a campaign makes a new wallet and key for it on this computer. They are not sent anywhere. Without them you cannot close the campaign or send refunds, so keep a copy of the campaign's folder (in this program's runs folder) somewhere safe. Contributors can still refund themselves with their tickets.</p></div>
+      <div class="notice info"><div class="k">Your campaign key</div><h3>Back up the campaign folder</h3><p>Creating a campaign makes a new wallet and key for it on this computer. They are not sent anywhere. Without them you cannot close the campaign or send refunds, so keep a copy of the campaign's folder (in this program's runs folder) somewhere safe. Contributors can still refund themselves with their tickets (in a blind bid auction, with their late tickets).</p></div>
     </section>
 
     <section class="su-create">

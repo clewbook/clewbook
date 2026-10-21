@@ -179,10 +179,12 @@ mod tests {
         let d = folder("dead");
         fs::create_dir_all(d.join("private")).unwrap();
         // a process id that is not running (pid_max is far below this)
+        // (the same short retry as above: a child process another test is starting may briefly share the lock)
+        let take = || (0..40).find_map(|_| RunLock::acquire(&d, "new").ok().or_else(|| { std::thread::sleep(std::time::Duration::from_millis(25)); None }));
         fs::write(d.join("private/host.lock"), "4194000\nstart 1@x\nwatch\n").unwrap();
-        assert!(RunLock::acquire(&d, "new").is_ok());
+        assert!(take().is_some());
         fs::write(d.join("private/host.lock"), "4194000\nwatch\n").unwrap(); // old format, dead
-        assert!(RunLock::acquire(&d, "new").is_ok());
+        assert!(take().is_some());
         let _ = fs::remove_dir_all(&d);
     }
 

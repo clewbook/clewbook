@@ -79,6 +79,9 @@ pub struct Outcome {
     pub stats: ScanStats,
     /// Bytes read from the relays.
     pub relay_bytes: u64,
+    /// A sealed bid auction whose host did not finish it (SPEC §9.7): shown as "did not finish" in the listing.
+    #[serde(default)]
+    pub did_not_finish: bool,
 }
 
 impl Outcome {
@@ -86,6 +89,7 @@ impl Outcome {
         Outcome {
             at: crate::host::now_secs(), tip, network: network.into(), scope: String::new(), verdict: false, all_pass: false, passed: vec![], failed: vec![],
             waiting: vec![], error: Some(error), transient, head: String::new(), closed: false, seconds: t0.elapsed().as_secs_f64(), stats: ScanStats::default(), relay_bytes: 0,
+            did_not_finish: false,
         }
     }
 
@@ -203,16 +207,24 @@ pub fn recount_campaign(chain: &Arc<dyn Chain>, relays: &[String], id: &str, net
         .collect::<Vec<_>>().join(",");
     let close = close_entry(&entries);
     let closed = close.is_some() || tip >= rules.deadline_height;
-    let ufvk = if rules.is_auction() { close.and_then(|c| c.ufvk.clone()) } else { rules.campaign_ufvk.clone() };
+    // a sealed bid auction publishes its viewing key in a reveal entry, once every winner is settled (SPEC §9.6)
+    let ufvk = if rules.is_sealed() {
+        entries.iter().find(|e| e.kind == "reveal").and_then(|e| e.reveal.as_ref()).map(|r| r.ufvk.clone())
+    } else if rules.is_auction() {
+        close.and_then(|c| c.ufvk.clone())
+    } else {
+        rules.campaign_ufvk.clone()
+    };
     let (Ok(rules_json), Ok(ledger_json), Ok(challenges_json)) = (serde_json::to_string(&rules), serde_json::to_string(&entries), serde_json::to_string(&challenges)) else {
         return Outcome::none(network, tip, "the campaign could not be written out for the recount".into(), false, t0);
     };
     let mut o = Outcome { at: 0, tip, network: network.into(), scope: String::new(), verdict: true, all_pass: false, passed: vec![], failed: vec![], waiting: vec![],
-        error: None, transient: false, head, closed, seconds: 0.0, stats: ScanStats::default(), relay_bytes };
+        error: None, transient: false, head, closed, seconds: 0.0, stats: ScanStats::default(), relay_bytes, did_not_finish: false };
     let report: Result<serde_json::Value> = match ufvk {
         None => {
             o.scope = "sealed".into();
-            std::panic::catch_unwind(|| ll_web::report_sealed(&rules_json, id, &ledger_json)).map_err(|_| anyhow!("the sealed recount failed"))
+            // the second review, M2: at the chain's height, so a host that never closes is marked "did not finish"
+            std::panic::catch_unwind(|| ll_web::report_sealed_at(&rules_json, id, &ledger_json, tip)).map_err(|_| anyhow!("the sealed recount failed"))
                 .and_then(|r| r.map_err(|_| anyhow!("the sealed recount could not read the campaign")))
                 .and_then(|t| Ok(serde_json::from_str(&t)?))
         }
@@ -252,6 +264,8 @@ pub fn recount_campaign(chain: &Arc<dyn Chain>, relays: &[String], id: &str, net
         Ok(r) => {
             let (p, f, w) = results(&r);
             o.all_pass = f.is_empty() && !p.is_empty();
+            // a sealed bid auction whose host did not finish is marked so in the listing (the owner's decision, 20 Oct 2026)
+            o.did_not_finish = r.get("did_not_finish").and_then(serde_json::Value::as_bool).unwrap_or(false);
             (o.passed, o.failed, o.waiting) = (p, f, w);
         }
         Err(e) => { o.verdict = false; o.error = Some(e.to_string()); }

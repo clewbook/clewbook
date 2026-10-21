@@ -7,7 +7,7 @@ import { sha256hex, reportEnvelope } from './canon.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { setNetwork, setup, decorateAmounts, mountHash, setCampaignLabel, markReady, CHECKS } from './ui.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, forget, memoryWords, compareLists, describeComparison, hashesOf } from './copies.js';
-import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, tipOf, DEFAULT_ENDPOINTS } from './public.js';
+import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, tipOf, DEFAULT_ENDPOINTS, milestones, backToMilestones } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const cfg = linkParams();
@@ -77,6 +77,38 @@ function showTotals(r, ticker, final) {
   if (r.winners) fact(dl, 'Winners (best first)', r.winners.join(', ') || 'none');
   $('#totals-card').hidden = false;
   decorateAmounts($('#totals'));
+}
+
+const PRICING_WORDS = { uniform: 'everyone who wins pays the lowest winning bid', second: 'everyone who wins pays the highest losing bid', pay_your_bid: 'each winner pays their own bid' };
+
+/** A sealed bid auction: its timing, the bids as they opened with round R, the winners and what each pays. */
+function showSealed(r, rules, ticker) {
+  const z = (n) => `${coin(n)} ${ticker}`, s = rules.sealed, o = r.sealed;
+  const dl = $('#sealed-facts');
+  dl.replaceChildren();
+  fact(dl, 'Deposit sizes', s.tranches_zat.map(z).join(', '));
+  fact(dl, 'How winners pay', PRICING_WORDS[s.pricing]);
+  fact(dl, 'Bids open with', `drand round ${s.drand_round}`);
+  if (s.timing === 'quick') fact(dl, 'Timing', 'Quick test: blocks every 20 to 40 seconds, bids open 10 minutes after the deadline');
+  fact(dl, 'The host\'s small payments by', `block ${rules.deadline_height - s.coin_cutoff}`);
+  fact(dl, 'Late tickets work from', `block ${s.claim_after + 1}`);
+  if (r.did_not_finish) fact(dl, 'Result', 'The host did not finish this auction');
+  else if (o && o.void) fact(dl, 'Result', 'Void: round R came too early for this deadline, so every deposit goes back');
+  else if (o && o.opened && !o.winners.length) fact(dl, 'Result', 'No winners: every deposit goes back');
+  else if (o && o.opened) fact(dl, 'Result', `${o.winners.length} winner(s)${o.price_zat != null ? `, each pays ${z(o.price_zat)}` : ', each pays their own bid'}`);
+  else fact(dl, 'Result', 'The bids have not opened yet');
+  const ol = $('#sealed-bids');
+  ol.replaceChildren(...((o && o.deposits) || []).map((d) => {
+    const li = document.createElement('li');
+    const what = d.withdrawn ? 'taken back before the deadline'
+      : d.bid_zat != null && !d.no_bid ? `bid ${z(d.bid_zat)}${d.winner ? `, WINS, pays ${z(d.price_zat)}` : ''}`
+        : d.no_bid ? `no bid: ${d.no_bid}` : 'not opened yet';
+    li.textContent = `Deposit ${d.nf.slice(0, 10)}… of ${z(d.tranche_zat)} (paid ${z(d.value_zat)}, block ${d.height}): ${what}`;
+    if (d.winner) li.className = 'done';
+    return li;
+  }));
+  $('#sealed-card').hidden = false;
+  decorateAmounts($('#sealed-card'));
 }
 
 /** The checks as one table (round 11, "Table and filters"): every row a button that opens the check's description and the evidence the engine wrote.
@@ -188,7 +220,23 @@ async function recount() {
   copyStep(j);
   setNetwork(c.network);
   const closeEntry = j.entries.find((e) => e.kind === 'close');
-  const ufvk = rules.campaign_ufvk || closeEntry?.close?.ufvk;
+  // a sealed bid auction publishes its viewing key in a reveal entry, once every winner is settled
+  const revealEntry = j.entries.find((e) => e.kind === 'reveal');
+  const ufvk = rules.campaign_ufvk || closeEntry?.close?.ufvk || revealEntry?.reveal?.ufvk;
+  if (!ufvk && rules.sealed) {
+    // R1 and R2 run, the other checks wait; with the chain height, whether the host did not finish (no chain data is needed for that)
+    const eps = cfg.endpoints.length ? cfg.endpoints : DEFAULT_ENDPOINTS[c.network] || [];
+    let tip = 0;
+    for (const u of eps) { tip = (await tipOf(u)) || 0; if (tip) break; }
+    const s = JSON.parse(W.report_sealed_at(j.rules, cfg.id, JSON.stringify(j.entries), tip));
+    showRules(s);
+    for (const w of s.warnings) warn('bad', w);
+    showSealed({ did_not_finish: s.did_not_finish, sealed: null }, rules, c.ticker);
+    if (s.did_not_finish) return verdict('fail', 'The host did not finish', `This blind bid auction was not finished by its host in time${tip ? ` (chain height ${tip})` : ''}. Everyone can take their deposit back with their late ticket. The other checks wait for the viewing key, which the host has not published.`);
+    return s.all_pass
+      ? verdict('cannot', 'Not yet possible', 'This is a blind bid auction whose viewing key is not published yet. R1 and R2 pass: the rules match the auction and the signed list is intact. The other checks wait for the viewing key, which the host publishes once every winner is settled.')
+      : verdict('fail', 'Some checks FAIL', 'This is a blind bid auction whose viewing key is not published yet, and R1 or R2 fails: see the evidence under the check.');
+  }
   if (!ufvk) {
     // an auction before its close: its viewing key is sealed, so R1 and R2 run and every other check waits, as the command line shows them
     const s = JSON.parse(W.report_sealed(j.rules, cfg.id, JSON.stringify(j.entries)));
@@ -233,6 +281,7 @@ async function recount() {
   }
 
   showTotals(r, c.ticker, out.end > rules.deadline_height);
+  if (rules.sealed) showSealed(r, rules, c.ticker);
   // when the campaign's list ends, in blocks: the deadline always, and the close when the host closed it
   const nf = (n) => Number(n).toLocaleString('en-US');
   $('#tl-deadline').textContent = `block ${nf(rules.deadline_height)}`;
@@ -249,7 +298,7 @@ async function recount() {
   openNote.hidden = !(pastDeadline && !isClosed);
   if (!openNote.hidden) {
     // the notice (round 11): the same facts as the paragraph it replaces. The window ends at deadline + K; refunds are open only once the chain is past it
-    const windowEnd = rules.deadline_height + rules.ticket_k, open = out.end > windowEnd;
+    const windowEnd = rules.sealed ? rules.sealed.claim_after : rules.deadline_height + rules.ticket_k, open = out.end > windowEnd;
     const k = Object.assign(document.createElement('span'), { className: 'rn-k', textContent: open ? 'NOTICE · REFUNDS OPEN' : 'NOTICE' });
     const grid = document.createElement('div'); grid.className = 'rn-grid';
     for (const [l, v] of [['Status', 'Past deadline. Not closed by the host.'],
@@ -273,7 +322,10 @@ async function recount() {
   showSummary(r, { partial, oneRelay, fromFile: !!j.fromFile, servers: n, hostings: groups.size, relays: j.ok.length, sameAsLast });
   if (partial) warn('warn', 'Only one public server answered. A single server could leave blocks out, so this is not a cross check.');
   if (oneRelay && !j.fromFile) warn('info', cfg.relays.length > 1 ? 'Only one relay gave a usable list.' : 'Only one relay was asked, so the list has not been cross checked.');
-  if (r.all_pass) {
+  if (r.sealed && r.sealed.cannot_conclude && r.rules.every((x) => x.pass || x.waiting)) {
+    // the review, L2: a sealed bid auction whose block times around the deadline could not be read: whether it is void is not known
+    verdict('cannot', 'Cannot conclude', `Nothing was concluded: ${r.sealed.cannot_conclude}. Try again later or add another server below.`);
+  } else if (r.all_pass) {
     // a saved copy keeps its one line: what a result from a file can and cannot show is said nowhere else
     if (j.fromFile) verdict('partial', 'All checks pass for the saved copy', 'This result comes from a file, not from a relay: it shows the file is internally sound and matches the chain, not that it is the list the host showed to others.');
     else if (partial || oneRelay) verdict('partial', 'All checks pass', '');
@@ -588,7 +640,12 @@ async function main() {
     verdict('cannot', 'Incomplete link', 'This link is incomplete. Please ask whoever sent it for the full recount link.');
     return;
   }
-  if (!upload) $('#nav-campaign').href = sibling('campaign', cfg);
+  if (!upload) {
+    // opened from the demo's Tested milestones page, the top left link returns there; one step further it keeps the way back
+    const ms = milestones();
+    if (ms && ms.direct) backToMilestones($('#nav-campaign'), ms);
+    else $('#nav-campaign').href = ms ? ms.onward(sibling('campaign', cfg)) : sibling('campaign', cfg);
+  }
   if (!upload) await init();
   $('#again').addEventListener('click', run); $('#again-tab').addEventListener('click', run);
   $('#saved-file').addEventListener('change', async (ev) => {

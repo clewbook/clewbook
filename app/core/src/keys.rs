@@ -38,6 +38,12 @@ impl ContributorKeys {
     pub fn memo_ephemeral_key(&self) -> crypto_box::SecretKey {
         crypto_box::SecretKey::from(hash(b"ledgerlab_eph", &self.seed))
     }
+
+    /// Sealed bid auctions: the 32 bytes of the page's transparent secret key (secp256k1), derived from the seed so the backup holds it.
+    /// The host's coin pays this key's address, and only this key can sign the coin into the late ticket.
+    pub fn page_secret(&self) -> [u8; 32] {
+        hash(b"ledgerlab_page", &self.seed)
+    }
 }
 
 /// The campaign's secret keys: one signs ledger entries, the other opens memo payloads.

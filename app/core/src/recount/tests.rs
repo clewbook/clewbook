@@ -28,7 +28,7 @@ fn fx(mode: &str) -> Fx {
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000,
         campaign_ufvk: (!auction).then(|| UFVK.into()), ufvk_hash: auction.then(|| ufvk_hash(UFVK)),
-        pay_to: None, early_close: None, cap_zat: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
+        pay_to: None, early_close: None, cap_zat: None, sealed: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
         name: None,
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
@@ -77,7 +77,7 @@ impl Fx {
         let auction = self.rules.is_auction();
         e.close = Some(Close {
             close_height: 205, outcome: outcome.into(), winners,
-            ufvk: auction.then(|| UFVK.into()), amount_key: auction.then(|| hex::encode(self.amount_key)), clearing_price_zat: None,
+            ufvk: auction.then(|| UFVK.into()), amount_key: auction.then(|| hex::encode(self.amount_key)), clearing_price_zat: None, drand_signature: None,
         });
         e
     }
@@ -131,7 +131,7 @@ impl Fx {
 
 fn challenge(n: &ChainNote, seed: u8) -> Challenge {
     let esk = ContributorKeys { seed: [seed; 32] }.memo_ephemeral_key();
-    Challenge { txid: n.txid.clone(), action: n.action, eph_sk: hex::encode(esk.to_bytes()), uivk: None, complaint: false }
+    Challenge { txid: n.txid.clone(), action: n.action, eph_sk: hex::encode(esk.to_bytes()), uivk: None, complaint: false , memo: None }
 }
 
 // ---- raise ----

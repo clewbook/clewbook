@@ -73,6 +73,13 @@
         <button type="button" id="close-no" class="secondary">Not now</button></div>
       </div>
       <ul id="close-log" class="plainlist"></ul>
+      <div id="treasury-send" hidden>
+        <p id="treasury-line"></p>
+        <label for="treasury-to">Your wallet address</label>
+        <textarea id="treasury-to" rows="2" autocomplete="off" spellcheck="false"></textarea>
+        <button type="button" id="treasury-btn">Send to my wallet</button>
+        <p id="treasury-result" class="muted" hidden></p>
+      </div>
     </section>
     <a class="btn dn-new" id="new-btn" href="/setup.html">+ Set up a new campaign</a>
     <a class="dn-how" href="https://app.clewbook.xyz/host.html">How hosting works</a>

@@ -41,11 +41,28 @@ pub struct Limits {
     /// Requests per minute from one source (0 = no limit). Behind a tunnel every request comes from this computer, so the source is the client
     /// address the tunnel passes on (`CF-Connecting-IP`), trusted only from this computer.
     pub per_source_per_minute: u32,
+    /// TESTS ONLY: a fixed clock (unix seconds) for the sealed bid auction's time limit; `None` is the real clock.
+    pub test_now: Option<u64>,
+    /// The second review, M4: rules for a private regtest chain are taken only by a relay started for one (`serve --allow-regtest`); a public
+    /// relay refuses them, so nobody can switch off the test network's protections by calling an auction "regtest".
+    pub allow_regtest: bool,
+    /// The second review, M5: the bytes one campaign may store on this relay (rules, entries, sealed tickets, challenges).
+    pub max_campaign_bytes: u64,
+    /// The bytes this relay stores in all.
+    pub max_total_bytes: u64,
 }
+
+/// The independent review, H1: from this long before a sealed bid auction's drand round R is published, its list takes no new deposit
+/// (issue, reissue), reject or small payment (coin) entry, so a host that reads every bid once R is out cannot add bids of its own then.
+/// (A private test chain's rounds and block times are not real times, so this does not apply to the regtest network.)
+pub const SEALED_ENTRY_MARGIN_SECS: u64 = 5 * 60;
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { max_campaigns: 200, max_entries: 5_000, max_body: MAX_BLOB_BYTES, max_concurrent: 64, per_source_per_minute: 600 }
+        Limits {
+            max_campaigns: 200, max_entries: 5_000, max_body: MAX_BLOB_BYTES, max_concurrent: 64, per_source_per_minute: 600, test_now: None,
+            allow_regtest: false, max_campaign_bytes: 64 * 1024 * 1024, max_total_bytes: 4 * 1024 * 1024 * 1024,
+        }
     }
 }
 /// At most this many different challenge secrets are kept per payment (anyone may post one).
@@ -60,6 +77,7 @@ pub enum StoreError {
     TooLarge(String),
     TooMany(String),
     Busy(String),
+    Full(String),
 }
 
 impl StoreError {
@@ -72,12 +90,13 @@ impl StoreError {
             StoreError::TooLarge(_) => 413,
             StoreError::TooMany(_) => 429,
             StoreError::Busy(_) => 503,
+            StoreError::Full(_) => 507,
         }
     }
 
     fn message(&self) -> &str {
         match self {
-            StoreError::BadRequest(m) | StoreError::NotFound(m) | StoreError::Conflict(m) | StoreError::Internal(m) | StoreError::TooLarge(m) | StoreError::TooMany(m) | StoreError::Busy(m) => m,
+            StoreError::BadRequest(m) | StoreError::NotFound(m) | StoreError::Conflict(m) | StoreError::Internal(m) | StoreError::TooLarge(m) | StoreError::TooMany(m) | StoreError::Busy(m) | StoreError::Full(m) => m,
         }
     }
 }
@@ -102,6 +121,22 @@ fn is_hex32(s: &str) -> bool {
 pub struct Store {
     root: PathBuf,
     limits: Limits,
+    /// Bytes stored, in all and per campaign (counted once from the disk, then kept up to date); see `charge`.
+    usage: std::sync::Mutex<Option<Usage>>,
+}
+
+struct Usage {
+    total: u64,
+    per: std::collections::HashMap<String, u64>,
+}
+
+fn dir_bytes(p: &Path) -> u64 {
+    let Ok(rd) = fs::read_dir(p) else { return 0 };
+    rd.filter_map(|e| e.ok()).map(|e| match e.metadata() {
+        Ok(m) if m.is_dir() => dir_bytes(&e.path()),
+        Ok(m) => m.len(),
+        Err(_) => 0,
+    }).sum()
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -114,12 +149,32 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> std::io::Result<Self> {
         let root = root.into();
         fs::create_dir_all(root.join("campaigns"))?;
-        Ok(Self { root, limits: Limits::default() })
+        Ok(Self { root, limits: Limits::default(), usage: std::sync::Mutex::new(None) })
     }
 
     pub fn with_limits(mut self, limits: Limits) -> Self {
         self.limits = limits;
         self
+    }
+
+    /// The second review, M5: counts `bytes` against the campaign's and the relay's storage, or refuses them (507) when either would be full.
+    fn charge(&self, id: &str, bytes: u64) -> R<()> {
+        let mut g = self.usage.lock().map_err(|_| StoreError::Internal("storage count".into()))?;
+        let u = g.get_or_insert_with(|| {
+            let per: std::collections::HashMap<String, u64> = fs::read_dir(self.root.join("campaigns")).into_iter().flatten().filter_map(|e| e.ok())
+                .map(|e| (e.file_name().to_string_lossy().to_string(), dir_bytes(&e.path()))).collect();
+            Usage { total: per.values().sum(), per }
+        });
+        let mine = u.per.get(id).copied().unwrap_or(0);
+        if mine + bytes > self.limits.max_campaign_bytes {
+            return Err(StoreError::Full(format!("this campaign has used its {} MB on this relay", self.limits.max_campaign_bytes / (1024 * 1024))));
+        }
+        if u.total + bytes > self.limits.max_total_bytes {
+            return Err(StoreError::Full("this relay is full".into()));
+        }
+        *u.per.entry(id.to_string()).or_default() += bytes;
+        u.total += bytes;
+        Ok(())
     }
 
     fn dir(&self, id: &str) -> R<PathBuf> {
@@ -217,6 +272,9 @@ impl Store {
         }
         let rules: Rules = serde_json::from_slice(body).or_else(|e| bad(format!("not valid rules: {e}")))?;
         rules.validate().or_else(|e| bad(e.to_string()))?;
+        if rules.network == "regtest" && !self.limits.allow_regtest {
+            return bad("this relay serves the test and main networks only, not a private regtest chain");
+        }
         let computed = rules.id().map(hex::encode).or_else(|e| bad(e.to_string()))?;
         if computed != id {
             return bad(format!("the rules hash to {computed}, not {id}"));
@@ -230,9 +288,11 @@ impl Store {
         if registered >= self.limits.max_campaigns {
             return Err(StoreError::Conflict(format!("this relay is full: it takes at most {} campaigns", self.limits.max_campaigns)));
         }
+        let canonical = to_canonical(&rules).map_err(|e| StoreError::Internal(e.to_string()))?;
+        self.charge(id, canonical.len() as u64)?;
         fs::create_dir_all(dir.join("ledger"))?;
         fs::create_dir_all(dir.join("blobs"))?;
-        fs::write(dir.join("rules.json"), to_canonical(&rules).map_err(|e| StoreError::Internal(e.to_string()))?)?;
+        fs::write(dir.join("rules.json"), canonical)?;
         Ok(Put::Created)
     }
 
@@ -277,6 +337,68 @@ impl Store {
                 if entry.contribution.is_none() || entry.ticket.is_none() || entry.blob_hash.is_none() {
                     return bad("issue/reissue entries need contribution, ticket and blob_hash");
                 }
+                // a sealed bid auction's deposit also declares its signed refund (SPEC §9.4); its late ticket comes with its coin. Other
+                // campaigns never carry either.
+                if rules.is_sealed() && (!entry.refund.as_deref().is_some_and(is_hex32) || entry.late.is_some()) {
+                    return bad("a blind bid auction's issue entry needs the signed refund id (the late ticket comes with the coin)");
+                }
+                if !rules.is_sealed() && (entry.late.is_some() || entry.refund.is_some()) {
+                    return bad("late tickets and signed refunds belong only to blind bid auctions");
+                }
+            }
+            "coin" => {
+                let Some(c) = entry.coin.as_ref() else { return bad("coin entries need a coin object") };
+                if !rules.is_sealed() {
+                    return bad("coin entries belong only to blind bid auctions");
+                }
+                if !is_hex32(&c.nf) || !is_hex32(&c.txid) || !entry.late.as_deref().is_some_and(is_hex32) || entry.blob_hash.is_none() {
+                    return bad("a coin names a deposit, its transaction and the late ticket by their 64 hex character ids, with the sealed late ticket");
+                }
+                if entry.refund.is_some() {
+                    return bad("a coin entry carries no signed refund");
+                }
+                if !self.entries(id)?.iter().any(|p| p.kind == "issue" && p.nf() == Some(c.nf.as_str())) {
+                    return bad("a coin must name a deposit already on the list");
+                }
+            }
+            "reveal" => {
+                if !rules.is_sealed() || entry.reveal.is_none() {
+                    return bad("reveal entries belong only to blind bid auctions and need a reveal object");
+                }
+                let prior = self.entries(id)?;
+                if !prior.iter().any(|p| p.kind == "close") || prior.iter().any(|p| p.kind == "reveal") {
+                    return bad("the viewing key is revealed once, after the close");
+                }
+            }
+            "late_return" => {
+                // a sealed bid auction's deposit mined after the deadline, sent back by the host: the payment and its return, no amount
+                let Some(c) = entry.contribution.as_ref() else { return bad("a late return names the late payment") };
+                if !rules.is_sealed() {
+                    return bad("late returns belong only to blind bid auctions");
+                }
+                if !is_hex32(&c.nf) || !is_hex32(&c.txid) || !entry.refund.as_deref().is_some_and(is_hex32) || c.value_zat.is_some() || c.amount_commit.is_some() {
+                    return bad("a late return names a payment and its return by their 64 hex character ids, with no amount");
+                }
+                let prior = self.entries(id)?;
+                let listed: Vec<&Entry> = prior.iter().filter(|p| p.nf() == Some(c.nf.as_str())).collect();
+                if listed.iter().any(|p| p.kind == "late_return") {
+                    return bad("that payment was already sent back");
+                }
+                // a payment too late to bid (the last blocks before the deadline, or after it, even one with tickets that a reorganised
+                // chain moved there), a payment the host rejected (with open payouts), or, once the auction is closed, a deposit that never
+                // got its tickets (the host's safety net)
+                let last = rules.sealed.as_ref().map_or(ll_core::sealed::last_deposit_height(rules.deadline_height), |s| s.last_deposit(rules.deadline_height));
+                let late = c.height > last;
+                let open = rules.sealed.as_ref().is_some_and(|s| s.open_payouts);
+                let rejected = listed.iter().any(|p| p.kind == "reject");
+                let unlisted_after_close = listed.is_empty() && prior.iter().any(|p| p.kind == "close");
+                let in_window = c.height >= rules.start_height;
+                if !late && !(in_window && ((open && rejected) || unlisted_after_close)) {
+                    return bad("a late return is for a payment in the last blocks before the deadline or after it, a rejected payment, or, after the close, a deposit without tickets");
+                }
+                if !late && rejected && !open {
+                    return bad("a rejected payment is sent back only in auctions made with open payouts");
+                }
             }
             "reject" => {
                 if entry.contribution.is_none() {
@@ -311,9 +433,23 @@ impl Store {
         if n >= self.limits.max_entries.min(MAX_ENTRIES) {
             return Err(StoreError::Conflict(format!("ledger full: this relay keeps at most {} entries per campaign", self.limits.max_entries.min(MAX_ENTRIES))));
         }
+        // H1: no new deposit, reject or small payment once round R is about to be published
+        if let Some(s) = rules.sealed.as_ref() {
+            if rules.network != "regtest" && matches!(entry.kind.as_str(), "issue" | "reissue" | "reject" | "coin") {
+                let now = self.limits.test_now.unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()));
+                let opens = ll_core::sealed::round_time(s.drand_round);
+                if now + SEALED_ENTRY_MARGIN_SECS >= opens {
+                    return Err(StoreError::Conflict(format!(
+                        "the bids open at unix time {opens}: from {} minutes before that, no deposit, reject or small payment can be added to the list",
+                        SEALED_ENTRY_MARGIN_SECS / 60
+                    )));
+                }
+            }
+        }
         let prev: Option<Entry> = existing.last().map(|b| serde_json::from_slice(b)).transpose().map_err(|e| StoreError::Internal(e.to_string()))?;
-        if entry.kind != "settle" && self.entries(id)?.iter().any(|p| p.kind == "close") {
-            return Err(StoreError::Conflict("the campaign is closed; only settlement entries may follow".into()));
+        let after_close_ok = entry.kind == "settle" || (rules.is_sealed() && (entry.kind == "reveal" || entry.kind == "late_return"));
+        if !after_close_ok && self.entries(id)?.iter().any(|p| p.kind == "close") {
+            return Err(StoreError::Conflict("the campaign is closed; only settlement entries (and, for a blind bid auction, the reveal) may follow".into()));
         }
         let expected_prev = match &prev {
             Some(p) => p.hash().map_err(|e| StoreError::Internal(e.to_string()))?,
@@ -322,6 +458,7 @@ impl Store {
         if entry.prev != expected_prev {
             return bad("prev does not match the hash of the previous entry");
         }
+        self.charge(id, body.len() as u64)?;
         fs::write(self.dir(id)?.join("ledger").join(format!("{seq:06}.json")), body)?;
         Ok(Put::Created)
     }
@@ -361,6 +498,7 @@ impl Store {
         if path.exists() {
             return Ok(Put::AlreadyStored);
         }
+        self.charge(id, bytes.len() as u64)?;
         fs::write(path, bytes)?;
         Ok(Put::Created)
     }
@@ -370,7 +508,7 @@ impl Store {
     /// The relay only accepts it against a payment that a stored `reject` entry names.
     pub fn put_challenge(&self, id: &str, body: &[u8]) -> R<Put> {
         self.rules(id)?;
-        if body.len() > 2048 {
+        if body.len() > 4096 {
             return bad("challenge too large");
         }
         let c: ll_core::recount::Challenge = serde_json::from_slice(body).or_else(|e| bad(format!("not a challenge: {e}")))?;
@@ -393,6 +531,22 @@ impl Store {
         if (c.uivk.is_some() || c.complaint) && !settled {
             return bad("a viewing key or a complaint only applies to a settled auction winner");
         }
+        // the second review, H2: in a blind bid auction with open payouts the reject names the payment's memo by its hash, so the challenge
+        // carries that memo and the relay checks the secret opens it; junk secrets are refused and cannot fill the slots of a payment
+        let rules = self.rules(id)?;
+        if rejected && rules.sealed.as_ref().is_some_and(|s| s.open_payouts) {
+            let Some(memo) = c.memo.as_deref() else { return bad("a challenge in a blind bid auction carries the rejected payment's memo") };
+            let named = entries.iter().filter(|e| e.kind == "reject" && names_payment(e)).any(|e| e.blob_hash.as_deref() == Some(blob_hash(memo.as_bytes()).as_str()));
+            if !named {
+                return bad("that memo is not the one the reject names");
+            }
+            let pk = ll_core::hex32(&rules.payload_pubkey).or_else(|_| bad("the auction's payload key is not valid"))?;
+            if !ll_core::bid::challenge_opens(memo, &pk, &ll_core::hex32(&c.eph_sk).or_else(|_| bad("eph_sk is not valid"))?) {
+                return bad("the secret does not open the payment's memo, so it proves nothing");
+            }
+        } else if c.memo.is_some() {
+            return bad("only a challenge in a blind bid auction with open payouts carries a memo");
+        }
         let dir = self.dir(id)?.join("challenges");
         fs::create_dir_all(&dir)?;
         let tag = hex::encode(&ll_core::hash(b"ledgerlab_chal", format!("{}|{:?}|{}", c.eph_sk, c.uivk, c.complaint).as_bytes())[..8]);
@@ -404,7 +558,9 @@ impl Store {
         if same_payment >= MAX_CHALLENGES_PER_PAYMENT {
             return Err(StoreError::Conflict("too many different challenges for this payment".into()));
         }
-        fs::write(path, to_canonical(&c).map_err(|e| StoreError::Internal(e.to_string()))?)?;
+        let canonical = to_canonical(&c).map_err(|e| StoreError::Internal(e.to_string()))?;
+        self.charge(id, canonical.len() as u64)?;
+        fs::write(path, canonical)?;
         Ok(Put::Created)
     }
 

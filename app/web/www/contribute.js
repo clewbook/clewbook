@@ -9,7 +9,7 @@ import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
-import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel } from './public.js';
+import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -24,6 +24,7 @@ const DEFAULT_SERVER = { test: 'https://zjs.zec.rocks/testnet', main: 'https://z
 let refused = null; // set when this page must not take a payment: the sentence that says why
 const POLL_MS = 5000;
 let flowBackHref = '#'; // the campaign's own page, for the Back of question 1
+const ms = milestones(), on = (h) => (ms ? ms.onward(h) : h); // opened (through the campaign page) from the demo's Tested milestones page
 
 const storeKey = `ll:${cfg.id}`;
 const load = () => { try { return JSON.parse(localStorage.getItem(storeKey)); } catch { return null; } };
@@ -33,6 +34,8 @@ const lsGet = (k) => { try { return localStorage.getItem(k); } catch { storageOk
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { storageOk = false; } };
 let state = load(); // this device's contribution to this campaign, if any
 let campaign = null; // summary of the campaign (from the committed rules)
+// A sealed bid auction has its own page (bid.html); every other campaign type stays here, unchanged.
+const sealedElsewhere = () => { if (campaign && campaign.mode === 'sealed_auction') { location.replace(`bid.html${location.hash}`); return true; } return false; };
 let rulesJson = null;
 let view = { kind: 'none', entries: [], notes: [] };
 let tip = null;
@@ -622,8 +625,8 @@ function renderProgress() {
   // one Back at the top left, by step: the campaign (question 1), question 1 (question 2), the refund address (backup), backup (pay), home (ticket); none on Done
   const stage = !has ? (closedView() ? 'closed' : qStep) : state.ticket ? (showDone ? 'done' : 'ticket') : payStage;
   $('#flow-back').hidden = !(stage === 'amount' || stage === 'closed');
-  $('#flow-back-label').textContent = stage === 'closed' ? 'Campaigns' : 'Campaign';
-  $('#flow-back').href = stage === 'closed' ? './' : flowBackHref;
+  $('#flow-back-label').textContent = stage === 'closed' ? (ms ? 'Tested milestones' : 'Campaigns') : 'Campaign';
+  $('#flow-back').href = stage === 'closed' ? (ms ? ms.href : './') : flowBackHref;
   $('#q-back').hidden = stage !== 'addr';
   $('#edit-amount').hidden = stage !== 'backup' || paymentSeen();
   $('#back-to-backup').hidden = stage !== 'pay';
@@ -1099,6 +1102,7 @@ async function refresh() {
     view = judge(reads);
     if (view.rules && !rulesJson) { rulesJson = view.rules; lsSet(`${storeKey}:rules`, rulesJson); }
     if (rulesJson && !campaign) campaign = JSON.parse(W.campaign_summary(rulesJson, cfg.id));
+    if (sealedElsewhere()) return;
     applyNetwork();
     if (refused || !cfg.server) { tip = null; return; }
     try { tip = await getTip(); } catch { tip = null; }
@@ -1514,22 +1518,26 @@ async function main() {
   }
   const rb = $('#recount-btn');
   const linkTail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
-  rb.href = `recount.html#${linkTail}`; // from what this page already holds: no pasting
+  rb.href = on(`recount.html#${linkTail}`); // from what this page already holds: no pasting
   rb.hidden = false;
   $('#nav-recount').href = rb.href; // the Recount item of the header points at this campaign's recount too
   // back to this campaign's own page, with the relays (and chain server) this page was opened with; built from the parts, because reading
   // rb.href back gives the full address, which a "recount.html" at the start never matches
-  flowBackHref = $('#flow-back').href = `campaign.html#${linkTail}${cfg.server ? `&server=${cfg.server}` : ''}`;
+  flowBackHref = $('#flow-back').href = on(`campaign.html#${linkTail}${cfg.server ? `&server=${cfg.server}` : ''}`);
+  // the ticket step's back link returns to where the visit began: the demo's Tested milestones page, when it began there
+  if (ms) { $('#tk-back').href = ms.href; $('#tk-back').textContent = '← Tested milestones'; }
   $('#done-recount').href = rb.href;
   await init();
   wire();
   wireSaveCopy();
   rulesJson = lsGet(`${storeKey}:rules`);
   if (rulesJson) { try { campaign = JSON.parse(W.campaign_summary(rulesJson, cfg.id)); } catch { rulesJson = null; } }
+  if (sealedElsewhere()) return;
   applyNetwork();
   await refresh();
   markReady();
   if (!campaign && rulesJson) campaign = JSON.parse(W.campaign_summary(rulesJson, cfg.id));
+  if (sealedElsewhere()) return;
   applyNetwork();
   renderAll();
   takeHandedBackup();

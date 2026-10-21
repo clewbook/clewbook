@@ -204,11 +204,6 @@ pub(crate) async fn pay<C: PaymentContext>(
         UnifiedSpendingKey::from_seed(&params, seed.expose_secret(), derivation.account_index())
             .map_err(error::Error::from)?;
 
-    let mut client = context
-        .connection_args()
-        .connect(params, wallet_dir.as_ref())
-        .await?;
-
     // Create the transaction.
     println!("Creating transaction...");
     let prover = LocalTxProver::bundled();
@@ -284,7 +279,27 @@ pub(crate) async fn pay<C: PaymentContext>(
                 (tx.txid(), raw_tx)
             })
             .ok_or(anyhow!("Transaction not found for id {:?}", txid))?;
-        let response = client.send_transaction(raw_tx).await?.into_inner();
+        // Connect only now: building the proofs can take longer than a server keeps a quiet connection open, and a connection opened
+        // before them was found closed by the time the payment was sent ("peer closed connection"). If the send cannot reach the server,
+        // try once more on a new connection; the transaction is the same, so it cannot be paid twice.
+        let mut response = None;
+        for attempt in 0..2 {
+            let mut client = context
+                .connection_args()
+                .connect(params, wallet_dir.as_ref())
+                .await?;
+            match client.send_transaction(raw_tx.clone()).await {
+                Ok(r) => {
+                    response = Some(r.into_inner());
+                    break;
+                }
+                Err(e) if attempt == 0 => {
+                    eprintln!("Sending did not reach the server ({e}); trying once more on a new connection.")
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        let response = response.expect("sent, or returned with the error");
 
         if response.error_code != 0 {
             return Err(error::Error::SendFailed {

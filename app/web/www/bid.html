@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blind bid</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="contribute.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a></nav>
+</header>
+<main class="page cpage">
+  <div class="cwrap">
+  <div class="cleft">
+  <div class="ctop"><a class="cback" id="flow-back" href="#">← Auction</a></div>
+  <div class="chead" id="status-line" hidden><span id="status-chip"></span><span class="cmeta" id="status-text"></span></div>
+  <b class="cname" id="cname" hidden></b>
+  <div id="banners" aria-live="polite"></div>
+
+  <!-- 1. the bid: deposit size, bid, refund address -->
+  <section class="cscreen" id="form-card" hidden>
+    <h1 class="ch1">Place a blind bid</h1>
+    <p class="chelp">Your bid is locked until drand round <b id="f-round"></b>, which comes after bidding closes. Nobody can read it before then, not even the host. You pay a deposit of one of the fixed sizes below; it shows how large your bid can be, not what it is.</p>
+    <form id="form" novalidate>
+      <label for="tranche" class="cpk">Deposit</label>
+      <select id="tranche"></select>
+      <label for="bid" class="cpk">Your bid (<span class="ticker">TAZ</span>)</label>
+      <div class="amountbox"><input id="bid" inputmode="decimal" autocomplete="off" placeholder="0.05"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
+      <p class="cmsg" id="bid-hint" role="status"></p>
+      <label for="refund" class="cpk">Refund address</label>
+      <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
+      <p class="chelp" id="public-note">Bids and refund addresses become public after the close: use a refund address you use nowhere else.</p>
+      <details class="cfold" id="public-more"><summary>more</summary><div class="cfold-b"><p class="chelp">Before the close the host sees that a deposit arrived, when, its size and your refund address, never your bid. After the close anyone can check every bid and every payment.</p></div></details>
+      <p class="cmsg bad" id="form-error" role="alert" hidden></p>
+      <div class="cbtnrow"><button type="submit" id="create" class="cprimary create">Create my payment →</button></div>
+    </form>
+    <details class="cfold"><summary>▸ I have a backup file</summary>
+      <div class="cfold-b"><label class="filebtn"><input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file">Choose backup file</label>
+      <p class="cmsg bad" id="restore-error" role="alert" hidden></p></div>
+    </details>
+  </section>
+
+  <!-- 2. the payment and the backup -->
+  <section class="cscreen" id="pay-card" hidden>
+    <span class="ceyebrow">◆ ONLY IN THIS BROWSER</span>
+    <p class="chelp">Save your backup file first: it holds this page's keys, so you can take your money back even if you lose this page. Keep it private.</p>
+    <div class="cbtnrow"><button type="button" class="coutline" id="backup">↓ Download backup file</button></div>
+    <h1 class="ch1 pay-h">Pay exactly <span id="pay-amount" class="acc"></span> once, from a shielded address.</h1>
+    <div class="payrow">
+      <div class="qrcol"><div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div></div></div>
+      <div class="cprows">
+        <div class="cprow"><span class="cpn">1</span><span class="cpk">Address</span><b class="cpv" id="pay-to"></b><button type="button" class="cpbtn" data-copy="pay-to">Copy</button></div>
+        <div class="cprow"><span class="cpn">2</span><span class="cpk">Amount</span><b class="cpv" id="pay-amt"></b><button type="button" class="cpbtn" data-copy="pay-amt">Copy</button></div>
+        <div class="cprow"><span class="cpn">3</span><span class="cpk">Message</span><b class="cpv" id="memo"></b><button type="button" class="cpbtn" data-copy="memo">Copy</button></div>
+        <div class="cpwallet"><button type="button" class="coutline noirpay" id="noir-pay" hidden>Pay with Noir</button><p class="noir-msg" id="noir-msg" role="status" hidden></p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. where things stand -->
+  <section class="cscreen" id="status-card" hidden>
+    <h1 class="ch1" id="st-title"></h1>
+    <p class="chelp" id="st-text"></p>
+    <details class="cfold" id="st-more-box" hidden><summary>more</summary><div class="cfold-b"><p class="chelp" id="st-more"></p></div></details>
+    <ul class="cv-nc" id="st-facts"></ul>
+    <p class="cmsg" id="st-work" role="status"></p>
+    <div class="cbtnrow">
+      <button type="button" class="cdanger" id="take-back" hidden>Take my money back now</button>
+      <button type="button" class="cprimary" id="send-late" hidden>Send my late ticket</button>
+      <button type="button" class="coutline" id="challenge" hidden>Publish proof that my payment was valid</button>
+      <button type="button" class="coutline" id="backup2">↓ Download backup file</button>
+    </div>
+    <p class="cmsg" id="send-msg" role="status"></p>
+  </section>
+  </div>
+  </div>
+</main>
+<script type="module" src="bid.js"></script>
+</body>
+</html>

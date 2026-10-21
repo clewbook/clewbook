@@ -118,7 +118,8 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
     }
     let mut buckets: HashMap<String, (Instant, u32)> = HashMap::new();
     for mut req in server.incoming_requests() {
-        if let Some(src) = source_of(&req) {
+        let source = source_of(&req);
+        if let Some(src) = source.clone() {
             let now = Instant::now();
             buckets.retain(|_, (t, _)| now.duration_since(*t) < Duration::from_secs(60));
             let e = buckets.entry(src).or_insert((now, 0));
@@ -147,7 +148,7 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
                     json(413, "a listing record is at most 4096 bytes")
                 } else {
                     let _g = lock.lock().unwrap_or_else(|p| p.into_inner());
-                    match submit(&cfg, &body) {
+                    match crate::job::submit_from(&cfg, &body, source.as_deref()) {
                         Ok(msg) => json(202, &format!("{msg}; it is checked on the next pass")),
                         Err(e) => json(400, &e.to_string()),
                     }

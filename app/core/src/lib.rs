@@ -2,15 +2,19 @@
 //! See `SPEC.md` at the repository root.
 
 pub mod auction;
+pub mod bid;
 pub mod canon;
 pub mod final_copy;
 pub mod heartbeat;
 pub mod keys;
 pub mod ledger;
 pub mod payload;
+pub mod payout;
 pub mod receiver;
 pub mod recount;
 pub mod rules;
+pub mod sealed;
+pub mod sealed_recount;
 pub mod ticket_blob;
 #[cfg(feature = "walletdb")]
 pub mod walletdb;

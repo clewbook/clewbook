@@ -50,8 +50,12 @@ target-drop/
 # The list of campaigns shown on the home page: real campaign numbers, kept by hand, never committed
 /app/web/www/campaigns.json
 /app/target-design
+/app/target-sealed
+/app/target-review
 .env
 /runs-listing/
 /target-listing/
 /target-release-listing/
 /design_handoff_*/
+/app/target-testnet
+/app/target-regtest

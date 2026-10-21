@@ -4,7 +4,7 @@ A plain language tour for someone new: what the parts are, how money and data mo
 
 ## In one paragraph
 
-Clewbook runs fundraisers and sealed bid auctions on Zcash, a cryptocurrency that can hide who paid whom. People pay a **shielded address** (an address whose payments are private) belonging to the campaign. The **host**, whoever runs the campaign, publishes a signed public list of everything that came in. Anyone can run a **recount** in their own browser, which checks that list against the public chain. Every contributor also holds a **refund ticket**: a transaction signed in advance that sends their money back to them, which they can broadcast themselves if the campaign fails or the host goes quiet.
+Clewbook runs fundraisers and blind bid auctions on Zcash, a cryptocurrency that can hide who paid whom. People pay a **shielded address** (an address whose payments are private) belonging to the campaign. The **host**, whoever runs the campaign, publishes a signed public list of everything that came in. Anyone can run a **recount** in their own browser, which checks that list against the public chain. Every contributor also holds a **refund ticket**: a transaction signed in advance that sends their money back to them, which they can broadcast themselves if the campaign fails or the host goes quiet.
 
 ## How the parts fit together
 

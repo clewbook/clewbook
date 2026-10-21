@@ -55,6 +55,17 @@ const KICKER = { bad: 'Needs action', warn: 'Needs attention', info: 'Note' };
 // design round 2: the four tiles at the top say the phase in two or three words (the full sentence stays in the Status details below)
 const TILE_PHASE = { open: 'Open', deadline_passed: 'Deadline passed', closed: 'Closed', unknown: 'Starting up' };
 
+/** A sealed bid auction's deposits in words: how many it had, and once closed whether they are all paid out; never a bare 0 before the
+ *  count exists (the first check after a start), which would read as if nobody bid. */
+function depositsText(s) {
+  const z = s.sealed;
+  if (z.deposits == null) return 'counting…';
+  if (!z.closed) return String(z.deposits);
+  if (z.deposits === 0) return '0 · nobody bid';
+  // the viewing key is published only once every winner's settlement is mined and every other deposit is on its way back
+  return `${z.deposits} · ${z.revealed ? 'all settled or refunded' : 'settling'}`;
+}
+
 /** Design round 2: the tiles (status, raised, goal or items, self-check), from the same report the details below show. */
 function tiles(s) {
   const t = (k, v, cls = '') => { const d = document.createElement('div'); d.className = `dtile ${cls}`; const a = document.createElement('span'); a.className = 'tk'; a.textContent = k; const b = document.createElement('span'); b.className = 'tv'; b.textContent = v; d.append(a, b); return d; };
@@ -63,7 +74,7 @@ function tiles(s) {
   const fails = res ? res.filter((r) => !r.pass).length : 0;
   $('#dtiles').replaceChildren(
     t('Status', TILE_PHASE[s.phase] + (s.outcome ? ` · ${outcomeWords(s.outcome, s.mode === 'raise' && s.cap_zat != null)}` : ''), `ph-${s.phase}`),
-    t('Raised', `${coin(raised)} ${s.ticker}`),
+    s.sealed ? t('Deposits', depositsText(s)) : t('Raised', `${coin(raised)} ${s.ticker}`),
     s.mode === 'raise'
       ? t(s.cap_zat == null ? 'Goal' : 'Soft cap', `${coin(s.goal_zat)} ${s.ticker}${raised >= s.goal_zat ? ' · met' : ''}`, raised >= s.goal_zat ? 'met' : '')
       : t('Items', String(s.items)),
@@ -79,10 +90,13 @@ function todo(s) {
   const waiting = bc.filter((b) => b.status !== 'confirmed' && b.status !== 'superseded');
   if (s.phase === 'unknown') items.push({ what: 'Wait for the first check of the network', state: 'starting up', cls: 'todo' });
   if (s.phase === 'open') {
-    items.push({ what: 'Keep this program and this computer running', state: `until the deadline (block ${s.deadline_height})`, cls: 'todo' });
+    items.push({ what: 'Keep this program and this computer running', state: s.sealed ? 'until the bids are revealed' : `until the deadline (block ${s.deadline_height})`, cls: 'todo' });
     items.push({ what: 'Close the campaign', state: 'after the deadline', cls: 'todo' });
   }
-  if (s.phase === 'deadline_passed') items.push({ what: 'Close the campaign', state: 'now: you need an address for the money the campaign keeps', cls: 'bad' });
+  if (s.sealed && s.phase === 'open') items.push(s.sealed.coin_balance_zat ? { what: 'Keep the coin wallet funded', state: `${coin(s.sealed.coin_balance_zat)} ${s.ticker} left for the small payments`, cls: 'todo' } : { what: 'Fund the coin wallet from your own money', state: 'the small payments go out from it', cls: 'bad' });
+  if (s.phase === 'deadline_passed') items.push(s.sealed
+    ? { what: 'Close the auction', state: `once drand round ${s.sealed.round} is out, and before block ${s.sealed.claim_after + 1}`, cls: 'bad' }
+    : { what: 'Close the campaign', state: 'now: you need an address for the money the campaign keeps', cls: 'bad' });
   if (s.phase === 'closed') {
     items.push({ what: 'Close the campaign', state: `done${s.outcome ? ` (${s.outcome.replace('_', ' ')})` : ''}`, cls: 'done' });
     if ((s.close_unfinished || []).length) items.push({ what: 'Finish the close', state: 'press Try again below', cls: 'bad' });
@@ -95,19 +109,45 @@ function todo(s) {
 }
 
 let currentId = null;
+let campaignList = []; // every campaign on this host, with its phase (from the list the page refreshes)
 let current = null; // the status last shown
+
+// Closing a note: it stays hidden until its message changes (then it may show again). A note that needs action, the kind about money,
+// is hidden for this page load only and comes back on the next.
+const DISMISSED_KEY = 'cb-dismissed-notes';
+const dismissedNow = new Set();
+const dismissedSaved = (() => { try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')); } catch { return new Set(); } })();
+const noteKey = (w) => `${current && current.id}|${w.level}|${w.text}`; // per campaign (current is the status being drawn)
+const isDismissed = (w) => dismissedNow.has(noteKey(w)) || (w.level !== 'bad' && dismissedSaved.has(noteKey(w)));
+function dismissNote(w) {
+  dismissedNow.add(noteKey(w));
+  if (w.level !== 'bad') {
+    dismissedSaved.add(noteKey(w));
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissedSaved].slice(-200))); } catch { /* hidden for this page load only */ }
+  }
+  if (current) render(current);
+}
 
 function render(s) {
   current = s;
   const ticker = s.ticker;
   $('#warnings-section').hidden = false;
   const wl = $('#warning-list');
-  wl.replaceChildren(...s.warnings.map((w) => {
+  // "keep this program running": while this campaign is not closed, or while another campaign on this host still needs it
+  const othersNeedHost = campaignList.filter((c) => c.id !== s.id && c.phase !== 'closed').length;
+  const shown = s.warnings.flatMap((w) => {
+    if (w.kind !== 'keep_running' || s.phase !== 'closed') return [w];
+    return othersNeedHost ? [{ ...w, text: `Keep this program and this computer running: ${othersNeedHost} other campaign(s) on this host are open or waiting to close, and tickets are only issued while it runs.` }] : [];
+  });
+  wl.replaceChildren(...shown.filter((w) => !isDismissed(w)).map((w) => {
     const d = document.createElement('div');
-    d.className = `notice ${CLASS[w.level] || 'info'} warn-${w.level}`;
+    d.className = `notice closable ${CLASS[w.level] || 'info'} warn-${w.level}`;
     const k = document.createElement('div'); k.className = 'k'; k.textContent = KICKER[w.level] || 'Note';
     const p = document.createElement('p'); p.textContent = w.text;
-    d.append(k, p);
+    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'note-x', textContent: '×', title: w.level === 'bad' ? 'Close (it comes back when the page is loaded again)' : 'Close (it comes back if its message changes)' });
+    x.setAttribute('aria-label', 'Hide note');
+    x.addEventListener('click', () => dismissNote(w));
+    d.append(k, p, x);
     return d;
   }));
   $('#live').hidden = false; $('#dmore').hidden = false;
@@ -142,11 +182,45 @@ function render(s) {
     ['Refund tickets issued', `${c.tickets_issued}${c.reissues ? ` (${c.reissues} reissued after a network upgrade)` : ''}`],
     ['Contributions locked in the wallet', `${c.locks_held} of ${c.locks_expected}`],
     ['Taken back by contributors early', String(c.withdrawn)],
-    ['Payments set aside (message could not be opened)', String(c.rejects)],
+    [s.sealed ? 'Payments rejected (sent back on their own)' : 'Payments set aside (message could not be opened)', String(c.rejects)],
     ['Donations (no valid message)', String(c.donations)],
     ['Entries in the public list', String(c.ledger_entries)],
     ...(settle.length ? [['Settlements confirmed', `${settle.filter((b) => b.status === 'confirmed').length} of ${settle.length}`]] : []),
   ]);
+  if (s.sealed) {
+    const z = s.sealed, sending = z.coin_sending.mode === 'at_once' ? 'at once' : z.coin_sending.mode === 'every_bids' ? `every ${z.coin_sending.n} bids` : `every ${z.coin_sending.n} minutes`;
+    const words = { uniform: 'everyone who wins pays the lowest winning bid', second: 'everyone who wins pays the highest losing bid', pay_your_bid: 'each winner pays their own bid' };
+    rows($('#facts'), [
+      ['Campaign', s.name ? `${s.name} (${s.short}…)` : s.short + '…'],
+      ['Type', 'Blind bid auction'],
+      ['Status', PHASE[s.phase] + (s.outcome ? ` (${s.outcome.replace('_', ' ')})` : '')],
+      ['Items', String(z.items)],
+      ['Deposit sizes', z.tranches_zat.map((t) => `${coin(t)} ${ticker}`).join(', ')],
+      ['How winners pay', words[z.pricing]],
+      ['Deadline', `block ${s.deadline_height}` + (leftPhrase ? ` (${leftPhrase})` : '')],
+      ['Small payments', `${sending}; all by block ${z.cutoff}`],
+      ['Bids open with', `drand round ${z.round} (${new Date(z.round_time * 1000).toUTCString()})`],
+      ...(z.timing === 'quick' ? [['Timing', 'Quick test: blocks every 20 to 40 seconds, bids open 10 minutes after the deadline']] : []),
+      ['Close before', `block ${z.claim_after + 1}: from then on everyone can take their deposit back with their late ticket`],
+      ['Coin wallet', z.coin_address ? `${z.coin_address}` : 'unknown'],
+      ['Coin wallet balance', z.coin_balance_zat == null ? 'not read yet' : `${coin(z.coin_balance_zat)} ${ticker} (as of its last check)`],
+      ['Network', s.network === 'main' ? 'Main network' : s.network === 'regtest' ? 'Private test chain' : 'Testnet'],
+      ['Last network check', s.last_check.seconds_ago == null ? 'not yet' : `${s.last_check.seconds_ago} seconds ago${s.last_check.ok ? '' : ' (failed)'}`],
+    ]);
+    rows($('#counts'), [
+      ['Deposits', depositsText(s)],
+      ['Taken back before the deadline', z.withdrawn == null ? 'counting…' : String(z.withdrawn)],
+      ['Small payments sent', String(z.coins_sent)],
+      ...(z.late_returns ? [['Too late to bid or without tickets, sent back', `${z.late_returns} (${z.late_returns_confirmed} confirmed)`]] : []),
+      ['Entries in the public list', String(s.counts.ledger_entries)],
+      ...(z.closed ? [
+        ['Result', z.outcome === 'void' ? 'void: every deposit goes back' : `${z.winners} winner(s)${z.price_zat != null ? `, price ${coin(z.price_zat)} ${ticker}` : ''}`],
+        ['Settlements', `${z.settlements} written, ${z.settlements_confirmed} confirmed`],
+        ['Signed refunds', `${z.refunds_sent} sent, ${z.refunds_confirmed} confirmed`],
+        ['Viewing key', z.revealed ? 'published' : 'not yet: after every settlement is mined'],
+      ] : []),
+    ]);
+  }
   const rl = $('#relay-list');
   rl.replaceChildren(...s.relays.map((r) => { const li = document.createElement('li'); li.textContent = `${r.url}: ${r.status}`; if (!/up to date|not checked yet/.test(r.status)) li.className = 'bad'; return li; }));
   if (s.self_check) {
@@ -200,6 +274,24 @@ function render(s) {
         : 'The winning bids are sent to your address and everyone else is refunded. The viewing key is revealed so anyone can check the result.';
     btn.hidden = false; btn.disabled = s.closing;
   }
+  if (s.sealed && s.phase !== 'closed') {
+    // the bids open at round R's time: until then the Close button stays off, and the page says when, in this computer's time
+    const wait = s.sealed.round_time - Date.now() / 1000;
+    const when = `${new Date(s.sealed.round_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${wait > 0 ? `, in about ${Math.max(1, Math.ceil(wait / 60))} minute(s)` : ''}`;
+    explain.textContent = s.phase === 'open'
+      ? `You can close the auction after the deadline (block ${s.deadline_height}) once drand round ${s.sealed.round} is out, at ${when}, and before block ${s.sealed.claim_after + 1}.`
+      : wait > 0
+        ? `The bids open with drand round ${s.sealed.round} at ${when}. The Close button turns on then; close before block ${s.sealed.claim_after + 1}.`
+        : `Closing fetches drand round ${s.sealed.round}, opens every bid, settles the winners into the auction's treasury and sends everyone else their signed refund. Once the settlements are mined the viewing key is published. No address is needed.`;
+    if (s.phase === 'deadline_passed' && wait > 0) btn.disabled = true;
+  } else if (s.sealed && !s.sealed.revealed) {
+    explain.textContent = 'Closed. The program finishes on its own: settlements, refunds, then the viewing key once every settlement is mined.';
+    btn.hidden = true;
+  }
+  // after the close of a blind bid auction: the prices wait in its treasury wallet; one line and a button send them on
+  const tz = s.sealed && s.phase === 'closed' && s.self_check ? s.self_check.treasury_send_zat : 0;
+  $('#treasury-send').hidden = !tz;
+  if (tz) $('#treasury-line').textContent = `The treasury holds ${coin(s.self_check.treasury_zat)} ${s.ticker}. Send ${coin(tz)} ${s.ticker} (after the network fee) to your wallet:`;
   list($('#close-log'), s.close_log || []);
   const words = { sent: 'sent, waiting', resent: 'resent, waiting', confirmed: 'confirmed', superseded: 'the coin was spent by another transaction', dead: 'could not be mined (network changed); being rebuilt' };
   const bl = $('#broadcast-list');
@@ -294,6 +386,7 @@ async function refresh() {
   try {
     say($('#banner'), '');
     const { campaigns } = await api('campaigns');
+    campaignList = campaigns;
     const sel = $('#campaign-select');
     $('#no-campaigns').hidden = campaigns.length > 0;
     sel.hidden = campaigns.length === 0;
@@ -407,9 +500,22 @@ async function main() {
   const measure = async () => { const m = await measureBlocks(config ? config.network : 'test'); if (m.secondsPerBlock) { measured = m; } measuredAt = Date.now(); };
   measure().then(refresh);
   $('#campaign-select').addEventListener('change', (e) => { selected = e.target.value; $('#listing-confirm').hidden = true; say($('#listing-check-error'), ''); refresh(); });
+  $('#treasury-btn').addEventListener('click', async () => {
+    const btn = $('#treasury-btn'), out = $('#treasury-result');
+    btn.disabled = true; say(out, 'Sending…');
+    try {
+      const r = await api(`campaigns/${selected}/treasury-send`, { address: $('#treasury-to').value });
+      say(out, `Sent. Transaction ${r.txid}`);
+    } catch (e) { say(out, e.message); }
+    btn.disabled = false;
+  });
   $('#close-btn').addEventListener('click', () => {
     if (current && current.phase === 'closed') { onFinishClose(); return; } // "Try again": the address and the confirmation were given at the first close
-    $('#close-confirm-text').textContent = 'This cannot be undone. Closing records the result for everyone to see, sends the money the campaign keeps to the address below, and sends refunds to the others.';
+    $('#close-confirm-text').textContent = current && current.sealed
+      ? 'This cannot be undone. Closing opens every bid, records the result for everyone to see, pays the prices into the treasury and sends everyone else their refund.'
+      : 'This cannot be undone. Closing records the result for everyone to see, sends the money the campaign keeps to the address below, and sends refunds to the others.';
+    $('#sweep-to').hidden = !!(current && current.sealed);
+    document.querySelector('label[for=sweep-to]').hidden = !!(current && current.sealed);
     $('#close-confirm').hidden = false;
   });
   $('#close-no').addEventListener('click', () => { $('#close-confirm').hidden = true; });

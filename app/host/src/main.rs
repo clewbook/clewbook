@@ -3,11 +3,13 @@
 
 mod backend;
 mod dashboard;
+mod drand;
 mod devtool;
 mod libs;
 mod lock;
 mod mainnet;
 mod outbox;
+mod sealed_host;
 mod ticket;
 
 use std::{
@@ -114,6 +116,82 @@ enum Cmd {
         /// Mainnet only: the published NU7 activation height (a campaign that could still be running then is refused)
         #[arg(long)]
         nu7_mainnet_height: Option<u32>,
+    },
+    /// Create a sealed bid auction (SPEC §9) in a new run directory: bids stay locked until a drand round after the deadline
+    CreateSealed {
+        #[arg(long)]
+        run: PathBuf,
+        /// Campaign wallet directory (dedicated account) and its age identity file, inside the run directory
+        #[arg(long)]
+        wallet: PathBuf,
+        #[arg(long)]
+        identity: PathBuf,
+        /// The host's coin wallet (its own funds, never the deposits) and its age identity file, inside the run directory
+        #[arg(long)]
+        coin_wallet: PathBuf,
+        #[arg(long)]
+        coin_identity: PathBuf,
+        #[arg(long, default_value = "test")]
+        network: String,
+        /// Number of items for sale
+        #[arg(long)]
+        items: u32,
+        /// The deposit sizes in zatoshis, smallest first, 1 to 10 of them, separated by commas. Fewer tranches, further apart, hide bids better.
+        #[arg(long, value_delimiter = ',')]
+        tranches_zat: Vec<u64>,
+        /// "uniform", "second" or "pay_your_bid"
+        #[arg(long)]
+        pricing: String,
+        /// The lowest bid that counts, in zatoshis (optional)
+        #[arg(long)]
+        reserve_zat: Option<u64>,
+        /// The treasury address and its PUBLIC viewing key (a dedicated account)
+        #[arg(long)]
+        treasury_address: String,
+        #[arg(long)]
+        treasury_ufvk: String,
+        /// When the coins go out: at-once, every-bids:N or every-minutes:N (no default: choose one)
+        #[arg(long)]
+        coin_sending: String,
+        /// "standard", or "quick" for the quick test timing (test network only)
+        #[arg(long, default_value = "standard")]
+        timing: String,
+        /// Deadline, in blocks from now
+        #[arg(long)]
+        deadline_in: u32,
+        #[arg(long)]
+        relay: Vec<String>,
+        #[arg(long, default_value_t = ll_core::rules::DEFAULT_TICKET_K)]
+        ticket_k: u32,
+        #[arg(long)]
+        min_confirmations: Option<u32>,
+        #[arg(long)]
+        name: Option<String>,
+        /// TEST ONLY (regtest builds): the drand round and the late ticket wait in blocks after the deadline
+        #[arg(long, hide = true)]
+        test_drand_round: Option<u64>,
+        #[arg(long, hide = true)]
+        test_claim_after_in: Option<u32>,
+    },
+    /// Sealed bid auction, after the deadline: fetch round R, open the bids, write the close, settle the winners, send everyone else's
+    /// signed refund; once every settlement is mined, publish the viewing key. Safe to repeat; the watcher also continues it
+    CloseSealed {
+        #[arg(long)]
+        run: PathBuf,
+    },
+    /// Sealed bid auction evidence: fetch drand quicknet round `round` from each of the four addresses on its own and check each answer
+    /// against the pinned public key (read only; nothing is stored)
+    DrandCheck {
+        #[arg(long)]
+        round: u64,
+    },
+    /// Sealed bid auction: run the recount on the host's own view of the chain (what people who bid will see once the viewing key is public)
+    SelfCheck {
+        #[arg(long)]
+        run: PathBuf,
+        /// A synced view-only wallet of the treasury (made from its public viewing key), to check what each settlement paid it
+        #[arg(long)]
+        treasury_wallet: Option<PathBuf>,
     },
     /// Run the host dashboard (local only): a web page to set up campaigns, watch them and close
     /// them. It also runs the watcher for every campaign in --runs-dir.
@@ -559,7 +637,7 @@ fn create(
         treasury_ufvk: uniform.as_ref().map(|u| u.treasury_ufvk.clone()),
         name,
         early_close: early_close.then_some(true),
-        cap_zat: if auction { None } else { cap_zat },
+        cap_zat: if auction { None } else { cap_zat }, sealed: None,
         ledger_pubkey: secrets.ledger_pubkey_hex()?,
         payload_pubkey: secrets.payload_pubkey_hex()?,
     };
@@ -616,7 +694,16 @@ fn check_treasury(network: &str, address: &str, ufvk: &str) -> Result<()> {
         "main" => zcash_protocol::consensus::Network::MainNetwork,
         _ => zcash_protocol::consensus::Network::TestNetwork,
     };
-    let key = zcash_keys::keys::UnifiedFullViewingKey::decode(&params, ufvk).map_err(|e| anyhow::anyhow!("bad treasury viewing key: {e}"))?;
+    // a regtest key is encoded for regtest; only its encoding differs, so decode it with that network type
+    #[cfg(feature = "regtest")]
+    let key = if network == "regtest" {
+        zcash_keys::keys::UnifiedFullViewingKey::decode(&zcash_protocol::local_consensus::LocalNetwork { overwinter: None, sapling: None, blossom: None, heartwood: None, canopy: None, nu5: None, nu6: None, nu6_1: None, nu6_2: None, nu6_3: None, nu7: None }, ufvk)
+    } else {
+        zcash_keys::keys::UnifiedFullViewingKey::decode(&params, ufvk)
+    };
+    #[cfg(not(feature = "regtest"))]
+    let key = zcash_keys::keys::UnifiedFullViewingKey::decode(&params, ufvk);
+    let key = key.map_err(|e| anyhow::anyhow!("bad treasury viewing key: {e}"))?;
     let (_, raw) = orchard_receiver(address)?;
     let addr = Option::from(orchard::Address::from_raw_address_bytes(&raw)).context("bad treasury address")?;
     let fvk = key.orchard().context("the treasury viewing key has no Orchard/Ironwood part")?;
@@ -715,7 +802,8 @@ fn guard_audit(run: &Run, entries: &[Entry], notes: &[WalletNote]) -> usize {
 
 fn contribution_of(run: &Run, n: &ChainNote) -> Result<Contribution> {
     let nf = n.nf.clone().context("note without nullifier")?;
-    let auction = run.rules.is_auction();
+    // an auction's amounts stay hidden until the close, a sealed bid auction's too
+    let auction = run.rules.is_auction() || run.rules.is_sealed();
     Ok(Contribution {
         txid: n.txid.clone(),
         action: n.action,
@@ -746,7 +834,7 @@ fn issue_ticket(
     // sweep) and that spend is confirmed; then `release_confirmed_locks` removes it.
     backend.lock(&n.txid, n.action, &owner, LOCK_FOREVER)?;
     let (pay_receiver, to) = ticket_receiver(backend, &run.rules.network, payload.refund_receiver)?;
-    let unsigned = backend.build(&SpendRequest { to_address: to, value_zat: refund_zat, lock_owners: vec![owner], no_expiry: true, also_pay: vec![] })?;
+    let unsigned = backend.build(&SpendRequest { to_address: to, value_zat: refund_zat, lock_owners: vec![owner], no_expiry: true, expiry_height: None, ovk: None, also_pay: vec![] })?;
     let signed = backend.sign(&unsigned)?;
     let checked = ticket::check_and_extract(
         &signed,
@@ -807,8 +895,9 @@ fn sync_one_relay(run: &Run, url: &str) -> Result<usize> {
         sent += 1;
     }
     for e in &entries {
-        let (Some(hash), Some(nf)) = (&e.blob_hash, e.nf()) else { continue };
-        let Ok(bytes) = fs::read(run.dir.join("tickets").join(format!("{nf}.blob"))) else { continue };
+        // the early ticket of an issue entry, or (sealed bid auctions) the late ticket of a coin entry
+        let (Some(hash), Some(path)) = (&e.blob_hash, sealed_host::blob_file(run, e)) else { continue };
+        let Ok(bytes) = fs::read(path) else { continue };
         if ledger::blob_hash(&bytes) == *hash && !relay.has_blob(&run.rules_id, hash)? {
             relay.put_blob(&run.rules_id, hash, &bytes)?;
             sent += 1;
@@ -994,7 +1083,14 @@ fn watch_once(run: &Run, backend: &mut dyn WalletBackend, assume_branch: Option<
             }
         }
     }
-    let (new, skipped) = issue_pending(run, backend, &notes, &entries, &tip)?;
+    let (new, skipped) = if run.rules.is_sealed() { sealed_host::pass(run, backend, &notes, &entries, &tip)? } else { issue_pending(run, backend, &notes, &entries, &tip)? };
+    // a sealed bid auction whose close was started: settlements, refunds and the viewing key continue here
+    if run.rules.is_sealed() && close_entry(&entries).is_some() && !entries.iter().any(|e| e.kind == "reveal") {
+        let mut log = vec![];
+        if let Err(e) = sealed_host::close_pass(run, backend, &mut log) {
+            println!("continuing the close: {e:#}");
+        }
+    }
     record_skips(run, &skipped);
     println!("tip {} (branch {}): {} ledger entries, {new} new, {alerts} guard alerts", tip.height, tip.branch_id, entries.len() + new);
     let relays = sync_relays(run);
@@ -1152,7 +1248,7 @@ fn close(run: &Run, backend: &mut dyn WalletBackend, sweep_to: &str) -> Result<V
             winners: a.winners.clone(),
             ufvk: if auction { Some(fs::read_to_string(run.dir.join("private").join("ufvk"))?) } else { None },
             amount_key: if auction { run.secrets.amount_key.clone() } else { None },
-            clearing_price_zat: a.plan.as_ref().map(|p| p.price_zat),
+            clearing_price_zat: a.plan.as_ref().map(|p| p.price_zat), drand_signature: None,
         });
         let e = run.append(e)?;
         note!(log, "close entry {}: {}", e.seq, e.close.as_ref().map(|c| c.outcome.as_str()).unwrap_or_default());
@@ -1296,7 +1392,7 @@ fn sweep_kept(run: &Run, backend: &mut dyn WalletBackend, tip: &backend::ChainTi
     let total: u64 = keep.iter().map(|n| n.value_zat).sum();
     let value = total - sweep_fee(keep.len());
     let owners = keep.iter().map(|n| format!("ticket:{}", n.nf.as_deref().unwrap_or_default())).collect();
-    let unsigned = backend.build(&SpendRequest { to_address: sweep_to.into(), value_zat: value, lock_owners: owners, no_expiry: true, also_pay: vec![] })?;
+    let unsigned = backend.build(&SpendRequest { to_address: sweep_to.into(), value_zat: value, lock_owners: owners, no_expiry: true, expiry_height: None, ovk: None, also_pay: vec![] })?;
     let signed = backend.sign(&unsigned)?;
     let spends = keep.iter().map(|n| Ok((hex32(n.nf.as_deref().unwrap_or_default())?, n.value_zat))).collect::<Result<_>>()?;
     ticket::check_and_extract(&signed, &Expect { spends, receiver: &receiver, value_zat: value, no_expiry: true, also: vec![] })?;
@@ -1456,7 +1552,7 @@ fn settle_winners(run: &Run, backend: &mut dyn WalletBackend, tip: &backend::Cha
         let (excess_to_raw, winner_addr) = divert_excess(excess, payload.refund_receiver, network_type(&r.network)?)?;
         let owner = format!("ticket:{nf}");
         let also_pay = if excess > 0 { vec![(winner_addr, excess)] } else { vec![] };
-        let unsigned = backend.build(&SpendRequest { to_address: treasury.clone(), value_zat: price, lock_owners: vec![owner], no_expiry: true, also_pay })?;
+        let unsigned = backend.build(&SpendRequest { to_address: treasury.clone(), value_zat: price, lock_owners: vec![owner], no_expiry: true, expiry_height: None, ovk: None, also_pay })?;
         let signed = backend.sign(&unsigned)?;
         let also = if excess > 0 { vec![(excess_to_raw, excess)] } else { vec![] };
         let checked = ticket::check_and_extract(
@@ -1538,6 +1634,9 @@ fn force_reject(run: &Run, backend: &mut dyn WalletBackend, contribution: &str) 
     let mut e = Entry::new(&run.rules_id, "reject");
     e.contribution = Some(contribution_of(run, n)?);
     e.reason = Some("test: wrongful reject of a genuine contribution".into());
+    if run.rules.sealed.as_ref().is_some_and(|s| s.open_payouts) {
+        e.blob_hash = Some(ledger::blob_hash(n.memo_text.as_deref().unwrap_or_default().as_bytes()));
+    }
     let e = run.append(e)?;
     println!("WRONGFUL reject written: entry {} for {txid}:{action}", e.seq);
     sync_relays(run);
@@ -1617,6 +1716,54 @@ fn main() -> Result<()> {
             };
             create(&run, RunConfig { backend, devtool, wallet, identity, min_confirmations }, &network, &mode, goal_zat, items, deadline_in, &relay, min_contribution_zat, uniform, ticket_k, MainnetCheck { confirmed: confirm_mainnet, nu7_height: nu7_mainnet_height }, name, early_close, cap_zat)
         }
+        Cmd::CreateSealed { run, wallet, identity, coin_wallet, coin_identity, network, items, tranches_zat, pricing, reserve_zat, treasury_address, treasury_ufvk, coin_sending, timing, deadline_in, relay, ticket_k, min_confirmations, name, test_drand_round, test_claim_after_in } => {
+            let args = sealed_host::SealedArgs {
+                items, tranches_zat, pricing, reserve_zat, treasury_address, treasury_ufvk, coin_sending: sealed_host::parse_coin_sending(&coin_sending)?,
+                timing: match timing.as_str() { "standard" => ll_core::sealed::Timing::Standard, "quick" => ll_core::sealed::Timing::Quick, t => bail!("the timing is standard or quick, not {t}") },
+                coin_wallet, coin_identity, test_round: test_drand_round, test_claim_after_in,
+            };
+            let cfg = RunConfig { backend: "libs".into(), devtool: PathBuf::from("unused"), wallet, identity, min_confirmations: min_confirmations.filter(|n| *n > 1) };
+            sealed_host::create_sealed(&run, cfg, &network, deadline_in, &relay, ticket_k, name, args)
+        }
+        Cmd::DrandCheck { round } => {
+            let mut ok = 0;
+            for url in drand::urls() {
+                match drand::fetch_round(round, std::slice::from_ref(&url)) {
+                    Ok((sig, _)) => {
+                        ok += 1;
+                        println!("{url}: round {round} signature {}, checked against drand quicknet's public key: OK", hex::encode(sig));
+                    }
+                    Err(e) => println!("{url}: {e:#}"),
+                }
+            }
+            println!("{ok} of {} addresses gave round {round}'s correct signature", drand::urls().len());
+            if ok < 2 {
+                std::process::exit(1);
+            }
+            Ok(())
+        }
+        Cmd::CloseSealed { run } => {
+            let r = Run::load(&run)?;
+            let mut backend = backend_for(&run)?;
+            let _lock = lock::RunLock::acquire(&run, "close-sealed")?;
+            let mut log = vec![];
+            let done = sealed_host::close_pass(&r, backend.as_mut(), &mut log)?;
+            sync_relays(&r);
+            println!("{}", if done { "close finished" } else { "close started; run again (or keep the watcher running) to finish it" });
+            Ok(())
+        }
+        Cmd::SelfCheck { run, treasury_wallet } => {
+            let r = Run::load(&run)?;
+            let mut backend = backend_for(&run)?;
+            let treasury = match treasury_wallet {
+                Some(w) => chain_notes(&ll_core::walletdb::read_notes(&w.join("data.sqlite"))?),
+                None => vec![],
+            };
+            if !sealed_host::self_check(&r, backend.as_mut(), treasury)? {
+                std::process::exit(1);
+            }
+            Ok(())
+        }
         Cmd::Serve { runs_dir, www, listen, network, backend, devtool, relay, page_base, server, nu7_mainnet_height, listing_url } => {
             dashboard::serve(dashboard::Config { runs_dir, www, listen, network, backend, devtool, relays: relay, page_base, server, nu7_mainnet_height, listing_url })
         }
@@ -1676,7 +1823,7 @@ fn main() -> Result<()> {
                     e.seq = i;
                     e.prev = list.last().map(|p: &Entry| p.hash()).transpose()?.unwrap_or_else(|| ledger::GENESIS_PREV.to_string());
                     if i == entries {
-                        e.close = Some(Close { close_height: r.rules.deadline_height + 1, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None });
+                        e.close = Some(Close { close_height: r.rules.deadline_height + 1, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
                     } else {
                         e.reason = Some(format!("invented entry {i}"));
                     }
@@ -1913,7 +2060,7 @@ mod settle_resume_tests {
             v: 1, network: "test".into(), mode: "auction".into(), goal_zat: None, items: Some(1),
             start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
             refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: None, ufvk_hash: Some("00".repeat(32)),
-            pay_to: None, early_close: None, cap_zat: None, pricing: Some("uniform".into()), settle_window: Some(40), reserve_zat: Some(50_000), treasury_address: None, treasury_ufvk: None,
+            pay_to: None, early_close: None, cap_zat: None, sealed: None, pricing: Some("uniform".into()), settle_window: Some(40), reserve_zat: Some(50_000), treasury_address: None, treasury_ufvk: None,
             name: None,
             ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
         };
@@ -1927,7 +2074,7 @@ mod settle_resume_tests {
     /// recorded before it is sent), the ledger has no `settle` entry for it.
     fn crash_after_send(run: &Run, nf: &str, status: &str) {
         let mut close = Entry::new(&run.rules_id, "close");
-        close.close = Some(Close { close_height: 205, outcome: "auction".into(), winners: Some(vec![nf.into()]), ufvk: None, amount_key: None, clearing_price_zat: Some(60_000) });
+        close.close = Some(Close { close_height: 205, outcome: "auction".into(), winners: Some(vec![nf.into()]), ufvk: None, amount_key: None, clearing_price_zat: Some(60_000), drand_signature: None });
         run.append(close).unwrap();
         let item = outbox::Sent {
             kind: "settle".into(), label: "settlement".into(), txid: "cd".repeat(32), raw_hex: String::new(), nfs: vec![nf.into()], branch: "77190ad9".into(),
@@ -2014,7 +2161,7 @@ mod close_resume_tests {
             v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(10_000_000), items: None,
             start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
             refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-            pay_to: None, early_close: None, cap_zat: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, name: None,
+            pay_to: None, early_close: None, cap_zat: None, sealed: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, name: None,
             ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
         };
         let rules_id = hex::encode(rules.id().unwrap());

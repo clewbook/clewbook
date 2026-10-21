@@ -65,6 +65,10 @@ pub struct Rules {
     /// kept amount. Left out of every campaign without one, whose rules and ids are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cap_zat: Option<u64>,
+    /// Sealed bid auction only (mode `"sealed_auction"`, SPEC §9): tranches, pricing, the drand round, the late ticket block and how the host
+    /// sends the coins. Absent in every other campaign, whose rules and ids are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed: Option<crate::sealed::Sealed>,
     pub ledger_pubkey: String,
     pub payload_pubkey: String,
 }
@@ -144,6 +148,11 @@ impl Rules {
         self.mode == "auction"
     }
 
+    /// A sealed bid auction (SPEC §9). It is not an `auction` in the older sense: its payments are deposits, not bids.
+    pub fn is_sealed(&self) -> bool {
+        self.mode == "sealed_auction" && self.sealed.is_some()
+    }
+
     pub fn is_uniform(&self) -> bool {
         self.is_auction() && self.pricing.as_deref() == Some("uniform")
     }
@@ -155,11 +164,21 @@ impl Rules {
     }
 
     pub fn validate(&self) -> Result<()> {
+        // the second review, M4: only the networks this project knows (a relay or a page decides separately whether it takes regtest)
+        if !matches!(self.network.as_str(), "main" | "test" | "regtest") {
+            bail!("the network must be main, test or regtest, not {:?}", self.network);
+        }
         if let Some(n) = &self.name {
             check_name(n)?;
         }
         if !(MIN_TICKET_K..=MAX_TICKET_K).contains(&self.ticket_k) {
             bail!("the ticket window K must be between {MIN_TICKET_K} and {MAX_TICKET_K} blocks, not {}", self.ticket_k);
+        }
+        if self.mode == "sealed_auction" {
+            return self.validate_sealed();
+        }
+        if self.sealed.is_some() {
+            bail!("blind bid settings belong only to a blind bid auction");
         }
         if self.pricing.is_some() || self.reserve_zat.is_some() || self.treasury_address.is_some() || self.treasury_ufvk.is_some() {
             if !(self.is_uniform() && self.reserve_zat.is_some_and(|r| r > 0) && self.treasury_address.is_some() && self.treasury_ufvk.is_some()) {
@@ -195,6 +214,22 @@ impl Rules {
             "auction" if self.items.is_some_and(|n| n > 0) && self.ufvk_hash.is_some() => Ok(()),
             m => bail!("rules for mode {m:?} are missing required fields"),
         }
+    }
+
+    /// The rules of a sealed bid auction (SPEC §9): its own settings, items, the hidden viewing key's hash, a treasury, and none of the
+    /// fields that belong to the other modes.
+    fn validate_sealed(&self) -> Result<()> {
+        let Some(s) = &self.sealed else { bail!("a blind bid auction needs its blind bid settings") };
+        if self.goal_zat.is_some() || self.campaign_ufvk.is_some() || self.cap_zat.is_some() || self.early_close.is_some() || self.pricing.is_some() || self.settle_window.is_some() {
+            bail!("a blind bid auction has no goal, public viewing key, hard cap, early close, older pricing field or settlement window");
+        }
+        if !self.items.is_some_and(|n| n > 0) || self.ufvk_hash.is_none() || self.treasury_address.is_none() || self.treasury_ufvk.is_none() {
+            bail!("a blind bid auction needs a number of items, the hash of its viewing key, a treasury address and its viewing key");
+        }
+        if self.reserve_zat == Some(0) {
+            bail!("leave the reserve out instead of setting it to zero");
+        }
+        s.check(self)
     }
 }
 
@@ -281,5 +316,160 @@ mod name_tests {
         assert!(r.validate().is_err());
         r.name = Some("x".repeat(61));
         assert!(r.validate().is_err());
+    }
+}
+
+#[cfg(test)]
+mod sealed_tests {
+    use super::*;
+    use crate::sealed::{COIN_CUTOFF_BLOCKS, COIN_ZAT, CoinSending, QUICKNET_CHAIN_HASH, Sealed};
+
+    /// Every existing campaign type, as published (testnet demo campaigns and the mainnet ones): the id each one was published under is still
+    /// the id of its rules, and they all still validate. Adding the sealed bid mode must never change them.
+    #[test]
+    fn existing_campaign_ids_are_unchanged() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/testdata/existing-rules");
+        let mut seen = 0;
+        for e in std::fs::read_dir(dir).unwrap() {
+            let p = e.unwrap().path();
+            let id = p.file_stem().unwrap().to_str().unwrap().to_string();
+            let r: Rules = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+            assert_eq!(hex::encode(r.id().unwrap()), id, "{}", p.display());
+            r.validate().unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert!(r.sealed.is_none() && !r.is_sealed());
+            seen += 1;
+        }
+        assert!(seen >= 8, "fundraisers (plain, hard cap, early close, named), uniform and pay your bid auctions, mainnet and testnet");
+    }
+
+    pub(crate) fn sealed_rules() -> Rules {
+        let mut r: Rules = serde_json::from_str(r#"{"v":1,"network":"test","mode":"sealed_auction","items":1,"start_height":100,"deadline_height":1000,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":10000000,"ufvk_hash":"aa","treasury_address":"utest1x","treasury_ufvk":"uviewtest1x","ledger_pubkey":"aa","payload_pubkey":"bb"}"#).unwrap();
+        r.sealed = Some(Sealed {
+            tranches_zat: vec![10_000_000, 30_000_000, 50_000_000, 100_000_000],
+            pricing: "uniform".into(),
+            drand_chain: QUICKNET_CHAIN_HASH.into(),
+            drand_round: 40_000_000,
+            claim_after: 1_500,
+            coin_zat: COIN_ZAT,
+            coin_cutoff: COIN_CUTOFF_BLOCKS,
+            coin_sending: CoinSending::AtOnce,
+            timing: Default::default(),
+            open_payouts: false,
+            long_tag: false,
+            early_key: false,
+            coin_margin: 0,
+        });
+        r
+    }
+
+    #[test]
+    fn a_sealed_bid_auction_validates_and_has_its_own_id() {
+        let r = sealed_rules();
+        r.validate().unwrap();
+        assert!(r.is_sealed() && !r.is_auction() && !r.is_uniform());
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains(r#""sealed":{"#) && json.contains(r#""coin_sending":{"mode":"at_once"}"#), "{json}");
+        let back: Rules = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.id().unwrap(), r.id().unwrap());
+        // every setting is part of the id
+        let mut other = sealed_rules();
+        other.sealed.as_mut().unwrap().coin_sending = CoinSending::EveryBids { n: 3 };
+        assert_ne!(other.id().unwrap(), r.id().unwrap());
+        for p in ["second", "pay_your_bid"] {
+            let mut x = sealed_rules();
+            x.sealed.as_mut().unwrap().pricing = p.into();
+            x.validate().unwrap();
+        }
+    }
+
+    #[test]
+    fn the_quick_test_timing_is_written_only_when_chosen_and_never_on_the_main_network() {
+        let r = sealed_rules();
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(!json.contains("timing"), "{json}");
+        let mut q = sealed_rules();
+        q.sealed.as_mut().unwrap().timing = crate::sealed::Timing::Quick;
+        q.validate().unwrap();
+        let qj = serde_json::to_string(&q).unwrap();
+        assert!(qj.contains(r#""timing":"quick""#), "{qj}");
+        assert_ne!(q.id().unwrap(), r.id().unwrap());
+        let back: Rules = serde_json::from_str(&qj).unwrap();
+        assert_eq!(back.id().unwrap(), q.id().unwrap());
+        let mut m = q.clone();
+        m.network = "main".into();
+        let e = m.sealed.as_ref().unwrap().check(&m).unwrap_err().to_string();
+        assert!(e.contains("quick test timing is for the test network only"), "{e}");
+    }
+
+    #[test]
+    fn the_published_sealed_proof_auctions_keep_their_ids() {
+        // P1 to P4 of 20 Oct 2026 on the public test network, made before the timing setting existed
+        let mut seen = 0;
+        for e in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src/testdata/existing-sealed-rules")).unwrap() {
+            let p = e.unwrap().path();
+            let id = p.file_stem().unwrap().to_str().unwrap().to_string();
+            let r: Rules = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+            assert_eq!(hex::encode(r.id().unwrap()), id, "{}", p.display());
+            r.validate().unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert!(r.sealed.as_ref().unwrap().timing.is_standard());
+            seen += 1;
+        }
+        assert_eq!(seen, 4);
+    }
+
+    #[test]
+    fn code_that_does_not_know_the_mode_refuses_it() {
+        // an older reader drops the unknown "sealed" key, gets a different id, and refuses the campaign; the unknown mode is refused too
+        let r = sealed_rules();
+        let mut v: serde_json::Value = serde_json::to_value(&r).unwrap();
+        v.as_object_mut().unwrap().remove("sealed");
+        let older: Rules = serde_json::from_value(v).unwrap();
+        assert_ne!(older.id().unwrap(), r.id().unwrap());
+        assert!(older.validate().is_err());
+        assert!(!older.is_auction());
+    }
+
+    #[test]
+    fn bad_sealed_settings_are_refused() {
+        let cases: Vec<(&str, Box<dyn Fn(&mut Rules)>)> = vec![
+            ("no tranches", Box::new(|r| r.sealed.as_mut().unwrap().tranches_zat.clear())),
+            ("eleven tranches", Box::new(|r| { r.sealed.as_mut().unwrap().tranches_zat = (1..=11).map(|i| i * 10_000_000).collect(); })),
+            ("tranches out of order", Box::new(|r| r.sealed.as_mut().unwrap().tranches_zat = vec![10_000_000, 50_000_000, 30_000_000])),
+            ("smallest is not the minimum", Box::new(|r| r.min_contribution_zat = 20_000)),
+            ("a tranche too small for a bid", Box::new(|r| { r.sealed.as_mut().unwrap().tranches_zat = vec![10_000, 30_000_000]; r.min_contribution_zat = 10_000; })),
+            ("unknown pricing", Box::new(|r| r.sealed.as_mut().unwrap().pricing = "dutch".into())),
+            ("another drand chain", Box::new(|r| r.sealed.as_mut().unwrap().drand_chain = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493".into())),
+            ("late tickets before the deadline", Box::new(|r| r.sealed.as_mut().unwrap().claim_after = 1000)),
+            ("a coin too small", Box::new(|r| r.sealed.as_mut().unwrap().coin_zat = 1_000)),
+            ("a cutoff too short", Box::new(|r| r.sealed.as_mut().unwrap().coin_cutoff = 2)),
+            ("every 0 bids", Box::new(|r| r.sealed.as_mut().unwrap().coin_sending = CoinSending::EveryBids { n: 0 })),
+            ("no items", Box::new(|r| r.items = None)),
+            ("no treasury", Box::new(|r| r.treasury_ufvk = None)),
+            ("a goal", Box::new(|r| r.goal_zat = Some(1))),
+            ("a public viewing key", Box::new(|r| r.campaign_ufvk = Some("uviewtest1x".into()))),
+            ("the older pricing field", Box::new(|r| r.pricing = Some("uniform".into()))),
+            ("a zero reserve", Box::new(|r| r.reserve_zat = Some(0))),
+            ("no sealed settings", Box::new(|r| r.sealed = None)),
+        ];
+        for (name, f) in cases {
+            let mut r = sealed_rules();
+            f(&mut r);
+            assert!(r.validate().is_err(), "{name} must be refused");
+        }
+        // sealed settings on another mode are refused
+        let mut raise: Rules = serde_json::from_str(r#"{"v":1,"network":"test","mode":"raise","goal_zat":5000000,"start_height":100,"deadline_height":200,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":20000,"campaign_ufvk":"uvftest1x","ledger_pubkey":"aa","payload_pubkey":"bb"}"#).unwrap();
+        raise.validate().unwrap();
+        raise.sealed = sealed_rules().sealed;
+        assert!(raise.validate().is_err());
+    }
+
+    #[test]
+    fn a_payment_counts_as_the_tranche_at_or_below_it() {
+        let s = sealed_rules().sealed.unwrap();
+        assert_eq!(s.tranche_of(30_000_000), Some(30_000_000));
+        assert_eq!(s.tranche_of(20_000_000), Some(10_000_000));
+        assert_eq!(s.tranche_of(200_000_000), Some(100_000_000));
+        assert_eq!(s.tranche_of(9_999_999), None);
+        assert_eq!(s.cutoff_height(1000), 990);
     }
 }

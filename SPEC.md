@@ -466,3 +466,175 @@ Handling:
   account's incoming activity: the contribute page tells winners (before they pay) to use a dedicated
   account. A proof is only evidence for the winner who publishes it; an unproven winner stays "unverified".
 - Relays accept such a statement only for a payment whose nullifier has a `settle` entry (§6).
+
+## 9. Blind bid auction
+
+A blind bid auction hides every bid's amount from the host until a drand round publishes the key that opens them all, after bidding
+has closed. Each person who bids pays a **deposit** of one of the host's **tranches** and locks a bid at or below it. Each deposit gets an **early
+ticket** (valid only up to the deadline) and a **late ticket** (valid only after the late ticket block), so nobody can pull a deposit back
+while the host settles, and everyone gets their deposit back if the host never does. The design and its tests are in the research notes
+(14, 16); this section is the format.
+
+It is its own mode, `"sealed_auction"`. Older campaigns keep their rules and ids, and a relay, page or recount that does not know this mode
+refuses it (it drops the unknown `sealed` key, computes a different id and refuses the campaign; the unknown mode is refused as well).
+
+### 9.1 Rules
+
+The fields of §1 apply, with these differences: `mode` is `"sealed_auction"`; `items`, `ufvk_hash`, `treasury_address` and
+`treasury_ufvk` are required; `reserve_zat` is optional (when present it is more than zero); `goal_zat`, `campaign_ufvk`, `cap_zat`,
+`early_close`, `pricing` and `settle_window` are refused; `min_contribution_zat` equals the smallest tranche. One more field:
+
+| `sealed` field | Type | Meaning |
+|---|---|---|
+| `tranches_zat` | array of int | 1 to 10 deposit sizes, strictly increasing. A bid must be at most its tranche minus `refund_fee_zat`, and every tranche is more than `refund_fee_zat` plus the reserve |
+| `pricing` | string | `"uniform"` (the k highest bids win, each pays the k-th highest), `"second"` (each pays the (k+1)-th highest, or the reserve) or `"pay_your_bid"` (each pays its own bid) |
+| `drand_chain` | hex | always drand quicknet, `52db9ba7…e971`; the page and the recount pin its public key and never take it from the rules |
+| `drand_round` | int | R: the round whose signature opens every bid |
+| `claim_after` | int | H_s: late tickets are valid in blocks after this height |
+| `coin_zat` | int | the small transparent coin the host sends to each bid page, at least 5000 |
+| `coin_cutoff` | int | blocks before the deadline by which the coin must be mined, at least 10 |
+| `coin_sending` | object | how the host sends coins, chosen by the host: `{"mode":"at_once"}`, `{"mode":"every_bids","n":1..1000}` or `{"mode":"every_minutes","n":1..1440}`. Whatever it chose, within 20 blocks of the cutoff coins go out at once |
+| `timing` | string | left out (standard) or `"quick"` (test network only: a faster block range and a 10 minute gap) |
+| `open_payouts` | bool | left out (false) by auctions made before 20 Oct 2026. When true: every payment the host signs to a person (the signed refund, a winner's change, every return) is made with that payment's own outgoing viewing key, `BLAKE2b("ledgerlab_payovk", X25519(payload secret, the memo's page encryption key) \|\| nf \|\| 0 \|\| kind)` with kind `refund`, `change`, `return` (`ll_core::payout`); the signed refund is sealed to the page with the early ticket (`LLS1` blob); the reveal publishes the payload secret key; rejected and repeated payments are sent back (§9.5); a reject carries the memo's hash, and a challenge carries the memo |
+| `long_tag` | bool | when true, bids use the bound memo of §9.3 (a 16 byte tag); the older memo is no bid |
+| `early_key` | bool | when true, the early ticket is made with its own outgoing key too (kind `early`), and S4 checks a deposit taken back paid the refund address in its memo |
+
+The rules check also refuses a late ticket block of 500,000,000 or more (a lock time read as a date), and, on the main network, an auction
+whose life (its late ticket block, the ticket window and 100 blocks) does not end before the assumed NU7 height (`ll_core::sealed`). The
+bid page refuses a round or late ticket block much later than the plan of §9.2 gives from the block before the start.
+
+### 9.2 Timing
+
+The rules fix the deadline H_c, the round R and the late ticket block H_s when the auction is created (`ll_core::sealed::plan`). They
+assume blocks arrive, on average, between 60 and 80 seconds each on the main network (`BLOCK_SECS`) and between 20 and 80 seconds on the
+test network (`BLOCK_SECS_TEST`, whose blocks came every 24 to 25 seconds on 20 October 2026):
+
+- R's time is at least the latest the deadline can come (every block at the slow end) plus 30 minutes, so the bids cannot open before
+  bidding closes.
+- The first block after H_s comes at least 60 minutes after R on the main network (`SETTLE_SECS`), 30 minutes on the test network
+  (`SETTLE_SECS_TEST`), even if every block is at the fast end, so the host has time to settle before late tickets become valid.
+
+The host checks both when it creates the auction, and the bid page checks them again before anyone bids (`Sealed::check_timing`, from the
+chain's current block and its time). Both stay true as the chain moves on, as long as blocks stay inside the assumed range. If blocks are
+slower, the bids could open before the close: the auction is then void and everyone gets their deposit back (§9.7). If blocks are faster, late
+tickets could become valid before the host has settled: a winner could take their deposit back; money is never lost.
+
+Quick test timing (test network only, `sealed.timing: "quick"`): a 20 to 40 second range (`BLOCK_SECS_QUICK`) and a 10 minute gap before R
+(`GAP_SECS_QUICK`) in place of 30, for short trial auctions; the settlement time is the test network's. The void rule (§9.7) uses the same
+gap. The field is left out of the rules for the standard timing, so auctions made before it keep their ids; a reader that does not know
+it drops it, computes another id and refuses the campaign. `Sealed::check` refuses it on the main network.
+
+Bidding window: deposits are taken until block H_c minus the larger of the ticket window and the coin cutoff (the bid page closes there).
+An auction whose window is under 10 blocks (`MIN_BID_WINDOW_BLOCKS`) is refused when it is made, before any wallet exists
+(`sealed::check_bid_window`).
+
+A payment counts as the largest tranche at or below its value (a payment that matches no tranche counts as the one below; below the
+smallest it is not a deposit).
+
+### 9.3 The bid memo (version 3)
+
+```
+memo text = "LL3:" || base64url_nopad(sealed) || "." || base64url_nopad(lock || page_key)
+sealed    = the payload of §2, version 2, with amount_zat = the tranche   (197 bytes; only the host opens it)
+lock      = tlock to drand quicknet round R of (bid_zat 8 bytes little endian || tag 7 bytes || 0x01)   (128 bytes)
+page_key  = the bid page's transparent public key, compressed (33 bytes)
+tag       = first 7 bytes of BLAKE2b-256("ledgerlab_bidtag", rules_id || sealed || page_key || tranche_zat 8 bytes little endian)
+```
+
+The text is 483 characters (`ll_core::bid`). With `long_tag` the lock holds a random key instead (15 random bytes and 0x01), and the
+memo carries, between the lock and the page key, the bid encrypted with that key (6 bytes) and a 16 byte tag made with it over the
+campaign, the sealed part, the page key, the tranche and the encrypted bid; that memo is exactly 512 bytes. Nobody knows the key before
+round R, so nobody can make a tag for another memo. Anyone who can read the memo (the host now, everyone once the viewing key is published) can
+read the lock and the page key; the bid opens only with round R's signature, which is checked against quicknet's pinned public key first.
+
+- A deposit counts only if it pays at least the amount in its sealed part (§2), so a copy of a large deposit's memo inside a small payment
+  does not count (16, H3).
+- After opening, the tag must match the memo it was found in and the deposit's tranche. A lock copied into another memo, or a bid moved to
+  another tranche, opens with a tag that does not match and counts as no bid. A whole memo copied into another payment is a replay (§2).
+- A lock that does not open (altered, locked to another round, or without the marker), or a signature that is not round R's, is no bid. It
+  never stops the host or the recount.
+- A valid bid is at least the reserve (if any) and at most its tranche minus `refund_fee_zat`.
+
+### 9.4 List entries
+
+The entries of §4, with these additions (every added field is left out when empty, so the entries of other campaigns, their hashes and
+their signatures are unchanged):
+
+| Entry | Meaning |
+|---|---|
+| `issue` | As §4 (the deposit, its early ticket, its sealed blob; the amount hidden by `amount_commit` until the close), plus `refund`: the id of the refund the host signed at once for this deposit. The early ticket expires at the deadline. |
+| `coin` | `coin: {nf, txid, index, value_zat}`: the coin the host sent, from its own wallet, to the page of the person who made deposit `nf`; `late`: the id of the deposit's late ticket, which spends the deposit and this coin (so it is built once the coin is sent); `blob_hash`: the late ticket, sealed to the person who bid like a ticket, for the page to check and sign. A version 6 transaction id does not cover anchors, proofs or signatures, so both ids are known when the transactions are built. |
+| `close` | As §4, with `outcome` `"sealed_auction"` (or `"void"`, §9.7), the winners, the price where there is one, `amount_key`, and `drand_signature`: round R's signature. No viewing key. |
+| `settle` | As §8: one per winner. |
+| `reveal` | `reveal: {ufvk, height}`: the campaign's viewing key, published once every winner's settlement is mined (the owner's decision 8). With `open_payouts` also `payload_sk`, the payload secret key: with it anyone opens every memo's sealed part (so every refund address becomes public) and works out every payment's outgoing key. |
+| `late_return` | A deposit mined after the deadline, sent back (§9.5): `contribution: {txid, action, nf, height}` with no amount, and `refund`: the id of the return. |
+
+A relay stores `issue` entries of a blind bid auction only with `refund` (and without `late`), `coin` entries only with `late` and
+`blob_hash` and for a deposit already on the list, one `reveal` after the close, and `late_return` entries only for a payment mined after the
+deadline or after it (or, after the close, for a deposit not on the list), once each, without an amount; after the close only `settle`, `reveal` and `late_return` may follow. It refuses `late`, `refund`,
+`coin`, `reveal` and `late_return` for every other campaign.
+
+### 9.5 Deposits
+
+A payment to the campaign counts as a deposit when it is mined from `start_height` to three blocks before the deadline
+(`sealed::last_deposit_height`, `LATE_MARGIN_BLOCKS` = 3), carries a version 3 memo (§9.3), and
+pays at least the smallest tranche. It counts as the largest tranche at or below what it pays. Payments are taken in chain order (height,
+then position in the block, then txid and action). A payment that repeats the memo of an earlier deposit is a replay: it is a donation,
+listed with a note. A payment the host rejected does not use up its memo, so a later payment with the same memo can still be the deposit.
+The host rejects a payment that pays less than the tranche sealed in its memo (the one validity rule of §2, `payload::check`).
+
+A payment with a version 3 memo mined in the last three blocks before the deadline (the deadline and the two blocks before it) or after it
+is not a deposit: an early ticket expiring at the deadline cannot be built for it in time (found on the test network on 20 October 2026).
+The host sends it back on its own, on the test and the main network alike: to the refund address in its memo, all of it minus the network fee (`refund_fee_zat`; 0.1 sent, 0.0999 back), from that
+one note, within the ticket window of blocks, and names the return on the list (`late_return`). It does so whenever it sees one, also after
+the close. A late payment that is not worth more than the fee, has no version 3 memo, or whose memo does not open with this auction's key
+has no refund address the host can use, and stays (`sealed_recount::is_late_deposit` is the test both sides use).
+
+The safety net: once the auction is closed, any deposit that has no early ticket and signed refund on the list, for whatever reason, is
+sent back the same way (minus the fee, named by a `late_return` entry), so no edge case can keep someone's money. Such a deposit does not
+bid; the recount still fails S2 for the missing tickets, and S7 checks it was sent back within the ticket window after the close.
+
+### 9.6 Opening the bids and the outcome
+
+After the deadline the host fetches round R's signature from drand quicknet (the four addresses of `DRAND_URLS`, in turn) and checks it
+against the pinned public key; a signature that does not check is never used. The auction is void when round R came too early: when
+`round_time(R)` is before the median time of blocks `deadline - 10` to `deadline` plus `GAP_SECS`. A void auction refunds every deposit.
+
+Otherwise each deposit that was not taken back with its early ticket is opened. It is a valid bid when the lock opens with round R's
+signature, ends with the marker, carries the tag of its own memo and tranche (§9.3), is at most its tranche minus the refund fee, and is at
+least the reserve. A deposit mined after the coin cutoff is no bid either (it cannot get its coin in time; the bid page does not pay
+after `deadline - ticket_k`). Anything else is no bid: its deposit is refunded. The winners are the `items` highest valid bids; a tie goes to the
+earlier deposit. What each winner pays:
+
+| Pricing | Price |
+|---|---|
+| `uniform` | everyone pays the lowest winning bid (the k-th highest bid) |
+| `second` | everyone pays the highest losing bid (the (k+1)-th highest) |
+| `pay_your_bid` | each winner pays their own bid |
+
+With too few valid bids to set the price, the price is the reserve, or the lowest winning bid when there is no reserve. The same function
+(`sealed_recount::plan_outcome`) is used by the host when it closes and by the recount.
+
+A winner is settled by one transaction that spends the deposit, pays the price to the treasury and the rest, minus the refund fee, back to
+the person who bid, mined after the deadline and by `claim_after`. Every other deposit goes back by its signed refund. A deposit still unspent after
+`claim_after` goes back by its late ticket.
+
+### 9.7 Recount
+
+R1 and R2 are as §5, plus: a revealed viewing key must match `ufvk_hash`, and there is at most one `reveal`, after the close. Until the
+viewing key is revealed, S1 to S8 wait. Then:
+
+| Check | What it checks |
+|---|---|
+| S1 | every `issue` names a real deposit with its chain details, shows no amount, and its amount commitment opens with `amount_key`; every `reject` names a payment to the campaign; a reject is false when the person who bid publishes the memo's one-time secret and the payment meets the validity rule |
+| S2 | every deposit's tickets were issued within `ticket_k` blocks |
+| S3 | every deposit mined by the coin cutoff and still in the auction there got its coin: at least `coin_zat`, to the P2PKH address of the memo's page key, mined at or before the cutoff, in a transaction that spends none of the campaign's notes |
+| S4 | before the deadline, a deposit was spent only by its early ticket (a withdrawal) |
+| S5 | the close carries round R's real signature (or the auction is void exactly when §9.6 says so); the winners and price on the close are what the opened bids give; no accepted deposit copies the memo of a later payment that pays the tranche the bid was made for (the host would then have taken a smaller copy and kept the real deposit) |
+| S6 | every winner was settled by its `settle` entry's transaction in the window, the treasury received exactly the price, and the entry's price, fee and excess match |
+| S7 | every other deposit was spent only by its signed refund, or by its late ticket after `claim_after`; every payment too late to bid, and every deposit without tickets after the close, was spent by the return its `late_return` entry names, within the ticket window |
+| S8 | the viewing key was revealed, and only after every settlement was mined |
+
+The report adds `did_not_finish` (shown on the recount page and in the listing): the host had not closed by `claim_after`, or left a winner
+to take the deposit back by the late ticket, or left a deposit unrefunded at `claim_after`, or had not revealed the viewing key by
+`claim_after + ticket_k`.

@@ -161,6 +161,10 @@ export async function crossCheck(endpoints, input, { onStatus = () => {}, timeou
       for (const txid of txids) { const [raw] = await servers.call('GetTransaction', tx_filter_request(txid), timeoutMs); rc.add_raw_transaction(raw); }
       // transactions that spent campaign notes (tickets and settlements): fee, outputs, and what a winner's key can open
       for (const txid of rc.txids_spending_notes()) { if (txids.includes(txid)) continue; const [raw] = await servers.call('GetTransaction', tx_filter_request(txid), timeoutMs); rc.add_raw_transaction(raw); }
+      // a sealed bid auction: the coins the host sent to the bid pages (their transparent outputs and heights, for check S3)
+      if (input.rules.sealed) {
+        for (const txid of rc.coin_txids(JSON.stringify(input.ledger))) { const [raw] = await servers.call('GetTransaction', tx_filter_request(txid), timeoutMs); rc.add_coin_transaction(raw); }
+      }
       const report = JSON.parse(rc.report_json(JSON.stringify(input.rules), input.rules_id, JSON.stringify(input.ledger), JSON.stringify(input.challenges ?? []), trc ? trc.notes_for_report() : ''));
       return { endpoint: u, ok: true, report, stats: { blocks: rc.blocks_scanned(), actions: rc.actions_seen(), full_txs: txids.length } };
     } catch (e) { return { endpoint: u, ok: false, error: String(e.message || e) }; }

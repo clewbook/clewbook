@@ -1,6 +1,6 @@
 // The demo's "Tested milestones" page (design round 14, handoff "testnet demo"): the thirteen finished test campaigns, the result chips (All, Passed,
-// Failed), the type segment (All, Fundraisers, Auctions), list or grid (kept in this browser as cb-proofs-view). Copied by make-static.sh to
-// proofs/examples.js. The links are built exactly as before.
+// Failed), the type segment (All, Fundraisers, Auctions, Sealed bids), list or grid (kept in this browser as cb-proofs-view). Copied by
+// make-static.sh to proofs/examples.js. The links are built as before, plus a marker and the selection, so the page opened can come back here.
 document.documentElement.dataset.started = "1"; document.documentElement.dataset.ready = "1";
 const items = [ // [title, one sentence, campaign id, type, expected result, pass or fail]
   ['Uniform price auction', 'A finished auction: every winner pays the same price, the lowest winning bid.', '5eda2e8a7cff9e282c4ca67d1938ea85535f9df40349e73c1ceb8864a26431eb', 'Auction', '✓ Expect: all 13 checks pass', 'pass'],
@@ -17,17 +17,34 @@ const items = [ // [title, one sentence, campaign id, type, expected result, pas
   ['Hard cap', 'Soft cap 0.002, hard cap 0.004 TAZ. Three payments of 0.0015: the third did not fit and was refunded whole.', '0e87fe135cb3dd2486efa0809534718bf62ebd3df733d903008550c4c202aef5', 'Fundraiser', '✓ Expect: all 9 checks pass', 'pass'],
   ['Caught', 'A host that kept a payment over the hard cap instead of refunding it.', 'bc66ccca21ec5a3059e03326ec7abbf54fa55c45102a6037cf27f600273addb1', 'Fundraiser', '✕ Expect: R6 fails', 'fail'],
 ];
+// Sealed bid auctions (SPEC §9): their own tab, prepared and hidden. Filled with the testnet sealed auctions once the owner says "ship" and
+// they have run (with their lists in the demo's relays); while this list is empty the tab stays hidden and the page is as before.
+const SEALED = [ // blind bid auctions on the test network, on their own test site (app-test, relay-test)
+  ['Blind bids, uniform price', 'Three blind bids for two items, opened only after bidding closed: the two highest win and each pays the lowest winning bid, 0.00018 TAZ.', '4bbdc3d44705c615ca2d6de3338312685bc19376222817154a94d8cd70cdf6e5', 'Blind bid auction', '✓ Expect: all 10 checks pass', 'pass', 1],
+  ['Blind bids, second price', 'The same three bids: the two highest win and each pays the highest losing bid, 0.00012 TAZ.', 'c74cd5cac444019cb4ced354fb7023ff1d8c20e5ae18175aa50538781b5dbc5b', 'Blind bid auction', '✓ Expect: all 10 checks pass', 'pass', 1],
+  ['Blind bids, pay your bid', 'The same three bids: each winner pays their own bid, 0.0008 and 0.00018 TAZ.', 'f7fb6f3cc771b74c8e26ac98f0722e7839cdcf1c7ba49cb32646ceea167760d8', 'Blind bid auction', '✓ Expect: all 10 checks pass', 'pass', 1],
+  ['Host never closed', 'The host never opened the bids: after the late ticket block everyone took their deposit back with their own late ticket.', '18ef5077cc4a06beaf84b691bd26e9643b5c6ca2ff8819992ab5c997757afb51', 'Blind bid auction', '✕ Expect: the host did not finish', 'fail', 1],
+];
+items.push(...SEALED);
+if (SEALED.length) { const b = document.querySelector('#seg-sealed'); if (b) b.hidden = false; }
 // the demo folder is the one that holds proofs/ (at the site's root on a plain static host, under /demo/ on the page server)
 const base = `${location.origin}${location.pathname.replace(/proofs(\/(index\.html)?)?$/, '')}`;
 const q = (id) => `c=${id}&relay=${base}relays/a&relay=${base}relays/b`;
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const VIEW_KEY = 'cb-proofs-view';
-let res = 'all', type = 'all', view = (() => { try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; } })();
+// the selection travels in the links (#from=proofs&mt=<type>&mr=<result>) so a page opened from here can come back to it (#mt, #mr, #at)
+const TYPE_CODE = { all: 'all', Fundraiser: 'raise', Auction: 'auction', 'Blind bid auction': 'sealed' };
+const CODE_TYPE = Object.fromEntries(Object.entries(TYPE_CODE).map(([k, v]) => [v, k]));
+const back = new URLSearchParams(location.hash.slice(1));
+let res = ['all', 'pass', 'fail'].includes(back.get('mr')) ? back.get('mr') : 'all', type = CODE_TYPE[back.get('mt')] || 'all', view = (() => { try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; } })();
 
-function actions(id) {
+// a sealed bid auction lives on its own test site, with its own relay
+const TEST_SITE = 'https://app-test.clewbook.xyz/', TEST_RELAY = 'https://relay-test.clewbook.xyz';
+function actions(id, onTest) {
   const box = el('div', 'pacts');
-  for (const [name, page, cls] of [['↻ Recount', 'recount', 'prc'], ['Campaign', 'campaign', 'plk'], ['Capability card', 'card', 'plk']]) { const a = el('a', cls, name); a.href = `${base}${page}.html#${q(id)}`; box.append(a); }
+  const mark = `&from=proofs&mt=${TYPE_CODE[type]}&mr=${res}`;
+  for (const [name, page, cls] of [['↻ Recount', 'recount', 'prc'], ['Campaign', 'campaign', 'plk'], ['Capability card', 'card', 'plk']]) { const a = el('a', cls, name); a.href = `${onTest ? `${TEST_SITE}${page}.html#c=${id}&relay=${TEST_RELAY}` : `${base}${page}.html#${q(id)}`}${mark}`; box.append(a); }
   return box;
 }
 const expect = (text, r) => el('span', `pexp ${r}`, text);
@@ -35,16 +52,16 @@ const expect = (text, r) => el('span', `pexp ${r}`, text);
 function render() {
   const shown = items.map((it, i) => [it, String(i + 1).padStart(2, '0')]).filter(([[, , , t, , r]]) => (res === 'all' || r === res) && (type === 'all' || t === type));
   const out = $('#list'); out.replaceChildren(); out.className = view === 'grid' ? 'pgrid' : 'plist';
-  for (const [[title, desc, id, t, exp, r], n] of shown) {
+  for (const [[title, desc, id, t, exp, r, onTest], n] of shown) {
     if (view === 'grid') {
-      const c = el('div', 'pcard dp-item');
+      const c = el('div', 'pcard dp-item'); c.dataset.id = id;
       const head = el('div', 'pchead'); head.append(el('b', 'pn', n), el('span', 'ptype', t));
-      c.append(head, el('b', '', title), el('span', 'pdesc', desc), expect(exp, r), actions(id)); out.append(c);
+      c.append(head, el('b', '', title), el('span', 'pdesc', desc), expect(exp, r), actions(id, onTest)); out.append(c);
     } else {
-      const row = el('div', 'prow dp-item');
+      const row = el('div', 'prow dp-item'); row.dataset.id = id;
       const main = el('div', 'pmain'); const tl = el('div', 'ptl'); tl.append(el('b', '', title), el('span', 'ptype', t));
       main.append(tl, el('span', 'pdesc', desc), expect(exp, r));
-      row.append(el('b', 'pn', n), main, actions(id)); out.append(row);
+      row.append(el('b', 'pn', n), main, actions(id, onTest)); out.append(row);
     }
   }
   out.hidden = shown.length === 0;
@@ -54,9 +71,13 @@ function render() {
   const v = $('#view'); const toGrid = view === 'list';
   v.setAttribute('aria-label', toGrid ? 'Show as grid' : 'Show as list'); v.title = v.getAttribute('aria-label');
   $('#ic-grid').style.display = toGrid ? '' : 'none'; $('#ic-list').style.display = toGrid ? 'none' : '';
+  // the address keeps the selection, so the browser's Back returns to it too (replaced, not a new history step)
+  try { history.replaceState(history.state, '', `${location.pathname}${location.search}${type === 'all' && res === 'all' ? '' : `#mt=${TYPE_CODE[type]}&mr=${res}`}`); } catch { /* the selection holds for this visit */ }
 }
 for (const b of document.querySelectorAll('.pchip')) b.addEventListener('click', () => { if (res !== b.dataset.res) { res = b.dataset.res; render(); } });
 for (const b of document.querySelectorAll('.pseg button')) b.addEventListener('click', () => { type = b.dataset.type; render(); });
 $('#view').addEventListener('click', () => { view = view === 'list' ? 'grid' : 'list'; try { localStorage.setItem(VIEW_KEY, view); } catch { /* the choice holds for this page only */ } render(); });
 render();
+// back from a page opened here: show the item that was opened
+{ const at = back.get('at'); const it = at && /^[0-9a-f]{64}$/.test(at) && document.querySelector(`[data-id="${at}"]`); if (it) it.scrollIntoView({ block: 'center' }); }
 for (const e of document.querySelectorAll('[data-brand]')) e.textContent = 'Clewbook';

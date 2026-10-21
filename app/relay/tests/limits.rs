@@ -16,7 +16,7 @@ fn rules(seed: u8) -> (Rules, CampaignSecrets) {
         v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(5_000_000), items: None,
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-        pay_to: None, early_close: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
+        pay_to: None, early_close: None, cap_zat: None, sealed: None, name: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
     (rules, secrets)
@@ -131,4 +131,64 @@ fn more_requests_at_once_than_allowed_are_answered_busy() {
     drop(held);
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(raw(&url, "GET", "/v1/health", b"", None), 200, "and served again once they are gone");
+}
+
+fn reject_entry(id: &str, seq: u64, prev: &str, secrets: &CampaignSecrets) -> Entry {
+    let mut e = Entry::new(id, "reject");
+    e.contribution = Some(ll_core::ledger::Contribution { txid: hex::encode([seq as u8; 32]), action: 0, nf: hex::encode([seq as u8 + 9; 32]), height: 110, value_zat: Some(30_000), amount_commit: None });
+    e.reason = Some("test".into());
+    e.seq = seq;
+    e.prev = prev.to_string();
+    e.sign(&secrets.ledger_key().unwrap()).unwrap();
+    e
+}
+
+#[test]
+fn second_review_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network() {
+    let (url, _) = relay(Limits::default());
+    let r = Relay::new(&url);
+    let (mut ru, _) = rules(21);
+    ru.network = "regtest".into();
+    assert_eq!(refused(r.register(&ru)), 400, "a public relay refuses rules for a private chain");
+    ru.network = "testnet-ish".into();
+    assert_eq!(refused(r.register(&ru)), 400, "an unknown network is refused by the rules check");
+    let (url, _) = relay(Limits { allow_regtest: true, ..Limits::default() });
+    let (mut ru, _) = rules(22);
+    ru.network = "regtest".into();
+    Relay::new(&url).register(&ru).unwrap();
+}
+
+#[test]
+fn second_review_m5_a_campaign_and_the_relay_have_a_storage_cap() {
+    // one campaign may store about two entries' worth; a stranger's third entry is refused (507), and other campaigns keep working
+    let (url, _) = relay(Limits { max_campaign_bytes: 2_200, ..Limits::default() });
+    let r = Relay::new(&url);
+    let (rules_a, sa) = rules(23);
+    let id = hex::encode(rules_a.id().unwrap());
+    r.register(&rules_a).unwrap();
+    let mut prev = GENESIS_PREV.to_string();
+    let mut stored = 0;
+    for seq in 0..10u64 {
+        let e = reject_entry(&id, seq, &prev, &sa);
+        match r.put_entry(&id, &e) {
+            Ok(()) => { stored += 1; prev = e.hash().unwrap(); }
+            Err(err) => { assert_eq!(refused(Err(err)), 507, "full, not another error"); break; }
+        }
+    }
+    assert!((1..10).contains(&stored), "{stored} entries stored before the cap");
+    let (rules_b, sb) = rules(24);
+    let idb = hex::encode(rules_b.id().unwrap());
+    r.register(&rules_b).unwrap();
+    r.put_entry(&idb, &reject_entry(&idb, 0, GENESIS_PREV, &sb)).unwrap();
+    // the whole relay: a cap reached by registrations alone refuses the next campaign
+    let (url, _) = relay(Limits { max_total_bytes: 2_000, ..Limits::default() });
+    let r = Relay::new(&url);
+    let mut n = 0;
+    for seed in 30..40u8 {
+        match r.register(&rules(seed).0) {
+            Ok(()) => n += 1,
+            Err(err) => { assert_eq!(refused(Err(err)), 507); break; }
+        }
+    }
+    assert!((1..10).contains(&n), "{n} campaigns before the relay was full");
 }

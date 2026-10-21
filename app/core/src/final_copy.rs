@@ -121,7 +121,7 @@ mod tests {
             e.seq = i as u64;
             e.prev = out.last().map_or(GENESIS_PREV.to_string(), |p: &Entry| p.hash().unwrap());
             if *k == "close" {
-                e.close = Some(crate::ledger::Close { close_height: 100 + salt, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None });
+                e.close = Some(crate::ledger::Close { close_height: 100 + salt, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
             }
             if *k == "reject" {
                 e.reason = Some(format!("r{salt}"));

@@ -155,6 +155,17 @@ impl Chain for GrpcChain {
             guarded("reading a transaction", || rc.add_raw_transaction(raw))?.map_err(|_| anyhow!("transaction {txid} could not be read"))?;
             stats.full_txs += 1;
         }
+        // a Blind bid auction: the coins the host sent to the bid pages, for check S3 (the second review, M2; as the recount page does)
+        let coins = guarded("listing the coins", || rc.coin_txids(&req.ledger_json))?.map_err(|_| anyhow!("the coin entries could not be read"))?;
+        for txid in coins {
+            ensure!(Instant::now() < deadline, "the recount took longer than its time limit (reading the coins)");
+            let filter = guarded("making a transaction request", || ll_web::tx_filter_request(&txid))?.map_err(|_| anyhow!("bad txid"))?;
+            let (raw, bytes) = self.call(&req.network, "GetTransaction", &filter)?;
+            stats.bytes += bytes;
+            let raw = raw.first().ok_or_else(|| anyhow!("the chain server sent no coin transaction {txid}"))?;
+            guarded("reading a coin transaction", || rc.add_coin_transaction(raw))?.map_err(|_| anyhow!("coin transaction {txid} could not be read"))?;
+            stats.full_txs += 1;
+        }
         stats.blocks = rc.blocks_scanned();
         stats.actions = rc.actions_seen() as u64;
         let treasury = trc.as_ref().map(|t| t.notes_for_report()).unwrap_or_default();

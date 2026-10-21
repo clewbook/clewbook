@@ -15,7 +15,7 @@ ll-core = { workspace = true, default-features = false }
 ll-ticketcheck = { path = "../ticketcheck" }
 serde.workspace = true
 serde_json.workspace = true
-zcash_protocol.workspace = true
+zcash_protocol = { workspace = true, features = ["local-consensus"] }
 zcash_primitives = { version = "=0.31.0-pre.0", default-features = false, features = ["std"] }
 orchard.workspace = true
 crypto_box.workspace = true

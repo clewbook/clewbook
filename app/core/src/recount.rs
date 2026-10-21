@@ -47,6 +47,10 @@ pub struct Challenge {
     /// Uniform auction: the winner says the excess did not arrive (unverified without `uivk`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub complaint: bool,
+    /// Blind bid auction with open payouts (the second review, H2): the rejected payment's memo, so a relay can check the secret opens it
+    /// (the reject names the memo by its hash) and refuse junk that would fill the challenge slots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
 }
 
 /// Reverses a hex string's byte order (for nullifiers printed by nodes, SPEC §0).
@@ -358,13 +362,48 @@ pub struct DisclosureCheck {
     pub error: Option<String>,
 }
 
-/// Extra chain data for a uniform auction.
+/// Sealed bid auction: a transparent output the chain shows (the coin the host sent to a bid page, SPEC §9.4).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct CoinFact {
+    pub txid: String,
+    pub index: u32,
+    pub value_zat: u64,
+    /// The output's script (hex): a payment to a transparent address.
+    pub script_hex: String,
+    /// The block it was mined in (absent: not mined).
+    pub height: Option<u32>,
+}
+
+/// Extra chain data for a uniform or a sealed bid auction.
 #[derive(Clone, Debug, Default)]
 pub struct Extra {
     /// Notes received by the treasury (scanned with its public viewing key).
     pub treasury_notes: Vec<ChainNote>,
     pub tx_facts: Vec<TxFacts>,
     pub checks: Vec<DisclosureCheck>,
+    /// Sealed bid auction: the coins named on the list, as the chain shows them.
+    pub coins: Vec<CoinFact>,
+    /// Sealed bid auction: (height, block time) of the 11 blocks up to the deadline, for the void rule (SPEC §9.7).
+    pub block_times: Vec<(u32, u64)>,
+    /// Sealed bid auction with `open_payouts`: the outputs of each payment the host signed to a person, opened on the chain with the key
+    /// `sealed_recount::payout_keys` names (SPEC §9.1, open_payouts).
+    pub payouts: Vec<PayoutFact>,
+}
+
+/// One payment's outputs as its outgoing viewing key opens them on the chain.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct PayoutFact {
+    pub txid: String,
+    pub outputs: Vec<PaidOutput>,
+    /// Why the transaction could not be read or opened.
+    pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct PaidOutput {
+    /// The raw Orchard/Ironwood receiver (43 bytes, hex).
+    pub receiver_hex: String,
+    pub value_zat: u64,
 }
 
 /// The uniform auction's result lines for the report.
@@ -393,6 +432,10 @@ pub struct Report {
     /// Not rule failures, but things readers should see (e.g. a swept rejected payment).
     pub warnings: Vec<String>,
     pub auction: Option<AuctionReport>,
+    /// Sealed bid auction: the host did not finish (SPEC §9.7): shown as "did not finish" on the recount and in the listing.
+    pub did_not_finish: bool,
+    /// Sealed bid auction: the opened bids and the outcome.
+    pub sealed: Option<crate::sealed_recount::SealedReport>,
 }
 
 impl Report {
@@ -435,6 +478,9 @@ pub fn recount_with(
     chain_visible: bool,
     extra: &Extra,
 ) -> Report {
+    if rules.is_sealed() {
+        return crate::sealed_recount::recount_sealed(rules, published_rules_id, ledger, notes, challenges, tip, chain_visible, extra);
+    }
     let rid = published_rules_id.to_lowercase();
     let mut results = vec![];
     let close = close_entry(ledger);
@@ -522,7 +568,7 @@ pub fn recount_with(
         ] {
             results.push(RuleResult { waiting: true, ..rule(id, title, vec![], vec!["waiting for the viewing key to be revealed".into()]) });
         }
-        return Report { tip, phase, results, totals: Totals::default(), winners: None, goal_met: None, warnings: vec![], auction: None };
+        return Report { tip, phase, results, totals: Totals::default(), winners: None, goal_met: None, warnings: vec![], auction: None, did_not_finish: false, sealed: None };
     }
 
     let a = analyze(rules, &rid, ledger, notes, challenges);
@@ -740,7 +786,7 @@ pub fn recount_with(
         totals.kept_zat = report.treasury_total_zat;
         auction = Some(report);
     }
-    Report { tip, phase, results, totals, winners: a.winners, goal_met: a.goal_met, warnings, auction }
+    Report { tip, phase, results, totals, winners: a.winners, goal_met: a.goal_met, warnings, auction, did_not_finish: false, sealed: None }
 }
 
 fn zec(zat: u64) -> String {

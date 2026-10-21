@@ -76,6 +76,20 @@ The stress test was not a same-block burst: at most 5 contributions arrived per 
 
 **The funded test run of 2026-10-10.** Several of these tests ran at the same time and overloaded the public testnet server, which then reset connections. As a result the close scenarios were completed in two parts: the first run passed A to D, but in it B's early withdrawal went out after the deadline (so it counted as a refund) and two of D's bids were mined after the deadline (late payments, so D had no losing bid to refund); in the rerun of B and D a test-script fault stopped the run before the close, and B and D were then closed by hand with `cb-host close`, after which their recounts were run (B passes R1 to R8; D passes all but R4, which correctly names the three tickets the close had to issue late because D's host program had hung on the stalled server). Early withdrawal before the deadline is covered by the auction withdrawal test (`WITHDRAW=B app/auction-e2e.sh`), not by close scenario B.
 
+**Blind bid auction, run on 20 and 21 October 2026 after the fixes of both independent reviews (branch sealed-auction; private regtest chains, zebrad 7.0.0-rc.0 with NU7 active, no public network, no money; and one test network auction):**
+- unit tests: core 146, host 48 (run under each of its two program names) and 3, relay 22 + 8 + 7, listing 21 + 8 + 8 + 5, ticket check 20;
+- `app/regtest/check-ordinary.sh`: an ordinary auction on the private chain (the harness itself);
+- `app/regtest/check-sealed-intake.sh`: deposits, early tickets, signed refunds, the small payments for each way of sending them, the cutoff;
+- `app/regtest/check-sealed-close.sh`: uniform price, second price and pay your bid auctions closed, and an auction whose host never closed;
+- `app/regtest/check-sealed-review.sh`: the review fixes with five hosts, one honest (a false reject, a repeated memo and a late payment all sent back; every refund, change and return opened on the chain) and four cheating (keeps a reject, refunds to itself, keeps a winner's change, hands out early tickets that pay itself), each caught by the recount;
+- `app/regtest/check-dashboard.sh` (with `app/web/sealed-dashboard-e2e.cjs`): 18 browser checks of the set up page and dashboard;
+- `app/regtest/check-pages.sh` (with `app/web/sealed-pages-e2e.cjs`): 10 browser checks of the campaign and recount pages, the recount scanning the private chain;
+- `app/regtest/check-e2e.sh` (with `app/web/sealed-e2e.cjs`): 32 browser checks, sixteen bid pages from bid to result;
+- `app/web/sealed-module-e2e.cjs` 25, `app/web/bid-page-e2e.cjs` 41, `app/web/bid-page-reject-e2e.cjs` 8 and `app/web/bid-page-early-e2e.cjs` 6 (fixtures from the private chain, a stand in chain server);
+- `app/web/check-setup-coins.sh` 53 (set up page and dashboard notes against a throwaway test network host; nothing funded), `app/web/check-milestones.sh` 37 (the demo's back links, served locally) and `app/web/check-vercel.sh` 35 (the demo folder, with the name audit);
+- the test network check of the fixes: auction 6e7a904ad557b2a20941af1d562bc93de783855d240beb79f8087ec2dce877e8, browser recount "All checks pass" (docs/BLIND_BIDS.md, section 4).
+The regtest checks need zebrad 7.0.0-rc.0 and regtest builds (`app/regtest/README.md`).
+
 ## Running the tests
 
 ```

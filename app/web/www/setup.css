@@ -15,6 +15,7 @@
 .choice { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid var(--cb-border-strong); border-radius: 16px; background: var(--cb-surface); padding: 16px 18px; margin: 0; cursor: pointer; font: 400 14px/1.55 var(--cb-font-body); letter-spacing: 0; text-transform: none; color: var(--cb-ink); transition: border-color .2s; }
 .choice:has(input:checked) { border: 2px solid var(--cb-accent-text); padding: 15px 17px; }
 .choice input { width: 20px; min-height: 20px; margin: 2px 0 0; accent-color: var(--cb-accent-text); }
+.choice input.tiny { display: inline-block; width: calc(5ch + 26px); min-height: 34px; margin: 0 4px; padding: 4px 12px; border-radius: 10px; font: 600 15px var(--cb-font-body); text-align: center; vertical-align: baseline; } /* room for 4 digits */
 .choice b { display: block; font: 700 16px var(--cb-font-display); color: var(--cb-ink); }
 .choice small { display: block; color: var(--cb-ink-2); font-size: 14px; line-height: 1.55; margin-top: 4px; }
 .choice.confirm { margin: 14px 0; }

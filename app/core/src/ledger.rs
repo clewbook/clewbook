@@ -47,6 +47,32 @@ pub struct Close {
     /// Uniform auction: the price every winner pays (net, in zatoshis).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clearing_price_zat: Option<u64>,
+    /// Sealed bid auction: drand quicknet's signature for the auction's round (hex), which opens every bid (SPEC §9).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drand_signature: Option<String>,
+}
+
+/// Sealed bid auction: the small coin the host sent, from its own funds, to the page of the person who made deposit `nf` (SPEC §9.4).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Coin {
+    /// The deposit (nullifier) whose late ticket spends this coin.
+    pub nf: String,
+    /// The transaction and output that pay the coin.
+    pub txid: String,
+    pub index: u32,
+    pub value_zat: u64,
+}
+
+/// Sealed bid auction: the campaign's viewing key, published only once every winner's settlement is mined (SPEC §9.6).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Reveal {
+    pub ufvk: String,
+    /// The chain height the host saw when it published (every settlement was mined at or before it).
+    pub height: u32,
+    /// Sealed bid auction with `open_payouts` (SPEC §9.1, open_payouts): the payload secret key, so anyone can open every deposit's refund address and
+    /// work out the outgoing viewing key of every payment the host signed, and check who each one pays. Left out by earlier auctions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_sk: Option<String>,
 }
 
 /// Uniform auction: the host's signed statement of one winner's settlement transaction.
@@ -67,7 +93,9 @@ pub struct Entry {
     pub rules_id: String,
     pub seq: u64,
     pub prev: String,
-    /// `"issue"`, `"reissue"`, `"reject"`, `"close"` or (uniform auction) `"settle"`.
+    /// `"issue"`, `"reissue"`, `"reject"`, `"close"`, (uniform and sealed bid auctions) `"settle"`, or (sealed bid auction) `"coin"`,
+    /// `"reveal"` and `"late_return"` (a payment too late to bid, or a deposit without tickets after the close, sent back: `contribution`
+    /// without an amount, `refund` the id of the return, `blob_hash` the hash of the payment's memo, for the page that made it).
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contribution: Option<Contribution>,
@@ -82,6 +110,20 @@ pub struct Entry {
     pub close: Option<Close>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub settle: Option<Settle>,
+    /// Sealed bid auction, issue: the id of the deposit's late ticket (known when it is built: a version 6 transaction id does not cover
+    /// signatures).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub late: Option<String>,
+    /// Sealed bid auction, issue: the id of the refund the host signed for this deposit at once, to be proved and sent at the close if the
+    /// bid loses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refund: Option<String>,
+    /// Sealed bid auction: kind `"coin"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coin: Option<Coin>,
+    /// Sealed bid auction: kind `"reveal"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reveal: Option<Reveal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sig: Option<String>,
 }
@@ -115,6 +157,10 @@ impl Entry {
             reason: None,
             close: None,
             settle: None,
+            late: None,
+            refund: None,
+            coin: None,
+            reveal: None,
             sig: None,
         }
     }

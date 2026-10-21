@@ -60,6 +60,8 @@ if [ -f app/web/vercel-old-paths.txt ]; then
   BAD=$(while read -r f; do c=$(curl -s -L -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/$f"); [ "$c" = 200 ] || echo "$c /$f"; done < app/web/vercel-old-paths.txt | head -5)
   [ -z "$BAD" ]; check "every path the hosted copy answered before ($(wc -l < app/web/vercel-old-paths.txt) files) still answers, at the same place or by redirect to /demo" $? "$BAD"
 fi
-PROOFS=$(grep -c 'proofs' "$DIR/demo/proofs/index.html"); [ -f "$DIR/demo/proofs/examples.js" ] && [ "$(grep -c "'[0-9a-f]\{64\}'" "$DIR/demo/proofs/examples.js")" = 13 ]; check "the tested milestones page lists all eleven finished test campaigns" $? ""
+PROOFS=$(grep -c 'proofs' "$DIR/demo/proofs/index.html"); [ -f "$DIR/demo/proofs/examples.js" ] && [ "$(sed '/const SEALED/,$d' "$DIR/demo/proofs/examples.js" | grep -c "'[0-9a-f]\{64\}'")" = 13 ]; check "the tested milestones page lists all eleven finished test campaigns" $? ""
+# the sealed bid auctions: their own list after the thirteen, and their tab
+NS=$(sed -n '/const SEALED/,/^];/p' "$DIR/demo/proofs/examples.js" | grep -c "'[0-9a-f]\{64\}'"); [ "$NS" = 4 ] && grep -q 'id="seg-sealed"' "$DIR/demo/proofs/index.html"; check "the Blind bids tab lists the four sealed bid auction proofs" $? "$NS"
 kill $SRV 2>/dev/null
 [ $failed = 0 ] && echo "ALL PASS" || echo "$failed FAILED"; exit $failed

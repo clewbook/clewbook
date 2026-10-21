@@ -1,0 +1,13 @@
+# The private chain's activation heights (chain.sh writes the same ones into zebrad's config). Used by the wallet tool's
+# `wallet init -n regtest --activation-heights` so wallets and the node agree.
+overwinter = 1
+sapling = 1
+blossom = 1
+heartwood = 1
+canopy = 1
+nu5 = 1
+nu6 = 1
+nu6_1 = 1
+nu6_2 = 1
+nu6_3 = 1
+nu7 = 1

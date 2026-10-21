@@ -49,6 +49,9 @@ struct Pass {
     tip: Option<u32>,
     branch: Option<String>,
     relays: Vec<(String, std::result::Result<usize, String>)>,
+    /// Sealed bid auctions: the recount from the host's view with the coins, block times and treasury fetched by the watcher (the page
+    /// cannot fetch them on every refresh), rendered: `{all_pass, results, warnings, deposits, withdrawn, did_not_finish}`.
+    sealed_check: Option<Value>,
 }
 
 struct Campaign {
@@ -105,15 +108,34 @@ fn load_campaign(dir: &Path) -> Result<Arc<Campaign>> {
     });
     let w = c.clone();
     thread::spawn(move || loop {
-        let res = {
+        let (res, sealed_check) = {
             let mut b = lock(&w.backend);
-            watch_once(&w.run, b.as_mut(), None)
+            let res = watch_once(&w.run, b.as_mut(), None);
+            let sc = if res.is_ok() && w.run.rules.is_sealed() {
+                let treasury = crate::sealed_host::folder_treasury(&w.run);
+                let unspent: Vec<u64> = treasury.iter().filter(|n| n.spent_by.is_none() && n.height.is_some()).map(|n| n.value_zat).collect();
+                let (treasury_zat, treasury_send_zat) = (unspent.iter().sum::<u64>(), crate::sealed_host::treasury_payment(&unspent).map_or(0, |(v, _)| v));
+                crate::sealed_host::report(&w.run, b.as_mut(), treasury).ok().map(|r| json!({
+                    "all_pass": r.all_pass(),
+                    "treasury_zat": treasury_zat,
+                    "treasury_send_zat": treasury_send_zat,
+                    "results": r.results.iter().map(|x| json!({ "id": x.id, "pass": x.pass, "waiting": x.waiting, "title": x.title, "details": x.details })).collect::<Vec<_>>(),
+                    "warnings": r.warnings,
+                    "deposits": r.sealed.as_ref().map_or(0, |s| s.deposits.len()),
+                    "withdrawn": r.sealed.as_ref().map_or(0, |s| s.deposits.iter().filter(|d| d.withdrawn).count()),
+                    "did_not_finish": r.did_not_finish,
+                }))
+            } else {
+                None
+            };
+            (res, sc)
         };
         {
             let mut p = lock(&w.pass);
             p.at = Some(now());
             match res {
                 Ok(info) => {
+                    p.sealed_check = sealed_check;
                     p.ok = true;
                     p.error = None;
                     p.tip = Some(info.tip);
@@ -163,7 +185,21 @@ fn init_named_wallet(devtool: &Path, run_dir: &Path, network: &str, folder: &str
     for n in 1..=4 {
         let w = run_dir.join(format!("{folder}{n}"));
         let mut cmd = Command::new(devtool);
-        cmd.args(["wallet", "-w"]).arg(&w).args(["init", "--name", name, "-i"]).arg(run_dir.join(format!("{folder}{n}.age"))).args(["-n", if network == "main" { "main" } else { "test" }]);
+        cmd.args(["wallet", "-w"]).arg(&w).args(["init", "--name", name, "-i"]).arg(run_dir.join(format!("{folder}{n}.age")));
+        // TEST ONLY (regtest builds): a wallet of the private chain, born at its current height (its light wallet service refuses block 0)
+        #[cfg(feature = "regtest")]
+        if network == "regtest" {
+            let heights = std::env::var("CB_REGTEST_HEIGHTS").unwrap_or_else(|_| "app/regtest/activation-heights.toml".into());
+            let server = crate::libs::regtest_server();
+            cmd.args(["-n", "regtest", "--activation-heights", &heights, "-s", server.trim_start_matches("http://")]);
+            cmd.args(["--birthday", &crate::libs::regtest_tip().unwrap_or(2).max(2).to_string()]);
+            if run_with_timeout(cmd, 60) && w.join("data.sqlite").exists() {
+                return Ok(w);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            continue;
+        }
+        cmd.args(["-n", if network == "main" { "main" } else { "test" }]);
         if run_with_timeout(cmd, 45) && w.join("data.sqlite").exists() {
             return Ok(w);
         }
@@ -227,7 +263,95 @@ fn parse_name(body: &Value) -> Result<Option<String>> {
     Ok(Some(name.to_string()))
 }
 
+/// The ticket window a set up request asks for, checked before anything is made (the second review, L5): the default when it is left
+/// out, else within the rules' limits (a number that does not fit is refused, never cut down to fit).
+fn ticket_k_of(body: &Value) -> Result<u32> {
+    use ll_core::rules::{DEFAULT_TICKET_K, MAX_TICKET_K, MIN_TICKET_K};
+    match &body["ticket_k"] {
+        Value::Null => Ok(DEFAULT_TICKET_K),
+        v => v.as_u64().filter(|k| (MIN_TICKET_K as u64..=MAX_TICKET_K as u64).contains(k)).map(|k| k as u32)
+            .ok_or_else(|| anyhow!("The ticket window must be {MIN_TICKET_K} to {MAX_TICKET_K} blocks.")),
+    }
+}
+
+/// A sealed bid auction (SPEC §9; test network only for now, owner decision 10): its campaign wallet, the host's coin wallet (to be funded
+/// by the host from its own money) and a treasury wallet, all inside the campaign folder.
+fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
+    ensure!(st.cfg.network != "main", "Blind bid auctions are offered on the test network only for now.");
+    let items = body["items"].as_u64().filter(|n| (1..=1000).contains(n)).ok_or_else(|| anyhow!("Please enter how many items are for sale (1 to 1000)."))? as u32;
+    let tranches: Vec<u64> = body["tranches_zat"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
+    ensure!((1..=ll_core::sealed::MAX_TRANCHES).contains(&tranches.len()), "Please give 1 to {} deposit sizes.", ll_core::sealed::MAX_TRANCHES);
+    let pricing = body["pricing"].as_str().filter(|p| ll_core::sealed::PRICING.contains(p)).ok_or_else(|| anyhow!("Please choose how winners pay."))?.to_string();
+    let coin_sending: ll_core::sealed::CoinSending = serde_json::from_value(body["coin_sending"].clone()).map_err(|_| anyhow!("Please choose when the small payments go out: at once, every few bids, or every few minutes."))?;
+    let deadline_in = body["deadline_in"].as_u64().filter(|d| (20..=2_000_000).contains(d)).ok_or_else(|| anyhow!("The deadline must be at least 20 blocks from now."))? as u32;
+    let ticket_k = ticket_k_of(body)?;
+    // before any wallet is made: enough blocks for deposits, and the timing (quick test only on the test network, which this is)
+    ll_core::sealed::check_bid_window(deadline_in, ticket_k)?;
+    let timing = match body["timing"].as_str() {
+        None | Some("standard") => ll_core::sealed::Timing::Standard,
+        Some("quick") => ll_core::sealed::Timing::Quick,
+        Some(_) => bail!("Please choose the standard or the quick test timing."),
+    };
+    let relays: Vec<String> = body["relays"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).filter(|v: &Vec<String>| !v.is_empty()).unwrap_or_else(|| st.cfg.relays.clone());
+    let name = parse_name(body)?;
+    let dir = st.cfg.runs_dir.join(format!("campaign-{}", now()));
+    crate::make_private_dir(&dir)?;
+    let wallet = init_wallet(&st.cfg.devtool, &dir, &st.cfg.network)?;
+    let coins = init_named_wallet(&st.cfg.devtool, &dir, &st.cfg.network, "coins", "coins")?;
+    let tw = init_named_wallet(&st.cfg.devtool, &dir, &st.cfg.network, "treasury", "treasury")?;
+    let account = crate::libs::LibsBackend::new(tw.clone(), PathBuf::from(format!("{}.age", tw.display())))?.account()?;
+    // TEST ONLY (regtest builds, regtest network): a drand round and late ticket wait set by the test, because regtest block times are not real
+    let test = |k: &str| std::env::var(k).ok().and_then(|v| v.parse::<u64>().ok()).filter(|_| cfg!(feature = "regtest") && st.cfg.network == "regtest");
+    let args = crate::sealed_host::SealedArgs {
+        items, tranches_zat: tranches, pricing, reserve_zat: body["reserve_zat"].as_u64().filter(|r| *r > 0),
+        treasury_address: account.address, treasury_ufvk: account.ufvk, coin_sending, timing,
+        coin_wallet: coins.clone(), coin_identity: PathBuf::from(format!("{}.age", coins.display())),
+        test_round: test("CB_TEST_DRAND_ROUND"), test_claim_after_in: test("CB_TEST_CLAIM_AFTER_IN").map(|v| v as u32),
+    };
+    let identity = PathBuf::from(format!("{}.age", wallet.display()));
+    let cfg = RunConfig { backend: "libs".into(), devtool: st.cfg.devtool.clone(), wallet, identity, min_confirmations: None };
+    crate::sealed_host::create_sealed(&dir, cfg, &st.cfg.network, deadline_in, &relays, ticket_k, name, args)
+        .map_err(|e| anyhow!("The auction could not be created: {}", plain_error(&e)))?;
+    let c = load_campaign(&dir)?;
+    let id = c.id.clone();
+    lock(&st.campaigns).push(c);
+    Ok(json!({ "ok": true, "id": id }))
+}
+
+/// What the dashboard shows of a sealed bid auction: its timing, its coins and coin wallet, its deposits and its close steps.
+fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], check: Option<&Value>) -> Value {
+    let rules = &c.run.rules;
+    let Some(s) = rules.sealed.as_ref() else { return Value::Null };
+    let cutoff = s.cutoff_height(rules.deadline_height);
+    let coin_entries = entries.iter().filter(|e| e.kind == "coin").count();
+    let coin_wallet = crate::sealed_host::coin_wallet_dir(&c.run);
+    let balance: Option<u64> = coin_wallet.as_ref().and_then(|w| walletdb::read_notes(&w.join("data.sqlite")).ok()).map(|n| n.iter().filter(|w| w.note.spent_by.is_none()).map(|w| w.note.value_zat).sum());
+    let ob = crate::outbox::Outbox::load(&c.run.dir).ok();
+    let count = |kind: &str, done: bool| ob.as_ref().map_or(0, |o| o.items.iter().filter(|b| b.kind == kind && (!done || b.status == "confirmed")).count());
+    let close = close_entry(entries);
+    json!({
+        "pricing": s.pricing, "tranches_zat": s.tranches_zat, "items": rules.items, "reserve_zat": rules.reserve_zat, "coin_sending": s.coin_sending, "timing": s.timing,
+        "round": s.drand_round, "round_time": ll_core::sealed::round_time(s.drand_round), "claim_after": s.claim_after, "cutoff": cutoff,
+        // not counted yet (the first check after a start is still running) is null, never 0: 0 would read as if nobody bid
+        "deposits": check.map_or(Value::Null, |v| v["deposits"].clone()), "withdrawn": check.map_or(Value::Null, |v| v["withdrawn"].clone()),
+        "did_not_finish": check.is_some_and(|v| v["did_not_finish"] == true),
+        "coins_sent": coin_entries,
+        "coin_address": fs::read_to_string(c.run.dir.join("coin_address")).ok(), "coin_balance_zat": balance,
+        "treasury_address": rules.treasury_address,
+        "closed": close.is_some(), "outcome": close.map(|c| c.outcome.clone()), "winners": close.and_then(|c| c.winners.clone()).map(|w| w.len()),
+        "price_zat": close.and_then(|c| c.clearing_price_zat),
+        "settlements": entries.iter().filter(|e| e.kind == "settle").count(), "settlements_confirmed": count("settle", true),
+        "refunds_sent": count("refund", false), "refunds_confirmed": count("refund", true),
+        "revealed": entries.iter().any(|e| e.kind == "reveal"),
+        "late_returns": entries.iter().filter(|e| e.kind == "late_return").count(), "late_returns_confirmed": count("late_return", true),
+        "bid_link_note": "People who bid open the same link; the page takes them to the blind bid page.",
+    })
+}
+
 fn create_campaign(st: &State, body: &Value) -> Result<Value> {
+    if body["mode"].as_str() == Some("sealed_auction") {
+        return create_sealed_campaign(st, body);
+    }
     let (mode, goal, items, deadline_in, min, relays, ticket_k) = parse_create(st, body)?;
     let name = parse_name(body)?;
     // the real network: the host must have confirmed it, and the campaign must be over well before the NU7 upgrade (checked again with the chain height inside create)
@@ -359,12 +483,17 @@ fn status(st: &State, c: &Campaign) -> Value {
     let blocks_left = tip.map(|t| deadline.saturating_sub(t as u64));
 
     // the public self-check, run on the host's own data
-    let check = tip.map(|t| recount(rules, &c.run.rules_id, &entries, &notes, &[], t, true));
-    let failing: Vec<&str> = check.as_ref().map(|r| r.results.iter().filter(|x| !x.pass).map(|x| x.id).collect()).unwrap_or_default();
+    // (a sealed bid auction's is computed by the watcher, with the chain data it needs)
+    let check = if rules.is_sealed() { None } else { tip.map(|t| recount(rules, &c.run.rules_id, &entries, &notes, &[], t, true)) };
+    let mut failing: Vec<&str> = check.as_ref().map(|r| r.results.iter().filter(|x| !x.pass).map(|x| x.id).collect()).unwrap_or_default();
+    let sealed_fails: Vec<String> = pass.sealed_check.as_ref().and_then(|v| v["results"].as_array().cloned()).unwrap_or_default().iter()
+        .filter(|x| x["pass"] == false).filter_map(|x| x["id"].as_str().map(String::from)).collect();
+    failing.extend(sealed_fails.iter().map(String::as_str));
 
     // ---- warnings, most serious first ----
     let mut w: Vec<Value> = vec![];
-    for m in guard_messages(&c.run, &entries, &wnotes) {
+    let sealed = rules.is_sealed();
+    for m in if sealed { vec![] } else { guard_messages(&c.run, &entries, &wnotes) } {
         w.push(warn("bad", format!("A contribution was spent by something that is not its refund ticket or the final sweep ({m}). The public check will show this as misconduct. Stop using this campaign's wallet for anything else.")));
     }
     let age = pass.at.map(|t| now().saturating_sub(t));
@@ -409,9 +538,33 @@ fn status(st: &State, c: &Campaign) -> Value {
     if !running_with.is_empty() && !stored.is_empty() && !stored.iter().any(|u| running_with.contains(u)) {
         w.push(warn("bad", format!("This campaign publishes to {} but the dashboard is running with the relay address {}. The links handed out here carry the stored address, so they open only while that address works. {fix}", stored.join(", "), running_with.join(", "))));
     }
+    // a sealed bid auction whose coin wallet cannot pay the small payments
+    if let (Some(s), None, Some(t)) = (rules.sealed.as_ref(), closed.as_ref(), tip) {
+        let cutoff = s.cutoff_height(rules.deadline_height);
+        let has_coin: std::collections::BTreeSet<&str> = entries.iter().filter_map(|e| e.coin.as_ref().map(|c| c.nf.as_str())).collect();
+        let waiting = entries.iter().filter(|e| e.kind == "issue" && e.contribution.as_ref().is_some_and(|c| c.height <= cutoff)).filter_map(|e| e.nf()).filter(|nf| !has_coin.contains(nf)).count();
+        if let (Some(why), true) = (crate::sealed_host::coins_problem(&c.run), waiting > 0) {
+            let addr = fs::read_to_string(c.run.dir.join("coin_address")).unwrap_or_default();
+            let when = if t <= cutoff { format!("Fund it at {} before block {cutoff}", addr.trim()) } else { format!("The cutoff, block {cutoff}, has passed") };
+            // the wallet library's words ("InsufficientFunds { available: Zatoshis(0), required: Zatoshis(40000) }") in plain ones
+            let zat_after = |key: &str| why.find(key).and_then(|i| why[i + key.len()..].split(|ch: char| !ch.is_ascii_digit()).next()?.parse::<u64>().ok());
+            let first = match (zat_after("available: Zatoshis("), zat_after("required: Zatoshis(")) {
+                (Some(have), Some(need)) => format!("{}. It needs {} to pay the small payments for {waiting} bid(s)", if have == 0 { "The coin wallet is empty".to_string() } else { format!("The coin wallet holds {}", rules.amount(have)) }, rules.amount(need)),
+                _ => format!("The coin wallet could not pay the small payments for {waiting} bid(s) ({why})"),
+            };
+            w.push(warn("bad", format!("{first}. {when}.")));
+        }
+    }
     if let Some(t) = tip {
         let t = t as u64;
-        if closed.is_none() && t > deadline {
+        if let (true, Some(s)) = (closed.is_none() && t > deadline, rules.sealed.as_ref()) {
+            let hs = s.claim_after as u64;
+            if t > hs {
+                w.push(warn("bad", "Not closed by the late ticket block: everyone can now take their deposit back."));
+            } else {
+                w.push(warn("warn", format!("Bidding has closed. Close the auction before block {} ({} blocks from now).", hs + 1, hs + 1 - t)));
+            }
+        } else if closed.is_none() && t > deadline {
             if t > deadline + k {
                 w.push(warn("bad", "The deadline has passed and the campaign is not closed. Contributors can now claim their own refunds. Close the campaign to refund or sweep in an orderly way."));
             } else {
@@ -422,18 +575,32 @@ fn status(st: &State, c: &Campaign) -> Value {
     if !failing.is_empty() {
         w.push(warn("bad", format!("The public self-check fails on {}. Someone verifying your campaign would see this.", failing.join(", "))));
     }
-    let late = crate::late_payments(rules, &entries, &notes).len();
+    // a sealed bid auction sends every deposit mined after the deadline back on its own (and names it on the list)
+    if rules.is_sealed() {
+        let back = entries.iter().filter(|e| e.kind == "late_return").count();
+        let waiting = notes.iter().filter(|n| ll_core::sealed_recount::is_late_deposit(rules, n) && n.spent_by.is_none() && !entries.iter().any(|e| e.kind == "late_return" && e.nf() == n.nf.as_deref())).count();
+        if back + waiting > 0 {
+            w.push(warn("info", format!("{} payment(s) did not count and go back on their own, minus the fee: {back} sent{}.", back + waiting, if waiting > 0 { format!(", {waiting} on the way") } else { String::new() })));
+        }
+    }
+    let late = crate::late_payments(rules, &entries, &notes).iter().filter(|n| !(rules.is_sealed() && ll_core::sealed_recount::is_late_deposit(rules, n))).count();
     if late > 0 {
         let after = if ll_core::recount::contribution_end(rules, &entries) < rules.deadline_height { "the early close" } else { "the deadline" };
         w.push(warn("warn", format!("{late} payment(s) arrived after {after}; they are not counted and stay in the wallet (cb-host late lists them).")));
     }
-    if rejects > 0 {
+    if rejects > 0 && rules.sealed.as_ref().is_some_and(|s| s.open_payouts) {
+        // a blind bid auction sends a rejected payment back on its own (the review, H3); it is not a donation
+        w.push(warn("warn", format!("{rejects} payment(s) were rejected; they go back on their own, minus the fee.")));
+    } else if rejects > 0 {
         w.push(warn("warn", format!("{rejects} payment(s) were set aside because their message could not be opened. They count as donations; their senders can still prove they were valid.")));
     }
     if rules.network != "main" {
         w.push(warn("info", "This is the test network. No real money is involved."));
     }
-    w.push(warn("info", "Keep this program and this computer running while the campaign is open: tickets are only issued while it runs."));
+    // the page shows it only while this campaign, or another on this host, still needs the host (it has the list of campaigns)
+    let mut keep = warn("info", "Keep this program and this computer running while the campaign is open: tickets are only issued while it runs.");
+    keep["kind"] = json!("keep_running");
+    w.push(keep);
 
     let relay_status: Vec<Value> = if pass.relays.is_empty() {
         run_relays(&c.run).into_iter().map(|u| json!({ "url": u, "status": "not checked yet" })).collect()
@@ -464,11 +631,11 @@ fn status(st: &State, c: &Campaign) -> Value {
         "final": std::fs::read(c.run.dir.join("public").join("final.json")).ok().and_then(|b| serde_json::from_slice::<ll_core::final_copy::FinalRecord>(&b).ok())
             .map(|r| json!({ "line": r.line(), "entries": r.entries, "last_hash": r.last_hash, "close_height": r.close_height })),
         "last_check": { "seconds_ago": age, "ok": pass.ok, "error": pass.error },
-        "self_check": check.as_ref().map(|r| json!({
+        "self_check": if rules.is_sealed() { pass.sealed_check.clone() } else { check.as_ref().map(|r| json!({
             "all_pass": r.all_pass(),
             "results": r.results.iter().map(|x| json!({ "id": x.id, "pass": x.pass, "title": x.title, "details": x.details })).collect::<Vec<_>>(),
             "warnings": r.warnings,
-        })),
+        })) },
         "warnings": w,
         // what the host has sent to the network: sent and waiting, confirmed in block N, sent again, dead (rebuilt)
         "broadcasts": crate::outbox::Outbox::load(&c.run.dir).map(|o| o.items.iter().map(|b| json!({
@@ -479,6 +646,7 @@ fn status(st: &State, c: &Campaign) -> Value {
         "close_unfinished": crate::close_unfinished(&c.run),
         "close_log": *lock(&c.last_close),
         "listing": listing_state(&c.run.dir),
+        "sealed": sealed_status(c, &entries, pass.sealed_check.as_ref()),
     })
 }
 
@@ -487,6 +655,24 @@ fn run_relays(run: &Run) -> Vec<String> {
 }
 
 fn close_campaign(c: &Campaign, body: &Value) -> Result<Value> {
+    if c.run.rules.is_sealed() {
+        // no address to give: the prices go to the auction's treasury and every other deposit back by its signed refund
+        if c.closing.swap(true, Ordering::SeqCst) {
+            bail!("Closing is already in progress.");
+        }
+        let mut log = vec![];
+        let result = {
+            let mut b = lock(&c.backend);
+            crate::sealed_host::close_pass(&c.run, b.as_mut(), &mut log)
+        };
+        c.closing.store(false, Ordering::SeqCst);
+        crate::sync_relays(&c.run);
+        *lock(&c.last_close) = log.clone();
+        return match result {
+            Ok(done) => Ok(json!({ "ok": true, "log": log, "finished": done })),
+            Err(e) => bail!("Not closed yet: {}. You can try again.", plain_error(&e)),
+        };
+    }
     let (tip, closed) = {
         let tip = lock(&c.pass).tip;
         let entries = c.run.ledger().load().unwrap_or_default();
@@ -700,7 +886,7 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
         match (method, parts.as_slice()) {
             (tiny_http::Method::Get, ["config"]) => json_response(200, json!({
                 "ok": true, "network": st.cfg.network, "ticker": if st.cfg.network == "main" { "ZEC" } else { "TAZ" },
-                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true,
+                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true, "sealed": st.cfg.network != "main", "sealed_quick_timing": st.cfg.network != "main",
                 "listing_url": st.cfg.listing_url, "host_fingerprint": host_fingerprint(&st.cfg.runs_dir),
             })),
             (tiny_http::Method::Get, ["campaigns"]) => {
@@ -735,6 +921,14 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
             (tiny_http::Method::Post, ["campaigns", id, "listing-status"]) => match find(st, id) {
                 Some(c) => match check_listing(st, &c) {
                     Ok(v) => json_response(200, v),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "treasury-send"]) => match find(st, id) {
+                // under the campaign's lock, so the watcher's treasury sync never runs at the same time
+                Some(c) => match { let _g = lock(&c.backend); crate::sealed_host::send_treasury(&c.run, body["address"].as_str().unwrap_or_default()) } {
+                    Ok(txid) => json_response(200, json!({ "ok": true, "txid": txid })),
                     Err(e) => fail(400, e),
                 },
                 None => fail(404, anyhow!("No such campaign.")),
@@ -785,6 +979,16 @@ pub fn serve(cfg: Config) -> Result<()> {
 #[cfg(test)]
 mod restart_hint_tests {
     use super::*;
+
+    #[test]
+    fn second_review_l5_the_ticket_window_is_checked_before_anything_is_made() {
+        let (lo, hi) = (ll_core::rules::MIN_TICKET_K, ll_core::rules::MAX_TICKET_K);
+        assert_eq!(ticket_k_of(&json!({})).unwrap(), ll_core::rules::DEFAULT_TICKET_K);
+        assert_eq!(ticket_k_of(&json!({"ticket_k": lo})).unwrap(), lo);
+        for bad in [json!(0), json!(hi as u64 + 1), json!(4_294_967_306u64), json!(-1), json!("10")] {
+            assert!(ticket_k_of(&json!({"ticket_k": bad})).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn the_ticket_note_is_quiet_when_all_is_ticketed_and_loud_only_when_late() {

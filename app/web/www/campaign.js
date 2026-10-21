@@ -2,7 +2,7 @@
 // links to contribute and to the recount. Reading only; it keeps no secrets. Nothing here is checked: the recount is the independent check.
 // Design round 12: the page is drawn by the shared campaign view (public.js), the same one the contribute page shows when a campaign is closed.
 import init, * as W from './pkg/ll_web.js';
-import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine } from './public.js';
+import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine, milestones, backToMilestones } from './public.js';
 import { setNetwork, setup, setCampaignLabel, markReady, statusBadgeHTML } from './ui.js';
 
 const $ = (s) => document.querySelector(s);
@@ -17,6 +17,7 @@ function banner(kind, text) {
 
 async function main() {
   setup('Campaign');
+  { const ms = milestones(); if (ms) backToMilestones($('.ctop .cback'), ms); } // opened from the demo's Tested milestones page
   $('#campaign-id').textContent = cfg.id ? `${cfg.id.slice(0, 8)}…` : '';
   $('#short-id').textContent = /^[0-9a-f]{64}$/.test(cfg.id) ? `${cfg.id.slice(0, 8)}…` : '';
   if (!/^[0-9a-f]{64}$/.test(cfg.id) || cfg.relays.length === 0) {
@@ -48,11 +49,16 @@ async function main() {
   const phase = closed ? 'closed' : left == null ? 'unknown' : left > 0 ? 'open' : 'ended';
   $('#status-chip').innerHTML = statusBadgeHTML({ phase, outcome, soft: !!c.cap });
   $('#status-text').textContent = metaLine(c, { id: cfg.id, withId: true, closed });
-  $('#title').textContent = c.mode === 'auction' ? (c.pricing === 'uniform' ? 'AUCTION · ONE PRICE FOR EVERY WINNER' : 'AUCTION · EACH WINNER PAYS THEIR BID') : 'FUNDRAISER';
+  const SEALED_TITLE = { uniform: 'BLIND BID AUCTION · ONE PRICE FOR EVERY WINNER', second: 'BLIND BID AUCTION · HIGHEST LOSING BID', pay_your_bid: 'BLIND BID AUCTION · EACH WINNER PAYS THEIR BID' };
+  // a sealed bid auction: whether its host did not finish needs only the list and the chain height
+  let didNotFinish = false;
+  if (c.sealed && tip != null) { try { didNotFinish = JSON.parse(W.report_sealed_at(j.rules, cfg.id, JSON.stringify(j.entries), tip)).did_not_finish; } catch { /* not shown */ } }
+  $('#title').textContent = c.sealed ? SEALED_TITLE[c.sealed.pricing] : c.mode === 'auction' ? (c.pricing === 'uniform' ? 'AUCTION · ONE PRICE FOR EVERY WINNER' : 'AUCTION · EACH WINNER PAYS THEIR BID') : 'FUNDRAISER';
 
   const base = { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server };
-  const links = { contribute: sibling('contribute', { ...base, endpoints: [] }), recount: sibling('recount', base), card: sibling('card', base) };
-  campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links }); // round 13: no "Not checked by a recount" here (the recount page lists it)
+  const ms = milestones(), on = (h) => (ms ? ms.onward(h) : h);
+  const links = { contribute: on(sibling('contribute', { ...base, endpoints: [] })), recount: on(sibling('recount', base)), card: on(sibling('card', base)) };
+  campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links, didNotFinish }); // round 13: no "Not checked by a recount" here (the recount page lists it)
   $('#nav-card').href = links.card; $('#nav-recount').href = links.recount;
 }
 
