@@ -757,11 +757,20 @@ fn host_fingerprint(runs_dir: &Path) -> Option<String> {
 
 /// The record "Submit for listing" sends: the host key is made once if there is none (as `cb-host host-key init`; an existing one is never
 /// replaced), and the record is made exactly as `cb-host listing-record` makes it for this folder (its rules, its ledger key, the relays
-/// in private/relays). It carries no name and no label: the listing reads the name from the relays, and only the operator sets labels.
-pub(crate) fn listing_record(runs_dir: &Path, campaign_dir: &Path, now: u64) -> Result<(ll_listing::record::ListingRecord, String, bool)> {
+/// in private/relays). It carries no campaign name (the listing reads it from the relays); `label` is the name the host suggests for itself,
+/// signed with the rest, which the Clewbook team approves or replaces.
+pub(crate) fn listing_record(runs_dir: &Path, campaign_dir: &Path, now: u64, label: Option<&str>) -> Result<(ll_listing::record::ListingRecord, String, bool)> {
     let (_, fp, made) = ll_listing::host::ensure_key(runs_dir)?;
-    let rec = ll_listing::host::record_for(runs_dir, campaign_dir, vec![], now)?;
+    let rec = ll_listing::host::record_for_with_label(runs_dir, campaign_dir, vec![], now, label)?;
     Ok((rec, fp, made))
+}
+
+/// The "Your name" box: blank is no name; otherwise its form is checked here, so a bad name is never sent (reserved words are checked by the
+/// listing server, which answers with the reason).
+fn listing_label(body: &Value) -> Result<Option<String>> {
+    let Some(l) = body["label"].as_str().map(str::trim).filter(|l| !l.is_empty()) else { return Ok(None) };
+    ll_listing::record::check_suggested_label_shape(l).map_err(|e| anyhow!("Not sent: {e}."))?;
+    Ok(Some(l.to_string()))
 }
 
 /// "Submit for listing": the built in reserved word check on the name first (nothing is sent if it fails), then the signed record is sent. The
@@ -782,7 +791,8 @@ fn submit_listing(st: &State, c: &Campaign, body: &Value) -> Result<Value> {
     if let Some(w) = rules.name.as_deref().and_then(ll_listing::job::reserved_word_in_name) {
         return save(base("refused", format!("Not sent: the campaign name contains a word the listing does not accept ({w}). A campaign's name cannot change, so this campaign cannot be listed."), known_fp));
     }
-    let (rec, fp, _made) = listing_record(&st.cfg.runs_dir, &c.run.dir, now())?;
+    let label = listing_label(body)?;
+    let (rec, fp, _made) = listing_record(&st.cfg.runs_dir, &c.run.dir, now(), label.as_deref())?;
     match ll_listing::host::post_outcome(&st.cfg.listing_url, &rec)? {
         ll_listing::host::PostOutcome::Accepted(m) => save(base("sent", m, Some(fp))),
         ll_listing::host::PostOutcome::Refused(code, m) => save(base("refused", if code == 429 { "The listing server is busy (too many requests from this address). Wait a minute and send again.".into() } else { format!("The listing server refused it: {m}.") }, Some(fp))),
@@ -1020,6 +1030,17 @@ mod restart_hint_tests {
         assert!(h.contains("kill 4242") && h.contains("./run.sh restart dashboard") && h.contains("runs/dash/campaign-1") && h.contains("Last network check"), "{h}");
     }
 
+    #[test]
+    fn the_your_name_box_is_optional_and_a_bad_name_is_never_sent() {
+        assert_eq!(listing_label(&json!({ "confirm": true })).unwrap(), None);
+        assert_eq!(listing_label(&json!({ "label": "   " })).unwrap(), None);
+        assert_eq!(listing_label(&json!({ "label": " Garden Collective " })).unwrap().as_deref(), Some("Garden Collective"));
+        for (bad, why) in [("x".repeat(31), "longer than 30"), ("<b>me</b>".into(), "< and >"), ("me # you".into(), "#")] {
+            let e = listing_label(&json!({ "label": bad })).unwrap_err().to_string();
+            assert!(e.starts_with("Not sent: ") && e.contains(why), "{e}");
+        }
+    }
+
     /// An invented campaign folder (rules, secrets, relays; no wallet, no money), as the dashboard leaves one.
     fn invented_campaign(root: &Path, network: &str) -> PathBuf {
         let s = ll_core::keys::CampaignSecrets::generate();
@@ -1044,7 +1065,7 @@ mod restart_hint_tests {
             let now = 1_790_000_000;
             // the first press makes the host key (mode 600); later presses use the same key
             let first = !ll_listing::host::key_path(&runs).exists();
-            let (rec, fp, made) = listing_record(&runs, &dir, now).unwrap();
+            let (rec, fp, made) = listing_record(&runs, &dir, now, None).unwrap();
             assert_eq!(made, first);
             let key_bytes = std::fs::read(ll_listing::host::key_path(&runs)).unwrap();
             #[cfg(unix)]
@@ -1067,11 +1088,17 @@ mod restart_hint_tests {
                 assert!(!String::from_utf8_lossy(&bytes).contains(val), "a secret value is in the record");
             }
             // pressed again: the same key, never replaced
-            let (_, fp2, made2) = listing_record(&runs, &dir, now + 1).unwrap();
+            let (_, fp2, made2) = listing_record(&runs, &dir, now + 1, None).unwrap();
             assert!(!made2 && fp2 == fp);
             assert_eq!(std::fs::read(ll_listing::host::key_path(&runs)).unwrap(), key_bytes);
             assert!(ll_listing::host::init_key(&runs).is_err(), "an existing host key is never replaced");
             assert_eq!(host_fingerprint(&runs), Some(fp));
+            // with "Your name" filled in: the suggestion travels signed in the record, exactly as the command line makes it
+            let (named, _, _) = listing_record(&runs, &dir, now + 2, Some("Garden Collective")).unwrap();
+            assert_eq!(named.host_label.as_deref(), Some("Garden Collective"));
+            ll_listing::record::ListingRecord::parse_and_verify(&serde_json::to_vec(&named).unwrap()).unwrap();
+            let cli = ll_listing::host::record_for_with_label(&runs, &dir, vec![], now + 2, Some("Garden Collective")).unwrap();
+            assert_eq!(serde_json::to_vec(&named).unwrap(), serde_json::to_vec(&cli).unwrap());
         }
         let _ = std::fs::remove_dir_all(&root);
     }

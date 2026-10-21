@@ -123,7 +123,9 @@
         <div class="k">Before you send</div>
         <p>This sends one short signed request to the Clewbook listing server (<span id="listing-url"></span>). It holds:</p>
         <ul class="plainlist" id="listing-what"></ul>
-        <p>No money moves, and no key or other secret leaves this computer. You send no label: the Clewbook team chooses the label shown with your campaigns.</p>
+        <label for="listing-label">Your name (optional, up to 30 characters)</label>
+        <input id="listing-label" maxlength="30" autocomplete="off" spellcheck="false">
+        <p>No money moves, and no key or other secret leaves this computer. You suggest the name shown with your campaigns; the Clewbook team approves it or chooses another.</p>
         <p>The Clewbook team approves listings by hand. Approval is for your host key, so once it is approved, your later campaigns are listed on their own.</p>
         <p id="listing-mainnet-line" hidden>Mainnet campaigns are listed once mainnet listing opens after the next network upgrade. Your request is kept until then.</p>
         <p id="listing-error" class="notice bad" role="alert" hidden></p>

@@ -109,8 +109,9 @@ enum Cmd {
     Submit { file: PathBuf },
     /// Show the queue of hosts that are not approved yet, and mainnet records waiting for mainnet listing to open (from the last pass).
     Queue,
-    /// Approve a host key (full key or fingerprint) with the display label shown for its campaigns.
-    Approve { key: String, #[arg(long)] label: String },
+    /// Approve a host key (full key or fingerprint) with the display label shown for its campaigns: --label, or without it the name the
+    /// host suggested in its request (refused if it suggested none).
+    Approve { key: String, #[arg(long)] label: Option<String> },
     /// Change the display label of an approved host key.
     Label { key: String, label: String },
     /// Revoke a host key: its campaigns disappear on the next pass; nothing is deleted from any relay.
@@ -238,7 +239,8 @@ fn main() -> Result<()> {
                     continue;
                 }
                 let left = item["expires_at"].as_u64().map(|t| t.saturating_sub(now)).unwrap_or(0);
-                println!("{}  host {}  name {}  {}; {}", item["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""), item["fingerprint"].as_str().unwrap_or(""),
+                println!("{}  host {}  suggests {}  name {}  {}; {}", item["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""), item["fingerprint"].as_str().unwrap_or(""),
+                    item["suggested_label"].as_str().map(|n| format!("{n:?}")).unwrap_or_else(|| "(no name)".into()),
                     item["name"].as_str().map(|n| format!("{n:?}")).unwrap_or_else(|| "(none)".into()), item["note"].as_str().unwrap_or(""),
                     if left == 0 { "removed on the next pass unless the host key is approved".to_string() } else { format!("removed in {} unless the host key is approved", job::plain_duration(left)) });
             }
@@ -251,7 +253,7 @@ fn main() -> Result<()> {
                 Err(e) => bail!("{e}"),
             },
         },
-        Cmd::Approve { key, label } => println!("{}", job::approve(&plain, &key, &label)?),
+        Cmd::Approve { key, label } => println!("{}", job::approve(&plain, &key, label.as_deref())?),
         Cmd::Label { key, label } => println!("{}", job::set_label(&plain, &key, &label)?),
         Cmd::Revoke { key } => println!("{}", job::revoke(&plain, &key)?),
         Cmd::Hide { what } => println!("{}", job::hide(&plain, &what, true)?),

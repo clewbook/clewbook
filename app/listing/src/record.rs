@@ -17,6 +17,8 @@ pub const KIND: &str = "clewbook-listing";
 pub const MAX_RECORD_BYTES: usize = 4096;
 pub const MAX_RELAYS: usize = 4;
 pub const MAX_RELAY_URL: usize = 200;
+/// The longest name a host may suggest for itself.
+pub const MAX_SUGGESTED_LABEL: usize = 30;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -35,6 +37,10 @@ pub struct ListingRecord {
     pub ledger_pubkey: String,
     /// Unix seconds when the record was made.
     pub created: u64,
+    /// The name the host suggests for itself ("Hosted by …"), signed with the rest. Only a suggestion: the operator approves it or gives
+    /// another. Left out when there is none, so a record without one signs the same bytes as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_sig: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,6 +62,15 @@ pub fn fingerprint(host_pubkey_hex: &str) -> String {
     hx.as_bytes().chunks(4).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join(" ")
 }
 
+/// The form of a name a host suggests for itself: the campaign name rules (plain text, no control, invisible or direction characters, no <
+/// or >), no #, no space at either end, and at most `MAX_SUGGESTED_LABEL` characters. Reserved words are checked by the listing job.
+pub fn check_suggested_label_shape(label: &str) -> Result<()> {
+    ensure!(label == label.trim() && !label.is_empty(), "the suggested name is empty or starts or ends with a space");
+    ensure!(label.chars().count() <= MAX_SUGGESTED_LABEL, "the suggested name is longer than {MAX_SUGGESTED_LABEL} characters");
+    ensure!(!label.contains('#'), "the suggested name may not contain #");
+    ll_core::rules::check_name(label).map_err(|e| anyhow!("{}", e.to_string().replace("campaign name", "suggested name")))
+}
+
 impl ListingRecord {
     /// The bytes both keys sign: the domain tag, then the canonical JSON of the record without its signatures.
     pub fn signing_bytes(&self) -> Result<Vec<u8>> {
@@ -69,6 +84,11 @@ impl ListingRecord {
 
     /// Makes and signs a record. `ledger_key` is the campaign's own key (from its secrets), `host_key` the host's long lived key.
     pub fn make(campaign: &str, network: &str, relays: Vec<String>, host_key: &SigningKey, ledger_key: &SigningKey, created: u64) -> Result<Self> {
+        Self::make_with_label(campaign, network, relays, host_key, ledger_key, created, None)
+    }
+
+    /// The same, with the name the host suggests for itself (None or blank: no suggestion).
+    pub fn make_with_label(campaign: &str, network: &str, relays: Vec<String>, host_key: &SigningKey, ledger_key: &SigningKey, created: u64, label: Option<&str>) -> Result<Self> {
         let mut r = ListingRecord {
             v: VERSION,
             kind: KIND.into(),
@@ -78,6 +98,7 @@ impl ListingRecord {
             host_pubkey: hex::encode(host_key.verifying_key().as_bytes()),
             ledger_pubkey: hex::encode(ledger_key.verifying_key().as_bytes()),
             created,
+            host_label: label.map(str::trim).filter(|l| !l.is_empty()).map(str::to_string),
             host_sig: None,
             ledger_sig: None,
         };
@@ -101,6 +122,9 @@ impl ListingRecord {
         }
         ensure!(is_lower_hex(&self.host_pubkey, 64), "the host key must be 64 lowercase hex characters");
         ensure!(is_lower_hex(&self.ledger_pubkey, 64), "the ledger key must be 64 lowercase hex characters");
+        if let Some(l) = &self.host_label {
+            check_suggested_label_shape(l)?;
+        }
         Ok(())
     }
 
@@ -250,6 +274,29 @@ mod tests {
         let mut many = rec.clone();
         many.relays = (0..5).map(|i| format!("https://r{i}.example")).collect();
         assert!(many.check_shape().is_err());
+    }
+
+    #[test]
+    fn a_suggested_name_is_signed_with_the_record_and_only_plain_short_names_are_accepted() {
+        let (s, host, rules, plain) = setup("test", 5_000_000);
+        let make = |l: &str| ListingRecord::make_with_label(&id_of(&rules), "test", vec!["https://relay.example.org".into()], &host, &s.ledger_key().unwrap(), 1_760_000_000, Some(l));
+        // without a name the record is exactly as before: no field, the same signed bytes
+        assert!(!serde_json::to_string(&plain).unwrap().contains("host_label"));
+        assert_eq!(make("  ").unwrap(), plain, "a blank name is no name");
+        let named = make("Garden Collective").unwrap();
+        assert_eq!(named.host_label.as_deref(), Some("Garden Collective"));
+        let back = ListingRecord::parse_and_verify(&serde_json::to_vec(&named).unwrap()).unwrap();
+        assert_eq!(back, named);
+        // the name is under both signatures: changing it afterwards breaks them
+        let mut changed = named.clone();
+        changed.host_label = Some("Other Collective".into());
+        assert!(changed.verify_signatures().unwrap_err().to_string().contains("does not verify"));
+        // 30 characters at most, the campaign name rules, no #
+        make(&"a".repeat(MAX_SUGGESTED_LABEL)).unwrap();
+        for (bad, why) in [(&*"a".repeat(MAX_SUGGESTED_LABEL + 1), "longer than 30"), ("<b>Me</b>", "< and >"), ("Tab\there", "control"), ("Me # you", "#"), ("Two  spaces", "two spaces")] {
+            let e = make(bad).unwrap_err().to_string();
+            assert!(e.contains(why), "{bad:?}: {e}");
+        }
     }
 
     #[test]

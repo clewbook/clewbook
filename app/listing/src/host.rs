@@ -84,6 +84,11 @@ pub fn describe_key(runs_dir: &Path) -> Result<(String, String)> {
 
 /// A record for the campaign in `campaign_dir` (its rules.json, secrets.json and the relays in private/relays, unless `relays` is given).
 pub fn record_for(runs_dir: &Path, campaign_dir: &Path, relays: Vec<String>, now: u64) -> Result<ListingRecord> {
+    record_for_with_label(runs_dir, campaign_dir, relays, now, None)
+}
+
+/// The same, carrying the name the host suggests for itself (None or blank: none).
+pub fn record_for_with_label(runs_dir: &Path, campaign_dir: &Path, relays: Vec<String>, now: u64, label: Option<&str>) -> Result<ListingRecord> {
     let host = load_key(runs_dir)?;
     let rules_text = fs::read_to_string(campaign_dir.join("rules.json")).context("the campaign folder has no rules.json")?;
     let rules: ll_core::rules::Rules = serde_json::from_str(&rules_text).map_err(|_| anyhow!("rules.json is not readable"))?;
@@ -100,7 +105,7 @@ pub fn record_for(runs_dir: &Path, campaign_dir: &Path, relays: Vec<String>, now
     if relays.is_empty() {
         bail!("no relays: give --relay, or list them in the campaign's private/relays");
     }
-    ListingRecord::make(&id, &rules.network, relays, &host, &ledger, now)
+    ListingRecord::make_with_label(&id, &rules.network, relays, &host, &ledger, now, label)
 }
 
 /// What a listing endpoint said about a record.

@@ -1,12 +1,15 @@
 //! The listing job (PROTOTYPE). Everything lives in one data folder:
 //!
 //!   records/<campaign id>.json   submitted records whose two signatures verified (one per campaign; a newer one replaces an older one)
-//!   approved_hosts.txt           host public keys (64 hex) allowed to be listed, one per line, then the display label the operator chose;
-//!                                # starts a comment. The label is only ever taken from here, never from a record.
+//!   approved_hosts.txt           host public keys (64 hex) allowed to be listed, one per line, then the display label; # starts a comment.
+//!                                The label shown is only ever taken from here: `approve` writes the operator's --label, or without one
+//!                                the name the host suggested in its signed record.
 //!   revoked_hosts.txt            host keys whose campaigns must disappear (same form)
 //!   hidden.txt                   campaign ids or host keys never to list (same form)
 //!   reserved.txt                 names no campaign may look like; a line "contains:<word>" refuses any name with that word in it, and a line
 //!                                "relay:<word>" refuses any relay address with that word in it (labels are never checked against this file)
+//!   reserved-labels.txt          words no host may put in the name it suggests for itself (one per line, # starts a comment; case,
+//!                                spaces, symbols and look alike letters do not matter). The operator's own --label is never checked here.
 //!   state/seen.json              per campaign: when its record was first seen, since when it waits in the queue, when it was first listed
 //!   out/campaigns.json           the combined list for the home page, written atomically: first the fixed entries of the hand kept list
 //!                                (--hand-list, exactly as written there), then {"id","relays","host":{"label","fingerprint"}} for each
@@ -85,8 +88,9 @@ pub struct JobConfig {
     /// Mainnet only: the published NU7 activation height. A new mainnet campaign whose deadline is not before it is refused (its tickets
     /// would not survive the upgrade).
     pub nu7_mainnet_height: Option<u32>,
-    /// Our relay on each network (network, url). A Blind bid auction is listed only if its record names ours: ours refuses entries added
-    /// once the bids are about to open, so the recount sees a late added bid as relays that disagree (the second review, M2 and M3).
+    /// Our relays on each network (network, url; a network may have several). A Blind bid auction is listed only if its record names one
+    /// of ours: ours refuse entries added once the bids are about to open, so the recount sees a late added bid as relays that disagree (the
+    /// second review, M2 and M3).
     pub our_relays: Vec<(String, String)>,
     /// The second review, M6: at most this many new records from one address while their hosts are not approved, per queue time.
     pub max_queue_per_source: usize,
@@ -100,7 +104,9 @@ impl JobConfig {
         JobConfig {
             dir: dir.into(), allowed_networks: vec!["test".into()], fetch: FetchPolicy::default(), max_records_per_key: 10, max_records: 1000,
             max_queue: 200, hand_list: None, queue_ttl: 7 * 24 * 3600, max_mainnet_waiting: 100, notify: None, nu7_mainnet_height: None,
-            our_relays: vec![("test".into(), "https://relay-test.clewbook.xyz".into()), ("main".into(), "https://relay.clewbook.xyz".into())],
+            // testnet: the test relay and, since 21 Oct 2026, the live relay (it runs the same build, which refuses late entries)
+            our_relays: vec![("test".into(), "https://relay-test.clewbook.xyz".into()), ("test".into(), "https://relay.clewbook.xyz".into()),
+                ("main".into(), "https://relay.clewbook.xyz".into())],
             max_queue_per_source: 5,
             #[cfg(feature = "recount")]
             recount: None,
@@ -136,11 +142,24 @@ pub fn read_labels(path: &Path) -> std::collections::HashMap<String, String> {
 }
 
 /// A label is shown on a page, so it follows the campaign name rules (plain text, 1 to 60 characters, no control, invisible or direction
-/// characters, no < or >), and may not contain the word Clewbook in any spelling.
+/// characters, no < or >) and has no #. The operator may give any such label, reserved words included (the owner's decision of 21 Oct 2026).
 pub fn check_label(label: &str) -> Result<()> {
     ensure!(!label.contains('#'), "a label may not contain #");
     ll_core::rules::check_name(label).map_err(|e| anyhow!("{}", e.to_string().replace("campaign name", "label")))?;
-    ensure!(!contains_reserved(label, RESERVED_WORD), "a label may not contain the word Clewbook (in any spelling)");
+    Ok(())
+}
+
+/// The words of reserved-labels.txt, in their order.
+pub fn reserved_label_words(cfg: &JobConfig) -> Vec<String> {
+    read_lines(&cfg.p("reserved-labels.txt")).into_iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).collect()
+}
+
+/// The name a host suggests for itself: its form (as in the record), and none of the words of reserved-labels.txt, in any spelling.
+pub fn check_suggested_label(cfg: &JobConfig, label: &str) -> Result<()> {
+    crate::record::check_suggested_label_shape(label)?;
+    if let Some(w) = reserved_label_words(cfg).iter().find(|w| contains_reserved(label, w)) {
+        bail!("the suggested name contains a reserved word ({w}); choose another name, or leave it empty");
+    }
     Ok(())
 }
 
@@ -215,9 +234,9 @@ pub fn submit(cfg: &JobConfig, bytes: &[u8]) -> Result<String> {
     submit_from(cfg, bytes, None)
 }
 
-/// Our relay for `network`, if one is configured.
-pub fn our_relay<'a>(cfg: &'a JobConfig, network: &str) -> Option<&'a str> {
-    cfg.our_relays.iter().find(|(n, _)| n == network).map(|(_, u)| u.trim_end_matches('/'))
+/// Our relays for `network` (none if none is configured).
+pub fn our_relays<'a>(cfg: &'a JobConfig, network: &str) -> Vec<&'a str> {
+    cfg.our_relays.iter().filter(|(n, _)| n == network).map(|(_, u)| u.trim_end_matches('/')).collect()
 }
 
 /// A submission from `source` (the client address the endpoint sees; `None` from the command line, which has no budget).
@@ -225,6 +244,9 @@ pub fn submit_from(cfg: &JobConfig, bytes: &[u8], source: Option<&str>) -> Resul
     ensure!(bytes.len() <= MAX_RECORD_BYTES, "a listing record is at most {MAX_RECORD_BYTES} bytes");
     let r = ListingRecord::parse_and_verify(bytes)?;
     check_relays(&r.relays, &relay_words(cfg))?;
+    if let Some(l) = &r.host_label {
+        check_suggested_label(cfg, l)?;
+    }
     let hidden = read_list(&cfg.p("hidden.txt"));
     let revoked = read_list(&cfg.p("revoked_hosts.txt"));
     ensure!(!revoked.contains(&r.host_pubkey), "this host key was revoked");
@@ -326,6 +348,9 @@ pub struct QueueItem {
     pub expires_at: u64,
     /// "approval" (a host not approved yet) or "attention" (a listed campaign whose recount fails: the operator decides whether to hide it).
     pub kind: String,
+    /// The name the host suggests for itself in this record, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recount: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -360,9 +385,11 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
             // the second review, M2 and M3: a Blind bid auction is listed here only if it publishes to our relay, which refuses entries added
             // once the bids are about to open; read from ours too, a bid added late on another relay shows as relays that disagree
             if rules.is_sealed() {
-                let ours = our_relay(cfg, &rules.network).ok_or_else(|| anyhow!("no relay of ours is set for network {:?}", rules.network))?;
-                ensure!(r.relays.iter().any(|u| u.trim_end_matches('/') == ours),
-                    "a Blind bid auction is listed here only if it publishes to {ours}, which refuses late entries; this one does not");
+                let ours = our_relays(cfg, &rules.network);
+                ensure!(!ours.is_empty(), "no relay of ours is set for network {:?}", rules.network);
+                ensure!(r.relays.iter().any(|u| ours.contains(&u.trim_end_matches('/'))),
+                    "a Blind bid auction is listed here only if it publishes to {}, which refuse{} late entries; this one does not",
+                    ours.join(" or "), if ours.len() == 1 { "s" } else { "" });
             }
             // as cb-host's guard (app/host/src/mainnet.rs): the campaign's whole life (deadline, ticket window, close grace, re-issue window)
             // and a margin of 50 blocks must end before the NU7 activation; its refund tickets would not survive the upgrade
@@ -516,7 +543,7 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
         queue.push(QueueItem {
             fingerprint: fp.clone(), host_pubkey: r.host_pubkey.clone(), campaign: r.campaign.clone(), network: r.network.clone(), name: name.clone(),
             relays: r.relays.clone(), created: r.created, checks_pass: problem.is_none(), note: note.clone(),
-            queued_since: since, expires_at: 0, kind: "mainnet".into(), recount: None, attention: None,
+            queued_since: since, expires_at: 0, kind: "mainnet".into(), suggested_label: r.host_label.clone(), recount: None, attention: None,
         });
         status.push(Status { campaign: r.campaign.clone(), host: fp, state: State::WaitingMainnet, reason: note, name, recount: None, attention: None });
     }
@@ -622,7 +649,7 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
                         (true, None) if v.is_ok() => "; its recount has not run yet".into(),
                         _ => String::new(),
                     }),
-                queued_since: since, expires_at, kind: "approval".into(), recount: recounts.get(&x.r.campaign).map(|r| r.outcome.clone()), attention: None,
+                queued_since: since, expires_at, kind: "approval".into(), suggested_label: x.r.host_label.clone(), recount: recounts.get(&x.r.campaign).map(|r| r.outcome.clone()), attention: None,
             });
             status.push(Status { campaign: x.r.campaign.clone(), host: fp, state: State::Queued, reason: "the host key is not approved yet".into(), name: x.name,
                 recount: recounts.get(&x.r.campaign).map(|r| r.outcome.clone()), attention: None });
@@ -663,7 +690,7 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
                         fingerprint: fp.clone(), host_pubkey: x.r.host_pubkey.clone(), campaign: x.r.campaign.clone(), network: x.r.network.clone(), name: x.name.clone(),
                         relays: x.r.relays.clone(), created: x.r.created, checks_pass: false,
                         note: format!("ATTENTION: listed, but {} (since {}); it stays listed until you hide it", a.failing, a.since),
-                        queued_since: a.since, expires_at: 0, kind: "attention".into(), recount: rc_value.clone(), attention: Some(a.clone()),
+                        queued_since: a.since, expires_at: 0, kind: "attention".into(), suggested_label: x.r.host_label.clone(), recount: rc_value.clone(), attention: Some(a.clone()),
                     });
                 }
                 let mut reason = match closed {
@@ -743,15 +770,26 @@ fn check_label_unique(cfg: &JobConfig, key: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-/// Approves a host key with the display label the operator chooses (shown as "Hosted by <label>" once a page shows it).
-pub fn approve(cfg: &JobConfig, key_or_fp: &str, label: &str) -> Result<String> {
-    let label = label.trim();
-    check_label(label)?;
+/// Approves a host key with a display label (shown as "Hosted by <label>" once a page shows it): the operator's `label`, or without one the
+/// name the host suggested in its newest record (checked again against reserved-labels.txt, which may have changed since).
+pub fn approve(cfg: &JobConfig, key_or_fp: &str, label: Option<&str>) -> Result<String> {
     let k = resolve_key(cfg, key_or_fp)?;
+    let suggested;
+    let from_host = label.is_none();
+    let label = match label {
+        Some(l) => l.trim(),
+        None => {
+            suggested = load_records(cfg).into_iter().filter(|r| r.host_pubkey == k && r.host_label.is_some()).max_by_key(|r| r.created).and_then(|r| r.host_label)
+                .ok_or_else(|| anyhow!("host {} suggested no name: give one with --label", fingerprint(&k)))?;
+            check_suggested_label(cfg, &suggested)?;
+            suggested.as_str()
+        }
+    };
+    check_label(label)?;
     check_label_unique(cfg, &k, label)?;
     edit_list(&cfg.p("revoked_hosts.txt"), &k, false, "")?;
     let changed = edit_list(&cfg.p("approved_hosts.txt"), &k, true, label)?;
-    Ok(if changed { format!("approved host {} as {label:?}", fingerprint(&k)) } else { format!("host {} was already approved (use `label` to change its label)", fingerprint(&k)) })
+    Ok(if changed { format!("approved host {} as {label:?}{}", fingerprint(&k), if from_host { " (the name the host suggested)" } else { "" }) } else { format!("host {} was already approved (use `label` to change its label)", fingerprint(&k)) })
 }
 
 /// Changes the label of an approved host.

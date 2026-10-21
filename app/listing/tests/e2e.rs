@@ -113,7 +113,7 @@ fn listing_end_to_end() {
     // 1. an approved host is listed
     let (id1, rules1) = campaign(&campaigns, "Garden Fund", &relays, 5_000_000);
     register(&relay, &id1, &rules1);
-    job::approve(&c, &pk_a, "Garden Collective").unwrap();
+    job::approve(&c, &pk_a, Some("Garden Collective")).unwrap();
     submit_record(&c, &runs_a, &campaigns.join(&id1[..8])).unwrap();
     let st = job::run_pass(&c, TIP).unwrap();
     assert_eq!(state_of(&st, &id1).0, State::Listed, "{:?}", state_of(&st, &id1));
@@ -129,7 +129,7 @@ fn listing_end_to_end() {
     v["label"] = serde_json::json!("Official Clewbook");
     assert!(job::submit(&c, &serde_json::to_vec(&v).unwrap()).is_err());
     // a label must be plain text
-    assert!(job::approve(&c, &pk_b, "<b>bold</b>").is_err());
+    assert!(job::approve(&c, &pk_b, Some("<b>bold</b>")).is_err());
     // changing a label
     job::set_label(&c, &pk_a, "Garden Collective Lagos").unwrap();
     job::run_pass(&c, TIP).unwrap();
@@ -149,7 +149,7 @@ fn listing_end_to_end() {
     assert_eq!(q[0]["checks_pass"], true);
     let fp_b = ll_listing::record::fingerprint(&pk_b);
     assert_eq!(q[0]["fingerprint"], fp_b.as_str());
-    job::approve(&c, &fp_b, "School Friends").unwrap();
+    job::approve(&c, &fp_b, Some("School Friends")).unwrap();
     let st = job::run_pass(&c, TIP).unwrap();
     assert_eq!(state_of(&st, &id2).0, State::Listed);
     assert!(listed(&c).contains(&id2));
@@ -351,7 +351,7 @@ fn the_hand_list_closed_campaigns_and_queue_expiry() {
     // 2. fixed entries come first, unchanged; then the campaigns listed here with their host
     let (id1, rules1) = campaign(&campaigns, "Garden Fund", &relays, 5_000);
     register(&relay, &id1, &rules1);
-    job::approve(&c, &pk_a, "Garden Collective").unwrap();
+    job::approve(&c, &pk_a, Some("Garden Collective")).unwrap();
     submit_record(&c, &runs_a, &campaigns.join(&id1[..8])).unwrap();
     let st = job::run_pass_at(&c, TIP, 1_000_100).unwrap();
     assert_eq!(state_of(&st, &id1).0, State::Listed);
@@ -426,19 +426,22 @@ fn the_hand_list_closed_campaigns_and_queue_expiry() {
 }
 
 #[test]
-fn labels_follow_the_name_rules_and_reserve_clewbook() {
+fn the_operators_labels_follow_the_name_rules_and_may_use_any_word() {
     let root = scratch("labels");
     let data = root.join("listing");
     let c = cfg(&data);
     let a = "a".repeat(64);
     let b = "b".repeat(64);
-    for bad in ["Clewbook Team", "c1ewb00k friends", "<i>x</i>", "", "Tab\there"] {
-        assert!(job::approve(&c, &a, bad).is_err(), "{bad:?} must be refused");
+    for bad in ["<i>x</i>", "", "Tab\there", "Me # you"] {
+        assert!(job::approve(&c, &a, Some(bad)).is_err(), "{bad:?} must be refused");
     }
-    job::approve(&c, &a, "Garden Collective").unwrap();
+    // the owner's decision of 21 Oct 2026: the operator may give any label, reserved words included
+    let z = "f".repeat(64);
+    job::approve(&c, &z, Some("Clewbook Team")).unwrap();
+    job::approve(&c, &a, Some("Garden Collective")).unwrap();
     // a second host may not take a look alike label
-    assert!(job::approve(&c, &b, "Gаrden Collective").unwrap_err().to_string().contains("another approved host"));
-    job::approve(&c, &b, "School Friends").unwrap();
+    assert!(job::approve(&c, &b, Some("Gаrden Collective")).unwrap_err().to_string().contains("another approved host"));
+    job::approve(&c, &b, Some("School Friends")).unwrap();
     assert!(job::set_label(&c, &b, "Garden Collectives").is_err());
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -459,14 +462,14 @@ fn operator_words_in_reserved_txt_cover_names_and_relays_but_not_the_operators_l
     // without the file nothing but Clewbook is reserved: the code holds no other word
     let (free_id, free_rules) = campaign(&campaigns, "Morvey Before", &relays, 5_000_000);
     register(&relay, &free_id, &free_rules);
-    job::approve(&c, &pk, "Morvey Labs").unwrap();
+    job::approve(&c, &pk, Some("Morvey Labs")).unwrap();
     submit_record(&c, &runs, &campaigns.join(&free_id[..8])).unwrap();
     assert_eq!(state_of(&job::run_pass(&c, TIP).unwrap(), &free_id).0, State::Listed);
     // the operator's file: names (contains:) and relay addresses (relay:), longer word first
     std::fs::write(data.join("reserved.txt"), "# operator words\ncontains:zmorvey\ncontains:morvey\nrelay:zmorvey\nrelay:morvey\n").unwrap();
-    // the label rule: the operator may use both words (approve and label); Clewbook stays refused
+    // the label rule: the operator may use both words (approve and label), and Clewbook too (any label is the operator's choice)
+    job::set_label(&c, &pk, "Clewbook zmorvey").unwrap();
     job::set_label(&c, &pk, "zmorvey").unwrap();
-    assert!(job::set_label(&c, &pk, "Clewbook zmorvey").is_err());
     // names a host submits: plain, mixed case, look alike letters, inside a longer name
     let mut refused = vec![];
     for (name, word) in [("morvey", "morvey"), ("MorVEY Garden", "morvey"), ("M0rv3y Drive", "morvey"), ("Fund of mоrvеу", "morvey"),
@@ -548,7 +551,7 @@ fn mainnet_records_wait_while_mainnet_listing_is_off_and_testnet_is_unchanged() 
     assert!(data.join(format!("records/{mid}.json")).exists() && !data.join(format!("records/{tid}.json")).exists());
     // approving the host lists its testnet campaign, never the mainnet one, and nothing mainnet is recounted (no recount is set up here,
     // and a waiting record is never a recount candidate: it never reaches that step)
-    job::approve(&c, &pk, "Harbour Collective").unwrap();
+    job::approve(&c, &pk, Some("Harbour Collective")).unwrap();
     submit_record(&c, &runs, &campaigns.join(&tid[..8])).unwrap();
     let st = job::run_pass_at(&c, TIP, later + 60).unwrap();
     assert_eq!(state_of(&st, &tid).0, State::Listed);
@@ -616,7 +619,7 @@ fn the_status_lookup_says_only_the_state_and_a_plain_reason() {
     assert_eq!(ask(&tid), ("Waiting".into(), "received; it is checked on the next pass (every 10 minutes)".into()));
     job::run_pass(&c, TIP).unwrap();
     assert_eq!(ask(&tid), ("Waiting".into(), "waiting for the Clewbook team to approve the host key".into()));
-    job::approve(&c, &pk, "Garden Collective").unwrap();
+    job::approve(&c, &pk, Some("Garden Collective")).unwrap();
     job::run_pass(&c, TIP).unwrap();
     assert_eq!(ask(&tid), ("Listed".into(), "shown on the home page".into()));
     // the answer holds the state and the reason, nothing else
@@ -640,5 +643,69 @@ fn the_status_lookup_says_only_the_state_and_a_plain_reason() {
     submit_record(&c, &runs, &campaigns.join(&gid[..8])).unwrap();
     job::run_pass(&c, TIP).unwrap();
     assert_eq!(ask(&gid), ("Not listed".into(), "the name contains a reserved word (garden)".into()));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_host_may_suggest_its_name_and_reserved_labels_bind_only_the_host() {
+    // invented words stand in for the operator's own; the real list lives only in the server's reserved-labels.txt
+    let root = scratch("suggest");
+    let (_server, relay) = ll_relay::spawn(&root.join("relay"), "127.0.0.1:0").unwrap();
+    let relays = vec![relay.clone()];
+    let campaigns = root.join("campaigns");
+    let data = root.join("listing");
+    let c = cfg(&data);
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("reserved-labels.txt"), "# words no host may suggest\nclewbook\nzcash\nzksnarks\nzmorvey\n").unwrap();
+    let send = |runs: &Path, name: &str, label: Option<&str>| -> (String, anyhow::Result<String>) {
+        let (id, rules) = campaign(&campaigns, name, &relays, 5_000_000);
+        register(&relay, &id, &rules);
+        let rec = host::record_for_with_label(runs, &campaigns.join(&id[..8]), vec![], host::now_secs(), label).unwrap();
+        (id, job::submit(&c, &serde_json::to_vec(&rec).unwrap()))
+    };
+    // a reserved word in a suggested name is refused at once, with the reason, in any case or spelling
+    let runs_x = root.join("host-x");
+    let pk_x = host::init_key(&runs_x).unwrap();
+    for bad in ["ZCash Foundation", "z cash friends", "Clewb00k team", "the zkSNARKs club", "Zm0rvey"] {
+        let e = send(&runs_x, "Garden Fund", Some(bad)).1.unwrap_err().to_string();
+        assert!(e.starts_with("the suggested name contains a reserved word (") && e.contains("choose another name"), "{bad}: {e}");
+    }
+    // a campaign NAME with such a word is a different list: "Zcash builders grant" is submitted and listed as before
+    let (grant, r) = send(&runs_x, "Zcash builders grant", None);
+    r.unwrap();
+    // the operator's own label may be anything, reserved or not
+    job::approve(&c, &pk_x, Some("zcash")).unwrap();
+    let st = job::run_pass(&c, TIP).unwrap();
+    assert_eq!(state_of(&st, &grant).0, State::Listed, "{:?}", state_of(&st, &grant));
+    let out: serde_json::Value = serde_json::from_slice(&std::fs::read(data.join("out/campaigns.json")).unwrap()).unwrap();
+    assert_eq!(out["campaigns"][0]["host"]["label"], "zcash");
+    // a host that suggests a plain name: shown in the queue and in the notice; approve without --label takes it
+    let runs_y = root.join("host-y");
+    let pk_y = host::init_key(&runs_y).unwrap();
+    let (yid, r) = send(&runs_y, "Harbour Fund", Some("Harbour Collective"));
+    r.unwrap();
+    job::run_pass(&c, TIP).unwrap();
+    let q = job::read_queue(&c).unwrap();
+    let item = q.iter().find(|i| i["campaign"] == yid.as_str()).unwrap();
+    assert_eq!(item["suggested_label"], "Harbour Collective");
+    let text = ll_listing::notify::message(&[item], &[]);
+    assert!(text.contains("Host suggests: Harbour Collective") && text.contains(&format!("approve {}\"", host::describe_key(&runs_y).unwrap().1.replace(' ', ""))), "{text}");
+    assert!(job::approve(&c, &pk_y, None).unwrap().contains("as \"Harbour Collective\" (the name the host suggested)"));
+    let st = job::run_pass(&c, TIP).unwrap();
+    assert_eq!(state_of(&st, &yid).0, State::Listed);
+    let out: serde_json::Value = serde_json::from_slice(&std::fs::read(data.join("out/campaigns.json")).unwrap()).unwrap();
+    let shown = out["campaigns"].as_array().unwrap().iter().find(|e| e["id"] == yid.as_str()).unwrap();
+    assert_eq!(shown["host"]["label"], "Harbour Collective");
+    // --label overrides the suggestion
+    let runs_z = root.join("host-z");
+    let pk_z = host::init_key(&runs_z).unwrap();
+    send(&runs_z, "Orchard Fund", Some("Orchard People")).1.unwrap();
+    job::approve(&c, &pk_z, Some("Orchard Group")).unwrap();
+    assert_eq!(job::read_labels(&data.join("approved_hosts.txt")).get(&pk_z).map(String::as_str), Some("Orchard Group"));
+    // a host that suggested nothing: approve asks for --label
+    let runs_n = root.join("host-n");
+    let pk_n = host::init_key(&runs_n).unwrap();
+    send(&runs_n, "School Roof", None).1.unwrap();
+    assert!(job::approve(&c, &pk_n, None).unwrap_err().to_string().contains("suggested no name: give one with --label"));
     let _ = std::fs::remove_dir_all(&root);
 }

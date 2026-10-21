@@ -137,11 +137,15 @@ pub fn message(items: &[&serde_json::Value], approved: &[String]) -> String {
         let key = q["host_pubkey"].as_str().unwrap_or("");
         let is_approved = approved.iter().any(|a| a == key);
         let name: String = q["name"].as_str().map(|s| s.chars().take(60).collect()).unwrap_or_else(|| "(no name)".into());
-        out.push_str(&format!("\n{}. {}\nName: {name}\nCampaign: {}\nHost: {fp}\nHost approved: {}\n", i + 1,
+        let suggested = q["suggested_label"].as_str();
+        out.push_str(&format!("\n{}. {}\nName: {name}\nCampaign: {}\nHost: {fp}\nHost suggests: {}\nHost approved: {}\n", i + 1,
             if main { "Mainnet (listed once mainnet listing opens)" } else { "Testnet" },
-            q["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""), if is_approved { "yes" } else { "no" }));
+            q["campaign"].as_str().unwrap_or("").get(..8).unwrap_or(""), suggested.unwrap_or("(no name)"), if is_approved { "yes" } else { "no" }));
         if is_approved {
             out.push_str("Nothing to do: it waits for mainnet listing to open.\n");
+        } else if suggested.is_some() {
+            out.push_str(&format!("Approve with the suggested name (add --label 'Other label' to give another):\nssh clewbook-vps \"sudo -u clewbook-listing /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing approve {}\"\n",
+                fp.replace(' ', "")));
         } else {
             out.push_str(&format!("Approve with:\nssh clewbook-vps \"sudo -u clewbook-listing /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing approve {} --label 'Their label'\"\n",
                 fp.replace(' ', "")));

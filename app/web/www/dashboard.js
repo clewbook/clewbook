@@ -371,7 +371,7 @@ async function onListingSend() {
   say(err, '');
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
-    await api(`campaigns/${selected}/listing`, { confirm: true });
+    await api(`campaigns/${selected}/listing`, { confirm: true, label: $('#listing-label').value });
     $('#listing-confirm').hidden = true;
     try { config = await api('config'); } catch { /* the fingerprint shows on the next refresh */ }
     await refresh();

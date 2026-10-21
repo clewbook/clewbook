@@ -186,7 +186,7 @@ impl World {
         job::submit(&self.cfg, &serde_json::to_vec(&rec).unwrap()).unwrap();
     }
     fn approve(&self) {
-        job::approve(&self.cfg, &self.host_key, "Test Collective").unwrap();
+        job::approve(&self.cfg, &self.host_key, Some("Test Collective")).unwrap();
     }
     fn pass(&self, tip: u32, now: u64) -> Vec<job::Status> {
         job::run_pass_at(&self.cfg, tip, now).unwrap()

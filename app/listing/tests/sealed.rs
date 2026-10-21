@@ -88,7 +88,7 @@ fn second_review_m2_a_blind_bid_auction_is_listed_only_through_our_relay() {
     // published only to its own relay: refused, with the reason
     let rec = ll_listing::record::ListingRecord::make(&id, "test", vec![theirs.clone()], &host, &secrets.ledger_key().unwrap(), 1).unwrap();
     ll_listing::job::submit(&cfg, &serde_json::to_vec(&rec).unwrap()).unwrap();
-    ll_listing::job::approve(&cfg, &rec.host_pubkey, "Tester").unwrap();
+    ll_listing::job::approve(&cfg, &rec.host_pubkey, Some("Tester")).unwrap();
     let st = ll_listing::job::run_pass_with(&cfg, &|_| Some(500), 1_000).unwrap();
     let s = st.iter().find(|s| s.campaign == id).unwrap();
     assert_eq!(s.state, ll_listing::job::State::Refused, "{s:?}");
@@ -99,6 +99,37 @@ fn second_review_m2_a_blind_bid_auction_is_listed_only_through_our_relay() {
     let st = ll_listing::job::run_pass_with(&cfg, &|_| Some(500), 1_001).unwrap();
     let s = st.iter().find(|s| s.campaign == id).unwrap();
     assert!(!s.reason.contains("only if it publishes to"), "{s:?}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_testnet_blind_bid_auction_lists_through_either_of_our_relays_and_never_through_a_strangers_only() {
+    // the defaults: on testnet both the test relay and the live relay are ours; on mainnet the live relay
+    let d = ll_listing::job::JobConfig::new("unused");
+    assert_eq!(ll_listing::job::our_relays(&d, "test"), vec!["https://relay-test.clewbook.xyz", "https://relay.clewbook.xyz"]);
+    assert_eq!(ll_listing::job::our_relays(&d, "main"), vec!["https://relay.clewbook.xyz"]);
+    // stand ins for the two: an auction on the second one (the live relay) lists; one on a stranger's relay only is refused
+    let root = scratch("either");
+    let (test_relay, live_relay, stranger) = (relay_at(&root.join("test"), None), relay_at(&root.join("live"), None), relay_at(&root.join("stranger"), None));
+    let mut cfg = ll_listing::job::JobConfig::new(root.join("listing"));
+    cfg.fetch = FetchPolicy { test_allow_loopback: true, ..FetchPolicy::default() };
+    cfg.our_relays = vec![("test".into(), test_relay.clone()), ("test".into(), live_relay.clone())];
+    let host = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
+    let mut ids = vec![];
+    for (name, relay) in [("On the live relay", &live_relay), ("On a stranger's relay", &stranger)] {
+        let (rules, secrets, id) = blind_rules(name);
+        ureq::put(&format!("{relay}/v1/campaigns/{id}")).send_string(&serde_json::to_string(&rules).unwrap()).unwrap();
+        let rec = ll_listing::record::ListingRecord::make(&id, "test", vec![relay.clone()], &host, &secrets.ledger_key().unwrap(), 1).unwrap();
+        ll_listing::job::submit(&cfg, &serde_json::to_vec(&rec).unwrap()).unwrap();
+        ids.push(id);
+    }
+    ll_listing::job::approve(&cfg, &hex::encode(host.verifying_key().as_bytes()), Some("Tester")).unwrap();
+    let st = ll_listing::job::run_pass_with(&cfg, &|_| Some(500), 1_000).unwrap();
+    let on_live = st.iter().find(|s| s.campaign == ids[0]).unwrap();
+    assert_eq!(on_live.state, ll_listing::job::State::Listed, "{on_live:?}");
+    let on_stranger = st.iter().find(|s| s.campaign == ids[1]).unwrap();
+    assert_eq!(on_stranger.state, ll_listing::job::State::Refused, "{on_stranger:?}");
+    assert!(on_stranger.reason.contains(&format!("only if it publishes to {test_relay} or {live_relay}, which refuse late entries")), "{}", on_stranger.reason);
     let _ = std::fs::remove_dir_all(&root);
 }
 
