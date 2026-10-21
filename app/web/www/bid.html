@@ -18,7 +18,7 @@
 <main class="page cpage">
   <div class="cwrap">
   <div class="cleft">
-  <div class="ctop"><a class="cback" id="flow-back" href="#">← Auction</a></div>
+  <div class="ctop"><a class="cback" id="flow-back" href="#">← Blind bid auction</a></div>
   <div class="chead" id="status-line" hidden><span id="status-chip"></span><span class="cmeta" id="status-text"></span></div>
   <b class="cname" id="cname" hidden></b>
   <div id="banners" aria-live="polite"></div>
@@ -33,6 +33,7 @@
       <label for="bid" class="cpk">Your bid (<span class="ticker">TAZ</span>)</label>
       <div class="amountbox"><input id="bid" inputmode="decimal" autocomplete="off" placeholder="0.05"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
       <p class="cmsg" id="bid-hint" role="status"></p>
+      <p class="cmsg bad" id="bid-error" role="alert" hidden></p>
       <label for="refund" class="cpk">Refund address</label>
       <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
       <p class="chelp" id="public-note">Bids and refund addresses become public after the close: use a refund address you use nowhere else.</p>

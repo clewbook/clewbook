@@ -595,7 +595,7 @@ function wireTicketBox() {
     const closed = j.entries.some((e) => e.kind === 'close');
     const held = (() => { try { return localStorage.getItem(`ll:${id}`) !== null; } catch { return false; } })();
     const head = document.createElement('div'); head.className = 'tb-head';
-    head.append(Object.assign(document.createElement('span'), { className: 'tb-name', textContent: c.name || `${c.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${id.slice(0, 8)}…` }),
+    head.append(Object.assign(document.createElement('span'), { className: 'tb-name', textContent: c.name || `${c.sealed ? 'Blind bid auction' : c.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${id.slice(0, 8)}…` }),
       Object.assign(document.createElement('span'), { className: `tb-net ${c.network === 'test' ? 'test' : 'main'}`, textContent: c.network === 'test' ? 'TESTNET' : 'MAINNET' }));
     const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'primary', textContent: 'Open my ticket' });
     btn.id = 'ticket-open';

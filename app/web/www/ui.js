@@ -331,7 +331,8 @@ export function etaText(blocks, secondsPerBlock) {
  *  phase: 'open' | 'ended' (deadline passed, not closed) | 'closed' | anything else = checking.
  *  After a close the outcome is named on the pill (`goal_met`, `goal_missed`, `auction`; `soft` when the fundraiser has a hard cap, so its goal is the
  *  soft cap). Every closed outcome is neutral grey: a missed goal that refunded everyone is not a failure. `refunding` adds REFUNDING. */
-export const OUTCOME_WORDS = { goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled' };
+// a blind bid auction closes as sealed_auction (settled) or void (round R came too early: every deposit goes back)
+export const OUTCOME_WORDS = { goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled', sealed_auction: 'auction settled', void: 'void, all deposits back' };
 export function outcomeWords(outcome, soft = false) {
   const w = OUTCOME_WORDS[outcome];
   return w ? (soft ? w.replace('goal', 'soft cap') : w) : 'finished';

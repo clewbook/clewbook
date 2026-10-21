@@ -421,7 +421,7 @@ function fact(label, value) {
 }
 
 /** The campaign's own name (from the checked rules), else its type and short id. */
-const campaignName = () => campaign.name || `${campaign.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${cfg.id.slice(0, 8)}…`;
+const campaignName = () => campaign.name || `${campaign.sealed ? 'Blind bid auction' : campaign.mode === 'raise' ? 'Fundraiser' : 'Auction'} ${cfg.id.slice(0, 8)}…`;
 
 function renderAbout() {
   if (!campaign) return;

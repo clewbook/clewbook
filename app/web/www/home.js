@@ -79,16 +79,22 @@ function applyView() {
 }
 
 // ---------- the cards ----------
-const typeWord = (info) => (info && info.mode === 'auction' ? 'Auction' : 'Fundraiser');
+const typeWord = (info) => (info && info.sealed ? 'Blind bid' : info && info.mode === 'auction' ? 'Auction' : 'Fundraiser');
 const terms = (info) => {
   if (!info) return "Can't be read right now.";
+  // a blind bid auction has no goal: its items and its fixed deposit sizes
+  if (info.sealed) return `${info.items} ${info.items === 1 ? 'item' : 'items'} · deposits ${info.sealed.tranches.join(' / ')} ${info.ticker}`;
   if (info.mode === 'auction') return `${info.items} ${info.items === 1 ? 'item' : 'items'}${info.pricing === 'uniform' ? '' : ' · pay your bid'}`;
   // round 5: both caps as one label, the numbers on a second line in the grid (white-space: pre-line) and on the same line in the list
   return info.cap ? `Soft cap/Hard cap\n${info.goal}/${info.cap} ${info.ticker}` : `Goal ${info.goal} ${info.ticker}`;
 };
 /** The terms into an element: both cap numbers drawn as 8-decimal amounts (the text helper only reaches the number before the ticker). */
 function setTerms(e, info) {
-  if (info && info.mode !== 'auction' && info.cap) e.innerHTML = `Soft cap/Hard cap\n${amountHTML(info.goal_zat, '', info.network === 'main')}/${amountHTML(info.cap_zat, info.ticker, info.network === 'main')}`;
+  // every deposit size drawn as an amount (the text helper only reaches the number before the ticker)
+  if (info && info.sealed) {
+    const t = info.sealed.tranches_zat;
+    e.innerHTML = `${info.items} ${info.items === 1 ? 'item' : 'items'} · deposits ${t.map((z, i) => amountHTML(z, i === t.length - 1 ? info.ticker : '', info.network === 'main')).join(' / ')}`;
+  } else if (info && info.mode === 'raise' && info.cap) e.innerHTML = `Soft cap/Hard cap\n${amountHTML(info.goal_zat, '', info.network === 'main')}/${amountHTML(info.cap_zat, info.ticker, info.network === 'main')}`;
   else e.textContent = terms(info);
   return e;
 }

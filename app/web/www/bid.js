@@ -493,9 +493,9 @@ function render() {
     const sel = $('#tranche');
     if (!sel.options.length) for (const t of s.tranches_zat) sel.append(new Option(`${coin(t)} (bids up to ${coin(t - rules.refund_fee_zat)})`, String(t)));
     const w = JSON.parse(W.sealed_bid_window(rulesJson, tip, tipTime || 0));
-    const ok = w.ok && !planProblem && planProblem !== undefined;
-    $('#create').disabled = !ok;
+    windowOk = w.ok && !planProblem && planProblem !== undefined;
     say($('#bid-hint'), planProblem ? 'This auction\'s timing is wrong. Do not bid.' : w.ok && planProblem === undefined ? 'Checking the auction\'s timing against the chain.' : w.ok ? `Pay by block ${w.last_block}. Your deposit shows only the size you chose, never your bid.` : w.reason);
+    syncBid();
     return;
   }
   if ((!state.paidZat || !state.ticket) && !state.rejected && !state.lateReturn) {
@@ -527,6 +527,25 @@ function render() {
 }
 
 // ---------- the bid ----------
+let windowOk = false; // the auction takes deposits now (set by render)
+/** A bid above what the chosen deposit allows (the deposit minus the refund fee): one short line naming the smallest deposit that fits, if any.
+ * The deposit is never changed for the person. */
+function bidProblem() {
+  const t = $('#bid').value.trim(), bid = Math.round(Number(t) * 1e8), fee = rules.refund_fee_zat;
+  if (!t || !Number.isFinite(bid) || bid <= Number($('#tranche').value) - fee) return null;
+  const fits = rules.sealed.tranches_zat.filter((x) => bid <= x - fee).sort((a, b) => a - b)[0];
+  return fits ? `Too high for this deposit. Pick ${coin(fits)} or lower your bid.` : `Too high for any deposit here. Lower your bid to ${coin(Math.max(...rules.sealed.tranches_zat) - fee)} or less.`;
+}
+/** Live, as on the contribute page: the line under the bid box in place of the grey hint, the box glows red, and the button waits. */
+function syncBid() {
+  if (!rules || !$('#tranche').options.length) return;
+  const msg = bidProblem(), inp = $('#bid'), e = $('#bid-error');
+  e.textContent = msg || ''; e.hidden = !msg; $('#bid-hint').hidden = !!msg || !$('#bid-hint').textContent;
+  inp.closest('.amountbox').classList.toggle('bad', !!msg);
+  if (msg) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', 'bid-error'); } else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'bid-hint'); }
+  $('#create').disabled = !windowOk || !!msg;
+}
+
 async function onCreate(ev) {
   ev.preventDefault();
   const err = $('#form-error');
@@ -618,6 +637,8 @@ async function main() {
   $('#nav-recount').href = on(`recount.html#${tail}`);
   await init();
   $('#form').addEventListener('submit', onCreate);
+  $('#bid').addEventListener('input', syncBid);
+  $('#tranche').addEventListener('change', syncBid);
   $('#noir-pay').addEventListener('click', onNoirPay);
   detectNoir().then((w) => { if (w) { noir = w; renderNoir(); } });
   $('#backup').addEventListener('click', downloadBackup);
