@@ -69,7 +69,8 @@ function showTotals(r, ticker, final) {
     fact(dl, 'Winners who proved their excess was paid back', `${a.proofs_ok} of ${a.settled}${a.complaints ? `; ${a.complaints} unverified complaint(s)` : ''}`);
   }
   // a fundraiser with a hard cap says "soft cap" and "hard cap" (the soft cap counts only what fits under the hard cap); one without keeps "goal"
-  if (r.goal_zat != null && r.goal_met != null) fact(dl, r.cap_zat != null ? 'Soft cap' : 'Goal', `${z(r.goal_zat)}: ${final ? (r.goal_met ? 'met' : 'missed') : (r.goal_met ? 'reached so far' : 'not reached yet')} ${final ? '' : '(the deadline has not passed)'}`.trim());
+  if (r.cancelled) fact(dl, 'Outcome', 'Cancelled. Everyone refunded.');
+  else if (r.goal_zat != null && r.goal_met != null) fact(dl, r.cap_zat != null ? 'Soft cap' : 'Goal', `${z(r.goal_zat)}: ${final ? (r.goal_met ? 'met' : 'missed') : (r.goal_met ? 'reached so far' : 'not reached yet')} ${final ? '' : '(the deadline has not passed)'}`.trim());
   if (r.cap_zat != null) {
     fact(dl, 'Hard cap', z(r.cap_zat));
     fact(dl, 'Over the hard cap', `${z(r.over_cap_zat)} in ${r.over_cap} payment(s), ${final ? 'refunded by their own tickets' : 'refunded by their own tickets at the close unless room frees up'}`);

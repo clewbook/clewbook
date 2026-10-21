@@ -42,6 +42,7 @@ Published at creation; immutable. `rules_id = BLAKE2b-256("ledgerlab_rules", can
 | `name` | string, optional | a public name chosen by the host, 1 to 60 characters, plain text: no leading, trailing or doubled space, no control, invisible or direction-changing characters, no `<` or `>`. It is part of the signed rules and so of the `rules_id`; it is shown wherever the campaign is shown, in place of the short id. Omitted when not set, and a campaign without it keeps the `rules_id` it always had. Pages show it as plain text only, and a contribute page refuses rules whose name breaks these limits. |
 | `early_close` | bool, optional | fundraiser only, and only ever `true`: the host may close before the deadline once the goal is met (§4, "Early close"). Left out when not allowed, so older campaigns keep their `rules_id`. An auction's rules are refused if they carry it. |
 | `cap_zat` | int, optional | fundraiser only: the hard cap, the most the campaign keeps; at least `goal_zat` and at least `min_contribution_zat` (§4, "Hard cap"). Left out when not set, so older campaigns keep their `rules_id`. An auction's rules are refused if they carry it. A relay or recount built before this field drops it, computes a different id and refuses the campaign |
+| `cancellable` | bool, optional | fundraiser only, and only ever `true`: the host may cancel at any time before the deadline, even once the goal is met, and refund everyone (§4, "Cancel and refund all"). Left out when not allowed, so every other campaign keeps its `rules_id`. An auction's rules are refused if they carry it. A relay or recount built before this field drops it, computes a different id and refuses the campaign |
 | `refund_fee_zat` | int | fee each ticket pays; refund = contribution − fee (10000, the ZIP 317 fee for a 1-in, 1-out Ironwood transaction) |
 | `min_contribution_zat` | int | smaller payments are not contributions (2 × refund fee) |
 | `campaign_ufvk` | string | raise only: the campaign account's unified full viewing key |
@@ -236,6 +237,25 @@ for that `nf` is an honest spend (a ticket re-issued within the same upgrade epo
   For every other campaign the range ends at the deadline, so a forged early close fails R2 and changes nothing else.
 - An auction can never close early: its host sees every bid and could pick a convenient moment.
 
+### Cancel and refund all (fundraisers whose rules carry `cancellable`)
+
+- Opt in, chosen when the campaign is made ("I may cancel and refund everyone"), so contributors know before they pay. Fundraisers only.
+- The host may cancel at any time up to the deadline, whatever the goal, including after the goal (or soft cap) is met. As for any close,
+  every pending ticket is issued first; then the host writes the close entry with outcome `"cancelled"` and `close_height` the chain height
+  of the cancel, and broadcasts every contribution's stored ticket. Nothing is kept and nothing is swept. Each contributor gets their
+  contribution back minus the network fee (`refund_fee_zat`), which is all they lose.
+- The cancel ends the contribution range at its height. A payment mined after it gets no ticket (no entry may follow a close); the host
+  sends it back on its own to the refund address in its message, minus the fee, and names the return on the list as a `late_return`
+  entry (the payment and the return transaction, no amount), as a Blind bid auction does for a late deposit (§9.5). A payment whose
+  message the host cannot open stays where it is.
+- The recount: R2 accepts a close with outcome `"cancelled"` only when the rules carry `cancellable` and only at or before the deadline; a
+  cancel on any other campaign, one after the deadline, or one not signed with the campaign's key fails R2 (and R7). `contribution_end` is
+  the cancel's height. R6 then requires every counted contribution to leave only by its own ticket (nothing is kept), and lists, for
+  information, the payments after the cancel not sent back yet. R7 requires the outcome `"cancelled"`. R3 checks each `late_return` entry
+  of a fundraiser: the campaign was cancelled, the payment it names has no ticket, and, once the payment is spent, it was spent by the
+  return the entry names.
+- A host-funded mode (the host pays the network fee so contributors get back every zatoshi) is planned for later.
+
 ### Hard cap (fundraisers whose rules carry `cap_zat`)
 
 - At the close, the contributions not taken back by their tickets are taken in chain order (height, then position in the block, then txid,
@@ -319,7 +339,9 @@ serves. Anyone may run one; several can mirror the same campaign. A relay compar
   (from the campaign's rules, registered first), with `seq` equal to the next number, `prev` equal
   to the previous entry's hash, a valid signature, and the exact canonical JSON bytes. A different
   entry for an already stored `seq` is refused (409); an identical one is accepted again (idempotent).
-- No entries after a `close` entry.
+- No entries after a `close` entry, except a settlement (uniform auction), a Blind bid auction's reveal and late returns, and a cancelled
+  fundraiser's late returns (§4, "Cancel and refund all"). A close with outcome `"cancelled"` is refused unless the rules carry
+  `cancellable`; a fundraiser's `late_return` is accepted only after such a close, and only for a payment the list does not name.
 - **Before it writes the close entry, the host issues every ticket that is still missing** (late, exactly as its watcher would have), because nothing but a settlement may be added afterwards and a payment without a ticket cannot be refunded. If a counted contribution still has no ticket after that, the host does not close: it stops before writing or sending anything and names the payments. A late ticket is visible to the recount (R4 compares the issue height with the payment's height plus K).
 - A ticket blob is accepted only if its `BLAKE2b-256("ledgerlab_blob", blob)` equals the `blob_hash`
   of a stored entry. Blobs are opaque ciphertext: the relay cannot read them.

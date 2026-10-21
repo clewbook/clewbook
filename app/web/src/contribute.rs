@@ -63,7 +63,7 @@ pub fn campaign_summary(rules_json: &str, rules_id: &str) -> Result<String, JsEr
         "min_zat": rules.min_contribution_zat, "min": zat_to_coin(rules.min_contribution_zat),
         "fee_zat": rules.refund_fee_zat, "fee": zat_to_coin(rules.refund_fee_zat),
         "pay_to": rules.pay_to, "campaign_ufvk": rules.campaign_ufvk,
-        "early_close": rules.allows_early_close(), "cap_zat": rules.cap_zat, "cap": rules.cap_zat.map(zat_to_coin),
+        "early_close": rules.allows_early_close(), "cancellable": rules.allows_cancel(), "cap_zat": rules.cap_zat, "cap": rules.cap_zat.map(zat_to_coin),
         "pricing": rules.pricing, "settle_by": rules.settle_by(), "settle_window": rules.settle_window.unwrap_or(rules.ticket_k), "reserve_zat": rules.reserve_zat, "reserve": rules.reserve_zat.map(zat_to_coin), "treasury_address": rules.treasury_address,
     });
     // a sealed bid auction only (other campaigns' summaries stay exactly as they were)

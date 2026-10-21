@@ -248,7 +248,7 @@ function render(s) {
   if (s.phase === 'closed') {
     const left = s.close_unfinished || [];
     // a close whose later steps did not all finish: one sentence, and the same button finishes them (nothing is sent twice)
-    explain.textContent = left.length ? `Closed, but ${left.join(', ')} did not finish yet.` : 'This campaign is closed.';
+    explain.textContent = left.length ? `${s.cancelled ? 'Cancelled' : 'Closed'}, but ${left.join(', ')} did not finish yet.` : s.cancelled ? 'Cancelled. Every contributor gets their money back, minus the network fee.' : 'This campaign is closed.';
     $('#next-title').textContent = 'Closed';
     btn.hidden = !left.length; btn.disabled = s.closing; btn.textContent = 'Try again';
   } else if (s.phase === 'open' && s.can_close_early) {
@@ -292,6 +292,10 @@ function render(s) {
   const tz = s.sealed && s.phase === 'closed' && s.self_check ? s.self_check.treasury_send_zat : 0;
   $('#treasury-send').hidden = !tz;
   if (tz) $('#treasury-line').textContent = `The treasury holds ${coin(s.self_check.treasury_zat)} ${s.ticker}. Send ${coin(tz)} ${s.ticker} (after the network fee) to your wallet:`;
+  // cancel and refund everyone (a fundraiser that opted in, before its deadline): two steps, three on mainnet
+  $('#cancel-box').hidden = !s.can_cancel;
+  if (!s.can_cancel) $('#cancel-confirm').hidden = true;
+  $('#cancel-mainnet-line').hidden = $('#cancel-mainnet-row').hidden = s.network !== 'main';
   list($('#close-log'), s.close_log || []);
   const words = { sent: 'sent, waiting', resent: 'resent, waiting', confirmed: 'confirmed', superseded: 'the coin was spent by another transaction', dead: 'could not be mined (network changed); being rebuilt' };
   const bl = $('#broadcast-list');
@@ -508,6 +512,18 @@ async function main() {
       say(out, `Sent. Transaction ${r.txid}`);
     } catch (e) { say(out, e.message); }
     btn.disabled = false;
+  });
+  $('#cancel-btn').addEventListener('click', () => { say($('#cancel-error'), ''); $('#cancel-mainnet').checked = false; $('#cancel-confirm').hidden = false; });
+  $('#cancel-no').addEventListener('click', () => { $('#cancel-confirm').hidden = true; });
+  $('#cancel-yes').addEventListener('click', async () => {
+    const main = current && current.network === 'main';
+    if (main && !$('#cancel-mainnet').checked) { say($('#cancel-error'), 'Tick the box first: on mainnet this sends real money back.'); return; }
+    const btn = $('#cancel-yes'); btn.disabled = true; say($('#cancel-error'), '');
+    try {
+      await api(`campaigns/${selected}/cancel`, { confirm: true, confirm_mainnet: main });
+      $('#cancel-confirm').hidden = true;
+      await refresh();
+    } catch (e) { say($('#cancel-error'), e.message); } finally { btn.disabled = false; }
   });
   $('#close-btn').addEventListener('click', () => {
     if (current && current.phase === 'closed') { onFinishClose(); return; } // "Try again": the address and the confirmation were given at the first close

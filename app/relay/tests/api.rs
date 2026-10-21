@@ -20,7 +20,7 @@ fn campaign(seed: u8) -> Campaign {
         v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(5_000_000), items: None,
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-        pay_to: None, early_close: None, cap_zat: None, sealed: None, name: None,
+        pay_to: None, early_close: None, cancellable: None, cap_zat: None, sealed: None, name: None,
         pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None, ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
     let id = hex::encode(rules.id().unwrap());
@@ -575,4 +575,60 @@ fn a_capped_campaign_is_accepted_with_the_same_id_and_its_cap_is_kept() {
     let back = r.rules(&c.id).unwrap();
     assert_eq!(back.cap_zat, Some(12_000_000), "the relay keeps the field");
     assert_eq!(hex::encode(back.id().unwrap()), c.id, "and the id it serves under is the one computed with the cap");
+}
+
+/// A fundraiser that opted in to cancel and refund all (SPEC §4.4), as the host makes it.
+fn cancellable(seed: u8) -> Campaign {
+    let mut c = campaign(seed);
+    c.rules.cancellable = Some(true);
+    c.id = hex::encode(c.rules.id().unwrap());
+    c
+}
+
+fn cancel_entry(c: &Campaign, height: u32) -> Entry {
+    let mut e = Entry::new(&c.id, "close");
+    e.close = Some(Close { close_height: height, outcome: "cancelled".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
+    e
+}
+
+fn sent_back(c: &Campaign, n: u8) -> Entry {
+    let mut e = Entry::new(&c.id, "late_return");
+    e.contribution = Some(Contribution { txid: hex::encode([n; 32]), action: 0, nf: hex::encode([n + 100; 32]), height: 150, value_zat: None, amount_commit: None });
+    e.refund = Some(hex::encode([n + 70; 32]));
+    e
+}
+
+#[test]
+fn a_fundraiser_that_opted_in_can_be_cancelled_and_payments_after_the_cancel_are_sent_back() {
+    let (_d, r, _) = relay();
+    let c = cancellable(7);
+    r.register(&c.rules).unwrap();
+    assert_eq!(r.rules(&c.id).unwrap(), c.rules, "the opt in is kept in the rules the relay serves");
+    // before the cancel no payment is sent back: it gets its ticket
+    let early = c.chain(vec![c.issue(1, b"a"), sent_back(&c, 2)]);
+    r.put_entry(&c.id, &early[0]).unwrap();
+    assert_eq!(status(&r.put_entry(&c.id, &early[1]).unwrap_err()), 400);
+    // the cancel, then: a payment the list never named is sent back; one it names is refunded by its ticket; no new ticket
+    let ledger = c.chain(vec![c.issue(1, b"a"), cancel_entry(&c, 150), sent_back(&c, 2), sent_back(&c, 1), c.issue(3, b"c")]);
+    r.put_entry(&c.id, &ledger[1]).unwrap();
+    r.put_entry(&c.id, &ledger[2]).unwrap();
+    let named = c.chain(vec![c.issue(1, b"a"), cancel_entry(&c, 150), sent_back(&c, 2), sent_back(&c, 1)]);
+    assert_eq!(status(&r.put_entry(&c.id, &named[3]).unwrap_err()), 400, "a listed payment is refunded by its ticket, never sent back");
+    let after = c.chain(vec![c.issue(1, b"a"), cancel_entry(&c, 150), sent_back(&c, 2), c.issue(3, b"c")]);
+    assert_eq!(status(&r.put_entry(&c.id, &after[3]).unwrap_err()), 409, "no ticket after the cancel");
+}
+
+#[test]
+fn a_campaign_that_did_not_opt_in_cannot_be_cancelled_or_send_payments_back() {
+    let (_d, r, _) = relay();
+    let c = campaign(8);
+    r.register(&c.rules).unwrap();
+    let ledger = c.chain(vec![c.issue(1, b"a"), cancel_entry(&c, 150)]);
+    r.put_entry(&c.id, &ledger[0]).unwrap();
+    assert_eq!(status(&r.put_entry(&c.id, &ledger[1]).unwrap_err()), 400);
+    let mut close = Entry::new(&c.id, "close");
+    close.close = Some(Close { close_height: 205, outcome: "goal_missed".into(), winners: None, ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
+    let ledger = c.chain(vec![c.issue(1, b"a"), close, sent_back(&c, 2)]);
+    r.put_entry(&c.id, &ledger[1]).unwrap();
+    assert_eq!(status(&r.put_entry(&c.id, &ledger[2]).unwrap_err()), 400);
 }

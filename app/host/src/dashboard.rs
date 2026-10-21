@@ -365,6 +365,8 @@ fn create_campaign(st: &State, body: &Value) -> Result<Value> {
     let cfg = RunConfig { backend: st.cfg.backend.clone(), devtool: st.cfg.devtool.clone(), wallet, identity, min_confirmations: None };
     // fundraisers only: the host may close before the deadline once the goal is met (an auction never can)
     let early_close = mode == "raise" && body["early_close"].as_bool() == Some(true);
+    // the setup page's "I may cancel and refund everyone" (fundraisers only; part of the signed rules)
+    let cancellable = mode == "raise" && body["cancellable"].as_bool() == Some(true);
     // fundraisers only: an optional hard cap, at least the goal (checked before anything is created; a cap below twice the goal is allowed, with a warning)
     let cap_zat = match (mode.as_str(), body.get("cap_zat")) {
         (_, None | Some(Value::Null)) => None,
@@ -389,7 +391,7 @@ fn create_campaign(st: &State, body: &Value) -> Result<Value> {
         ("auction", Some(other)) => bail!("Unknown auction pricing {other:?}."),
         _ => None,
     };
-    create(&dir, cfg, &st.cfg.network, &mode, goal, items, deadline_in, &relays, Some(min), uniform, ticket_k, crate::MainnetCheck { confirmed, nu7_height: st.cfg.nu7_mainnet_height }, name, early_close, cap_zat)
+    create(&dir, cfg, &st.cfg.network, &mode, goal, items, deadline_in, &relays, Some(min), uniform, ticket_k, crate::MainnetCheck { confirmed, nu7_height: st.cfg.nu7_mainnet_height }, name, early_close, cap_zat, cancellable)
         .map_err(|e| anyhow!("The campaign could not be created: {}", plain_error(&e)))?;
     let c = load_campaign(&dir)?;
     let id = c.id.clone();
@@ -616,6 +618,10 @@ fn status(st: &State, c: &Campaign) -> Value {
         "pay_to": rules.pay_to, "tip": tip, "blocks_left": blocks_left,
         "phase": phase, "outcome": closed.as_ref().map(|c| c.outcome.clone()),
         "early_close": rules.allows_early_close(),
+        // cancel and refund all (SPEC §4.4): opted in, still possible (before the deadline, not closed), or done
+        "cancellable": rules.allows_cancel(),
+        "can_cancel": rules.allows_cancel() && closed.is_none() && tip.is_some_and(|t| t <= rules.deadline_height),
+        "cancelled": ll_core::recount::cancel_of(rules, &entries).is_some(),
         "cap_zat": rules.cap_zat, "over_cap": a.over_cap.len(), "over_cap_zat": a.over_cap.iter().map(|n| n.value_zat).sum::<u64>(),
         "pricing": rules.pricing.clone().unwrap_or_else(|| if rules.is_auction() { "pay_your_bid".into() } else { String::new() }),
         "closed_early": closed.as_ref().is_some_and(|c| c.close_height <= rules.deadline_height),
@@ -652,6 +658,40 @@ fn status(st: &State, c: &Campaign) -> Value {
 
 fn run_relays(run: &Run) -> Vec<String> {
     run.relays()
+}
+
+/// "Cancel and refund everyone" (SPEC §4.4): only a fundraiser that opted in, before its deadline; on the main network the page's second
+/// confirmation is required. A cancel that stopped in the middle is finished by pressing again (nothing is sent twice).
+fn cancel_campaign(c: &Campaign, body: &Value) -> Result<Value> {
+    if body["confirm"] != Value::Bool(true) {
+        bail!("Confirm the cancel first.");
+    }
+    let entries = c.run.ledger().load().unwrap_or_default();
+    if close_entry(&entries).is_none() {
+        crate::mainnet::require_confirmation(&c.run.rules.network, body["confirm_mainnet"].as_bool() == Some(true))?;
+    }
+    if c.closing.swap(true, Ordering::SeqCst) {
+        bail!("Closing is already in progress.");
+    }
+    let result = {
+        let mut b = lock(&c.backend);
+        crate::cancel(&c.run, b.as_mut())
+    };
+    c.closing.store(false, Ordering::SeqCst);
+    crate::sync_relays(&c.run);
+    match result {
+        Ok(log) => {
+            *lock(&c.last_close) = log.clone();
+            Ok(json!({ "ok": true, "log": log }))
+        }
+        Err(e) => {
+            let cancelled = ll_core::recount::cancel_of(&c.run.rules, &c.run.ledger().load().unwrap_or_default()).is_some();
+            if cancelled {
+                bail!("Cancelled, but not every refund went out yet: {}. Press again to finish; nothing is sent twice.", plain_error(&e))
+            }
+            bail!("Not cancelled: {}. Nothing was written or sent, so nothing was lost.", plain_error(&e))
+        }
+    }
 }
 
 fn close_campaign(c: &Campaign, body: &Value) -> Result<Value> {
@@ -939,6 +979,13 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
                 // under the campaign's lock, so the watcher's treasury sync never runs at the same time
                 Some(c) => match { let _g = lock(&c.backend); crate::sealed_host::send_treasury(&c.run, body["address"].as_str().unwrap_or_default()) } {
                     Ok(txid) => json_response(200, json!({ "ok": true, "txid": txid })),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "cancel"]) => match find(st, id) {
+                Some(c) => match cancel_campaign(&c, &body) {
+                    Ok(v) => json_response(200, v),
                     Err(e) => fail(400, e),
                 },
                 None => fail(404, anyhow!("No such campaign.")),

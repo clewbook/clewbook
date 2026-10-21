@@ -407,7 +407,7 @@ function owedRefund() {
     }
     return true;
   }
-  if (campaign.mode === 'raise') return c.close.outcome === 'goal_missed';
+  if (campaign.mode === 'raise') return c.close.outcome === 'goal_missed' || c.close.outcome === 'cancelled';
   return !(c.close.winners || []).includes(state.ticket.nf);
 }
 
@@ -458,7 +458,7 @@ function renderAbout() {
   if (tip != null) {
     const closeE = view.entries.find((e) => e.kind === 'close');
     const rt = state && state.refundTrack;
-    const refunding = !!closeE && closeE.close && closeE.close.outcome === 'goal_missed' && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
+    const refunding = !!closeE && closeE.close && (closeE.close.outcome === 'goal_missed' || closeE.close.outcome === 'cancelled') && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
     $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding, soft: campaign.mode === 'raise' && campaign.cap_zat != null }); // a capped fundraiser says soft cap, as on the campaign page
     // the same line as the campaign page (public.js metaLine); the short id once the page is the closed page
     $('#status-text').textContent = metaLine(campaign, { id: cfg.id, withId: closedView(), closed });
@@ -875,9 +875,10 @@ function renderAll() {
  *  two to be mined. One mined after the deadline is not counted, not ticketed and not refunded (README, limits). */
 const CUTOFF_BLOCKS = 10;
 const blocksLeft = () => (campaign && tip != null ? campaign.deadline_height - tip : null);
-/** The close height of a fundraiser that closed early (its rules allow it once the goal is met), or null. Payments after it do not count. */
+/** The close height of a fundraiser that closed early (its rules allow it once the goal is met) or that its host cancelled (its rules
+ * allow it), or null. Payments after it do not count. */
 const closedEarlyAt = () => {
-  const c = campaign && campaign.early_close && view.entries.find((e) => e.kind === 'close');
+  const c = campaign && (campaign.early_close || campaign.cancellable) && view.entries.find((e) => e.kind === 'close' && (campaign.early_close || (e.close && e.close.outcome === 'cancelled')));
   return c && c.close && c.close.close_height <= campaign.deadline_height ? c.close.close_height : null;
 };
 /** Open, but too close to the deadline to start a new payment. */

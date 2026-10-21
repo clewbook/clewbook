@@ -88,6 +88,8 @@ pub struct Analysis {
     /// A fundraiser with a hard cap: the contributions not taken back that do not fit under the cap (chain order), refunded whole by their
     /// own ticket at the close. Empty for every campaign without a cap.
     pub over_cap: Vec<ChainNote>,
+    /// A fundraiser its host cancelled (opt in, SPEC §4.4): nothing is kept, every contribution goes back by its own ticket.
+    pub cancelled: bool,
 }
 
 /// Uniform auction (SPEC §8), computed from public data by the host and the recount alike.
@@ -135,13 +137,21 @@ pub fn replayed_keys_until(rules: &Rules, end: u32, notes: &[ChainNote], rejecte
 }
 
 /// The last height whose payments count as contributions: the deadline, or the close height of a fundraiser that allows closing early
-/// and was closed early (SPEC §4). For every other campaign, including one whose host wrote an early close it was not allowed (R2
-/// fails then), it is the deadline, so nothing else about such a campaign changes.
+/// and was closed early (SPEC §4), or of a fundraiser that allows cancelling and was cancelled (SPEC §4.4). For every other campaign,
+/// including one whose host wrote an early close or a cancel it was not allowed (R2 fails then), it is the deadline, so nothing else about
+/// such a campaign changes.
 pub fn contribution_end(rules: &Rules, ledger: &[Entry]) -> u32 {
     match close_entry(ledger) {
         Some(c) if rules.allows_early_close() && c.close_height <= rules.deadline_height => c.close_height,
+        _ if cancel_of(rules, ledger).is_some() => cancel_of(rules, ledger).map_or(rules.deadline_height, |c| c.close_height),
         _ => rules.deadline_height,
     }
+}
+
+/// The host's cancel, when it counts (SPEC §4.4): the close entry says "cancelled", the campaign's rules allow it, and it was written by the
+/// deadline. A cancel on any other campaign is not one: R2 fails and the campaign is judged as if it were an ordinary close.
+pub fn cancel_of<'a>(rules: &Rules, ledger: &'a [Entry]) -> Option<&'a Close> {
+    close_entry(ledger).filter(|c| c.outcome == "cancelled" && rules.allows_cancel() && c.close_height <= rules.deadline_height)
 }
 
 pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNote], challenges: &[Challenge]) -> Analysis {
@@ -306,6 +316,11 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
         if met {
             a.keep = active.iter().filter_map(|n| n.nf.clone()).collect();
         }
+    }
+    // cancelled: whatever the goal, nothing is kept; every contribution goes back by its own ticket
+    if cancel_of(rules, ledger).is_some() {
+        a.cancelled = true;
+        a.keep.clear();
     }
     a
 }
@@ -532,7 +547,14 @@ pub fn recount_with(
     if ledger.iter().filter(|e| e.kind == "close").count() > 1 {
         r2.push("more than one close entry".into());
     }
-    if let Some(c) = close {
+    if let Some(c) = close.filter(|c| c.outcome == "cancelled") {
+        // a cancel (SPEC §4.4): only a fundraiser whose rules allow it, and only by the deadline
+        if !rules.allows_cancel() {
+            r2.push(format!("cancelled at block {}, but this campaign's rules do not allow cancelling", c.close_height));
+        } else if c.close_height > rules.deadline_height {
+            r2.push(format!("cancelled at block {}, after the deadline, block {}; a cancel must come by the deadline", c.close_height, rules.deadline_height));
+        }
+    } else if let Some(c) = close {
         if c.close_height <= rules.deadline_height {
             // early: only a fundraiser whose rules allow it, and only as "goal met" (R7 checks the goal really was met by then)
             if !rules.allows_early_close() {
@@ -543,6 +565,10 @@ pub fn recount_with(
         }
     }
     let info2 = match close {
+        Some(c) if cancel_of(rules, ledger).is_some() => vec![format!(
+            "cancelled by the host at block {} ({} blocks before the deadline), which this campaign's rules allow: every contribution goes back by its own ticket, minus the network fee, and payments after block {} do not count",
+            c.close_height, rules.deadline_height - c.close_height, c.close_height
+        )],
         Some(c) if rules.allows_early_close() && c.close_height <= rules.deadline_height => vec![format!(
             "closed early at block {} ({} blocks before the deadline), which this campaign's rules allow once the goal is met; payments after block {} do not count",
             c.close_height, rules.deadline_height - c.close_height, c.close_height
@@ -554,7 +580,8 @@ pub fn recount_with(
     // a fundraiser closed early (allowed by its rules) is closed from its close height on; payments after it do not count
     let end = contribution_end(rules, ledger);
     let early_closed = rules.allows_early_close() && close.is_some_and(|c| c.close_height <= rules.deadline_height);
-    let closed = tip > rules.deadline_height || early_closed;
+    let cancelled = cancel_of(rules, ledger).is_some();
+    let closed = tip > rules.deadline_height || early_closed || cancelled;
     let phase = if closed { "closed" } else { "open" };
     if !chain_visible {
         for (id, title) in [
@@ -600,6 +627,7 @@ pub fn recount_with(
 
     // R3: entries point at real payments with matching details.
     let mut r3 = vec![];
+    let ticketed: BTreeSet<&str> = ledger.iter().filter(|e| e.ticket.is_some()).filter_map(Entry::nf).collect();
     for e in ledger.iter().filter(|e| e.kind != "close" && e.kind != "settle") {
         let Some(c) = &e.contribution else {
             r3.push(format!("entry {}: {} without a contribution", e.seq, e.kind));
@@ -640,6 +668,20 @@ pub fn recount_with(
                     }
                 } else if c.value_zat != Some(n.value_zat) {
                     r3.push(format!("entry {}: amount differs from the chain", e.seq));
+                }
+            }
+            // a cancelled fundraiser (SPEC §4.4): a payment the list never named, sent back by the host after the cancel
+            "late_return" if !rules.is_sealed() => {
+                if !cancelled {
+                    r3.push(format!("entry {}: a payment sent back, but the campaign was not cancelled", e.seq));
+                }
+                if ticketed.contains(c.nf.as_str()) {
+                    r3.push(format!("entry {}: sends back a payment that has a ticket (it is refunded by its ticket)", e.seq));
+                }
+                if let (Some(s), Some(back)) = (&n.spent_by, &e.refund) {
+                    if &s.txid != back {
+                        r3.push(format!("entry {}: the payment was spent by {}, not by the return the list names ({back})", e.seq, s.txid));
+                    }
                 }
             }
             other => r3.push(format!("entry {}: unknown kind {other}", e.seq)),
@@ -708,6 +750,24 @@ pub fn recount_with(
             format!("{n} payment(s) over the cap so far: each is refunded by its own ticket at the close, unless earlier contributions are taken back first")
         });
     }
+    // a cancelled fundraiser: payments that reached it after the cancel and are not sent back yet (information: the recount cannot open their
+    // messages, so it cannot tell whether one is for this campaign)
+    if let Some(c) = cancel_of(rules, ledger) {
+        let named: BTreeSet<&str> = ledger.iter().filter_map(Entry::nf).collect();
+        let waiting: Vec<String> = notes
+            .iter()
+            .filter(|n| !n.is_change && n.spent_by.is_none() && n.memo_text.as_deref().is_some_and(is_payload_shaped))
+            .filter(|n| n.height.is_some_and(|h| h > c.close_height) && n.nf.as_deref().is_some_and(|nf| !named.contains(nf)))
+            .map(|n| format!("{}:{} (block {})", n.txid, n.action, n.height.unwrap_or(0)))
+            .collect();
+        if !waiting.is_empty() {
+            info6.push(format!("{} payment(s) after the cancel not sent back yet: {}", waiting.len(), waiting.join(", ")));
+        }
+        let back = ledger.iter().filter(|e| e.kind == "late_return").count();
+        if back > 0 {
+            info6.push(format!("{back} payment(s) after the cancel sent back, minus the fee"));
+        }
+    }
     results.push(rule("R6", "contributions not kept leave only through their tickets", r6, info6));
 
     // R7: the declared outcome matches the recomputed one.
@@ -728,7 +788,7 @@ pub fn recount_with(
                     r7.push(format!("auction closed with outcome {:?}", c.outcome));
                 }
             } else {
-                let expect = if a.goal_met == Some(true) { "goal_met" } else { "goal_missed" };
+                let expect = if a.cancelled { "cancelled" } else if a.goal_met == Some(true) { "goal_met" } else { "goal_missed" };
                 if c.outcome != expect {
                     r7.push(format!("declared {:?} but the contributions say {expect}", c.outcome));
                 }

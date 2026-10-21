@@ -58,7 +58,7 @@ fn sx_with(pricing: &str, items: u32, open_payouts: bool) -> Sx {
         v: 1, network: "test".into(), mode: "sealed_auction".into(), goal_zat: None, items: Some(items),
         start_height: 100, deadline_height: DEADLINE, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: FEE, min_contribution_zat: SMALL, campaign_ufvk: None, ufvk_hash: Some(ufvk_hash(UFVK)),
-        pay_to: None, early_close: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: Some(RESERVE),
+        pay_to: None, early_close: None, cancellable: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: Some(RESERVE),
         treasury_address: Some("utest1treasury".into()), treasury_ufvk: Some("uviewtest1treasury".into()),
         sealed: Some(Sealed {
             tranches_zat: vec![SMALL, BIG], pricing: pricing.into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: ROUND,

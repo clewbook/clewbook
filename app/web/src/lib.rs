@@ -384,6 +384,7 @@ impl Recount {
             },
             "totals_visible": r.goal_met.is_some() || r.winners.is_some(),
             "goal_zat": rules.goal_zat, "goal_met": r.goal_met, "winners": r.winners, "warnings": r.warnings,
+            "cancelled": ll_core::recount::cancel_of(&rules, &ledger).is_some(),
             "auction": auction,
             "fingerprint": fingerprint,
         });

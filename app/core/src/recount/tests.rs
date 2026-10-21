@@ -28,7 +28,7 @@ fn fx(mode: &str) -> Fx {
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000,
         campaign_ufvk: (!auction).then(|| UFVK.into()), ufvk_hash: auction.then(|| ufvk_hash(UFVK)),
-        pay_to: None, early_close: None, cap_zat: None, sealed: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
+        pay_to: None, early_close: None, cancellable: None, cap_zat: None, sealed: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
         name: None,
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
@@ -911,4 +911,110 @@ fn a_copy_below_the_minimum_mined_first_does_not_use_up_the_message() {
     // a host that writes nothing at all can no longer keep the real payment as a donation unnoticed
     let silent = f.run(&f.ledger(vec![]), &[victim, copy], &[], 150);
     assert_eq!(failing(&silent), vec!["R4"], "the real payment has no ticket");
+}
+
+// ---- cancel and refund all (SPEC §4.4) ----
+
+/// A fundraiser that opted in to cancel and refund all (goal 2,000,000; deadline 200; K 10).
+fn cancel_fx() -> Fx {
+    let mut f = fx("raise");
+    f.rules.cancellable = Some(true);
+    f.id = hex::encode(f.rules.id().unwrap());
+    f
+}
+
+fn late_return(f: &Fx, n: &ChainNote, back: &str) -> Entry {
+    let mut e = Entry::new(&f.id, "late_return");
+    e.contribution = Some(Contribution { txid: n.txid.clone(), action: n.action, nf: n.nf.clone().unwrap(), height: n.height.unwrap(), value_zat: None, amount_commit: None });
+    e.refund = Some(back.into());
+    e
+}
+
+#[test]
+fn a_cancel_after_the_goal_is_met_passes_once_every_contribution_is_refunded_by_its_ticket() {
+    let f = cancel_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 600_000, 120, f.good_memo(2));
+    let c = f.note(3, 700_000, 130, f.good_memo(3));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), f.entry("issue", &c), close_at(&f, 150, "cancelled")]);
+    // refunds on their way: closed from the cancel on, nothing fails, R6 says they are awaited
+    let r = f.run(&l, &[a.clone(), b.clone(), c.clone()], &[], 152);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!(r.phase, "closed");
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("cancelled by the host at block 150")), "{:?}", by_id(&r, "R2").details);
+    // every refund mined, each by its own ticket: all pass, nothing kept
+    let refunded = [spent(a.clone(), &ticket_of(&a), 152), spent(b.clone(), &ticket_of(&b), 152), spent(c.clone(), &ticket_of(&c), 153)];
+    let r = f.run(&l, &refunded, &[], 160);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!((r.totals.refunded_zat, r.totals.kept_zat), (2_800_000, 0));
+}
+
+#[test]
+fn a_cancelled_campaign_that_keeps_a_contribution_fails_r6() {
+    let f = cancel_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let b = f.note(2, 600_000, 120, f.good_memo(2));
+    let l = f.ledger(vec![f.entry("issue", &a), f.entry("issue", &b), close_at(&f, 150, "cancelled")]);
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 152), spent(b.clone(), "sweep", 152)], &[], 160);
+    assert_eq!(failing(&r), vec!["R6"], "the goal was met, but a cancel keeps nothing");
+}
+
+#[test]
+fn a_cancel_on_a_campaign_without_the_field_fails_r2_and_r7() {
+    let f = fx("raise"); // no cancellable in the rules
+    let a = f.note(1, 2_500_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled")]);
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 152)], &[], 155);
+    let fails = failing(&r);
+    assert!(fails.contains(&"R2") && fails.contains(&"R7"), "{fails:?}");
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("rules do not allow cancelling")), "{:?}", by_id(&r, "R2").details);
+}
+
+#[test]
+fn a_forged_cancel_not_signed_by_the_host_fails_r2() {
+    let f = cancel_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let mut l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled")]);
+    // someone else signs the cancel (the host's list is extended by a stranger)
+    let stranger = CampaignSecrets::generate(); // another key than the host's
+    l[1].sign(&stranger.ledger_key().unwrap()).unwrap();
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 152)], &[], 155);
+    assert!(failing(&r).contains(&"R2"), "{:?}", failing(&r));
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("bad signature")), "{:?}", by_id(&r, "R2").details);
+}
+
+#[test]
+fn a_cancel_after_the_deadline_fails_r2() {
+    let f = cancel_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 205, "cancelled")]);
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 206)], &[], 210);
+    assert!(failing(&r).contains(&"R2"), "{:?}", failing(&r));
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("after the deadline")), "{:?}", by_id(&r, "R2").details);
+}
+
+#[test]
+fn a_payment_after_the_cancel_does_not_count_and_is_sent_back_by_the_return_on_the_list() {
+    let f = cancel_fx();
+    let a = f.note(1, 1_500_000, 110, f.good_memo(1));
+    let late = f.note(4, 300_000, 160, f.good_memo(4)); // after the cancel at 150
+    let l = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled"), late_return(&f, &late, "back-1")]);
+    let r = f.run(&l, &[spent(a.clone(), &ticket_of(&a), 152), spent(late.clone(), "back-1", 162)], &[], 170);
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    assert_eq!(r.totals.contributions, 1, "the payment after the cancel is not a contribution");
+    assert!(by_id(&r, "R6").details.iter().any(|d| d.contains("1 payment(s) after the cancel sent back")), "{:?}", by_id(&r, "R6").details);
+    // not yet sent back: information, not a failure
+    let l2 = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled")]);
+    let r = f.run(&l2, &[spent(a.clone(), &ticket_of(&a), 152), late.clone()], &[], 170);
+    assert!(r.all_pass() && by_id(&r, "R6").details.iter().any(|d| d.contains("after the cancel not sent back yet")), "{:?}", by_id(&r, "R6").details);
+    // a return that names a payment with a ticket, or that is not what spent the payment, fails R3; a return without a cancel fails R3
+    let l3 = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled"), late_return(&f, &a, &ticket_of(&a))]);
+    assert!(failing(&f.run(&l3, &[spent(a.clone(), &ticket_of(&a), 152)], &[], 170)).contains(&"R3"));
+    let l4 = f.ledger(vec![f.entry("issue", &a), close_at(&f, 150, "cancelled"), late_return(&f, &late, "back-1")]);
+    assert!(failing(&f.run(&l4, &[spent(a.clone(), &ticket_of(&a), 152), spent(late.clone(), "host-wallet", 162)], &[], 170)).contains(&"R3"));
+    let g = fx("raise");
+    let ga = g.note(1, 2_500_000, 110, g.good_memo(1));
+    let gl = g.note(4, 300_000, 160, g.good_memo(4));
+    let l5 = g.ledger(vec![g.entry("issue", &ga), late_return(&g, &gl, "back-1")]);
+    assert!(failing(&g.run(&l5, &[ga.clone(), spent(gl.clone(), "back-1", 162)], &[], 170)).contains(&"R3"));
 }

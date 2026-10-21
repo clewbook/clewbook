@@ -709,3 +709,41 @@ fn a_host_may_suggest_its_name_and_reserved_labels_bind_only_the_host() {
     assert!(job::approve(&c, &pk_n, None).unwrap_err().to_string().contains("suggested no name: give one with --label"));
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_fundraiser_that_opted_in_to_cancel_and_refund_all_lists() {
+    // its rules carry "cancellable": true (SPEC §4.4): the listing reads them with the same id the host and the relay give them
+    let root = scratch("cancellable");
+    let (_server, relay) = ll_relay::spawn(&root.join("relay"), "127.0.0.1:0").unwrap();
+    let campaigns = root.join("campaigns");
+    let runs = root.join("host");
+    let pk = host::init_key(&runs).unwrap();
+    let data = root.join("listing");
+    let c = cfg(&data);
+    let (_, plain) = campaign(&campaigns, "Garden Fund", std::slice::from_ref(&relay), 5_000_000);
+    let mut v: serde_json::Value = serde_json::from_str(&plain).unwrap();
+    v["cancellable"] = serde_json::json!(true);
+    v["name"] = serde_json::json!("Cancellable Fund");
+    let rules: ll_core::rules::Rules = serde_json::from_value(v).unwrap();
+    assert!(rules.allows_cancel());
+    let id = hex::encode(rules.id().unwrap());
+    let text = ll_core::canon::to_canonical(&rules).unwrap();
+    assert!(text.contains("\"cancellable\":true"));
+    // the campaign folder as the host leaves it, with the opted in rules
+    let s: ll_core::keys::CampaignSecrets = {
+        let first = std::fs::read_dir(&campaigns).unwrap().next().unwrap().unwrap().path();
+        serde_json::from_slice(&std::fs::read(first.join("secrets.json")).unwrap()).unwrap()
+    };
+    let dir = campaigns.join(&id[..8]);
+    std::fs::create_dir_all(dir.join("private")).unwrap();
+    std::fs::write(dir.join("rules.json"), &text).unwrap();
+    std::fs::write(dir.join("secrets.json"), serde_json::to_vec(&s).unwrap()).unwrap();
+    std::fs::write(dir.join("private/relays"), &relay).unwrap();
+    register(&relay, &id, &text);
+    job::approve(&c, &pk, Some("Garden Collective")).unwrap();
+    submit_record(&c, &runs, &dir).unwrap();
+    let st = job::run_pass(&c, TIP).unwrap();
+    assert_eq!(state_of(&st, &id).0, State::Listed, "{:?}", state_of(&st, &id));
+    assert!(listed(&c).contains(&id));
+    let _ = std::fs::remove_dir_all(&root);
+}

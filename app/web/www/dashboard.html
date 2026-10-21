@@ -72,6 +72,18 @@
         <div class="do"><button type="button" id="close-yes">Close now</button>
         <button type="button" id="close-no" class="secondary">Not now</button></div>
       </div>
+      <div id="cancel-box" hidden>
+        <button type="button" class="secondary" id="cancel-btn">Cancel and refund everyone</button>
+        <div id="cancel-confirm" class="notice warn" hidden>
+          <p>Send every contributor their money back? This ends the campaign.</p>
+          <p class="muted">Each gets their contribution back by its own ticket, minus the network fee.</p>
+          <p class="dn-danger" id="cancel-mainnet-line" hidden>Zcash Mainnet. Cancelling cannot be undone.</p>
+          <label class="confirm-line" id="cancel-mainnet-row" hidden><input type="checkbox" id="cancel-mainnet"> I understand this sends real money back and ends the campaign</label>
+          <p id="cancel-error" class="notice bad" hidden></p>
+          <div class="do"><button type="button" id="cancel-yes">Yes, refund everyone</button>
+          <button type="button" id="cancel-no" class="secondary">Not now</button></div>
+        </div>
+      </div>
       <ul id="close-log" class="plainlist"></ul>
       <div id="treasury-send" hidden>
         <p id="treasury-line"></p>

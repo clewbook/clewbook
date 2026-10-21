@@ -164,7 +164,7 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
         treasury_address: Some(ll_core::receiver::to_standard(&a.treasury_address)?),
         treasury_ufvk: Some(a.treasury_ufvk.clone()),
         name,
-        early_close: None,
+        early_close: None, cancellable: None,
         cap_zat: None,
         sealed: Some(sealed),
         ledger_pubkey: secrets.ledger_pubkey_hex()?,
@@ -312,26 +312,73 @@ fn return_late(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote],
             Ok(_) => { println!("late payment {}:{} carries a memo for another auction; it stays", n.txid, n.action); continue; }
             Err(e) => { println!("late payment {}:{} has no refund address the host can read ({e}); it stays", n.txid, n.action); continue; }
         };
-        let owner = format!("late:{nf}");
-        // a ticket that was started but never built may have left its lock (the list names no ticket for this note)
-        let _ = backend.unlock(&n.txid, n.action, &format!("ticket:{nf}"));
-        backend.lock(&n.txid, n.action, &owner, LOCK_FOREVER)?;
-        let (pay_receiver, to) = ticket_receiver(backend, &r.network, p.refund_receiver)?;
-        let back = n.value_zat - fee;
         // SPEC 9.1, open_payouts: made with the key the payer's page works out on its own, so the page and the recount see who it pays
         let ovk = payment_key(run, &p.enc_pubkey, &nf, payout::RETURN)?;
-        let unsigned = backend.build(&SpendRequest { to_address: to, value_zat: back, lock_owners: vec![owner], no_expiry: true, expiry_height: None, also_pay: vec![], ovk: Some(ovk) })?;
-        let signed = backend.sign(&unsigned)?;
-        ticket::check_and_extract(&signed, &Expect { spends: BTreeMap::from([(hex32(&nf)?, n.value_zat)]), receiver: &pay_receiver, value_zat: back, no_expiry: true, also: vec![] })?;
-        let txid = send_tracked(run, backend, tip, "late_return", &format!("late deposit {} sent back", &nf[..8]), &signed, vec![nf.clone()], &mut log)?;
-        let mut e = Entry::new(&run.rules_id, "late_return");
-        e.contribution = Some(ledger::Contribution { txid: n.txid.clone(), action: n.action, nf: nf.clone(), height: h, value_zat: None, amount_commit: None });
-        e.refund = Some(txid.clone());
-        // the hash of the payment's memo: the page that made the payment finds its own return by it (the memo itself stays private)
-        e.blob_hash = Some(ledger::blob_hash(memo_text.as_bytes()));
-        run.append(e)?;
+        let txid = send_back(run, backend, tip, &n, p.refund_receiver, Some(ovk), &memo_text, &format!("late deposit {} sent back", &nf[..8]), &mut log)?;
         let why = if late { format!("a payment too late to bid, the deadline is {}", r.deadline_height) } else if refused { "a payment the host rejected".to_string() } else { "a deposit that never got its tickets".to_string() };
         println!("payment {} (mined in block {h}: {why}) sent back, minus the {} fee: {txid}", &nf[..12], r.amount(fee));
+        sent += 1;
+    }
+    Ok(sent)
+}
+
+/// Sends payment `n` back to `refund_receiver`, minus the network fee (the refund fee of the rules), checked before it is sent, and names the
+/// return on the public list (kind "late_return", no amount, the hash of the payment's memo so the payer's page finds it). Used for a Blind
+/// bid auction's late or rejected deposits and for the payments that reach a cancelled fundraiser after the cancel. Returns the txid.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn send_back(run: &Run, backend: &mut dyn WalletBackend, tip: &backend::ChainTip, n: &ChainNote, refund_receiver: [u8; 43], ovk: Option<[u8; 32]>, memo_text: &str, label: &str, log: &mut Vec<String>) -> Result<String> {
+    let nf = n.nf.clone().ok_or_else(|| anyhow!("a payment without a nullifier"))?;
+    let back = n.value_zat.checked_sub(run.rules.refund_fee_zat).filter(|v| *v > 0).ok_or_else(|| anyhow!("nothing is left after the fee"))?;
+    let owner = format!("late:{nf}");
+    // a ticket that was started but never built may have left its lock (the list names no ticket for this note)
+    let _ = backend.unlock(&n.txid, n.action, &format!("ticket:{nf}"));
+    backend.lock(&n.txid, n.action, &owner, LOCK_FOREVER)?;
+    let (pay_receiver, to) = ticket_receiver(backend, &run.rules.network, refund_receiver)?;
+    let unsigned = backend.build(&SpendRequest { to_address: to, value_zat: back, lock_owners: vec![owner], no_expiry: true, expiry_height: None, also_pay: vec![], ovk })?;
+    let signed = backend.sign(&unsigned)?;
+    ticket::check_and_extract(&signed, &Expect { spends: BTreeMap::from([(hex32(&nf)?, n.value_zat)]), receiver: &pay_receiver, value_zat: back, no_expiry: true, also: vec![] })?;
+    let txid = send_tracked(run, backend, tip, "late_return", label, &signed, vec![nf.clone()], log)?;
+    let mut e = Entry::new(&run.rules_id, "late_return");
+    e.contribution = Some(ledger::Contribution { txid: n.txid.clone(), action: n.action, nf, height: n.height.unwrap_or(0), value_zat: None, amount_commit: None });
+    e.refund = Some(txid.clone());
+    e.blob_hash = Some(ledger::blob_hash(memo_text.as_bytes()));
+    run.append(e)?;
+    Ok(txid)
+}
+
+/// A fundraiser its host cancelled (opt in, SPEC §4.4): a payment the list never named (one that reached the campaign after the cancel, or
+/// one the host never ticketed) gets no ticket; it goes back on its own to the refund address in its message, minus the fee, and the return
+/// is named on the list, as a Blind bid auction's late deposit is. A payment whose message does not open with this campaign's key stays, and
+/// the recount names it.
+pub(crate) fn return_after_cancel(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote], entries: &[Entry], tip: &backend::ChainTip) -> Result<usize> {
+    let r = &run.rules;
+    if ll_core::recount::cancel_of(r, entries).is_none() {
+        return Ok(0);
+    }
+    let named: BTreeSet<&str> = entries.iter().filter_map(Entry::nf).collect();
+    let ob = outbox::Outbox::load(&run.dir)?;
+    let (mut sent, mut log) = (0, vec![]);
+    for n in chain_notes(notes) {
+        let Some(nf) = n.nf.clone() else { continue };
+        let candidate = !n.is_change
+            && n.height.is_some_and(|h| h >= r.start_height)
+            && n.value_zat > r.refund_fee_zat
+            && n.memo_text.as_deref().is_some_and(ll_core::payload::is_payload_shaped);
+        if !candidate || n.spent_by.is_some() || named.contains(nf.as_str()) || ob.live_for(&nf).is_some() {
+            continue;
+        }
+        let h = n.height.unwrap_or(0);
+        if (tip.height + 1).saturating_sub(h) < run.min_confirmations {
+            continue;
+        }
+        let memo_text = n.memo_text.clone().unwrap_or_default();
+        let p = match Payload::open(&memo_text, &run.secrets.payload_key()?) {
+            Ok(p) if hex::encode(p.rules_id) == run.rules_id => p,
+            Ok(_) => { println!("payment {}:{} after the cancel carries a message for another campaign; it stays", n.txid, n.action); continue; }
+            Err(e) => { println!("payment {}:{} after the cancel has no refund address the host can read ({e}); it stays", n.txid, n.action); continue; }
+        };
+        let txid = send_back(run, backend, tip, &n, p.refund_receiver, None, &memo_text, &format!("payment {} after the cancel sent back", &nf[..8]), &mut log)?;
+        println!("payment {} (mined in block {h}, after the cancel) sent back, minus the {} fee: {txid}", &nf[..12], r.amount(r.refund_fee_zat));
         sent += 1;
     }
     Ok(sent)

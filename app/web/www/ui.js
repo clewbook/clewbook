@@ -332,7 +332,8 @@ export function etaText(blocks, secondsPerBlock) {
  *  After a close the outcome is named on the pill (`goal_met`, `goal_missed`, `auction`; `soft` when the fundraiser has a hard cap, so its goal is the
  *  soft cap). Every closed outcome is neutral grey: a missed goal that refunded everyone is not a failure. `refunding` adds REFUNDING. */
 // a blind bid auction closes as sealed_auction (settled) or void (round R came too early: every deposit goes back)
-export const OUTCOME_WORDS = { goal_met: 'goal met', goal_missed: 'goal missed', auction: 'auction settled', sealed_auction: 'auction settled', void: 'void, all deposits back' };
+// a fundraiser that opted in can be cancelled by its host before the deadline: everyone is refunded by their ticket
+export const OUTCOME_WORDS = { goal_met: 'goal met', goal_missed: 'goal missed', cancelled: 'cancelled, everyone refunded', auction: 'auction settled', sealed_auction: 'auction settled', void: 'void, all deposits back' };
 export function outcomeWords(outcome, soft = false) {
   const w = OUTCOME_WORDS[outcome];
   return w ? (soft ? w.replace('goal', 'soft cap') : w) : 'finished';
@@ -342,7 +343,7 @@ export function statusBadgeHTML({ phase, outcome = null, refunding = false, soft
   if (phase === 'open') return pill('open', 'OPEN', true);
   if (phase === 'ended') return pill('ended', 'DEADLINE PASSED');
   if (phase !== 'closed') return pill('unknown', 'CHECKING');
-  let html = pill('closed', OUTCOME_WORDS[outcome] ? `CLOSED · ${outcomeWords(outcome, soft).toUpperCase()}` : 'CLOSED');
+  let html = outcome === 'cancelled' ? pill('closed', 'CANCELLED') : pill('closed', OUTCOME_WORDS[outcome] ? `CLOSED · ${outcomeWords(outcome, soft).toUpperCase()}` : 'CLOSED');
   if (refunding) html += pill('refunding', 'REFUNDING');
   return html;
 }

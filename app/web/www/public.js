@@ -336,6 +336,7 @@ export function campaignRuleRows(c, { status, left, secPerBlock }) {
   rows.push({ k: 'Ticket window', v: `${c.ticket_k} blocks${eta(c.ticket_k, secPerBlock) ? ` (${eta(c.ticket_k, secPerBlock)})` : ''}`, sub: 'Your refund ticket arrives within this window; if the host has not closed by then, you can claim your own refund.' });
   if (uniform) rows.push({ k: 'Settlement window', v: `${c.settle_window} blocks`, sub: `the host must settle every winner by block ${c.settle_by}; after that winners can claim their own refund` });
   if (c.early_close) rows.push({ k: 'Early close', v: 'allowed' });
+  if (c.cancellable) rows.push({ k: 'Cancel', v: 'the host can refund everyone, minus the fee' });
   rows.push({ k: 'Refund promise', v: 'a signed ticket' });
   return rows;
 }
@@ -351,6 +352,8 @@ function rowOf(c, entries, e, h) {
   const r = { kind: '', ref, result: DASH, amount: x && x.value_zat != null ? zat(x.value_zat) : null, what: DASH, block: x ? x.height : null, price: null };
   if (sealed && e.kind === 'coin') { r.kind = 'Small payment'; r.result = 'Sent'; r.what = 'For the late ticket'; r.ref = e.coin ? e.coin.txid : null; return r; }
   if (sealed && e.kind === 'reveal') { r.kind = 'Viewing key'; r.result = 'Published'; r.what = 'After every settlement'; return r; }
+  // a cancelled fundraiser: a payment that came after the cancel, sent back by the host, minus the fee (no amount on the list)
+  if (!sealed && e.kind === 'late_return') { r.kind = 'Payment after the cancel'; r.result = 'Sent back'; r.what = 'Minus the network fee'; r.ref = e.refund || ref; return r; }
   if (sealed && e.kind === 'close') {
     const at = e.close ? ` at block ${e.close.close_height.toLocaleString('en-US')}` : '';
     r.summary = e.close && e.close.outcome === 'void' ? `Void${at}: round R came too early, every deposit goes back`
@@ -369,7 +372,7 @@ function rowOf(c, entries, e, h) {
   } else if (e.kind === 'issue' || e.kind === 'withdraw') {
     r.kind = 'Contribution';
     if (e.kind === 'withdraw') { r.result = 'Withdrawn'; r.what = 'Taken back'; }
-    else if (outcome === 'goal_missed') { r.result = 'Refunded'; r.what = 'Refunded by ticket'; }
+    else if (outcome === 'goal_missed' || outcome === 'cancelled') { r.result = 'Refunded'; r.what = 'Refunded by ticket'; }
     else if (outcome === 'goal_met' && x && overCap.has(x.nf)) { r.result = 'Over the cap'; r.what = 'Refunded by ticket'; }
     else if (outcome === 'goal_met') { r.result = 'Counted'; r.what = 'Kept by the campaign'; }
     else { r.result = 'Received'; r.what = 'Ticket issued'; }
@@ -409,7 +412,8 @@ export function campaignView(box, v) {
     facts.push(['DEPOSITS', c.sealed.tranches.join(', '), c.ticker]);
     facts.push(['DEADLINE', tleft || (left != null && left <= 0 ? 'passed' : DASH), `block ${c.deadline_height.toLocaleString('en-US')}`]);
   } else if (closed) {
-    facts.push(['OUTCOME', outcomeWords(outcome, !!c.cap).replace('auction settled', 'settled'), closeE.close ? `block ${closeE.close.close_height.toLocaleString('en-US')}` : '']);
+    if (outcome === 'cancelled') facts.push(['OUTCOME', 'Cancelled', `Everyone refunded · block ${closeE.close.close_height.toLocaleString('en-US')}`]);
+    else facts.push(['OUTCOME', outcomeWords(outcome, !!c.cap).replace('auction settled', 'settled'), closeE.close ? `block ${closeE.close.close_height.toLocaleString('en-US')}` : '']);
     if (sealed) facts.push(['TERMS', `${c.items} ${c.items === 1 ? 'item' : 'items'}`, metaLine(c).split(' · ').pop()]);
     else if (auction) facts.push(['TERMS', `${c.items} ${c.items === 1 ? 'item' : 'items'}`, uniform ? 'one price for every winner' : 'pay your bid']);
     else if (c.cap) facts.push(['TERMS', `Soft cap ${c.goal}`, `hard cap ${c.cap} ${c.ticker}`]);
@@ -435,7 +439,9 @@ export function campaignView(box, v) {
   const takes = !closed && left != null && left > 0 && v.links.contribute;
   if (takes) { const a = el('a', 'cprimary', auction ? 'Bid' : 'Contribute'); a.href = v.links.contribute; a.id = 'contribute-link'; act.append(a); }
   const rc = el('a', takes ? 'coutline recount-btn' : 'cprimary recount-btn', '↻ Recount'); rc.href = v.links.recount; rc.id = 'recount-link'; act.append(rc);
-  const noteText = closed ? `■ Closed: ${outcomeWords(outcome, !!c.cap)}. No new ${auction ? 'bids' : 'payments'}.`
+  const noteText = closed && outcome === 'cancelled' ? '■ Cancelled. Everyone refunded.'
+    : closed ? `■ Closed: ${outcomeWords(outcome, !!c.cap)}. No new ${auction ? 'bids' : 'payments'}.`
+    : c.cancellable && left != null && left > 0 ? 'The host can cancel and refund everyone, minus the network fee.'
     : left != null && left <= 0 ? 'This campaign is no longer taking contributions.'
       : sealed ? `Bids stay locked until drand round ${c.sealed.round}, after bidding closes: nobody, the host included, can read one before.`
         : auction ? 'Bid amounts stay off the public record until the auction closes; the host sees each bid as it arrives.' : '';

@@ -16,7 +16,7 @@ fn rules(seed: u8) -> (Rules, CampaignSecrets) {
         v: 1, network: "test".into(), mode: "raise".into(), goal_zat: Some(5_000_000), items: None,
         start_height: 100, deadline_height: 200, ticket_k: 10, close_grace: 10, reissue_window: 20,
         refund_fee_zat: 10_000, min_contribution_zat: 20_000, campaign_ufvk: Some("uvftest1x".into()), ufvk_hash: None,
-        pay_to: None, early_close: None, cap_zat: None, sealed: None, name: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
+        pay_to: None, early_close: None, cancellable: None, cap_zat: None, sealed: None, name: None, pricing: None, settle_window: None, reserve_zat: None, treasury_address: None, treasury_ufvk: None,
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
     (rules, secrets)

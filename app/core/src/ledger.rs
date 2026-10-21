@@ -33,7 +33,8 @@ pub struct Ticket {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Close {
     pub close_height: u32,
-    /// Raise: `"goal_met"` or `"goal_missed"`. Auction: `"auction"`.
+    /// Raise: `"goal_met"` or `"goal_missed"`, or `"cancelled"` (a fundraiser that opted in, cancelled by its host: everyone refunded by
+    /// their ticket, SPEC §4.4). Auction: `"auction"`.
     pub outcome: String,
     /// Auction: nullifiers of the winning bids, best first.
     #[serde(default, skip_serializing_if = "Option::is_none")]

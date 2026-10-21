@@ -108,6 +108,7 @@ function renderTerms() {
     row(mode() === 'raise' ? (cap != null ? 'Soft cap' : 'Goal') : 'Items for sale', goal),
     ...(cap != null ? [row('Hard cap', amountHTML(cap, ticker))] : []),
     ...(mode() === 'raise' ? [row('Early close', $('#early-close').checked ? 'Allowed once the goal is met' : 'Not allowed: the campaign closes after the deadline')] : []),
+    ...(mode() === 'raise' ? [row('Cancel', $('#cancellable').checked ? 'You may cancel and refund everyone, minus the network fee' : 'Not allowed')] : []),
     ...(mode() === 'auction' ? [row('How winners pay', pricing() === 'uniform' ? 'Everyone who wins pays the same price (the lowest winning bid); the rest comes back' : 'Each winner pays their own bid')] : []),
     row('Smallest contribution', min),
     row('Deadline', Number.isInteger(n) && n > 0 ? `${measured.tip != null ? `about block ${(measured.tip + n).toLocaleString('en-US')} (now ${measured.tip.toLocaleString('en-US')}, plus ${n.toLocaleString('en-US')})` : `${n.toLocaleString('en-US')} blocks from now`}${time ? `, ${time} from now` : ''}` : '<span class="dim">not entered yet</span>'),
@@ -188,6 +189,7 @@ async function onCreate(ev) {
     if (m === 'raise') {
       body.goal_zat = toZat($('#goal').value, 'the goal');
       if ($('#early-close').checked) body.early_close = true;
+      if ($('#cancellable').checked) body.cancellable = true;
       if (!$('#cap-row').hidden && $('#cap').value.trim()) body.cap_zat = toZat($('#cap').value, 'the hard cap');
     }
     else {
@@ -237,6 +239,7 @@ async function main() {
   $('#setup-form').addEventListener('submit', onCreate);
   for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListener('change', modeChanged);
   $('#early-close').addEventListener('change', renderTerms);
+  $('#cancellable').addEventListener('change', renderTerms);
   for (const r of document.querySelectorAll('input[name=pricing]')) r.addEventListener('change', () => { $('#reserve-row').hidden = pricing() !== 'uniform'; renderTerms(); });
   for (const id of ['#goal', '#cap']) $(id).addEventListener('input', capWarn);
   for (const id of ['#goal', '#cap', '#items', '#minimum', '#deadline', '#ticketk', '#s-items', '#s-tranches']) $(id).addEventListener('input', () => { deadlineHint(); ticketHint(); renderTerms(); });

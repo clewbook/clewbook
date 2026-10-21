@@ -374,30 +374,43 @@ impl Store {
                 // a sealed bid auction's deposit mined after the deadline, sent back by the host: the payment and its return, no amount
                 let Some(c) = entry.contribution.as_ref() else { return bad("a late return names the late payment") };
                 if !rules.is_sealed() {
-                    return bad("late returns belong only to blind bid auctions");
-                }
-                if !is_hex32(&c.nf) || !is_hex32(&c.txid) || !entry.refund.as_deref().is_some_and(is_hex32) || c.value_zat.is_some() || c.amount_commit.is_some() {
-                    return bad("a late return names a payment and its return by their 64 hex character ids, with no amount");
-                }
-                let prior = self.entries(id)?;
-                let listed: Vec<&Entry> = prior.iter().filter(|p| p.nf() == Some(c.nf.as_str())).collect();
-                if listed.iter().any(|p| p.kind == "late_return") {
-                    return bad("that payment was already sent back");
-                }
-                // a payment too late to bid (the last blocks before the deadline, or after it, even one with tickets that a reorganised
-                // chain moved there), a payment the host rejected (with open payouts), or, once the auction is closed, a deposit that never
-                // got its tickets (the host's safety net)
-                let last = rules.sealed.as_ref().map_or(ll_core::sealed::last_deposit_height(rules.deadline_height), |s| s.last_deposit(rules.deadline_height));
-                let late = c.height > last;
-                let open = rules.sealed.as_ref().is_some_and(|s| s.open_payouts);
-                let rejected = listed.iter().any(|p| p.kind == "reject");
-                let unlisted_after_close = listed.is_empty() && prior.iter().any(|p| p.kind == "close");
-                let in_window = c.height >= rules.start_height;
-                if !late && !(in_window && ((open && rejected) || unlisted_after_close)) {
-                    return bad("a late return is for a payment in the last blocks before the deadline or after it, a rejected payment, or, after the close, a deposit without tickets");
-                }
-                if !late && rejected && !open {
-                    return bad("a rejected payment is sent back only in auctions made with open payouts");
+                    // a fundraiser its host cancelled (opt in, SPEC §4.4): a payment the list never named, sent back by the host after the
+                    // cancel, minus the fee; a payment the list names is refunded by its own ticket instead
+                    let prior = self.entries(id)?;
+                    let cancelled = rules.allows_cancel() && prior.iter().any(|p| p.kind == "close" && p.close.as_ref().is_some_and(|x| x.outcome == "cancelled"));
+                    if !cancelled {
+                        return bad("late returns belong only to blind bid auctions and to cancelled fundraisers");
+                    }
+                    if !is_hex32(&c.nf) || !is_hex32(&c.txid) || !entry.refund.as_deref().is_some_and(is_hex32) || c.value_zat.is_some() || c.amount_commit.is_some() {
+                        return bad("a late return names a payment and its return by their 64 hex character ids, with no amount");
+                    }
+                    if prior.iter().any(|p| p.nf() == Some(c.nf.as_str())) {
+                        return bad("a payment the list already names is refunded by its own ticket, not sent back");
+                    }
+                } else {
+                    if !is_hex32(&c.nf) || !is_hex32(&c.txid) || !entry.refund.as_deref().is_some_and(is_hex32) || c.value_zat.is_some() || c.amount_commit.is_some() {
+                        return bad("a late return names a payment and its return by their 64 hex character ids, with no amount");
+                    }
+                    let prior = self.entries(id)?;
+                    let listed: Vec<&Entry> = prior.iter().filter(|p| p.nf() == Some(c.nf.as_str())).collect();
+                    if listed.iter().any(|p| p.kind == "late_return") {
+                        return bad("that payment was already sent back");
+                    }
+                    // a payment too late to bid (the last blocks before the deadline, or after it, even one with tickets that a reorganised
+                    // chain moved there), a payment the host rejected (with open payouts), or, once the auction is closed, a deposit that never
+                    // got its tickets (the host's safety net)
+                    let last = rules.sealed.as_ref().map_or(ll_core::sealed::last_deposit_height(rules.deadline_height), |s| s.last_deposit(rules.deadline_height));
+                    let late = c.height > last;
+                    let open = rules.sealed.as_ref().is_some_and(|s| s.open_payouts);
+                    let rejected = listed.iter().any(|p| p.kind == "reject");
+                    let unlisted_after_close = listed.is_empty() && prior.iter().any(|p| p.kind == "close");
+                    let in_window = c.height >= rules.start_height;
+                    if !late && !(in_window && ((open && rejected) || unlisted_after_close)) {
+                        return bad("a late return is for a payment in the last blocks before the deadline or after it, a rejected payment, or, after the close, a deposit without tickets");
+                    }
+                    if !late && rejected && !open {
+                        return bad("a rejected payment is sent back only in auctions made with open payouts");
+                    }
                 }
             }
             "reject" => {
@@ -406,8 +419,9 @@ impl Store {
                 }
             }
             "close" => {
-                if entry.close.is_none() {
-                    return bad("close entries need a close object");
+                let Some(c) = entry.close.as_ref() else { return bad("close entries need a close object") };
+                if c.outcome == "cancelled" && !rules.allows_cancel() {
+                    return bad("only a fundraiser whose rules allow it can be cancelled");
                 }
             }
             "settle" => {
@@ -447,7 +461,7 @@ impl Store {
             }
         }
         let prev: Option<Entry> = existing.last().map(|b| serde_json::from_slice(b)).transpose().map_err(|e| StoreError::Internal(e.to_string()))?;
-        let after_close_ok = entry.kind == "settle" || (rules.is_sealed() && (entry.kind == "reveal" || entry.kind == "late_return"));
+        let after_close_ok = entry.kind == "settle" || (rules.is_sealed() && (entry.kind == "reveal" || entry.kind == "late_return")) || (rules.allows_cancel() && entry.kind == "late_return");
         if !after_close_ok && self.entries(id)?.iter().any(|p| p.kind == "close") {
             return Err(StoreError::Conflict("the campaign is closed; only settlement entries (and, for a blind bid auction, the reveal) may follow".into()));
         }

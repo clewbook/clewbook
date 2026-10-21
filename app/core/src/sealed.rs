@@ -389,7 +389,7 @@ mod tests {
         let mut r = crate::rules::Rules {
             v: 1, network: "main".into(), mode: "sealed_auction".into(), goal_zat: None, items: Some(1), start_height: 3_000_000, deadline_height: 3_008_064,
             ticket_k: 10, close_grace: 10, reissue_window: 20, refund_fee_zat: 10_000, min_contribution_zat: 30_000, campaign_ufvk: None,
-            ufvk_hash: None, pay_to: None, early_close: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None,
+            ufvk_hash: None, pay_to: None, early_close: None, cancellable: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None,
             treasury_address: None, treasury_ufvk: None, sealed: None, ledger_pubkey: String::new(), payload_pubkey: String::new(),
         };
         let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 3_010_842, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: true, early_key: false, coin_margin: 0 };
@@ -431,7 +431,7 @@ mod tests {
         let mut r = crate::rules::Rules {
             v: 1, network: "test".into(), mode: "sealed_auction".into(), goal_zat: None, items: Some(1), start_height: tip + 1, deadline_height: deadline,
             ticket_k: 10, close_grace: 10, reissue_window: 20, refund_fee_zat: 10_000, min_contribution_zat: 30_000, campaign_ufvk: None,
-            ufvk_hash: None, pay_to: None, early_close: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None,
+            ufvk_hash: None, pay_to: None, early_close: None, cancellable: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None,
             treasury_address: None, treasury_ufvk: None, sealed: None, ledger_pubkey: String::new(), payload_pubkey: String::new(),
         };
         s.check(&r).unwrap();

@@ -65,6 +65,11 @@ pub struct Rules {
     /// kept amount. Left out of every campaign without one, whose rules and ids are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cap_zat: Option<u64>,
+    /// Fundraiser only, opt in: the host may cancel at any time before the deadline, even after the goal is met, and refund everyone: every
+    /// contribution goes back by its own refund ticket, minus the network fee, and the list ends with a signed close of outcome "cancelled"
+    /// (SPEC §4.4). Written only as `true`; left out of every campaign that does not allow it, whose rules and ids are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cancellable: Option<bool>,
     /// Sealed bid auction only (mode `"sealed_auction"`, SPEC §9): tranches, pricing, the drand round, the late ticket block and how the host
     /// sends the coins. Absent in every other campaign, whose rules and ids are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -131,6 +136,11 @@ impl Rules {
     }
 
     /// Whether the host may close this campaign before its deadline (a fundraiser whose rules say so, once the goal is met).
+    /// The host may cancel and refund everyone (the campaign opted in; fundraisers only).
+    pub fn allows_cancel(&self) -> bool {
+        self.mode == "raise" && self.cancellable == Some(true)
+    }
+
     pub fn allows_early_close(&self) -> bool {
         self.mode == "raise" && self.early_close == Some(true)
     }
@@ -209,6 +219,11 @@ impl Rules {
             Some(false) => bail!("leave early_close out instead of setting it to false"),
             _ => {}
         }
+        match self.cancellable {
+            Some(true) if self.mode != "raise" => bail!("only a fundraiser can allow cancelling and refunding everyone; an auction never can"),
+            Some(false) => bail!("leave cancellable out instead of setting it to false"),
+            _ => {}
+        }
         match self.mode.as_str() {
             "raise" if self.goal_zat.is_some() && self.campaign_ufvk.is_some() => Ok(()),
             "auction" if self.items.is_some_and(|n| n > 0) && self.ufvk_hash.is_some() => Ok(()),
@@ -220,7 +235,7 @@ impl Rules {
     /// fields that belong to the other modes.
     fn validate_sealed(&self) -> Result<()> {
         let Some(s) = &self.sealed else { bail!("a blind bid auction needs its blind bid settings") };
-        if self.goal_zat.is_some() || self.campaign_ufvk.is_some() || self.cap_zat.is_some() || self.early_close.is_some() || self.pricing.is_some() || self.settle_window.is_some() {
+        if self.goal_zat.is_some() || self.campaign_ufvk.is_some() || self.cap_zat.is_some() || self.early_close.is_some() || self.cancellable.is_some() || self.pricing.is_some() || self.settle_window.is_some() {
             bail!("a blind bid auction has no goal, public viewing key, hard cap, early close, older pricing field or settlement window");
         }
         if !self.items.is_some_and(|n| n > 0) || self.ufvk_hash.is_none() || self.treasury_address.is_none() || self.treasury_ufvk.is_none() {
@@ -250,6 +265,31 @@ mod name_tests {
         r.network = "main".into();
         assert_eq!(r.amount(100_000_000), "1 ZEC");
         assert_eq!(r.amount(123_456_789), "1.23456789 ZEC");
+    }
+
+    #[test]
+    fn cancel_and_refund_all_is_opt_in_for_fundraisers_only_and_changes_no_other_id() {
+        // without the field: exactly the bytes and id as before (the existing campaign ids are checked in sealed_tests too)
+        let plain = base();
+        assert!(!plain.allows_cancel());
+        assert!(!to_canonical(&plain).unwrap().contains("cancellable"));
+        // opted in: signed in the rules (a different id), round trips, validates
+        let mut c = base();
+        c.cancellable = Some(true);
+        c.validate().unwrap();
+        assert!(c.allows_cancel());
+        assert!(to_canonical(&c).unwrap().contains("\"cancellable\":true"));
+        assert_ne!(c.id().unwrap(), plain.id().unwrap());
+        let back: Rules = serde_json::from_str(&to_canonical(&c).unwrap()).unwrap();
+        assert_eq!(back.id().unwrap(), c.id().unwrap());
+        // never false (one form only), never on an auction
+        c.cancellable = Some(false);
+        assert!(c.validate().unwrap_err().to_string().contains("leave cancellable out"));
+        let mut a = base();
+        a.mode = "auction".into(); a.goal_zat = None; a.campaign_ufvk = None; a.items = Some(1); a.ufvk_hash = Some("aa".into());
+        a.validate().unwrap();
+        a.cancellable = Some(true);
+        assert!(a.validate().unwrap_err().to_string().contains("only a fundraiser can allow cancelling"));
     }
 
     #[test]
