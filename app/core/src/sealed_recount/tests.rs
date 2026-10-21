@@ -894,6 +894,22 @@ fn before_close(c: &mut Case, e: Entry) {
 }
 
 #[test]
+fn before_the_close_a_late_payment_sent_back_waits_for_the_payload_key_instead_of_failing() {
+    // the auction is still open: no close and no reveal yet, so the payload key is not published
+    let mut c = honest_open("uniform");
+    let at = c.entries.iter().position(|x| x.kind == "close").unwrap();
+    c.entries.truncate(at);
+    c.notes = c.deps.iter().map(|d| d.note.clone()).collect();
+    let late = c.sx.note(9, SMALL, DEADLINE + 2, &c.sx.memo(9, SMALL, 5_000_000));
+    c.notes.push(spent(late.clone(), "late-return", DEADLINE + 4));
+    let e = return_entry(&c, &late, "late-return");
+    c.entries.push(e);
+    c.extra.payouts.push(PayoutFact { txid: "late-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None });
+    let r = c.run();
+    assert!(!failing(&r).contains(&"S7"), "{:?} {}", failing(&r), details(&r, "S7"));
+}
+
+#[test]
 fn h3_a_rejected_payment_must_be_sent_back_and_its_reject_must_name_its_memo() {
     let c0 = honest_open("uniform");
     let x = c0.sx.note(9, SMALL, 150, &c0.sx.memo(9, SMALL, 5_000_000));

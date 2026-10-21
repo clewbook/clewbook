@@ -831,6 +831,15 @@ pub fn treasury_payment(values: &[u64]) -> Result<(u64, u64)> {
     Ok((total - fee, fee))
 }
 
+/// The receiver the treasury pays: any unified address of the auction's network that the wallet can pay (`utest1…` or `zutest1…` on the
+/// test network).
+pub fn treasury_receiver(network: &str, to: &str) -> Result<[u8; 43]> {
+    let words = if network == "main" { "main network" } else { "test network" };
+    let (net, receiver) = orchard_receiver(to.trim()).map_err(|_| anyhow!("Please paste a {words} unified address from your wallet."))?;
+    ensure!(net == ll_core::receiver::network_type(network)?, "That address is not for the {words}.");
+    Ok(receiver)
+}
+
 /// The dashboard's "send to my wallet": everything in the auction's treasury wallet (the winners' prices), minus the network fee, in one
 /// payment to the address the host gives. Returns the transaction id.
 pub fn send_treasury(run: &Run, to: &str) -> Result<String> {
@@ -838,9 +847,7 @@ pub fn send_treasury(run: &Run, to: &str) -> Result<String> {
     ensure!(r.is_sealed(), "Only a blind bid auction keeps its treasury wallet here.");
     ensure!(close_entry(&run.ledger().load()?).is_some(), "Close the auction first.");
     let to = to.trim();
-    let main = r.network == "main";
-    ensure!(if main { to.starts_with("u1") } else { to.starts_with("utest1") }, "Please paste a {} unified address from your wallet.", if main { "main network" } else { "test network" });
-    let (_, receiver) = orchard_receiver(to).map_err(|_| anyhow!("That address could not be read."))?;
+    let receiver = treasury_receiver(&r.network, to)?;
     let w = run.dir.join("treasury1");
     ensure!(w.join("data.sqlite").exists(), "This auction has no treasury wallet in its folder.");
     let mut b = libs::LibsBackend::new(w.clone(), run.dir.join("treasury1.age"))?;
@@ -918,6 +925,20 @@ mod tests {
         assert_eq!(treasury_payment(&[30_000, 30_000, 30_000]).unwrap(), (75_000, 15_000), "one action per note");
         assert!(treasury_payment(&[]).unwrap_err().to_string().contains("nothing to send"));
         assert!(treasury_payment(&[10_000]).unwrap_err().to_string().contains("network fee"));
+    }
+
+    #[test]
+    fn send_to_my_wallet_takes_any_unified_address_of_the_auctions_network() {
+        use zcash_address::unified::{self, Encoding};
+        let raw = [7u8; 43];
+        let items = || vec![unified::Uitem::Data(unified::Receiver::Orchard(raw)), unified::Uitem::Data(unified::Receiver::Sapling([9u8; 43]))];
+        let r2 = |net| unified::Address::try_from_items(unified::Revision::R2, items()).unwrap().encode(&net);
+        let (zutest, zu_main) = (r2(zcash_protocol::consensus::NetworkType::Test), r2(zcash_protocol::consensus::NetworkType::Main));
+        assert!(zutest.starts_with("zutest1"), "{zutest}");
+        assert_eq!(treasury_receiver("test", &zutest).unwrap(), raw, "the wallet's own address form");
+        assert_eq!(treasury_receiver("test", &ll_core::receiver::to_standard(&zutest).unwrap()).unwrap(), raw, "the standard utest1 form");
+        assert!(treasury_receiver("test", &zu_main).unwrap_err().to_string().contains("not for the test network"));
+        assert!(treasury_receiver("test", "hello").unwrap_err().to_string().contains("Please paste a test network"));
     }
 
     #[test]

@@ -304,7 +304,13 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
         if !s.open_payouts {
             return None;
         }
-        let Some(recv) = refund_receiver(memo) else { return Some(format!("{what} {txid}: the memo does not open with the published payload key")) };
+        let Some(recv) = refund_receiver(memo) else {
+            // before the reveal the payload key is not published yet (a late payment is sent back before the close): checked once it is
+            if reveal.is_none() {
+                return None;
+            }
+            return Some(format!("{what} {txid}: the memo does not open with the published payload key"));
+        };
         let Some(f) = extra.payouts.iter().find(|f| f.txid == txid) else {
             return Some(format!("{what} {txid}: the transaction was not read from the chain, so who it pays was not checked"));
         };
