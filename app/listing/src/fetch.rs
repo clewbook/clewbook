@@ -121,8 +121,11 @@ pub fn get_text(url: &str, policy: &FetchPolicy) -> Result<String> {
         .build();
     let resp = match agent.get(url).call() {
         Ok(r) => r,
+        // a server error (a relay restarting behind its proxy answers 502 to 504) or no connection at all: the relay could not be reached
+        // this time, which says nothing about the campaign
+        Err(ureq::Error::Status(code, _)) if code >= 500 => return Err(anyhow::Error::new(Unreachable(format!("the relay answered HTTP {code}")))),
         Err(ureq::Error::Status(code, _)) => bail!("the relay answered HTTP {code}"),
-        Err(e) => bail!("the relay could not be read: {}", short(&e.to_string())),
+        Err(e) => return Err(anyhow::Error::new(Unreachable(format!("the relay could not be read: {}", short(&e.to_string()))))),
     };
     let status = resp.status();
     ensure!(status == 200, "the relay answered HTTP {status}{}", if (300..400).contains(&status) { " (redirects are not followed)" } else { "" });
@@ -134,6 +137,17 @@ pub fn get_text(url: &str, policy: &FetchPolicy) -> Result<String> {
     ensure!(buf.len() <= policy.max_bytes, "the relay's answer is too large (over {} bytes)", policy.max_bytes);
     String::from_utf8(buf).map_err(|_| anyhow!("the relay's answer is not text"))
 }
+
+/// A read that failed because the other side could not be reached this time (no connection, a timeout, a server error), never because of
+/// what it served. The listing keeps a listed campaign through such a miss for a while (`job::KEEP_WHEN_UNREACHABLE_SECS`).
+#[derive(Debug)]
+pub struct Unreachable(pub String);
+impl std::fmt::Display for Unreachable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for Unreachable {}
 
 fn short(s: &str) -> String {
     s.chars().take(160).collect()

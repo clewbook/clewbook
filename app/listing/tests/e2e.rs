@@ -747,3 +747,48 @@ fn a_fundraiser_that_opted_in_to_cancel_and_refund_all_lists() {
     assert!(listed(&c).contains(&id));
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_listed_campaign_stays_listed_while_its_relay_is_briefly_unreachable_but_not_for_ever_and_not_when_the_relay_answers_wrong() {
+    let root = scratch("unreachable");
+    let (server_a, relay_a) = ll_relay::spawn(&root.join("relay-a"), "127.0.0.1:0").unwrap();
+    let (_server_b, relay_b) = ll_relay::spawn(&root.join("relay-b"), "127.0.0.1:0").unwrap();
+    let campaigns = root.join("campaigns");
+    let runs = root.join("host");
+    let pk = host::init_key(&runs).unwrap();
+    let data = root.join("listing");
+    let c = cfg(&data);
+    let (a, a_rules) = campaign(&campaigns, "Garden Fund", std::slice::from_ref(&relay_a), 5_000_000);
+    let (b, b_rules) = campaign(&campaigns, "School Roof", std::slice::from_ref(&relay_b), 5_000_000);
+    register(&relay_a, &a, &a_rules);
+    register(&relay_b, &b, &b_rules);
+    job::approve(&c, &pk, Some("Garden Collective")).unwrap();
+    submit_record(&c, &runs, &campaigns.join(&a[..8])).unwrap();
+    submit_record(&c, &runs, &campaigns.join(&b[..8])).unwrap();
+    let t0 = 1_800_000_000;
+    let st = job::run_pass_at(&c, TIP, t0).unwrap();
+    assert_eq!((state_of(&st, &a).0, state_of(&st, &b).0), (State::Listed, State::Listed));
+
+    // relay A stops (a restart, an outage): connections are refused. Ten minutes later A is kept, as at its last good check
+    server_a.unblock();
+    drop(server_a);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    // relay B is up but no longer has campaign B: that is an answer, not an outage, so B is refused at once
+    std::fs::remove_dir_all(root.join("relay-b/campaigns").join(&b)).unwrap();
+    let st = job::run_pass_at(&c, TIP, t0 + 600).unwrap();
+    let (sa, ra) = state_of(&st, &a);
+    assert_eq!(sa, State::Listed, "{ra}");
+    assert!(ra.starts_with("kept listed as at its last good check 10 min ago: ") && ra.contains("could not be read"), "{ra}");
+    assert!(listed(&c).contains(&a), "A stays on the home page");
+    let (sb, rb) = state_of(&st, &b);
+    assert_eq!(sb, State::Refused, "{rb}");
+    assert!(rb.contains("HTTP 404"), "{rb}");
+    assert!(!listed(&c).contains(&b));
+
+    // still unreachable more than an hour after its last good check: taken off
+    let st = job::run_pass_at(&c, TIP, t0 + 3_700).unwrap();
+    let (sa, ra) = state_of(&st, &a);
+    assert_eq!(sa, State::Refused, "{ra}");
+    assert!(!listed(&c).contains(&a));
+    let _ = std::fs::remove_dir_all(&root);
+}

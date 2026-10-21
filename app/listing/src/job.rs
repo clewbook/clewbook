@@ -173,7 +173,16 @@ pub struct Seen {
     /// When it was first listed. A campaign listed once is never refused for its deadline afterwards, and never expires from the queue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub listed_at: Option<u64>,
+    /// The last pass that listed it after reading it from its relays (not one that kept it from an earlier pass).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_good: Option<u64>,
 }
+
+/// How long a listed campaign stays listed, as at its last good pass, while its relays or the chain cannot be reached (a relay restart, a
+/// short outage): an hour, about six passes. After that it is taken off until its relay answers again.
+pub const KEEP_WHEN_UNREACHABLE_SECS: u64 = 3600;
+
+pub use crate::fetch::Unreachable;
 
 pub fn read_seen(cfg: &JobConfig) -> BTreeMap<String, Seen> {
     fs::read(cfg.p("state/seen.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
@@ -365,11 +374,12 @@ pub fn plain_duration(secs: u64) -> String {
 
 /// Reads the campaign from its relays: at least one must answer, and every relay that answers must serve rules that pass the checks.
 fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, require_open: bool) -> Result<ll_core::rules::Rules> {
-    let tip = tips(&r.network).ok_or_else(|| anyhow!("the chain height of network {:?} could not be read this pass", r.network))?;
+    let tip = tips(&r.network).ok_or_else(|| anyhow::Error::new(Unreachable(format!("the chain height of network {:?} could not be read this pass", r.network))))?;
     // records stored before a word was reserved are checked again here
     check_relays(&r.relays, &relay_words(cfg))?;
     let mut first: Option<ll_core::rules::Rules> = None;
     let mut errors = vec![];
+    let mut reachable_problem = false; // a relay answered with something wrong (not only "could not be reached")
     for relay in &r.relays {
         match get_text(&format!("{relay}/v1/campaigns/{}", r.campaign), &cfg.fetch).and_then(|t| r.check_against_rules(&t, tip, &cfg.allowed_networks, require_open)) {
             Ok(rules) => {
@@ -377,8 +387,18 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
                     first = Some(rules);
                 }
             }
-            Err(e) => errors.push(format!("{}: {e}", host_of(relay))),
+            Err(e) => {
+                reachable_problem |= e.downcast_ref::<Unreachable>().is_none();
+                errors.push(format!("{}: {e}", host_of(relay)));
+            }
         }
+    }
+    // only relays that could not be reached this pass (a restart, an outage), and nothing wrong with what any relay served: a temporary miss
+    if !errors.is_empty() && !reachable_problem {
+        return Err(anyhow::Error::new(Unreachable(match first {
+            Some(_) => format!("not every relay could be reached this pass ({})", errors.join("; ")),
+            None => errors.join("; "),
+        })));
     }
     match first {
         Some(rules) if errors.is_empty() => {
@@ -623,6 +643,21 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
     }
     for x in seen {
         let fp = x.r.host_fingerprint();
+        // a campaign the last pass listed, whose relays or chain server could not be reached this pass: kept as it was, for a while, so a
+        // relay restart does not take it off the home page until the next pass
+        if let Err(e) = &x.checked {
+            let st = seen_state.entry(x.r.campaign.clone()).or_default();
+            let kept_from = st.last_good.filter(|t| now < t.saturating_add(KEEP_WHEN_UNREACHABLE_SECS));
+            if let (Some(t), true, true, true) = (kept_from, e.downcast_ref::<Unreachable>().is_some(), x.approved, before.contains(&x.r.campaign)) {
+                if !fixed.contains(&x.r.campaign) {
+                    listed.push((x.r.campaign.clone(), x.r.relays.clone(), x.r.host_pubkey.clone()));
+                }
+                status.push(Status { campaign: x.r.campaign.clone(), host: fp, state: State::Listed, name: None, recount: recounts.get(&x.r.campaign).map(|r| r.outcome.clone()), attention: None,
+                    reason: format!("kept listed as at its last good check {} ago: {e}; it is read again on the next pass, and taken off if it still cannot be read {} after that check",
+                        plain_duration(now.saturating_sub(t)), plain_duration(KEEP_WHEN_UNREACHABLE_SECS)) });
+                continue;
+            }
+        }
         let v: Result<(), String> = match &x.checked {
             Err(e) => Err(e.to_string()),
             Ok(_) => verdict.remove(&x.r.campaign).unwrap_or_else(|| match x.name.as_deref() {
@@ -683,6 +718,7 @@ pub fn run_pass_with(cfg: &JobConfig, tips: &dyn Fn(&str) -> Option<u32>, now: u
             }
             Ok(()) => {
                 st.listed_at.get_or_insert(now);
+                st.last_good = Some(now);
                 let closed = x.checked.as_ref().ok().map(|r| r.deadline_height).filter(|d| tips(&x.r.network).is_some_and(|t| *d <= t));
                 listed.push((x.r.campaign.clone(), x.r.relays.clone(), x.r.host_pubkey.clone()));
                 if let Some(a) = &attention {
