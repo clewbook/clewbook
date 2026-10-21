@@ -91,7 +91,14 @@ pub fn sealed_bid_payment(rules_json: &str, seed_hex: &str, refund_address: &str
     let pay_to = rules.pay_to.clone().ok_or_else(|| plain("This auction has not published a payment address."))?;
     let pay_to = ll_core::receiver::to_standard(&pay_to).unwrap_or(pay_to);
     let k = keys_from(seed_hex)?;
+    // the owner's report of 21 Oct 2026: an address for the other network is refused, never paid to
+    if let Some(m) = ll_core::receiver::network_mismatch(&rules.network, refund_address) {
+        return Err(plain(m));
+    }
     let (_, receiver) = orchard_receiver(refund_address.trim()).map_err(|_| plain("That doesn't look like a valid refund address."))?;
+    if !ll_core::receiver::valid_orchard_receiver(&receiver) {
+        return Err(plain("That doesn't look like a valid refund address."));
+    }
     let rid = rules.id().map_err(|_| plain("The auction details are not valid."))?;
     let payload = Payload {
         rules_id: rid,
@@ -126,6 +133,24 @@ pub fn sealed_bid_payment(rules_json: &str, seed_hex: &str, refund_address: &str
         "round": s.drand_round, "cutoff": s.cutoff_height(rules.deadline_height), "claim_after": s.claim_after,
     })
     .to_string())
+}
+
+/// The bid page's live check of the refund address box: "" when it can take a refund on this network, else one short line (another network,
+/// or not a shielded address of this network). An empty box gives "" too: the page shows its hint.
+#[wasm_bindgen]
+pub fn sealed_refund_problem(network: &str, address: &str) -> String {
+    let a = address.trim();
+    if a.is_empty() {
+        return String::new();
+    }
+    if let Some(m) = ll_core::receiver::network_mismatch(network, a) {
+        return m.into();
+    }
+    let prefix = match network { "main" => "u1", "test" => "utest1", _ => "uregtest1" };
+    match orchard_receiver(a) {
+        Ok((_, raw)) if ll_core::receiver::valid_orchard_receiver(&raw) => String::new(),
+        _ => format!("This must be a shielded address starting with {prefix}."),
+    }
 }
 
 /// What the page expects of its late ticket (JSON from the page).

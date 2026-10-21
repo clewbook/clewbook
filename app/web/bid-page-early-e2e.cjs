@@ -77,13 +77,13 @@ const chainServer = http.createServer((req, res) => {
     await p.goto(`${BASE}/brand.js`);
     await p.evaluate(({ id, s }) => localStorage.setItem(`ll:sealed:${id}`, JSON.stringify(s)), { id: FX.E, s: st });
     await p.goto(`${BASE}/bid.html#c=${FX.E}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`);
-    await p.waitForFunction(() => /NOT PROTECTED|PROTECTED|Take your money back/.test(document.querySelector('#st-title').textContent), null, { timeout: 180000 }).catch(() => {});
+    await p.waitForFunction(() => /does not check out|PROTECTED|Your bid does not count/.test(document.querySelector('#st-title').textContent), null, { timeout: 180000 }).catch(() => {});
     const title = await p.textContent('#st-title'), line = await p.textContent('#st-text'), text = `${line} ${await p.textContent('#st-more')}`;
     check('the page finds its deposit and its early ticket', !!(await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).ticket, FX.E)));
-    check('a ticket the page cannot see the payee of is NOT PROTECTED', /^NOT PROTECTED: a ticket does not check out/.test(title), title);
+    check('a ticket the page cannot see the payee of is not protected: a red problem card', title === 'Your ticket does not check out' && await p.$eval('#st-card', (c) => c.dataset.tone === 'r') && (await p.textContent('#st-tag')) === 'PROBLEM', title);
     check('it says why: it cannot see who the early ticket pays', /the early ticket: this page cannot see who it pays/.test(text), text.slice(0, 200));
     check('no take back button is offered for that ticket', await p.$eval('#take-back', (b) => b.hidden));
-    check('the page does not tell the person to take the money back with it', !/Take your money back now/.test(line), line);
+    check('the page does not tell the person to take the money back with it', line === 'This page cannot take your money back for you. Keep your backup file.', line);
     await ctx.close();
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 200));
   } catch (e) {

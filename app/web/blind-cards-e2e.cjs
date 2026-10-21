@@ -51,7 +51,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // the bid page's back link names the type
     const bp = await page();
     await bp.goto(`http://127.0.0.1:${WEB}/bid.html#c=${OPEN}&relay=${R}`);
-    check('bid page: back link says Blind bid auction', (await bp.textContent('#flow-back')).trim() === '← Blind bid auction');
+    check('bid page: back link as the design handoff has it', (await bp.textContent('#flow-back')).trim() === '← Auction');
     // the recount page counts the checks of a Blind bid auction too
     const rp = await page();
     await rp.goto(`http://127.0.0.1:${WEB}/recount.html`);

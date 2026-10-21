@@ -1,6 +1,6 @@
 // The bid page warns at once when a bid is higher than the chosen deposit allows (the deposit minus the refund fee), as the contribute page does
-// for an amount: the bid box glows red, one short line under it names the smallest deposit that fits (or says none does), and "Create my
-// payment" waits. The deposit is never changed for the person. In a headless browser against the real relay serving app/web/testdata/bid-page
+// for an amount: the bid box glows red, the chosen deposit card turns red, one short line under it names the limit (the deposit minus the
+// fee) and, if there is one, says to pick a bigger deposit, and "Create my payment" waits (design handoff of 21 Oct 2026). The deposit is never changed for the person. In a headless browser against the real relay serving app/web/testdata/bid-page
 // (private chain data) and a stand in for the chain server (tip and block times only).
 // Run from the repository root with BIN=<folder with ll-relay>: node app/web/bid-too-high-e2e.cjs
 const { chromium } = require('./../vectors/js/node_modules/playwright');
@@ -71,34 +71,56 @@ const chainServer = http.createServer((req, res) => {
     p.on('pageerror', (e) => errors.push(String(e)));
     await p.goto(`http://127.0.0.1:${WEB}/bid.html#c=${ID}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`);
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
-    await p.waitForFunction(() => !document.querySelector('#create').disabled, null, { timeout: 30000 });
+    await p.waitForSelector('#tranche [role=radio]', { timeout: 30000 });
+    check('the button waits while the bid and the refund address are empty', await p.$eval('#create', (x) => x.disabled));
     const look = async () => p.evaluate(() => ({
       msg: document.querySelector('#bid-error').hidden ? '' : document.querySelector('#bid-error').textContent,
-      hint: !document.querySelector('#bid-hint').hidden, red: document.querySelector('.amountbox').classList.contains('bad'),
+      hint: !document.querySelector('#bid-hint').hidden, red: document.querySelector('#bidbox').classList.contains('bad'),
+      card: [...document.querySelectorAll('#tranche [role=radio]')].filter((c) => c.classList.contains('bad')).map((c) => c.dataset.zat).join(','),
       invalid: document.querySelector('#bid').getAttribute('aria-invalid') === 'true', off: document.querySelector('#create').disabled,
-      deposit: document.querySelector('#tranche').value,
+      deposit: document.querySelector('#tranche [aria-checked="true"]').dataset.zat,
     }));
-    await p.selectOption('#tranche', '10000000');
+    await p.click('#tranche [data-zat="10000000"]');
+    await p.fill('#refund', JSON.parse(fs.readFileSync('app/web/testdata/bid-page/fixture.json', 'utf8')).refund_address);
     await p.fill('#bid', '0.0999');
     let s = await look();
-    check('a bid within the deposit: no line, no glow, the button is on', !s.msg && !s.red && !s.off && s.hint, JSON.stringify(s));
+    check('a bid within the deposit: no line, no glow, the button is on', !s.msg && !s.red && !s.card && !s.off && s.hint, JSON.stringify(s));
     await p.fill('#bid', '0.15');
     s = await look();
-    check('too high for this deposit: the line names the smallest deposit that fits', /^Too high for this deposit\. Pick 0\.3 \S+ or lower your bid\.$/.test(s.msg), s.msg);
+    check('too high for this deposit: the line names the limit, the deposit minus the fee, and a bigger deposit', /^Too high for a 0\.1 \S+ deposit\. Bid up to 0\.0999 or pick a bigger deposit\.$/.test(s.msg), s.msg);
+    check('the chosen deposit card turns red with it', s.card === '10000000', s.card);
     check('the bid box glows red, the grey hint gives way, the button waits', s.red && s.invalid && !s.hint && s.off, JSON.stringify(s));
     check('the deposit is never changed for the person', s.deposit === '10000000', s.deposit);
-    await p.selectOption('#tranche', '30000000');
+    await p.click('#tranche [data-zat="30000000"]');
     s = await look();
     check('picking the larger deposit clears it at once', !s.msg && !s.red && !s.off, JSON.stringify(s));
     await p.fill('#bid', '0.5');
     s = await look();
-    check('a bid no deposit allows says so', /^Too high for any deposit here\. Lower your bid to 0\.2999 \S+ or less\.$/.test(s.msg) && s.off, s.msg);
+    check('a bid no deposit allows names the limit and no bigger deposit', /^Too high for a 0\.3 \S+ deposit\. Bid up to 0\.2999\.$/.test(s.msg) && s.off && s.card === '30000000', s.msg);
     await p.fill('#bid', '0.3');
     s = await look();
-    check('a bid equal to the deposit is too high (the fee comes off)', s.off && /Too high/.test(s.msg), s.msg);
+    check('a bid equal to the deposit is too high (the fee comes off)', s.off && /^Too high for a 0\.3 \S+ deposit\. Bid up to 0\.2999\.$/.test(s.msg), s.msg);
     await p.fill('#bid', '0.2999');
     s = await look();
     check('the deposit minus the fee is allowed', !s.msg && !s.off, JSON.stringify(s));
+    // the refund address must be for the auction's network (the owner's report of 21 Oct 2026: a u1 address was taken on a testnet
+    // auction). Addresses made from fixed test bytes for each network, nobody's wallet.
+    const MAIN = 'u1w4yfx9fl0pjklxesr8k94598wcyedtw0w4ekqmvqfe7u88wjl06c57z9rfdwclwzd6c8wjlsyun8949vuc7jykcwmkrc5687ftqa5aa59txr7682d0vw6fqzmyuxfs7xpgm5tjm2pwrzpc9jys7gdy3cyylly6k59dwu584lsu5y8jd8';
+    const TEST = 'utest13x4neahaknjvdwe5j4h5le2zhfh502nava4jf5g43z9n8ynk9g5whlvsztnn9lm88eq83zzpvsjst0vnfda32lywxv9uz8qgk8wtgr84d6da980fg0wrj2en9hnywv4khl35008f263gztnlqa3zf0he97k0ahttlmmhm7e7ycmn45nm';
+    await p.fill('#refund', MAIN);
+    s = await look();
+    const rmsg = await p.textContent('#refund-msg');
+    check('an address for another network: one red line, and the button waits', rmsg === 'This address is for another network.' && await p.$eval('#refund', (r) => r.classList.contains('bad') && r.getAttribute('aria-invalid') === 'true') && s.off, rmsg);
+    const w = await p.evaluate(async ({ main, test, id, relay }) => {
+      const W = await import('/pkg/ll_web.js'); await W.default();
+      const rules = (await (await fetch(`${relay}/v1/campaigns/${id}`)).text()).replace('"network":"regtest"', '"network":"test"');
+      let built;
+      try { W.sealed_bid_payment(rules, W.generate_seed(), main, 10000000, 5000000); built = 'built'; } catch (e) { built = String(e.message || e); }
+      return { onTest: W.sealed_refund_problem('test', main), onMain: W.sealed_refund_problem('main', test), same: W.sealed_refund_problem('test', test), built };
+    }, { main: MAIN, test: TEST, id: ID, relay: `http://127.0.0.1:${RELAY}` });
+    check('a mainnet address on a testnet auction: "This is a mainnet address. Use a testnet one."', w.onTest === 'This is a mainnet address. Use a testnet one.', w.onTest);
+    check('a testnet address on a mainnet auction: "This is a testnet address. Use a mainnet one."', w.onMain === 'This is a testnet address. Use a mainnet one.', w.onMain);
+    check('the payment for a testnet auction is never built for a mainnet refund address', w.built === 'This is a mainnet address. Use a testnet one.', w.built);
     check('no page errors', errors.length === 0, errors.join(' | '));
   } catch (e) {
     check('the test ran to the end', false, String(e).slice(0, 300));

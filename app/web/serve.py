@@ -17,7 +17,7 @@ DEV = os.environ.get("SERVE_DEV") == "1"
 PAGES = {"index.html", "recount.html", "campaign.html", "card.html", "badge.html", "contribute.html", "host.html", "bid.html"}
 FILES = PAGES | {
     "robots.txt", "campaigns.json",
-    "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css",
+    "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css", "bid.css",
     "loadguard.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
     "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js",
 }

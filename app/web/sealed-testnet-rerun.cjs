@@ -76,6 +76,7 @@ const payDeposit = (b) => {
       await p.goto(bidLink());
       await p.waitForSelector('#take-back:not([hidden])', { timeout: 300000 });
       await p.click('#take-back');
+      await p.click('#take-yes'); // the page asks once more
       await p.waitForFunction(() => /on its way back/.test(document.querySelector('#st-title').textContent), null, { timeout: 120000 });
       return { msg: await p.textContent('#send-msg'), txid: await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).earlySent, st.id) };
     } finally { await ctx.close(); }
@@ -122,13 +123,15 @@ const payDeposit = (b) => {
           const p = ctx.pages()[0] || await ctx.newPage();
           await p.goto(bidLink());
           await p.waitForSelector('#form-card:not([hidden])', { timeout: 150000 });
-          await p.waitForFunction(() => !document.querySelector('#create').disabled, null, { timeout: 180000 })
-            .catch(async () => { throw new Error(`${who}: the bid form stayed closed: ${await p.textContent('#bid-hint')}`); });
-          await p.selectOption('#tranche', String(Math.round(Number(deposit) * 1e8)));
+          await p.click(`#tranche [data-zat="${Math.round(Number(deposit) * 1e8)}"]`);
           await p.fill('#bid', bid); await p.fill('#refund', refund);
+          // the button waits for a good bid and address, and for the auction to take deposits
+          await p.waitForFunction(() => !document.querySelector('#create').disabled, null, { timeout: 180000 })
+            .catch(async () => { throw new Error(`${who}: the bid form stayed closed: ${await p.textContent('#bid-hint')} ${await p.textContent('#bid-error')} ${await p.textContent('#refund-msg')}`); });
           await p.click('#create');
           await p.waitForSelector('#pay-card:not([hidden])', { timeout: 60000 });
-          st.bids[who] = { memo: await p.textContent('#memo'), to: await p.textContent('#pay-to'), amount: await p.textContent('#pay-amt'), deposit, bid };
+          const full = (sel) => p.$eval(sel, (e) => e.dataset.full || e.textContent);
+          st.bids[who] = { memo: await full('#memo'), to: await full('#pay-to'), amount: await full('#pay-amt'), deposit, bid };
         } finally { await ctx.close(); }
       }
       log(`${PEOPLE.length} bid pages made their payments`);
@@ -163,7 +166,7 @@ const payDeposit = (b) => {
         save();
       }
       if (!st.b4.told) {
-        const l = await until('H told to take its money back', async () => { const l = await look('H', 'Take your money back now', 60000); return /Take your money back now/.test(l.title) ? l : null; }, 900000, 5000);
+        const l = await until('H told to take its money back', async () => { const l = await look('H', 'Your bid does not count', 60000); return /Your bid does not count/.test(l.title) ? l : null; }, 900000, 5000);
         st.b4.told = { t: await tip(), title: l.title, text: l.text, mined: l.state.ticket && l.state.ticket.entry && l.state.ticket.entry.contribution.height };
         log(`B4: H page at block ${st.b4.told.t}: ${l.title}: ${l.text}`);
         save();
@@ -200,7 +203,7 @@ const payDeposit = (b) => {
         save();
       }
       if (!st.b9.page) {
-        const l = await until('L page shows the return', async () => { const l = await look('L', 'came too late to bid', 90000); return /came too late to bid/.test(l.title) ? l : null; }, 900000, 15000);
+        const l = await until('L page shows the return', async () => { const l = await look('L', 'came too late', 90000); return /came too late/.test(l.title) ? l : null; }, 900000, 15000);
         st.b9.page = { title: l.title, text: l.text }; log(`B9: L page: ${l.title}: ${l.text}`);
         save();
       }

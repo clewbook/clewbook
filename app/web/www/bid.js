@@ -10,7 +10,7 @@
 
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
-import { setNetwork, markReady } from './ui.js';
+import { setup, setNetwork, markReady } from './ui.js';
 import { milestones } from './public.js';
 
 const $ = (s) => document.querySelector(s);
@@ -112,11 +112,15 @@ async function checkPlan() {
   } catch { /* tried again on the next refresh */ }
 }
 
+let spb = null; // seconds per block, measured once over the last 200 blocks (for "~6 days")
 async function readTip() {
   const [msg] = await grpcWeb(cfg.server, 'GetLatestBlock', new Uint8Array());
   tip = readVarintField(msg, 1);
   const [b] = await grpcWeb(cfg.server, 'GetBlockRange', W.block_range_request(tip, tip));
   tipTime = readVarintField(b, 5);
+  if (spb == null && tip > 200) {
+    try { const [o] = await grpcWeb(cfg.server, 'GetBlockRange', W.block_range_request(tip - 200, tip - 200)); const t0 = readVarintField(o, 5); if (t0 && tipTime > t0) spb = (tipTime - t0) / 200; } catch { /* the pill says Open */ }
+  }
 }
 
 // An early ticket expires at the deadline. Zebra (7.0.0-rc.0) drops a transaction from its mempool once the chain tip reaches its expiry
@@ -213,6 +217,7 @@ async function checkTickets() {
     problems.push(`the tickets: ${String(err.message || err)}`);
   }
   state.ticketsChecked = { ok: problems.length === 0, earlyOk, problems, at: tip };
+  work = ''; // the proof checker's progress line ends with the check
   save();
 }
 
@@ -322,87 +327,112 @@ async function takeBack() {
   const e = myIssue();
   const t = JSON.parse(W.open_ticket(state.seed, JSON.stringify(e), hexToBytes(state.ticket.blob_hex)));
   const r = await send(t.raw_hex);
-  say($('#send-msg'), r.ok ? 'Sent. Your money is on its way back to your refund address.' : `Not sent: ${r.message}`);
+  sent(r);
   if (r.ok) { state.earlySent = t.txid; save(); }
   render();
 }
 
 async function sendLate() {
   const r = await send(state.late.signed_hex);
-  say($('#send-msg'), r.ok ? 'Sent. Your deposit is on its way back to your refund address.' : `Not sent: ${r.message}`);
+  sent(r);
   if (r.ok) { state.lateSent = state.late.txid; save(); }
   render();
 }
 
 // ---------- what the page shows ----------
-// The owner's rule for page text: one short plain line, only when it changes what the person must do; the rest behind "more".
-// status() gives [title, line, button, more].
+// The owner's rule for page text: one short plain line, only when it changes what the person must do; the rest behind "more". status() gives
+// one card: its tone (m neutral, t teal, g green, a amber, r red), tag, title, line, the "more" text and what it offers.
+const fmtB = (n) => Number(n).toLocaleString('en-US');
+const amount = (zat) => (zat / 1e8).toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+const ticker = () => (campaign ? campaign.ticker : '');
+const short = (a, head = 6, tail = 6) => (a && a.length > head + tail + 1 ? `${a.slice(0, head)}…${a.slice(-tail)}` : a || '');
+const PRICING = {
+  uniform: ['Uniform price', 'winners pay the lowest winning bid', 'Every winner pays the lowest winning bid.'],
+  second: ['Second price', 'winners pay the highest losing bid', 'Every winner pays the highest losing bid.'],
+  pay_your_bid: ['Pay your bid', 'winners pay their own bid', 'Winners pay their own bid.'],
+};
+const pricing = () => PRICING[rules.sealed.pricing] || PRICING.pay_your_bid;
+// drand quicknet: a round every 3 seconds from its genesis (ll_core::sealed::round_time)
+const QUICKNET_GENESIS = 1692803367, QUICKNET_PERIOD = 3;
+const roundTime = (r) => QUICKNET_GENESIS + (r - 1) * QUICKNET_PERIOD;
+function eta(blocks) {
+  if (!spb || blocks < 0) return null;
+  const s = blocks * spb;
+  if (s < 90) return '<1 min';
+  if (s < 5400) return `${Math.round(s / 60)} min`;
+  if (s < 172800) return `${Math.round(s / 3600)} h`;
+  return `${Math.round(s / 86400)} days`;
+}
+const S = (tone, tag, title, line, more, o = {}) => ({ tone, tag, title, line, more: more || '', ...o });
+
 function status() {
-  const s = rules.sealed, d = rules.deadline_height, cutoff = d - s.coin_cutoff, hs = s.claim_after;
-  const take = lastTakeBack(), canTake = tip <= take;
-  const takeNow = `Take your money back now (until block ${take}).`;
+  const s = rules.sealed, d = rules.deadline_height, cutoff = d - s.coin_cutoff, hs = s.claim_after, fee = rules.refund_fee_zat;
+  const take = lastTakeBack(), canTake = tip <= take, early = canTake ? 'early' : null;
+  const takeNow = 'Take your money back now.';
   const atClose = 'Your deposit comes back at the close.';
-  const tooLate = `An early ticket must be sent by block ${take} to be mined before it expires at the deadline.`;
+  const tooLate = `An early ticket must be sent by block ${fmtB(take)} to be mined before it expires at the deadline.`;
   // C1 and H2: the host's payment to this person, opened on the chain with this page's own key
   const po = state.payout;
   const words = { refund: 'refund', change: 'change', return: 'return' };
-  if (po && po.height && !po.ok) return ['The host\'s payment does not pay you', 'Keep your backup file: the recount marks this host.', null, `The ${words[po.kind]} (transaction ${po.txid}, block ${po.height}) does not pay ${coin(po.want)} to your refund address. This page opened it on the chain with its own key.`];
-  const checked = po && po.height && po.ok ? `Checked on the chain with this page's own key: the ${words[po.kind]} pays ${coin(po.want)} to your refund address.` : '';
+  if (po && po.height && !po.ok) return S('r', 'PROBLEM', 'The host\'s payment does not pay you', 'Keep your backup file. The recount marks this host.', `The ${words[po.kind]} (transaction ${po.txid}, block ${fmtB(po.height)}) does not pay ${coin(po.want)} to your refund address. This page opened it on the chain with its own key.`);
+  const chain = !!(po && po.height && po.ok);
+  const checked = chain ? `Checked on the chain with this page's own key: the ${words[po.kind]} pays ${coin(po.want)} to your refund address.` : '';
   if (state.rejected) {
     const sent = state.challenge && state.challenge.ok.length;
-    return ['The host rejected your payment', `${state.lateReturn ? 'It was sent back to you' : 'It is sent back to you'}, minus the fee. ${sent ? 'You published proof that it was valid.' : 'If it was valid, you can publish proof.'}`, 'challenge', [
-      `Mined in block ${state.rejected.height}${state.rejected.reason ? ` (the host's reason: ${state.rejected.reason})` : ''}.`,
-      state.lateReturn ? `Return: transaction ${state.lateReturn.txid}, minus the ${coin(rules.refund_fee_zat)} fee.` : `The host must send it back within ${rules.ticket_k} blocks; the recount marks it if not.`,
-      sent ? `Published to ${state.challenge.ok.length} of ${cfg.relays.length} list servers; the recount marks the host if the proof holds.` : 'Publishing shows everyone your refund address now; the close makes it public anyway.',
-      checked].filter(Boolean).join(' ')];
+    return S('a', 'REJECTED', 'The host rejected your payment', `${state.lateReturn ? 'It was sent back to you' : 'It is being sent back to you'}, minus the fee.`, [
+      `Mined in block ${fmtB(state.rejected.height)}${state.rejected.reason ? ` (the host's reason: ${state.rejected.reason})` : ''}.`,
+      state.lateReturn ? `Return: transaction ${state.lateReturn.txid}, minus the ${coin(fee)} fee.` : `The host must send it back within ${rules.ticket_k} blocks; the recount marks it if not.`,
+      sent ? `You published proof that it was valid, to ${state.challenge.ok.length} of ${cfg.relays.length} list servers; the recount marks the host if the proof holds.` : 'If it was valid, you can publish proof. Publishing shows everyone your refund address now; the close makes it public anyway.',
+      checked].filter(Boolean).join(' '), { action: 'challenge', chain });
   }
-  if (state.lateReturn) return ['Your payment came too late to bid', 'It was sent back to you, minus the fee.', null, `Mined in block ${state.lateReturn.height}; deposits had to be mined by block ${lastDeposit()}. Return: transaction ${state.lateReturn.txid}, minus the ${coin(rules.refund_fee_zat)} fee. ${checked}`];
-  if (state.earlySent && state.earlyMined) return ['Your money is back', 'Your bid is out of the auction.', null, `Your early ticket was mined in block ${state.earlyMined}: your deposit, minus the fee, is at your refund address.`];
-  if (state.earlySent && tip <= d) return ['Your money is on its way back', 'Keep this page open until it is mined.', null, `Your early ticket must be mined by block ${d}.`];
-  if (state.earlySent && state.refundMined) return ['Your money is back', 'It came back by the host\'s signed refund.', null, `Your early ticket was not mined before the deadline, so the deposit stayed in the auction; the refund was mined in block ${state.refundMined}.`];
-  if (state.lateSent) return ['Your deposit is on its way back', 'You sent your late ticket.', null, 'It pays your deposit, minus the fee, to your refund address.'];
-  if (!state.ticket) return ['Waiting for your deposit\'s ticket', 'Keep this page open until it says PROTECTED.', null, `The host lists your early ticket within ${rules.ticket_k} blocks of your payment. A payment mined after block ${lastDeposit()} does not count and is sent back, minus the fee.`];
+  if (state.lateReturn) return S('a', 'TOO LATE', 'Your payment came too late', 'It arrived after bidding closed, so it was sent back, minus the fee.', `Payments after block ${fmtB(lastDeposit())} cannot join the auction; yours was mined in block ${fmtB(state.lateReturn.height)}. Return: transaction ${state.lateReturn.txid}, minus the ${coin(fee)} fee. ${checked}`, { chain });
+  if (state.earlySent && state.earlyMined) return S('g', 'TAKEN BACK', 'Your money is back', 'Your bid is out of the auction.', `Your early ticket was mined in block ${fmtB(state.earlyMined)}: your deposit, minus the fee, is at your refund address.`);
+  if (state.earlySent && tip <= d) return S('t', 'SENDING BACK', 'Your money is on its way back', 'Keep this page open until it is mined.', `Your early ticket must be mined by block ${fmtB(d)}.`, { pulse: 1 });
+  if (state.earlySent && state.refundMined) return S('g', 'REFUNDED', 'Your money is back', 'It came back by the host\'s signed refund.', `Your early ticket was not mined before the deadline, so the deposit stayed in the auction; the refund was mined in block ${fmtB(state.refundMined)}.`);
+  if (state.lateSent) return S('t', 'SENDING BACK', 'Your deposit is on its way back', 'It goes to your refund address, minus the fee.', 'You sent your late ticket.', { pulse: 1 });
+  if (!state.ticket) return S('m', 'WAITING', 'Waiting for your payment', state.noirTxid || state.noirSent ? 'Sent with Noir. This page updates by itself.' : `Pay ${coin(state.tranche)} from your wallet. This page updates by itself.`, `Usually a minute or two after you send it. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
   const c = closeEntry();
   if (c) {
     const won = (c.close.winners || []).includes(state.ticket.nf), st = mySettle();
-    if (c.close.outcome === 'void') return ['The auction was void', 'Round R came too early for this deadline, so every deposit goes back by its signed refund.', null, ''];
-    if (won) return ['Your bid won', st ? `You pay ${coin(st.settle.price_zat)}; ${coin(st.settle.excess_zat)} comes back to your refund address.` : 'The host is settling: the price goes to the treasury and the rest of your deposit comes back to you.', null, checked];
-    return ['Your bid did not win', 'Your deposit comes back by the host\'s signed refund.', tip > hs && state.late ? 'late' : null, checked];
+    if (c.close.outcome === 'void') return S('m', 'RESULT', 'The auction was void', 'Every deposit goes back by its signed refund.', `The bids could have been opened too early for this deadline, so no bid counts. ${checked}`, { chain, recount: 1 });
+    if (won) {
+      const line = !st ? 'The host is settling. The rest of your deposit comes back to you.' : st.settle.excess_zat > 0 ? `${coin(st.settle.excess_zat)} change is coming back to your refund address.` : 'Your bid used the whole deposit, so no change comes back.';
+      return S('g', 'RESULT', 'You won', line, `${pricing()[2]} The rest of the deposit, minus the fee, goes back to the refund address. ${checked}`, { num: st ? amount(st.settle.price_zat) : null, unit: `${ticker()} paid`, chain, recount: 1 });
+    }
+    return S('m', 'RESULT', 'You did not win', 'Your deposit is coming back to your refund address.', `Every losing deposit goes back to its refund address, minus the fee, by the host's signed refund. ${checked}`, { num: amount((state.paidZat || state.tranche) - fee), unit: `${ticker()} coming back`, chain, recount: 1, action: tip > hs && state.late ? 'late' : null });
   }
-  if (tip > hs) return ['The host did not finish', state.late ? 'From this block you can take your deposit back on your own with your late ticket.' : 'The host did not finish, and this page holds no late ticket for you.', state.late ? 'late' : null, ''];
-  if (tip > d) return ['Bidding has closed', `The bids open with drand round ${s.drand_round}. ${state.late ? `If the host does not finish the auction, from block ${hs + 1} you can take your deposit back on your own.` : ''}`, null, ''];
+  if (tip > hs) return S('r', 'PROBLEM', 'The host did not finish', state.late ? 'Bids were not settled in time. Take your money back.' : 'Bids were not settled in time. Keep your backup file.', `The host did not open and settle the bids by block ${fmtB(hs)}. ${state.late ? `From block ${fmtB(hs + 1)} your late ticket pays your deposit, minus the fee, to your refund address.` : 'This page holds no late ticket for you; the recount marks this host.'}`, { action: state.late ? 'late' : null });
+  if (tip > d) return S('t', 'BIDDING CLOSED', 'Bids open soon', `All bids open at drand round ${fmtB(s.drand_round)}.`, `drand is a public clock anyone can check. At that round every bid can be read at once.${state.late ? ` If the host does not finish, from block ${fmtB(hs + 1)} you can take your deposit back on your own.` : ''}`, { cd: 1, pulse: 1 });
   const paidAt = state.ticket.entry && state.ticket.entry.contribution ? state.ticket.entry.contribution.height : null;
   // H4 and C1: nothing is PROTECTED, and no take back is offered, before the early ticket and the signed refund check out
   const tc = state.ticketsChecked;
-  if (!tc) return ['Checking your tickets', 'Keep this page open.', null, 'This page checks who your tickets pay, how much, their signatures and their proofs.'];
+  if (!tc) return S('m', 'CHECKING', 'Checking your tickets', 'Keep this page open.', 'This page checks who your tickets pay, how much, their signatures and their proofs.', { pulse: 1 });
   if (!tc.ok) {
     const what = tc.problems.join(' ');
     return tc.earlyOk && canTake
-      ? ['NOT PROTECTED: a ticket does not check out', takeNow, 'early', `${what} The recount marks the host.`]
-      : ['NOT PROTECTED: a ticket does not check out', tc.earlyOk ? `${atClose} Keep your backup file.` : 'This page cannot take your money back for you. Keep your backup file.', null, `${what} ${tc.earlyOk ? tooLate : ''} The recount marks the host.`];
+      ? S('r', 'PROBLEM', 'Your ticket does not check out', 'Do not rely on it. Take your money back now.', `${what} The recount marks the host.`, { action: 'early' })
+      : S('r', 'PROBLEM', 'Your ticket does not check out', tc.earlyOk ? `${atClose} Keep your backup file.` : 'This page cannot take your money back for you. Keep your backup file.', `${what} ${tc.earlyOk ? tooLate : ''} The recount marks the host.`);
   }
-  if (state.late && state.coinGone) return ['NOT PROTECTED after the deadline', `The host's small payment is gone from the chain. ${canTake ? takeNow : atClose}`, canTake ? 'early' : null, `The chain was reorganised, so the late ticket would not work.${canTake ? '' : ` ${tooLate}`}`];
+  if (state.late && state.coinGone) return S('a', 'ACTION NEEDED', 'The host\'s small payment is gone', `It is gone from the chain. ${canTake ? takeNow : atClose}`, `The chain was reorganised, so your late ticket would not work.${canTake ? '' : ` ${tooLate}`}`, { action: early });
   if (paidAt != null && paidAt > cutoff && !state.late) {
-    const why = `Your deposit was mined in block ${paidAt}, after the cutoff for the host's small payment (block ${cutoff}). Without that payment you have no late ticket: if the host never closes, nothing gives your money back on its own.`;
+    const why = `Your deposit was mined in block ${fmtB(paidAt)}, after the cutoff for the host's small payment (block ${fmtB(cutoff)}). Without that payment you have no late ticket: if the host never closes, nothing gives your money back on its own.`;
     return canTake
-      ? ['Take your money back now', `Your bid does not count: you paid after the cutoff. Take it back now (until block ${take}).`, 'early', why]
-      : ['Your bid does not count', atClose, null, `${why} ${tooLate}`];
+      ? S('a', 'ACTION NEEDED', 'Your bid does not count', 'You paid after the cutoff. Take your money back now.', why, { action: 'early' })
+      : S('a', 'TOO LATE', 'Your bid does not count', atClose, `${why} ${tooLate}`);
   }
   const back = canTake ? takeNow : atClose;
-  const backMore = canTake ? '' : `${tooLate} If the host never closes, this page holds no late ticket for you.`;
-  if (planProblem) return ['NOT PROTECTED after the deadline', `This auction's timing is wrong. ${back}`, canTake ? 'early' : null, `${planProblem} ${backMore}`];
-  if (planProblem === undefined) return ['Checking your tickets', 'Keep this page open.', canTake ? 'early' : null, 'This page checks the auction\'s timing against the chain.'];
-  if (state.late) return ['PROTECTED', canTake ? `You can take your money back until block ${take}.` : atClose, canTake ? 'early' : null, `If the host does not finish the auction, from block ${hs + 1} you can take your deposit back on your own.`];
-  if (state.lateProblem) return ['NOT PROTECTED after the deadline', back, canTake ? 'early' : null, `${state.lateProblem} ${backMore}`];
-  if (tip >= cutoff) return ['NOT PROTECTED after the deadline', `The host's small payment did not come. ${back}`, canTake ? 'early' : null, backMore];
+  const backMore = canTake ? `You can take your money back until block ${fmtB(take)}.` : `${tooLate} If the host never closes, this page holds no late ticket for you.`;
+  if (planProblem) return S('r', 'PROBLEM', 'This auction\'s timing is wrong', back, `${planProblem} ${backMore}`, { action: early });
+  if (planProblem === undefined) return S('m', 'CHECKING', 'Checking the auction', 'Keep this page open.', 'This page checks the auction\'s timing against the chain.', { action: early, pulse: 1 });
+  if (state.late) return S('g', 'YOUR MONEY IS COVERED', 'PROTECTED', canTake ? `You can take your money back until block ${fmtB(take)}.` : atClose, `Your refund ticket checks out. Your bid stays locked until bids open. If the host does not finish the auction, from block ${fmtB(hs + 1)} you can take your deposit back on your own.`, { big: 1, num: amount(state.tranche), unit: `${ticker()} deposit`, action: early, grey: 1 });
+  if (state.lateProblem) return S('r', 'PROBLEM', 'Your ticket does not check out', back, `${state.lateProblem} ${backMore}`, { action: early });
+  if (tip >= cutoff) return S('a', 'ACTION NEEDED', 'The host\'s small payment did not arrive', back, `Without it, your refund ticket cannot be completed by the host. ${backMore}`, { action: early });
   // M3: the page checks and signs the late ticket only while it is open; it warns from the block by which the host must have sent its
   // small payment (COIN_RUSH_BLOCKS before the cutoff) plus 5 blocks to mine it, well before the cutoff
-  const warn = tip >= cutoff - 15;
-  const act = `Keep this page open. If it does not say PROTECTED by block ${cutoff}, take your money back.`;
-  const signs = `This page signs your late ticket only while it is open. You can take your money back until block ${take}.`;
-  if (myCoinEntry()) return [warn ? 'Not protected yet, and the cutoff is close' : 'Not protected after the deadline yet', warn ? act : 'Keep this page open until it says PROTECTED.', canTake ? 'early' : null, `The host's small payment is on its way. ${signs}`];
-  if (warn) return ['Not protected yet, and the cutoff is close', act, canTake ? 'early' : null, `The host's small payment has not come; it must be mined by block ${cutoff}. ${signs}`];
-  return ['Waiting for the host\'s small payment', 'Keep this page open until it says PROTECTED.', canTake ? 'early' : null, `If the host's small payment has not come by block ${cutoff}, take your money back. ${signs} If you close it, open it again before the cutoff.`];
+  const signs = `This page signs your late ticket only while it is open. You can take your money back until block ${fmtB(take)}.`;
+  const coming = !!myCoinEntry();
+  if (tip >= cutoff - 15) return S('a', 'ACTION NEEDED', 'Not protected yet, and the cutoff is close', `Keep this page open. If it does not say PROTECTED by block ${fmtB(cutoff)}, take your money back.`, `${coming ? 'The host\'s small payment is on its way.' : `The host's small payment has not come; it must be mined by block ${fmtB(cutoff)}.`} ${signs}`, { action: early, pulse: 1 });
+  return S('t', 'ALMOST THERE', 'Waiting for your ticket', 'Keep this page open until it says PROTECTED.', `Your payment arrived. ${coming ? 'The host\'s small payment that completes your refund ticket is on its way.' : `The host now sends a small payment that completes your refund ticket. If it has not come by block ${fmtB(cutoff)}, take your money back.`} ${signs}${coming ? '' : ' If you close this page, open it again before then.'}`, { action: early, pulse: 1 });
 }
 
 // ---------- Pay with Noir (only when the Noir browser extension is present; without it nothing on the page changes) ----------
@@ -479,86 +509,222 @@ async function onNoirPay() {
   }
 }
 
+// ---------- drawing the page: step 1 the bid, step 2 the payment, step 3 one status card ----------
+let editing = false; // "← Bid" from the payment: the form again, filled in, the payment kept until a new one is made
+let moreOpen = false, moreKey = '', takeAsk = null, cdTimer = null;
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+function factRow(k, v, sub) {
+  const row = el('div', 'bb-fr'), r = el('span', 'r');
+  r.append(el('b', null, v));
+  if (sub) r.append(el('span', null, sub));
+  row.append(el('span', null, k), r);
+  return row;
+}
+/** The page sees the payment (its ticket, a reject, a return), or something was sent from here: the status card comes by itself. */
+const seen = () => !!(state && (state.ticket || state.rejected || state.lateReturn || state.earlySent || state.lateSent || state.noirTxid || state.noirSent || state.showStatus));
+
 function render() {
-  for (const id of ['#form-card', '#pay-card', '#status-card']) $(id).hidden = true;
+  for (const id of ['#form-card', '#pay-card', '#status-card', '#status-line']) $(id).hidden = true;
   $('#banners').replaceChildren();
-  if (refused) { const p = document.createElement('p'); p.className = 'warnline'; p.textContent = refused; $('#banners').append(p); return; }
+  if (refused) { const p = el('p', 'warnline', refused); $('#banners').append(p); return; }
   if (!rules || tip == null) return;
-  const s = rules.sealed;
-  $('#cname').hidden = false; $('#cname').textContent = campaign.name || `Blind bid auction ${cfg.id.slice(0, 8)}`;
-  $('#status-line').hidden = false; $('#status-text').textContent = `block ${tip} · deadline ${rules.deadline_height}`;
-  if (!state) {
-    $('#form-card').hidden = false;
-    $('#f-round').textContent = s.drand_round;
-    const sel = $('#tranche');
-    if (!sel.options.length) for (const t of s.tranches_zat) sel.append(new Option(`${coin(t)} (bids up to ${coin(t - rules.refund_fee_zat)})`, String(t)));
-    const w = JSON.parse(W.sealed_bid_window(rulesJson, tip, tipTime || 0));
-    windowOk = w.ok && !planProblem && planProblem !== undefined;
-    say($('#bid-hint'), planProblem ? 'This auction\'s timing is wrong. Do not bid.' : w.ok && planProblem === undefined ? 'Checking the auction\'s timing against the chain.' : w.ok ? `Pay by block ${w.last_block}. Your deposit shows only the size you chose, never your bid.` : w.reason);
-    syncBid();
-    return;
+  const s = rules.sealed, d = rules.deadline_height;
+  const step = !state || editing ? 1 : seen() ? 3 : 2;
+  // the auction line: OPEN · ~time left, or CLOSED once the deadline has passed or the auction closed
+  $('#status-line').hidden = false;
+  $('#cname').textContent = campaign.name || `Blind bid auction ${cfg.id.slice(0, 8)}`;
+  $('#ckind').textContent = `Blind bid auction · ${rules.items} ${rules.items === 1 ? 'item' : 'items'}`;
+  const closed = tip > d || !!closeEntry(), left = eta(d - tip);
+  $('#status-chip').classList.toggle('closed', closed);
+  $('#pill-t').textContent = closed ? 'CLOSED' : left ? `OPEN · ~${left}` : 'OPEN';
+  for (const li of document.querySelectorAll('#steps li')) {
+    const n = Number(li.dataset.n);
+    li.classList.toggle('done', n < step);
+    if (n === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    li.querySelector('span').textContent = n < step ? '✓' : String(n);
   }
-  if ((!state.paidZat || !state.ticket) && !state.rejected && !state.lateReturn) {
-    $('#pay-card').hidden = false;
-    $('#pay-amount').textContent = coin(state.tranche);
-    $('#pay-to').textContent = state.payTo; $('#pay-amt').textContent = String(state.tranche / 1e8); $('#memo').textContent = state.memo;
-    $('#qr').replaceChildren(...(typeof state.qrSvg === 'string' && state.qrSvg ? [qrImage(state.qrSvg)] : []));
-  }
+  $('#flow-back').hidden = step !== 1; $('#pay-back').hidden = step !== 2; $('#home-back').hidden = step !== 3;
+  const mine = state ? [['Deposit', coin(state.tranche), 'public size'], ['Your bid', coin(state.bid), closeEntry() ? 'opened at the close' : 'locked until bids open'], ['Refund to', short(state.refund), 'public after the close']] : [];
+  for (const box of document.querySelectorAll('.bb-mine')) box.replaceChildren(...mine.map(([k, v, sub]) => factRow(k, v, sub)));
   renderNoir();
+  if (step === 1) return renderForm();
+  if (step === 2) return renderPay();
+  return renderStatus();
+}
+
+function renderForm() {
+  const s = rules.sealed, fee = rules.refund_fee_zat, d = rules.deadline_height, [pl, psub] = pricing();
+  $('#form-card').hidden = false;
+  $('#edit-note').hidden = !editing;
+  const left = eta(d - tip);
+  $('#facts').replaceChildren(
+    factRow('Items', String(rules.items)),
+    factRow('Deposit sizes', `${s.tranches_zat.map(amount).join(' · ')} ${ticker()}`),
+    tip > d ? factRow('Deadline', 'passed', `block ${fmtB(d)}`) : left ? factRow('Deadline', `≈${left}`, `block ${fmtB(d)}`) : factRow('Deadline', `block ${fmtB(d)}`),
+    factRow('Bids open', 'drand round', fmtB(s.drand_round)),
+    factRow('Pricing', pl, psub),
+    factRow('Ties', 'Chain order'),
+  );
+  const box = $('#tranche');
+  if (!box.children.length) {
+    s.tranches_zat.forEach((t, i) => {
+      const b = el('button', 'bb-dep');
+      b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.zat = String(t);
+      b.setAttribute('aria-checked', i === 0 ? 'true' : 'false'); b.tabIndex = i === 0 ? 0 : -1;
+      const v = el('span', 'v'); v.append(el('b', null, amount(t)), el('span', null, ticker()));
+      b.append(el('span', 'dot'), v, el('span', 'up', `bids up to ${amount(t - fee)}`));
+      b.setAttribute('aria-label', `${coin(t)} deposit, bids up to ${amount(t - fee)}`);
+      b.addEventListener('click', () => pickTranche(b));
+      box.append(b);
+    });
+    box.addEventListener('keydown', (e) => {
+      const all = [...box.children], i = all.findIndex((x) => x.getAttribute('aria-checked') === 'true');
+      const next = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (next == null) return;
+      e.preventDefault(); const b = all[(i + next + all.length) % all.length]; pickTranche(b); b.focus();
+    });
+  }
+  if (editing && state && !$('#form').dataset.filled) {
+    $('#form').dataset.filled = '1';
+    const b = [...box.children].find((x) => Number(x.dataset.zat) === Number(state.tranche)); if (b) pickTranche(b, true);
+    $('#bid').value = amount(state.bid); $('#refund').value = state.refund;
+  }
+  const w = JSON.parse(W.sealed_bid_window(rulesJson, tip, tipTime || 0));
+  windowOk = w.ok && !planProblem && planProblem !== undefined;
+  hint = planProblem ? 'This auction\'s timing is wrong. Do not bid.' : w.ok && planProblem === undefined ? 'Checking the auction\'s timing against the chain.' : w.ok ? 'Your deposit shows only its size, never your bid.' : w.reason;
+  $('#recount-link').href = $('#nav-recount').href;
+  syncBid();
+}
+function pickTranche(b, quiet) {
+  for (const x of $('#tranche').children) { const on = x === b; x.setAttribute('aria-checked', on ? 'true' : 'false'); x.tabIndex = on ? 0 : -1; }
+  if (!quiet) syncBid();
+}
+
+function renderPay() {
+  $('#pay-card').hidden = false;
+  $('#pay-amount').textContent = coin(state.tranche);
+  const to = $('#pay-to'); to.textContent = short(state.payTo, 13, 8); to.dataset.full = state.payTo; to.title = state.payTo;
+  $('#pay-amt').textContent = coin(state.tranche); $('#pay-amt').dataset.full = String(state.tranche / 1e8);
+  const m = $('#memo'); m.textContent = state.memo; m.title = state.memo;
+  if ($('#qr').dataset.memo !== state.memo) { $('#qr').dataset.memo = state.memo; $('#qr').replaceChildren(...(typeof state.qrSvg === 'string' && state.qrSvg ? [qrImage(state.qrSvg)] : [])); }
+  $('#open-wallet').href = state.uri || `zcash:${state.payTo}?amount=${amount(state.tranche)}&memo=${btoa(String.fromCharCode(...new TextEncoder().encode(state.memo))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+  const saved = !!state.backupSaved;
+  $('#backup-card').classList.toggle('saved', saved);
+  $('#bk-tag').textContent = saved ? '✓ STEP 1 · SAVED' : '△ STEP 1 · IMPORTANT';
+  $('#saved').checked = saved;
+  $('#pay-by').textContent = `Pay by block ${fmtB(lastDeposit())}. Late payments are sent back.`;
+}
+
+function renderStatus() {
   $('#status-card').hidden = false;
-  const [title, text, action, more] = status();
-  $('#st-title').textContent = title; $('#st-text').textContent = text;
-  const moreText = [more, ignoredServer ? `The link named the chain server ${ignoredServer}; this page uses ${cfg.server} instead.` : ''].filter(Boolean).join(' ');
-  $('#st-more').textContent = moreText; $('#st-more-box').hidden = !moreText;
-  const facts = [
-    `Your deposit: ${coin(state.tranche)}; your bid: ${coin(state.bid)}`,
-    `Deadline: block ${rules.deadline_height}; the host's small payment by block ${rules.deadline_height - s.coin_cutoff}`,
-    `Bids open with drand round ${s.drand_round}; late tickets work from block ${s.claim_after + 1}`,
-  ];
-  if (state.noirTxid && !state.paidZat) facts.push(`Sent with Noir: transaction ${state.noirTxid}`);
-  if (state.earlySent && !state.earlyMined && tip > rules.deadline_height) facts.push(`Your early ticket (${state.earlySent}) was not mined before it expired at the deadline (block ${rules.deadline_height}): your deposit stayed in the auction.`);
-  $('#st-facts').replaceChildren(...facts.map((f) => Object.assign(document.createElement('li'), { textContent: f })));
+  const st = status(), card = $('#st-card');
+  const key = `${st.tone}|${st.title}`;
+  if (key !== moreKey) { moreKey = key; moreOpen = false; if (takeAsk && !st.action) takeAsk = null; }
+  card.dataset.tone = st.tone;
+  card.classList.toggle('big', !!st.big); card.classList.toggle('pulse', !!st.pulse);
+  $('#st-tag').textContent = st.tag; $('#st-title').textContent = st.title; $('#st-text').textContent = st.line;
+  $('#st-numrow').hidden = !st.num; $('#st-num').textContent = st.num || ''; $('#st-unit').textContent = st.unit || '';
+  $('#st-chain').hidden = !st.chain;
+  $('#st-cd').hidden = !st.cd; tickCountdown();
+  $('#st-back-pay').hidden = !st.back;
+  $('#st-recount').hidden = !st.recount; $('#st-recount').href = $('#nav-recount').href;
+  // the facts that used to be a list: behind "more", with the rest
+  const extra = [];
+  if (state.noirTxid && !state.paidZat) extra.push(`Sent with Noir: transaction ${state.noirTxid}.`);
+  if (state.earlySent && !state.earlyMined && tip > rules.deadline_height) extra.push(`Your early ticket (${state.earlySent}) was not mined before it expired at the deadline (block ${fmtB(rules.deadline_height)}): your deposit stayed in the auction.`);
+  if (ignoredServer) extra.push(`The link named the chain server ${ignoredServer}; this page uses ${cfg.server} instead.`);
+  const more = [st.more, ...extra].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  $('#st-more').textContent = more; $('#st-more').hidden = !moreOpen || !more;
+  $('#st-more-btn').hidden = !more; $('#st-more-btn').textContent = moreOpen ? 'less' : 'more'; $('#st-more-btn').setAttribute('aria-expanded', String(moreOpen));
   say($('#st-work'), work);
-  $('#take-back').hidden = !(action === 'early' && state.ticket && tip <= lastTakeBack() && !state.earlySent && state.ticketsChecked && state.ticketsChecked.earlyOk);
-  $('#send-late').hidden = !(action === 'late' && state.late && !state.lateSent);
+  // the actions: the early ticket (before the deadline), the late ticket (a host that did not finish), the proof of a rejected payment;
+  // taking money back always asks once more
+  const tone = st.grey ? 'grey' : st.tone === 'r' ? 'red' : st.tone === 'a' ? 'amber' : st.tone === 'g' || st.tone === 't' ? 'grey' : '';
+  const canEarly = st.action === 'early' && state.ticket && tip <= lastTakeBack() && !state.earlySent && state.ticketsChecked && state.ticketsChecked.earlyOk;
+  const canLate = st.action === 'late' && state.late && !state.lateSent;
+  for (const [id, on] of [['#take-back', canEarly], ['#send-late', canLate]]) {
+    const b = $(id); b.hidden = !on || !!takeAsk; b.classList.remove('grey', 'red', 'amber'); if (tone) b.classList.add(tone);
+  }
+  if (takeAsk && !(takeAsk === 'early' ? canEarly : canLate)) takeAsk = null;
+  $('#take-ask').hidden = !takeAsk;
+  if (takeAsk) { $('#take-amt').textContent = coin((state.paidZat || state.tranche) - rules.refund_fee_zat); $('#take-to').textContent = short(state.refund); }
   const ch = state.challenge;
-  $('#challenge').hidden = !(action === 'challenge' && !(ch && ch.ok.length === cfg.relays.length));
+  $('#challenge').hidden = !(st.action === 'challenge' && !(ch && ch.ok.length === cfg.relays.length));
   $('#challenge').textContent = ch && ch.ok.length ? 'Try the remaining list servers again' : 'Publish proof that my payment was valid';
+}
+/** The countdown to the drand round that opens the bids, from the round's own time. */
+function tickCountdown() {
+  if ($('#st-cd').hidden || !rules) return;
+  const left = Math.max(0, Math.round(roundTime(rules.sealed.drand_round) - Date.now() / 1000));
+  const p2 = (n) => String(n).padStart(2, '0');
+  $('#cd-h').textContent = p2(Math.floor(left / 3600)); $('#cd-m').textContent = p2(Math.floor((left % 3600) / 60)); $('#cd-s').textContent = p2(left % 60);
+}
+function sent(r) {
+  const m = $('#send-msg');
+  say(m, r.ok ? '✓ Sent. It shows in your wallet after a block or two.' : `Not sent: ${r.message}`);
+  m.classList.toggle('ok', !!r.ok);
+  takeAsk = null;
 }
 
 // ---------- the bid ----------
-let windowOk = false; // the auction takes deposits now (set by render)
-/** A bid above what the chosen deposit allows (the deposit minus the refund fee): one short line naming the smallest deposit that fits, if any.
- * The deposit is never changed for the person. */
-function bidProblem() {
-  const t = $('#bid').value.trim(), bid = Math.round(Number(t) * 1e8), fee = rules.refund_fee_zat;
-  if (!t || !Number.isFinite(bid) || bid <= Number($('#tranche').value) - fee) return null;
-  const fits = rules.sealed.tranches_zat.filter((x) => bid <= x - fee).sort((a, b) => a - b)[0];
-  return fits ? `Too high for this deposit. Pick ${coin(fits)} or lower your bid.` : `Too high for any deposit here. Lower your bid to ${coin(Math.max(...rules.sealed.tranches_zat) - fee)} or less.`;
+let windowOk = false, hint = ''; // the auction takes deposits now, and the grey line under the bid (set by renderForm)
+const selectedTranche = () => { const b = document.querySelector('#tranche [aria-checked="true"]'); return b ? Number(b.dataset.zat) : null; };
+/** The bid as typed: empty, not an amount, too high for the chosen deposit (the deposit minus the refund fee, the limit the payment is built
+ * with), or fine. The deposit is never changed for the person. */
+function bidState() {
+  const t = $('#bid').value.trim().replace(',', '.');
+  if (!t) return { typed: false };
+  if (!/^\d*\.?\d{0,8}$/.test(t) || !(Number(t) > 0)) return { typed: true, bad: `Enter a bid in ${ticker()}, up to 8 decimals.` };
+  const bid = Math.round(Number(t) * 1e8), dep = selectedTranche(), fee = rules.refund_fee_zat, max = dep - fee;
+  if (bid > max) {
+    const bigger = rules.sealed.tranches_zat.some((x) => x > dep && bid <= x - fee);
+    return { typed: true, tooHigh: true, bad: `Too high for a ${coin(dep)} deposit. Bid up to ${amount(max)}${bigger ? ' or pick a bigger deposit' : ''}.` };
+  }
+  return { typed: true, ok: true, bid };
 }
-/** Live, as on the contribute page: the line under the bid box in place of the grey hint, the box glows red, and the button waits. */
+/** The refund address: "" when this auction's network can pay it, else the one line (the WebAssembly module decides). */
+const prefix = () => ({ main: 'u1', test: 'utest1' }[campaign.network] || 'uregtest1');
+function addrState() {
+  const a = $('#refund').value.trim();
+  if (!a) return { typed: false };
+  const p = W.sealed_refund_problem(campaign.network, a);
+  return p ? { typed: true, bad: p } : { typed: true, ok: true };
+}
+/** Live, as on the contribute page: the red line under the bid in place of the grey one, the box glows, the chosen deposit turns red when the
+ * bid is too high for it, and the button waits until the bid and the address are good. */
 function syncBid() {
-  if (!rules || !$('#tranche').options.length) return;
-  const msg = bidProblem(), inp = $('#bid'), e = $('#bid-error');
-  e.textContent = msg || ''; e.hidden = !msg; $('#bid-hint').hidden = !!msg || !$('#bid-hint').textContent;
-  inp.closest('.amountbox').classList.toggle('bad', !!msg);
-  if (msg) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', 'bid-error'); } else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'bid-hint'); }
-  $('#create').disabled = !windowOk || !!msg;
+  if (!rules || !$('#tranche').children.length) return;
+  const b = bidState(), a = addrState(), inp = $('#bid'), e = $('#bid-error');
+  e.textContent = b.bad || ''; e.hidden = !b.bad;
+  $('#bid-hint').textContent = hint; $('#bid-hint').hidden = !!b.bad || !hint;
+  $('#bidbox').classList.toggle('bad', !!b.bad);
+  for (const x of $('#tranche').children) x.classList.toggle('bad', !!b.tooHigh && x.getAttribute('aria-checked') === 'true');
+  if (b.bad) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', 'bid-error'); } else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'bid-hint'); }
+  const r = $('#refund'), m = $('#refund-msg');
+  m.textContent = !a.typed ? `A shielded address starting with ${prefix()}. Use one you use nowhere else.` : a.ok ? '✓ Shielded address. Use one you use nowhere else.' : a.bad;
+  m.className = `bb-help${a.bad ? ' bad' : a.ok ? ' ok' : ''}`; m.setAttribute('role', a.bad ? 'alert' : 'note');
+  r.classList.toggle('bad', !!a.bad); r.classList.toggle('ok', !!a.ok);
+  if (a.bad) r.setAttribute('aria-invalid', 'true'); else r.removeAttribute('aria-invalid');
+  $('#create').disabled = !windowOk || !b.ok || !a.ok;
 }
 
 async function onCreate(ev) {
   ev.preventDefault();
   const err = $('#form-error');
   try {
+    const b = bidState(), a = addrState();
+    if (!windowOk || !b.ok || !a.ok) return;
     const seed = W.generate_seed();
-    const tranche = Number($('#tranche').value);
-    const bid = Math.round(Number($('#bid').value.trim()) * 1e8);
+    const tranche = selectedTranche();
     const refund = $('#refund').value.trim();
-    const p = JSON.parse(W.sealed_bid_payment(rulesJson, seed, refund, tranche, bid));
-    state = { seed, refund, tranche, bid, memo: p.memo, payTo: p.pay_to, pageKey: p.page_key, qrSvg: p.qr_svg, paidZat: null, startHeight: tip };
+    const p = JSON.parse(W.sealed_bid_payment(rulesJson, seed, refund, tranche, b.bid));
+    // a bid changed after its payment was shown: the earlier one stays in this browser (and in its backup file)
+    if (editing && state) { try { localStorage.setItem(`${storeKey}:replaced:${Date.now()}`, JSON.stringify(state)); } catch { /* the backup file holds it */ } }
+    state = { seed, refund, tranche, bid: b.bid, memo: p.memo, payTo: p.pay_to, pageKey: p.page_key, qrSvg: p.qr_svg, uri: p.uri, paidZat: null, startHeight: tip };
+    editing = false; delete $('#form').dataset.filled;
     save();
     say(err, '');
-    render();
+    render(); window.scrollTo(0, 0);
   } catch (e) { say(err, String(e.message || e)); }
 }
 
@@ -630,6 +796,7 @@ async function refresh() {
 }
 
 async function main() {
+  setup('Blind bid');
   if (!cfg.id || !cfg.relays.length) { refused = 'This link is missing the auction or its list servers.'; render(); return; }
   const tail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
   const ms = milestones(), on = (h) => (ms ? ms.onward(h) : h); // opened from the demo's Tested milestones page: keep the way back
@@ -638,16 +805,38 @@ async function main() {
   await init();
   $('#form').addEventListener('submit', onCreate);
   $('#bid').addEventListener('input', syncBid);
-  $('#tranche').addEventListener('change', syncBid);
+  $('#refund').addEventListener('input', syncBid);
   $('#noir-pay').addEventListener('click', onNoirPay);
   detectNoir().then((w) => { if (w) { noir = w; renderNoir(); } });
-  $('#backup').addEventListener('click', downloadBackup);
-  $('#backup2').addEventListener('click', downloadBackup);
+  const backedUp = () => { if (state) { state.backupSaved = true; save(); render(); } };
+  $('#backup').addEventListener('click', () => { downloadBackup(); backedUp(); });
+  $('#backup2').addEventListener('click', () => { downloadBackup(); backedUp(); });
+  $('#saved').addEventListener('change', (e) => { if (state) { state.backupSaved = e.target.checked; save(); render(); } });
+  $('#restore-toggle').addEventListener('click', () => { const b = $('#restore-box'); b.hidden = !b.hidden; $('#restore-toggle').setAttribute('aria-expanded', String(!b.hidden)); });
   $('#restore').addEventListener('change', onRestore);
-  $('#take-back').addEventListener('click', () => takeBack().catch((e) => say($('#send-msg'), String(e.message || e))));
+  $('#pay-back').addEventListener('click', () => { editing = true; render(); window.scrollTo(0, 0); });
+  $('#edit-keep').addEventListener('click', () => { editing = false; delete $('#form').dataset.filled; render(); });
+  $('#to-status').addEventListener('click', () => { state.showStatus = true; save(); render(); window.scrollTo(0, 0); });
+  $('#st-back-pay').addEventListener('click', () => { state.showStatus = false; save(); render(); window.scrollTo(0, 0); });
+  $('#st-more-btn').addEventListener('click', () => { moreOpen = !moreOpen; render(); });
+  $('#take-back').addEventListener('click', () => { takeAsk = 'early'; render(); });
+  $('#send-late').addEventListener('click', () => { takeAsk = 'late'; render(); });
+  $('#take-no').addEventListener('click', () => { takeAsk = null; render(); });
+  $('#take-yes').addEventListener('click', () => {
+    const which = takeAsk, b = $('#take-yes');
+    b.disabled = true;
+    (which === 'late' ? sendLate() : takeBack()).catch((e) => { say($('#send-msg'), String(e.message || e)); takeAsk = null; render(); }).finally(() => { b.disabled = false; });
+  });
   $('#challenge').addEventListener('click', () => { $('#challenge').disabled = true; publishChallenge().catch((e) => say($('#send-msg'), String(e.message || e))).finally(() => { $('#challenge').disabled = false; }); });
-  $('#send-late').addEventListener('click', () => sendLate().catch((e) => say($('#send-msg'), String(e.message || e))));
-  for (const b of document.querySelectorAll('[data-copy]')) b.addEventListener('click', () => navigator.clipboard.writeText($(`#${b.dataset.copy}`).textContent).catch(() => {}));
+  for (const b of document.querySelectorAll('[data-copy]')) {
+    b.addEventListener('click', () => {
+      const v = $(`#${b.dataset.copy}`);
+      navigator.clipboard.writeText(v.dataset.full || v.textContent).catch(() => {});
+      b.textContent = '✓ Copied'; b.classList.add('done');
+      clearTimeout(b._t); b._t = setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1600);
+    });
+  }
+  cdTimer = setInterval(tickCountdown, 1000);
   await refresh();
   markReady();
   setInterval(refresh, POLL_MS);

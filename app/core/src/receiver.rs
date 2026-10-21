@@ -36,6 +36,21 @@ pub fn encode_orchard(net: NetworkType, raw: [u8; 43]) -> Result<String> {
     Ok(addr.encode(&net))
 }
 
+/// A refund address for another network than the campaign's: the one short line the bid page shows (None when the networks match, or the
+/// address cannot be read at all, which other checks report).
+pub fn network_mismatch(network: &str, address: &str) -> Option<&'static str> {
+    let (net, _) = orchard_receiver(address.trim()).ok()?;
+    let wanted = network_type(network).ok()?;
+    if net == wanted {
+        return None;
+    }
+    Some(match (net, wanted) {
+        (NetworkType::Main, NetworkType::Test) => "This is a mainnet address. Use a testnet one.",
+        (NetworkType::Test, NetworkType::Main) => "This is a testnet address. Use a mainnet one.",
+        _ => "This address is for another network.",
+    })
+}
+
 pub fn network_type(name: &str) -> Result<NetworkType> {
     match name {
         "main" => Ok(NetworkType::Main),
@@ -89,6 +104,23 @@ pub fn to_standard(ua: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_refund_address_for_the_other_network_is_named() {
+        let ua = |net| {
+            let items = vec![unified::Uitem::Data(unified::Receiver::Orchard([7u8; 43])), unified::Uitem::Data(unified::Receiver::Sapling([9u8; 43]))];
+            unified::Address::try_from_items(unified::Revision::R2, items).unwrap().encode(&net)
+        };
+        let (main, test) = (ua(NetworkType::Main), ua(NetworkType::Test));
+        // the owner's report of 21 Oct 2026: a u1 address was taken on a testnet auction
+        assert_eq!(network_mismatch("test", &to_standard(&main).unwrap()), Some("This is a mainnet address. Use a testnet one."));
+        assert_eq!(network_mismatch("test", &main), Some("This is a mainnet address. Use a testnet one."));
+        assert_eq!(network_mismatch("main", &test), Some("This is a testnet address. Use a mainnet one."));
+        assert_eq!(network_mismatch("regtest", &test), Some("This address is for another network."));
+        assert_eq!(network_mismatch("test", &test), None);
+        assert_eq!(network_mismatch("test", &to_standard(&test).unwrap()), None);
+        assert_eq!(network_mismatch("test", "not an address"), None, "unreadable addresses are reported by the other checks");
+    }
 
     #[test]
     fn standard_form_has_the_same_receivers() {

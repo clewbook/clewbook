@@ -80,12 +80,12 @@ const chainServer = http.createServer((req, res) => {
     await p.goto(`${BASE}/bid.html#c=${FX.A}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`);
     await p.waitForFunction(() => /rejected your payment/.test(document.querySelector('#st-title').textContent), null, { timeout: 60000 });
     const text = `${await p.textContent('#st-text')} ${await p.textContent('#st-more')}`;
-    check('the page finds the reject by its memo hash and says the host rejected the payment', true, text.slice(0, 140));
+    check('the page finds the reject by its memo hash and says the host rejected the payment', (await p.textContent('#st-title')) === 'The host rejected your payment' && (await p.textContent('#st-tag')) === 'REJECTED', text.slice(0, 140));
     check('it names the return the host sent on its own, minus the fee', /It was sent back to you, minus the fee/.test(text) && /transaction [0-9a-f]{64}/.test(text), text.slice(0, 260));
     check('no payment card asks for a second payment', await p.$eval('#pay-card', (e) => e.hidden));
     check('it offers to publish proof, and says what that shows', !(await p.$eval('#challenge', (b) => b.hidden)) && /shows everyone your refund address/.test(text));
     await p.click('#challenge');
-    await p.waitForFunction(() => /You published proof/.test(document.querySelector('#st-text').textContent), null, { timeout: 30000 });
+    await p.waitForFunction(() => /You published proof that it was valid/.test(document.querySelector('#st-more').textContent), null, { timeout: 30000 });
     const got = await (await fetch(`http://127.0.0.1:${RELAY}/v1/campaigns/${FX.A}/challenges`)).json();
     const rej = JSON.parse(fs.readFileSync(path.join(tmp, 'campaigns', FX.A, 'ledger', fs.readdirSync(path.join(tmp, 'campaigns', FX.A, 'ledger')).sort().find((f) => JSON.parse(fs.readFileSync(path.join(tmp, 'campaigns', FX.A, 'ledger', f), 'utf8')).kind === 'reject')), 'utf8'));
     check('the relay took the challenge for the rejected payment', Array.isArray(got) && got.some((c) => c.txid === rej.contribution.txid && c.action === rej.contribution.action && /^[0-9a-f]{64}$/.test(c.eph_sk)), JSON.stringify(got).slice(0, 160));

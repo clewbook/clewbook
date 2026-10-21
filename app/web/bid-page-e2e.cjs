@@ -113,7 +113,18 @@ const chainServer = http.createServer((req, res) => {
   const link = (id) => `c=${id}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`;
   const BASE = `http://127.0.0.1:${WEB}`;
   const errors = [];
-  const fresh = async (noirCfg) => { const ctx = await browser.newContext(); if (noirCfg) await ctx.addInitScript(stub, noirCfg); const p = await ctx.newPage(); p.on('pageerror', (e) => errors.push(String(e))); return { ctx, p }; };
+  const fresh = async (noirCfg) => { const ctx = await browser.newContext(); if (process.env.SHOTS) await ctx.addInitScript(() => { try { localStorage.setItem('cb-theme', 'dark'); } catch { /* shots only */ } }); if (noirCfg) await ctx.addInitScript(stub, noirCfg); const p = await ctx.newPage(); p.on('pageerror', (e) => errors.push(String(e))); return { ctx, p }; };
+  // SHOTS=<folder>: the main states saved at 1280 and 390 wide, in the dark theme (and the form once in light), for the design comparison
+  const shot = async (p, name, light) => {
+    if (!process.env.SHOTS) return;
+    fs.mkdirSync(process.env.SHOTS, { recursive: true });
+    for (const [w, h] of [[1280, 900], [390, 844]]) {
+      await p.setViewportSize({ width: w, height: h }); await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(400);
+      await p.screenshot({ path: path.join(process.env.SHOTS, `built-${name}-${w}-dark.png`), fullPage: true });
+    }
+    if (light) { await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; }); await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(400); await p.screenshot({ path: path.join(process.env.SHOTS, `built-${name}-1280-light.png`), fullPage: true }); await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); }
+    await p.setViewportSize({ width: 1280, height: 720 });
+  };
   const text = (p, sel) => p.$eval(sel, (e) => (e.hidden ? '' : e.textContent));
   // the status line and what sits behind its "more" link
   const full = async (p) => `${await text(p, '#st-text')} ${await p.textContent('#st-more')}`;
@@ -141,11 +152,16 @@ const chainServer = http.createServer((req, res) => {
     ({ ctx, p } = await fresh());
     await p.goto(`${BASE}/bid.html#${link(FX.N)}`);
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
-    check('the bid form shows the deposit sizes', (await p.$$eval('#tranche option', (o) => o.length)) === 2);
+    const deps = await p.$$eval('#tranche [role=radio]', (o) => o.map((x) => `${x.getAttribute('aria-checked')} ${x.textContent}`));
+    check('the bid form shows the deposit sizes as cards, each with its real limit (the deposit minus the fee), the first one chosen', deps.length === 2 && /^true 0\.1\S* ?\S*bids up to 0\.0999$/.test(deps[0].replace(/\s+/g, ' ')) && /^false 0\.3\S* ?\S*bids up to 0\.2999$/.test(deps[1].replace(/\s+/g, ' ')), JSON.stringify(deps));
     check('second review H1: before the payment the form says bids and refund addresses become public after the close (more: what the host sees)', /Bids and refund addresses become public after the close/.test(await text(p, '#public-note')) && /your refund address, never your bid/.test(await p.textContent('#public-more')), (await text(p, '#public-note')).slice(0, 120));
     // a private test chain's block times are not real, so the page judges only the last block for a deposit there (the real time check is
     // `Sealed::check_timing`, tested in cargo test -p ll-core)
-    check('before the last block for a deposit the form is open', !(await p.$eval('#create', (b) => b.disabled)), (await text(p, '#bid-hint')).slice(0, 110));
+    check('the button waits until the bid and the refund address are good', await p.$eval('#create', (b) => b.disabled));
+    await p.fill('#bid', '0.05'); await p.fill('#refund', FX.refund_address);
+    await shot(p, '1-bid', true);
+    await p.fill('#bid', '0.15'); await shot(p, '1-too-high'); await p.fill('#bid', '0.05');
+    check('before the last block for a deposit the form is open', !(await p.$eval('#create', (b) => b.disabled)) && (await text(p, '#refund-msg')) === '✓ Shielded address. Use one you use nowhere else.', (await text(p, '#bid-hint')).slice(0, 110));
     chain.tip = 130;
     await p.waitForFunction(() => /closed for new deposits/.test(document.querySelector('#bid-hint').textContent), null, { timeout: 30000 }).catch(() => {});
     check('after the last block for a deposit the form is closed', await p.$eval('#create', (b) => b.disabled) && /closed for new deposits/.test(await text(p, '#bid-hint')), (await text(p, '#bid-hint')).slice(0, 90));
@@ -165,7 +181,12 @@ const chainServer = http.createServer((req, res) => {
     await p.goto(`${BASE}/bid.html#${link(FX.N)}`);
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 30000 });
     check('the payment card shows the version 3 memo and the deposit', (await text(p, '#memo')) === pay.memo && /0\.1/.test(await text(p, '#pay-amount')), (await text(p, '#pay-amount')));
-    check('it waits for the deposit\'s ticket', /Waiting for your deposit/.test(await text(p, '#st-title')));
+    check('step 2 shows the payment, not the status card, until the page sees the payment', await p.$eval('#status-card', (e) => e.hidden));
+    await shot(p, '2-pay');
+    await p.click('#to-status');
+    await waitTitle(p, /^Waiting for your payment$/, 15000);
+    await shot(p, '3-waitpay');
+    check('it waits for the deposit\'s ticket', (await text(p, '#st-title')) === 'Waiting for your payment' && /^Pay 0\.1 \S+ from your wallet\. This page updates by itself\.$/.test(await text(p, '#st-text')), await text(p, '#st-text'));
     await ctx.close();
 
     // Pay with Noir, with the stand in extension: without it nothing changes; with it the network is checked by the address prefix, exactly
@@ -195,14 +216,17 @@ const chainServer = http.createServer((req, res) => {
       await p.waitForFunction(() => /Sent with Noir/.test(document.querySelector('#noir-msg').textContent), null, { timeout: 15000 });
       calls = await p.evaluate(() => window.__noirCalls);
       const sent = calls.find((c) => c.method === 'zcash_sendTransaction');
-      const want = { to: await text(p, '#pay-to'), amount: await text(p, '#pay-amt'), memo: await text(p, '#memo') };
+      // what the Copy buttons copy: the full address (the page shows it shortened), the amount and the message
+      const shown = (sel) => p.$eval(sel, (e) => e.dataset.full || e.textContent);
+      const want = { to: await shown('#pay-to'), amount: await shown('#pay-amt'), memo: await shown('#memo') };
       check('Noir: it sends exactly the deposit address, amount and message shown', !!sent && JSON.stringify(sent.params) === JSON.stringify([want]) && want.to === pay.pay_to && want.amount === '0.1' && want.memo === pay.memo, JSON.stringify(sent && sent.params).slice(0, 120));
       const kept = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).noirTxid, FX.N);
       check('Noir: the transaction ID is kept with the bid', kept === NOIR_TXID);
       check('Noir: the button hides itself after the send', await noirHidden(p));
-      check('Noir: the page shows the transaction it waits for', (await text(p, '#st-facts')).includes(`Sent with Noir: transaction ${NOIR_TXID}`));
+      await waitTitle(p, /^Waiting for your payment$/, 15000);
+      check('Noir: after the send the status card comes by itself and shows the transaction it waits for', (await text(p, '#st-text')) === 'Sent with Noir. This page updates by itself.' && (await p.textContent('#st-more')).includes(`Sent with Noir: transaction ${NOIR_TXID}.`), await text(p, '#st-text'));
       await p.reload();
-      await p.waitForSelector('#pay-card:not([hidden])', { timeout: 30000 });
+      await p.waitForSelector('#status-card:not([hidden])', { timeout: 30000 });
       await p.waitForTimeout(1500);
       check('Noir: after a reload the button stays hidden (never twice)', await noirHidden(p));
       await ctx.close();
@@ -226,13 +250,19 @@ const chainServer = http.createServer((req, res) => {
     ({ ctx, p } = await withState(FX.N, n1));
     await waitTitle(p, /^PROTECTED$/);
     check('PROTECTED once the coin is in and the late ticket is checked and signed', true, (await text(p, '#st-text')).slice(0, 120));
+    await shot(p, '3-protected');
     const late = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).late, FX.N);
     check('the signed late ticket is kept, and is the one the list names', late && late.txid === LATE.coin_entry.late && late.signed_hex.length > 18000);
     check('the take my money back button is offered', !(await p.$eval('#take-back', (b) => b.hidden)));
     const before = chain.sent.length;
     await p.click('#take-back');
+    const ask = (await text(p, '#take-ask')).replace(/\s+/g, ' ');
+    const feeN = JSON.parse(fs.readFileSync(path.join(tmp, 'campaigns', FX.N, 'rules.json'), 'utf8')).refund_fee_zat;
+    const backZat = String((n1.tranche - feeN) / 1e8), shortRefund = `${n1.refund.slice(0, 6)}…${n1.refund.slice(-6)}`;
+    check('take my money back asks once more, naming the amount (the deposit minus the fee) and the refund address, and sends nothing yet', ask.startsWith(`Send ${backZat} `) && ask.includes(` back to ${shortRefund}? Your bid leaves the auction.`) && chain.sent.length === before && await p.$eval('#take-back', (b) => b.hidden), ask);
+    await p.click('#take-yes');
     await p.waitForFunction(() => /on its way back/.test(document.querySelector('#st-title').textContent), null, { timeout: 30000 });
-    check('take my money back sends the early ticket', chain.sent.length === before + 1 && chain.sent[before].length > 1000);
+    check('take my money back sends the early ticket', chain.sent.length === before + 1 && chain.sent[before].length > 1000 && (await text(p, '#send-msg')) === '✓ Sent. It shows in your wallet after a block or two.');
     await ctx.close();
 
     // H4: before PROTECTED the page checks the early ticket and the signed refund in full: a ticket that does not pay this page's refund
@@ -241,7 +271,7 @@ const chainServer = http.createServer((req, res) => {
       const other = JSON.parse(fs.readFileSync('app/web/testdata/bid-reject/fixture.json', 'utf8')).a3.refund;
       chain.tip = 130;
       ({ ctx, p } = await withState(FX.N, { ...n1, refund: other }));
-      await waitTitle(p, /NOT PROTECTED: a ticket does not check out/, 180000);
+      await waitTitle(p, /^Your ticket does not check out$/, 180000);
       const t = await full(p);
       check('H4: an early ticket that does not pay this page\'s refund address is NOT PROTECTED, with no take back', /the early ticket/.test(t) && await p.$eval('#take-back', (b) => b.hidden), t.slice(0, 160));
       await ctx.close();
@@ -256,7 +286,7 @@ const chainServer = http.createServer((req, res) => {
       await ctx.close();
       chain.coinGone = true;
       ({ ctx, p } = await withState(FX.N, saved));
-      await waitTitle(p, /NOT PROTECTED after the deadline/, 60000).catch(() => {});
+      await waitTitle(p, /^The host's small payment is gone$/, 60000).catch(() => {});
       const t = await text(p, '#st-text');
       check('L4: reopened after the coin left the chain, PROTECTED becomes NOT PROTECTED, with the take back button', /gone from the chain/.test(t) && !(await p.$eval('#take-back', (b) => b.hidden)), t.slice(0, 140));
       chain.coinGone = false;
@@ -265,7 +295,7 @@ const chainServer = http.createServer((req, res) => {
 
     // M3: before the host's small payment the page says plainly to keep it open until PROTECTED, and warns from 15 blocks before the
     // cutoff (the list shown without its coin entries: a valid signed list cut before them)
-    for (const [at, re, what] of [[130, /Waiting for the host's small payment/, 'early on'], [140, /Not protected yet, and the cutoff is close/, '8 blocks before the cutoff']]) {
+    for (const [at, re, what] of [[130, /^Waiting for your ticket$/, 'early on'], [140, /^Not protected yet, and the cutoff is close$/, '8 blocks before the cutoff']]) {
       chain.tip = at;
       const { ctx: c3, p: q } = await fresh();
       await c3.route(`http://127.0.0.1:${RELAY}/v1/campaigns/${FX.N}/ledger*`, async (route) => {
@@ -291,7 +321,7 @@ const chainServer = http.createServer((req, res) => {
       await q.goto(`${BASE}/brand.js`);
       await q.evaluate(({ id, s }) => localStorage.setItem(`ll:sealed:${id}`, JSON.stringify(s)), { id: FX.N, s: n1 });
       await q.goto(`${BASE}/bid.html#${link(FX.N)}`);
-      await waitTitle(q, /Not protected after the deadline yet|Waiting for the host/, 120000).catch(() => {});
+      await waitTitle(q, /^Waiting for your ticket$/, 120000).catch(() => {});
       const before = await q.textContent('#st-title');
       const lateBefore = await q.evaluate((id) => !!JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).late, FX.N);
       await q.close(); // the person closes the page
@@ -330,9 +360,9 @@ const chainServer = http.createServer((req, res) => {
       await q.goto(`${BASE}/brand.js`);
       await q.evaluate(({ id, s }) => localStorage.setItem(`ll:sealed:${id}`, JSON.stringify(s)), { id: FX.N, s: n1 });
       await q.goto(`${BASE}/bid.html#${link(FX.N)}`);
-      await waitTitle(q, /NOT PROTECTED/, 120000).catch(() => {});
+      await waitTitle(q, /^Your ticket does not check out$/, 120000).catch(() => {});
       const more = await q.textContent('#st-more');
-      check('second review L3: when the proof checker fails to load, the page says NOT PROTECTED (its proof does not verify) and does not wait for ever', /NOT PROTECTED/.test(await q.textContent('#st-title')) && /proof does not verify/.test(more), `${await q.textContent('#st-title')}: ${more.slice(0, 120)}`);
+      check('second review L3: when the proof checker fails to load, the page says NOT PROTECTED (its proof does not verify) and does not wait for ever', /^Your ticket does not check out$/.test(await q.textContent('#st-title')) && /proof does not verify/.test(more), `${await q.textContent('#st-title')}: ${more.slice(0, 120)}`);
       await c6.close();
     }
 
@@ -374,7 +404,7 @@ const chainServer = http.createServer((req, res) => {
 
     // a coin that does not pay this page: NOT PROTECTED, with the button
     ({ ctx, p } = await withState(FX.N, { ...n1, pageKey: `02${'33'.repeat(32)}` }));
-    await waitTitle(p, /NOT PROTECTED/);
+    await waitTitle(p, /^Your ticket does not check out$/);
     check('a coin that does not pay this page leaves the payer not protected, with the button', !(await p.$eval('#take-back', (b) => b.hidden)), (await text(p, '#st-text')).slice(0, 110));
     await ctx.close();
 
@@ -400,9 +430,9 @@ const chainServer = http.createServer((req, res) => {
       const blob = Buffer.from(await (await fetch(`http://127.0.0.1:${RELAY}/v1/campaigns/${FX.N}/tickets/${issue.contribution.nf}`)).arrayBuffer()).toString('hex');
       chain.tip = 130;
       ({ ctx, p } = await withState(FX.N, { ...n1, pageKey: `02${'44'.repeat(32)}`, ticket: { nf: issue.contribution.nf, entry: late, blob_hex: blob } }));
-      await waitTitle(p, /Take your money back now/, 180000);
+      await waitTitle(p, /^Your bid does not count$/, 180000);
       const t = await full(p);
-      check('a deposit after the coin cutoff is told to take the money back now, with the button', /does not count/.test(t) && /no late ticket/.test(t) && !(await p.$eval('#take-back', (b) => b.hidden)), t.slice(0, 120));
+      check('a deposit after the coin cutoff is told to take the money back now, with the button', (await text(p, '#st-title')) === 'Your bid does not count' && (await text(p, '#st-text')) === 'You paid after the cutoff. Take your money back now.' && /no late ticket/.test(t) && !(await p.$eval('#take-back', (b) => b.hidden)), t.slice(0, 120));
       await ctx.close();
     }
 
@@ -412,10 +442,12 @@ const chainServer = http.createServer((req, res) => {
     ({ ctx, p } = await withState(FX.N, n1));
     await waitTitle(p, /^PROTECTED$/);
     chain.tip = hs + 2;
-    await waitTitle(p, /did not finish/, 30000);
-    check('after the late ticket block with no close the page offers the late ticket', !(await p.$eval('#send-late', (b) => b.hidden)));
+    await waitTitle(p, /^The host did not finish$/, 30000);
+    check('after the late ticket block with no close the page offers the late ticket', !(await p.$eval('#send-late', (b) => b.hidden)) && (await text(p, '#st-text')) === 'Bids were not settled in time. Take your money back.', await text(p, '#st-text'));
     const b2 = chain.sent.length;
     await p.click('#send-late');
+    check('the late ticket asks once more and sends nothing yet', !(await p.$eval('#take-ask', (e) => e.hidden)) && chain.sent.length === b2);
+    await p.click('#take-yes');
     await p.waitForFunction(() => /deposit is on its way back/.test(document.querySelector('#st-title').textContent), null, { timeout: 30000 });
     const sentLate = chain.sent[b2] || '';
     const kept = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).late.signed_hex, FX.N);
@@ -439,8 +471,8 @@ const chainServer = http.createServer((req, res) => {
       // an early ticket the network never mined: after the deadline the page says so, and the deposit is still in the auction
       chain.tip = d + 1;
       ({ ctx, p } = await withState(FX.N, { ...n1, earlySent: 'ee'.repeat(32) }));
-      await p.waitForFunction(() => /not mined before it expired/.test(document.querySelector('#st-facts').textContent), null, { timeout: 60000 }).catch(() => {});
-      check('an early ticket not mined by the deadline: the page says so and does not claim the money is back', /not mined before it expired/.test(await text(p, '#st-facts')) && !/on its way back|is back/.test(await text(p, '#st-title')), await text(p, '#st-title'));
+      await p.waitForFunction(() => /not mined before it expired/.test(document.querySelector('#st-more').textContent), null, { timeout: 60000 }).catch(() => {});
+      check('an early ticket not mined by the deadline: the page says so and does not claim the money is back', /not mined before it expired/.test(await p.textContent('#st-more')) && !/on its way back|is back/.test(await text(p, '#st-title')), await text(p, '#st-title'));
       await ctx.close();
       // one the chain shows mined (the stand in chain knows one mined transaction, the coin's): the money is back
       chain.tip = d - 3;
@@ -455,7 +487,8 @@ const chainServer = http.createServer((req, res) => {
     chain.tip = 200;
     ({ ctx, p } = await withState(FX.U, { seed: FX.u1.seed, refund: FX.refund_address, tranche: FX.u1.tranche, bid: FX.u1.bid, memo: '', payTo: '', pageKey: 'x', paidZat: null }));
     await waitTitle(p, /won|did not win/, 60000);
-    check('a closed auction shows the result: u1 won and pays the uniform price', /won/.test(await text(p, '#st-title')) && /0\.08/.test(await text(p, '#st-text')), await text(p, '#st-text'));
+    await shot(p, '3-won');
+    check('a closed auction shows the result: u1 won and pays the uniform price', (await text(p, '#st-title')) === 'You won' && (await text(p, '#st-num')) === '0.08' && /^\S+ paid$/.test(await text(p, '#st-unit')), `${await text(p, '#st-num')} ${await text(p, '#st-unit')}: ${await text(p, '#st-text')}`);
     await ctx.close();
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 200));
   } catch (e) {
