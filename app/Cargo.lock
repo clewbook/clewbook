@@ -2499,6 +2499,7 @@ dependencies = [
  "ll-core",
  "ll-listing",
  "ll-relay",
+ "ll-ticketcheck",
  "orchard",
  "pczt",
  "rand 0.10.3",

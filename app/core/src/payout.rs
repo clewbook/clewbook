@@ -13,6 +13,8 @@ pub const CHANGE: &str = "change";
 pub const RETURN: &str = "return";
 /// The early ticket (the second review, C1).
 pub const EARLY: &str = "early";
+/// The late ticket (the mentor's second review): a deposit taken back after the late ticket block is checked to have paid the person.
+pub const LATE: &str = "late";
 
 /// The X25519 secret shared by the host's payload key and the person's page key (`secret` one side's private key, `public` the other's
 /// public key; both sides get the same value).

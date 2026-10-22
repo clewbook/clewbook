@@ -342,16 +342,17 @@ impl Recount {
         let challenges: Vec<Challenge> = serde_json::from_str(challenges_json).map_err(js_err)?;
         let treasury_notes: Vec<ChainNote> = if treasury_notes_json.is_empty() { vec![] } else { serde_json::from_str(treasury_notes_json).map_err(js_err)? };
         // SPEC 9.1, open_payouts: who each payment the host signed to a person pays, opened with its key from the transactions already fetched
-        let payouts = ll_core::sealed_recount::payout_keys(&rules, &ledger, &self.notes)
+        // and, for every payment the host named for a person, its shape (the mentor's second review), which needs no key
+        let payouts = ll_core::sealed_recount::payout_targets(&rules, &ledger, &self.notes)
             .into_iter()
             .map(|(txid, k)| {
                 let opened = match self.raw_txs.get(&txid) {
                     None => Err("the transaction was not fetched".to_string()),
-                    Some(raw) => ll_core::hex32(&k).map_err(|e| e.to_string()).and_then(|ovk| ll_ticketcheck::recover_outputs(raw, &ovk)),
+                    Some(raw) => k.as_deref().map(ll_core::hex32).transpose().map_err(|e| e.to_string()).and_then(|ovk| ll_ticketcheck::payout_fact(raw, ovk.as_ref())),
                 };
                 match opened {
-                    Ok(o) => ll_core::recount::PayoutFact { txid, outputs: o.into_iter().map(|(r, v)| ll_core::recount::PaidOutput { receiver_hex: r, value_zat: v }).collect(), error: None },
-                    Err(e) => ll_core::recount::PayoutFact { txid, outputs: vec![], error: Some(e) },
+                    Ok((o, shape)) => ll_core::recount::PayoutFact { txid, outputs: o.into_iter().map(|(r, v)| ll_core::recount::PaidOutput { receiver_hex: r, value_zat: v }).collect(), error: None, shape: Some(shape) },
+                    Err(e) => ll_core::recount::PayoutFact { txid, outputs: vec![], error: Some(e), shape: None },
                 }
             })
             .collect();

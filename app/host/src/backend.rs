@@ -73,7 +73,7 @@ pub trait WalletBackend {
     }
 
     /// The host's part of a late ticket (the page signs the coin input): `ticket_blob::LatePart`, encoded, and the transaction's id.
-    fn late_ticket(&mut self, _owner: &str, _to: &str, _value_zat: u64, _coin: &crate::libs::CoinInput, _lock_time: u32) -> Result<(Vec<u8>, String)> {
+    fn late_ticket(&mut self, _owner: &str, _to: &str, _value_zat: u64, _coin: &crate::libs::CoinInput, _lock_time: u32, _ovk: Option<[u8; 32]>) -> Result<(Vec<u8>, String)> {
         anyhow::bail!("blind bid auctions need the wallet library backend")
     }
 
@@ -98,7 +98,7 @@ pub trait WalletBackend {
     }
 
     /// SPEC §9.1, open_payouts: the outputs of the host's payments to people, opened with their keys `(txid, ovk hex)`, for the recount.
-    fn payout_facts(&mut self, _keys: &[(String, String)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
+    fn payout_facts(&mut self, _targets: &[(String, Option<String>)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
         anyhow::bail!("blind bid auctions need the wallet library backend")
     }
 }

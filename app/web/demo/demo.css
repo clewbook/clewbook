@@ -85,3 +85,14 @@
   .prow { grid-template-columns: 32px minmax(0, 1fr); }
   .prow .pacts { grid-column: 2; justify-content: flex-start; }
 }
+/* phones (owner, 22 Oct 2026): both filter rows fit inside 360 px with no sideways scrolling. The list or grid button moves up next to All,
+   Passed and Failed; the second row holds only the four types; chips and text are smaller (tap targets stay 44 px high) */
+@media (max-width: 759px) {
+  .ptools { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "chips view" "types types"; align-items: center; gap: 10px 8px; }
+  .pright { display: contents; }
+  .pchips { grid-area: chips; flex-wrap: nowrap; gap: 4px; min-width: 0; }
+  .page .pchip { padding: 0 10px; font-size: 12px; }
+  .pseg { grid-area: types; justify-self: start; max-width: 100%; }
+  .pseg button { padding: 0 8px; font-size: 12px; }
+  .page .pview { grid-area: view; }
+}

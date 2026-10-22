@@ -156,11 +156,27 @@ pub struct Sealed {
     /// before the deadline can be checked to have paid the person's refund address (S4). Set by every auction made from 21 Oct 2026 on.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub early_key: bool,
+    /// The mentor's second review: the late ticket is made with its own outgoing key too (kind `payout::LATE`), so once the reveal publishes
+    /// the payload key the recount also checks that a late ticket paid the person's refund address the deposit minus the fee (S7). Set by
+    /// every auction made from 22 Oct 2026 on.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub late_key: bool,
     /// Blocks before the coin cutoff in which a payment no longer becomes a deposit: its small payment could not be mined by the cutoff, so
     /// an honest host would fail S3 (a coin the network took 10 blocks to mine, test network, 21 Oct 2026). Such a payment is late: sent
     /// back on its own, minus the fee, like one in the last blocks before the deadline. 0 (left out) for auctions made before.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub coin_margin: u32,
+}
+
+impl Sealed {
+    /// The checks this auction's rules leave out (it was made before they existed): with any of them missing, the recount says the auction
+    /// cannot be fully checked. Every new auction sets all four.
+    pub fn missing_checks(&self) -> Vec<&'static str> {
+        [(self.open_payouts, "who each refund, change and return pays"), (self.long_tag, "the long binding tag of each bid"), (self.early_key, "who an early ticket paid"), (self.late_key, "who a late ticket paid")]
+            .into_iter()
+            .filter_map(|(on, what)| (!on).then_some(what))
+            .collect()
+    }
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -362,7 +378,7 @@ mod tests {
         // a 7 day auction at 75 s blocks: 8,064 blocks
         let (tip, t0, deadline) = (100_000u32, 1_800_000_000u64, 108_064u32);
         let (round, after) = plan("main", Timing::Standard, tip, t0, deadline).unwrap();
-        let s = Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, coin_margin: 0 };
+        let s = Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
         s.check_timing("main", deadline, tip, t0).unwrap();
         // slow chain (80 s): the close comes before the bids open, with the gap
         let close_slow = t0 + 8_064 * 80;
@@ -392,7 +408,7 @@ mod tests {
             ufvk_hash: None, pay_to: None, early_close: None, cancellable: None, cap_zat: None, name: None, pricing: None, settle_window: None, reserve_zat: None,
             treasury_address: None, treasury_ufvk: None, sealed: None, ledger_pubkey: String::new(), payload_pubkey: String::new(),
         };
-        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 3_010_842, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: true, early_key: false, coin_margin: 0 };
+        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 3_010_842, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: true, early_key: false, late_key: false, coin_margin: 0 };
         // the rules check uses the assumed NU7 height: a short auction that ends well before it is taken, one whose late tickets reach it is not
         s.check(&r).unwrap();
         let late = Sealed { claim_after: ASSUMED_NU7_MAIN_HEIGHT - 50, ..s.clone() };
@@ -418,7 +434,7 @@ mod tests {
     fn m1_the_round_and_the_late_ticket_block_have_upper_limits() {
         let (tip, t0, deadline) = (4_500_000u32, 1_800_000_000u64, 4_500_090u32);
         let (round, after) = plan("test", Timing::Standard, tip, t0, deadline).unwrap();
-        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: false, early_key: false, coin_margin: 0 };
+        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
         // the host's own plan (start = tip + 1) passes, and so does a little slack
         s.check_not_too_late("test", tip + 1, deadline, t0).unwrap();
         Sealed { drand_round: round + PLAN_SLACK_ROUNDS, claim_after: after + PLAN_SLACK_BLOCKS, ..s.clone() }.check_not_too_late("test", tip + 1, deadline, t0).unwrap();
@@ -447,7 +463,7 @@ mod tests {
         let (round, after) = plan("test", Timing::Standard, tip, t0, deadline).unwrap();
         assert!(round_time(round) >= t0 + 90 * 80 + GAP_SECS);
         assert!(t0 + (after + 1 - tip) as u64 * 20 >= round_time(round) + SETTLE_SECS_TEST);
-        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, coin_margin: 0 };
+        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
         s.check_timing("test", deadline, tip, t0).unwrap();
         // at the test network's real pace (25 s), the late tickets work about 3.7 h after creation, the bids open about 2.5 h after
         let (open_h, claim_h) = ((round_time(round) - t0) as f64 / 3600.0, (after - tip) as f64 * 25.0 / 3600.0);
@@ -465,7 +481,7 @@ mod tests {
         // the bids cannot open before the close even at 40 s a block, and the host has its 30 minutes even at 20 s a block
         assert!(round_time(round) >= t0 + 30 * 40 + GAP_SECS_QUICK);
         assert!(t0 + (after + 1 - tip) as u64 * 20 >= round_time(round) + SETTLE_SECS_TEST);
-        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Quick, open_payouts: false, long_tag: false, early_key: false, coin_margin: 0 };
+        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Quick, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
         s.check_timing("test", tip + 30, tip, t0).unwrap();
         // the same round under the standard timing is too early: the timing is part of what is checked
         assert!(Sealed { timing: Timing::Standard, ..s.clone() }.check_timing("test", tip + 30, tip, t0).is_err());

@@ -5,7 +5,7 @@ use super::*;
 use crate::{
     keys::{CampaignSecrets, ContributorKeys},
     ledger::{Close, Coin, Contribution, Reveal, Settle, Ticket},
-    recount::{CoinFact, PaidOutput, PayoutFact, Spend, TxFacts, recount_with},
+    recount::{CoinFact, PaidOutput, PayoutFact, Spend, TxFacts, TxShape, recount_with},
     rules::ufvk_hash,
     sealed::{COIN_ZAT, CoinSending, QUICKNET_CHAIN_HASH, Sealed},
 };
@@ -62,7 +62,7 @@ fn sx_with(pricing: &str, items: u32, open_payouts: bool) -> Sx {
         treasury_address: Some("utest1treasury".into()), treasury_ufvk: Some("uviewtest1treasury".into()),
         sealed: Some(Sealed {
             tranches_zat: vec![SMALL, BIG], pricing: pricing.into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: ROUND,
-            claim_after: CLAIM_AFTER, coin_zat: COIN_ZAT, coin_cutoff: 10, coin_sending: CoinSending::EveryBids { n: 3 }, timing: Default::default(), open_payouts, long_tag: open_payouts, early_key: open_payouts, coin_margin: if open_payouts { 10 } else { 0 },
+            claim_after: CLAIM_AFTER, coin_zat: COIN_ZAT, coin_cutoff: 10, coin_sending: CoinSending::EveryBids { n: 3 }, timing: Default::default(), open_payouts, long_tag: open_payouts, early_key: open_payouts, late_key: open_payouts, coin_margin: if open_payouts { 10 } else { 0 },
         }),
         ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
     };
@@ -213,6 +213,11 @@ fn honest_open(pricing: &str) -> Case {
     honest_with(pricing, true)
 }
 
+/// The shape of an honest payment from one deposit to one person: two actions, only the fee leaving the pool (the mentor's second review).
+fn plain_shape() -> TxShape {
+    TxShape { actions: 2, value_balance: FEE as i64, ..Default::default() }
+}
+
 fn paid(to: [u8; 43], value: u64) -> PaidOutput {
     PaidOutput { receiver_hex: hex::encode(to), value_zat: value }
 }
@@ -255,10 +260,10 @@ fn honest_with(pricing: &str, open: bool) -> Case {
             let r = valid_receiver();
             let (dp, dq) = (&deps[2].note, &deps[3].note);
             vec![
-                PayoutFact { txid: refund(dp), outputs: vec![paid(r, dp.value_zat - FEE)], error: None },
-                PayoutFact { txid: refund(dq), outputs: vec![paid(r, dq.value_zat - FEE)], error: None },
-                PayoutFact { txid: settle_tx(a), outputs: vec![paid(r, a.value_zat - pays[0] - FEE)], error: None },
-                PayoutFact { txid: settle_tx(b), outputs: vec![paid(r, b.value_zat - pays[1] - FEE)], error: None },
+                PayoutFact { txid: refund(dp), outputs: vec![paid(r, dp.value_zat - FEE)], error: None, shape: Some(plain_shape()) },
+                PayoutFact { txid: refund(dq), outputs: vec![paid(r, dq.value_zat - FEE)], error: None, shape: Some(plain_shape()) },
+                PayoutFact { txid: settle_tx(a), outputs: vec![paid(r, a.value_zat - pays[0] - FEE)], error: None, shape: Some(plain_shape()) },
+                PayoutFact { txid: settle_tx(b), outputs: vec![paid(r, b.value_zat - pays[1] - FEE)], error: None, shape: Some(plain_shape()) },
             ]
         } else {
             vec![]
@@ -904,7 +909,7 @@ fn before_the_close_a_late_payment_sent_back_waits_for_the_payload_key_instead_o
     c.notes.push(spent(late.clone(), "late-return", DEADLINE + 4));
     let e = return_entry(&c, &late, "late-return");
     c.entries.push(e);
-    c.extra.payouts.push(PayoutFact { txid: "late-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None });
+    c.extra.payouts.push(PayoutFact { txid: "late-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None, shape: Some(plain_shape()) });
     let r = c.run();
     assert!(!failing(&r).contains(&"S7"), "{:?} {}", failing(&r), details(&r, "S7"));
 }
@@ -916,7 +921,7 @@ fn h3_a_rejected_payment_must_be_sent_back_and_its_reject_must_name_its_memo() {
     let returned = |c: &mut Case, to: [u8; 43]| {
         c.notes.push(spent(x.clone(), "rej-return", 152));
         c.entries.push(return_entry(c, &x, "rej-return"));
-        c.extra.payouts.push(PayoutFact { txid: "rej-return".into(), outputs: vec![paid(to, SMALL - FEE)], error: None });
+        c.extra.payouts.push(PayoutFact { txid: "rej-return".into(), outputs: vec![paid(to, SMALL - FEE)], error: None, shape: Some(plain_shape()) });
     };
     // the host rejects a valid deposit and sends it back, minus the fee, to the refund address in its memo: nothing fails
     let mut c = honest_open("uniform");
@@ -979,7 +984,7 @@ fn m5_a_second_payment_with_a_deposits_memo_goes_back() {
     let i = c.notes.len() - 1;
     c.notes[i] = spent(again.clone(), "again-return", 152);
     c.entries.push(return_entry(&c, &again, "again-return"));
-    c.extra.payouts.push(PayoutFact { txid: "again-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None });
+    c.extra.payouts.push(PayoutFact { txid: "again-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None, shape: Some(plain_shape()) });
     let r = c.run();
     assert!(r.all_pass(), "{:?} {}", failing(&r), details(&r, "S7"));
     // a host that never lists the second payment at all must still send it back (each honest case locks its bids afresh, so the copy is
@@ -1089,7 +1094,7 @@ fn second_review_c1_a_deposit_taken_back_must_have_paid_its_refund_address() {
         c.set_note(spent(d.clone(), &early(&d), 150));
         c.extra.payouts.retain(|f| f.txid != refund(&d));
         if let Some(to) = to {
-            c.extra.payouts.push(PayoutFact { txid: early(&d), outputs: vec![paid(to, d.value_zat - FEE)], error: None });
+            c.extra.payouts.push(PayoutFact { txid: early(&d), outputs: vec![paid(to, d.value_zat - FEE)], error: None, shape: Some(plain_shape()) });
         }
     };
     let mut c = honest_open("uniform");
@@ -1130,7 +1135,7 @@ fn a_deposit_too_close_to_the_coin_cutoff_is_late_so_an_honest_host_never_fails_
     let mut c = honest_open("uniform");
     c.notes.push(spent(near.clone(), "near-return", 190));
     c.entries.push(return_entry(&c, &near, "near-return"));
-    c.extra.payouts.push(PayoutFact { txid: "near-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None });
+    c.extra.payouts.push(PayoutFact { txid: "near-return".into(), outputs: vec![paid(valid_receiver(), SMALL - FEE)], error: None, shape: Some(plain_shape()) });
     let r = c.run();
     assert!(r.all_pass(), "{:?} {} {}", failing(&r), details(&r, "S3"), details(&r, "S7"));
     assert_eq!(r.sealed.as_ref().unwrap().deposits.len(), 4, "it is not a deposit");
@@ -1142,4 +1147,86 @@ fn a_deposit_too_close_to_the_coin_cutoff_is_late_so_an_honest_host_never_fails_
     // an auction made before the margin keeps its rule: the same payment there is a deposit that owes a coin
     let old = honest("uniform");
     assert_eq!(old.sx.rules.sealed.as_ref().unwrap().last_deposit(DEADLINE), DEADLINE - 3);
+}
+
+/// The honest late ticket of deposit `i`: two actions, only the fee leaving the pool, exactly its page's coin, the late ticket block as lock.
+fn late_shape(i: u32) -> TxShape {
+    TxShape { transparent_inputs: vec![format!("coins:{i}")], lock_time: CLAIM_AFTER, ..plain_shape() }
+}
+
+/// A valid receiver that is not the person's: the host's own address.
+fn host_receiver() -> [u8; 43] {
+    let sk: orchard::keys::SpendingKey = Option::from(orchard::keys::SpendingKey::from_bytes([8; 32])).expect("a valid spending key");
+    orchard::keys::FullViewingKey::from(&sk).address_at(0u32, orchard::keys::Scope::External).to_raw_address_bytes()
+}
+
+/// The mentor's second review, the Blind bid hole: before 22 Oct 2026 a spend after the late ticket block counted as refunded whenever its id
+/// was the "late" id the host wrote on its own list, without checking who it paid. A host that never closes names its own spend of each deposit
+/// as the late ticket. A real late ticket spends the bid page's coin, which only the page can sign (after checking whom the ticket pays), so
+/// a spend without that coin is caught with no key at all.
+#[test]
+fn a_hosts_own_spend_named_as_the_late_ticket_is_caught_by_its_shape() {
+    let mut c = honest_open("uniform");
+    c.entries.retain(|e| matches!(e.kind.as_str(), "issue" | "coin"));
+    c.extra.treasury_notes.clear();
+    c.extra.payouts.clear();
+    for i in 0..4 {
+        let n = c.n(i);
+        c.set_note(spent(n.clone(), &late(&n), CLAIM_AFTER + 2));
+        c.extra.payouts.push(PayoutFact { txid: late(&n), shape: Some(late_shape(i as u32)), ..Default::default() });
+    }
+    // every deposit back by its real late ticket: the host did not finish, and nothing else is wrong
+    let r = c.run();
+    assert!(r.did_not_finish);
+    assert_eq!(failing(&r), vec!["S5", "S8"], "{}", details(&r, "S7"));
+    // the host's own spend of deposit 2, written as its late ticket: no coin of the page's in it
+    c.extra.payouts[2].shape = Some(TxShape { transparent_inputs: vec![], lock_time: CLAIM_AFTER, ..plain_shape() });
+    let r = c.run();
+    assert_eq!(failing(&r), vec!["S5", "S7", "S8"]);
+    assert!(details(&r, "S7").contains("does not spend exactly the bid page's coin"), "{}", details(&r, "S7"));
+    // or one that also takes another note out of the pool
+    c.extra.payouts[2].shape = Some(TxShape { actions: 3, value_balance: FEE as i64 + 5_000_000, ..late_shape(2) });
+    assert!(details(&c.run(), "S7").contains("shielded actions"));
+    // or whose transaction was not read: for an auction made with every check, that is a failure too, never a pass
+    c.extra.payouts.remove(2);
+    let r = c.run();
+    assert_eq!(failing(&r), vec!["S5", "S7", "S8"]);
+    assert!(details(&r, "S7").contains("was not read"), "{}", details(&r, "S7"));
+}
+
+/// The same after an honest looking close: a losing deposit is not refunded but spent after the late ticket block by the "late" id on the
+/// list. With late_key and the published payload key the recount opens it with its own key and sees whom it pays.
+#[test]
+fn a_late_ticket_that_does_not_pay_the_person_fails_s7_once_the_key_is_published() {
+    let mut c = honest_open("uniform");
+    let d = c.n(2);
+    c.set_note(spent(d.clone(), &late(&d), CLAIM_AFTER + 1));
+    c.extra.payouts.retain(|f| f.txid != refund(&d));
+    c.extra.payouts.push(PayoutFact { txid: late(&d), outputs: vec![paid(valid_receiver(), d.value_zat - FEE)], shape: Some(late_shape(2)), error: None });
+    let r = c.run();
+    assert!(!failing(&r).contains(&"S7"), "an honest late ticket passes: {}", details(&r, "S7"));
+    c.extra.payouts.last_mut().unwrap().outputs = vec![paid(host_receiver(), d.value_zat - FEE)];
+    let r = c.run();
+    assert_eq!(failing(&r), vec!["S7"]);
+    assert!(details(&r, "S7").contains("the late ticket") && details(&r, "S7").contains("does not pay"), "{}", details(&r, "S7"));
+}
+
+/// Every new auction carries all four checks; an older one is said plainly to be not fully checkable, and the shape of a payment whose
+/// transaction was not read is then left to that warning (an older auction's honest list still passes).
+#[test]
+fn an_auction_without_every_check_is_flagged_not_fully_checkable() {
+    let c = honest_open("uniform");
+    assert!(c.sx.rules.sealed.as_ref().unwrap().missing_checks().is_empty());
+    assert!(!c.run().warnings.iter().any(|w| w.contains("cannot be fully checked")));
+    let mut c = honest("uniform");
+    let r = c.run();
+    assert!(r.warnings.iter().any(|w| w.contains("cannot be fully checked") && w.contains("who a late ticket paid")), "{:?}", r.warnings);
+    assert!(failing(&r).is_empty(), "{:?}", failing(&r));
+    // an older auction whose late ticket was read and has the wrong shape still fails
+    c.entries.retain(|e| matches!(e.kind.as_str(), "issue" | "coin"));
+    c.extra.treasury_notes.clear();
+    let d = c.n(1);
+    c.set_note(spent(d.clone(), &late(&d), CLAIM_AFTER + 2));
+    c.extra.payouts.push(PayoutFact { txid: late(&d), shape: Some(plain_shape()), ..Default::default() });
+    assert!(details(&c.run(), "S7").contains("does not spend exactly the bid page's coin"));
 }

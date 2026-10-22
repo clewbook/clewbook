@@ -32,7 +32,7 @@ fn a_sealed_bid_auction_before_its_close_is_recounted_without_the_chain() {
         "ufvk_hash":"aa","treasury_address":"utest1x","treasury_ufvk":"uviewtest1x",
         "ledger_pubkey":secrets.ledger_pubkey_hex().unwrap(),"payload_pubkey":secrets.payload_pubkey_hex().unwrap()})).unwrap();
     rules.sealed = Some(Sealed { tranches_zat: vec![10_000_000, 50_000_000], pricing: "pay_your_bid".into(), drand_chain: QUICKNET_CHAIN_HASH.into(),
-        drand_round: 40_000_000, claim_after: 1_500, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Default::default(), open_payouts: false, long_tag: false, early_key: false, coin_margin: 0 });
+        drand_round: 40_000_000, claim_after: 1_500, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Default::default(), open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 });
     let id = hex::encode(rules.id().unwrap());
     ureq::put(&format!("{relay}/v1/campaigns/{id}")).send_string(&serde_json::to_string(&rules).unwrap()).unwrap();
     let chain: Arc<dyn Chain> = Arc::new(NoChain);
@@ -53,7 +53,7 @@ fn blind_rules(name: &str) -> (Rules, CampaignSecrets, String) {
         "ufvk_hash":"aa","treasury_address":"utest1x","treasury_ufvk":"uviewtest1x","name":name,
         "ledger_pubkey":secrets.ledger_pubkey_hex().unwrap(),"payload_pubkey":secrets.payload_pubkey_hex().unwrap()})).unwrap();
     rules.sealed = Some(Sealed { tranches_zat: vec![10_000_000, 50_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(),
-        drand_round: 40_000_000, claim_after: 1_500, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Default::default(), open_payouts: true, long_tag: true, early_key: true, coin_margin: 0 });
+        drand_round: 40_000_000, claim_after: 1_500, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Default::default(), open_payouts: true, long_tag: true, early_key: true, late_key: true, coin_margin: 0 });
     let id = hex::encode(rules.id().unwrap());
     (rules, secrets, id)
 }

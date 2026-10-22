@@ -561,8 +561,8 @@ impl WalletBackend for LibsBackend {
         self.finish_refund_impl(signed, owner, to, value_zat)
     }
 
-    fn late_ticket(&mut self, owner: &str, to: &str, value_zat: u64, coin: &CoinInput, lock_time: u32) -> Result<(Vec<u8>, String)> {
-        self.late_ticket_impl(owner, to, value_zat, coin, lock_time)
+    fn late_ticket(&mut self, owner: &str, to: &str, value_zat: u64, coin: &CoinInput, lock_time: u32, ovk: Option<[u8; 32]>) -> Result<(Vec<u8>, String)> {
+        self.late_ticket_impl(owner, to, value_zat, coin, lock_time, ovk)
     }
 
     fn pay_coins(&mut self, outs: &[([u8; 33], u64)]) -> Result<(String, Vec<u32>)> {
@@ -573,8 +573,8 @@ impl WalletBackend for LibsBackend {
         self.tip_time_impl()
     }
 
-    fn payout_facts(&mut self, keys: &[(String, String)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
-        self.payout_facts_impl(keys)
+    fn payout_facts(&mut self, targets: &[(String, Option<String>)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
+        self.payout_facts_impl(targets)
     }
 
     fn coin_facts(&mut self, txids: &[String]) -> Result<Vec<ll_core::recount::CoinFact>> {

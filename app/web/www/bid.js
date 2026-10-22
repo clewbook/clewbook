@@ -300,6 +300,9 @@ async function protectLate() {
   if (branchNow == null) { work = ''; return; }
   try {
     const opened = JSON.parse(W.open_late(state.seed, JSON.stringify(ce), blob));
+    // the mentor's second review: with late_key the late ticket is made with this payment's own key, which this page works out itself, so
+    // the recount can later open it and check whom it paid
+    if (s.late_key && opened.ovk_hex !== W.payout_ovk(state.seed, rules.payload_pubkey, state.ticket.nf, 'late')) throw new Error('The late ticket is not made with the key this page works out, so a recount could not check whom it pays.');
     const expect = JSON.stringify({
       deposit_nf: state.ticket.nf, coin_txid: ce.coin.txid, coin_index: ce.coin.index, coin_value_zat: ce.coin.value_zat,
       lock_time: s.claim_after, refund_address: state.refund, refund_zat: state.paidZat - rules.refund_fee_zat, deposit_zat: state.paidZat,

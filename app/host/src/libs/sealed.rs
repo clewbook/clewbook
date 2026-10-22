@@ -161,9 +161,10 @@ impl LibsBackend {
 
     /// The host's part of the late ticket: it spends the deposit locked under `owner` and the page's coin, pays `value` to `to`, has lock
     /// time `lock_time` and no expiry. The host proves and signs the Ironwood part; the coin's signature is left empty for the page, which
-    /// checks everything before it signs. The refund output is made with a fresh outgoing viewing key, given to the page with the anchor's
-    /// height. Returns that package (`ticket_blob::LatePart`, encoded) and the transaction's id (which does not cover signatures).
-    pub fn late_ticket_impl(&mut self, owner: &str, to: &str, value: u64, coin: &CoinInput, lock_time: u32) -> Result<(Vec<u8>, String)> {
+    /// checks everything before it signs. The refund output is made with `ovk` (the payment's own key, `payout::LATE`, for an auction with
+    /// late_key) or else a fresh outgoing viewing key, given to the page with the anchor's height. Returns that package
+    /// (`ticket_blob::LatePart`, encoded) and the transaction's id (which does not cover signatures).
+    pub fn late_ticket_impl(&mut self, owner: &str, to: &str, value: u64, coin: &CoinInput, lock_time: u32, ovk: Option<[u8; 32]>) -> Result<(Vec<u8>, String)> {
         let mut db = self.db()?;
         // the selection is the early ticket's (the deposit minus the refund fee); the late ticket also spends the coin, whose value pays
         // the fee of its extra action, so it pays the same amount back
@@ -175,8 +176,11 @@ impl LibsBackend {
         let v = BundleVersion::ironwood_v3();
         let mut b = IwBuilder::new(BundleType::DEFAULT, v, v.default_flags(), anchor).map_err(|e| anyhow!("{e:?}"))?;
         b.add_spend(fvk, note, path).map_err(|e| anyhow!("{e:?}"))?;
-        let mut ovk = [0u8; 32];
-        rand::Rng::fill_bytes(&mut rng(), &mut ovk);
+        let ovk = ovk.unwrap_or_else(|| {
+            let mut k = [0u8; 32];
+            rand::Rng::fill_bytes(&mut rng(), &mut k);
+            k
+        });
         b.add_output(Some(orchard::keys::OutgoingViewingKey::from(ovk)), Self::ironwood_address(to)?, NoteValue::from_raw(value), [0u8; 512])
             .map_err(|e| anyhow!("{e:?}"))?;
         let iw = b.build::<ZatBalance>(&mut r).map_err(|e| anyhow!("{e:?}"))?.context("empty bundle")?.0;
@@ -260,27 +264,30 @@ impl LibsBackend {
 
     /// SPEC §9.1, open_payouts: the outputs of each payment the host signed to a person, opened on the chain with its outgoing viewing key: `keys` is
     /// `(txid display order, ovk hex)` as `sealed_recount::payout_keys` names them.
-    pub fn payout_facts_impl(&mut self, keys: &[(String, String)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
+    pub fn payout_facts_impl(&mut self, targets: &[(String, Option<String>)]) -> Result<Vec<ll_core::recount::PayoutFact>> {
         let mut client = self.client()?;
         let tip = Self::next_height(&self.db()?)?;
         let mut out = vec![];
-        for (t, k) in keys {
+        for (t, k) in targets {
             let mut b = ll_core::hex32(t)?;
             b.reverse();
-            let ovk = orchard::keys::OutgoingViewingKey::from(ll_core::hex32(k)?);
+            let ovk = k.as_deref().map(ll_core::hex32).transpose()?;
             let fact = match self.fetch(&mut client, tip, TxId::from_bytes(b))? {
-                None => ll_core::recount::PayoutFact { txid: t.clone(), outputs: vec![], error: Some("the transaction is not on the chain".into()) },
-                Some((tx, _)) => ll_core::recount::PayoutFact {
-                    txid: t.clone(),
-                    outputs: tx
-                        .ironwood_bundle()
-                        .map(|b| b.recover_outputs_with_ovks(&[ovk]))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|r| ll_core::recount::PaidOutput { receiver_hex: hex::encode(r.3.to_raw_address_bytes()), value_zat: r.2.value().inner() })
-                        .collect(),
-                    error: None,
-                },
+                None => ll_core::recount::PayoutFact { txid: t.clone(), outputs: vec![], error: Some("the transaction is not on the chain".into()), shape: None },
+                Some((tx, _)) => {
+                    // the same reading as the recount page's (the mentor's second review: the shape needs no key)
+                    let mut raw = vec![];
+                    tx.write(&mut raw)?;
+                    match ll_ticketcheck::payout_fact(&raw, ovk.as_ref()) {
+                        Ok((o, shape)) => ll_core::recount::PayoutFact {
+                            txid: t.clone(),
+                            outputs: o.into_iter().map(|(r, v)| ll_core::recount::PaidOutput { receiver_hex: r, value_zat: v }).collect(),
+                            error: None,
+                            shape: Some(shape),
+                        },
+                        Err(e) => ll_core::recount::PayoutFact { txid: t.clone(), outputs: vec![], error: Some(e), shape: None },
+                    }
+                }
             };
             out.push(fact);
         }

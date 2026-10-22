@@ -18,34 +18,75 @@ use crate::{
 /// change, a return) and the outgoing viewing key that opens it, for whoever reads the chain (the browser module, the host's self check):
 /// `(txid, ovk hex)`. Empty for an auction without `open_payouts` or before its reveal.
 pub fn payout_keys(rules: &Rules, ledger: &[Entry], notes: &[ChainNote]) -> Vec<(String, String)> {
+    payout_targets(rules, ledger, notes).into_iter().filter_map(|(t, k)| Some((t, k?))).collect()
+}
+
+/// Every payment the host named for a person that spent one of the campaign's notes (an early ticket, a signed refund, a winner's change, a
+/// return, a late ticket), with the outgoing viewing key that opens it when one is known (open payouts and the published payload key). The
+/// recount reads the shape of each (what it spends, what leaves the pool) even without a key (the mentor's second review).
+pub fn payout_targets(rules: &Rules, ledger: &[Entry], notes: &[ChainNote]) -> Vec<(String, Option<String>)> {
     let Some(s) = rules.sealed.as_ref() else { return vec![] };
-    let Some(sk) = ledger.iter().find_map(|e| e.reveal.as_ref()?.payload_sk.as_deref()).and_then(|k| hex32(k).ok()) else { return vec![] };
-    if !s.open_payouts {
-        return vec![];
-    }
+    let sk = ledger.iter().find_map(|e| e.reveal.as_ref()?.payload_sk.as_deref()).and_then(|k| hex32(k).ok()).filter(|_| s.open_payouts);
     let refunds: BTreeMap<&str, &str> = ledger.iter().filter(|e| e.kind == "issue").filter_map(|e| Some((e.nf()?, e.refund.as_deref()?))).collect();
     let settles: BTreeMap<&str, &str> = ledger.iter().filter_map(|e| e.settle.as_ref()).map(|x| (x.nf.as_str(), x.txid.as_str())).collect();
     let returns: BTreeMap<&str, &str> = ledger.iter().filter(|e| e.kind == "late_return").filter_map(|e| Some((e.nf()?, e.refund.as_deref()?))).collect();
     let earlies: BTreeMap<&str, &str> = ledger.iter().filter(|e| e.kind == "issue").filter_map(|e| Some((e.nf()?, e.ticket.as_ref()?.txid.as_str()))).collect();
+    let lates: BTreeMap<&str, &str> = ledger.iter().filter_map(|e| Some((e.coin.as_ref()?.nf.as_str(), e.late.as_deref()?))).collect();
     let mut out = vec![];
     for n in notes {
         let (Some(nf), Some(sp)) = (n.nf.as_deref(), n.spent_by.as_ref()) else { continue };
-        let kind = if s.early_key && earlies.get(nf) == Some(&sp.txid.as_str()) {
-            payout::EARLY
-        } else if refunds.get(nf) == Some(&sp.txid.as_str()) {
-            payout::REFUND
-        } else if settles.get(nf) == Some(&sp.txid.as_str()) {
-            payout::CHANGE
-        } else if returns.get(nf) == Some(&sp.txid.as_str()) {
-            payout::RETURN
+        let is = |m: &BTreeMap<&str, &str>| m.get(nf) == Some(&sp.txid.as_str());
+        // the kind of key, and whether this auction made that kind of payment with one
+        let (kind, keyed) = if is(&earlies) {
+            (payout::EARLY, s.early_key)
+        } else if is(&refunds) {
+            (payout::REFUND, true)
+        } else if is(&settles) {
+            (payout::CHANGE, true)
+        } else if is(&returns) {
+            (payout::RETURN, true)
+        } else if is(&lates) {
+            (payout::LATE, s.late_key)
         } else {
             continue;
         };
-        let Some(p) = n.memo_text.as_deref().and_then(|m| BidMemo::parse(m).ok()).and_then(|m| Payload::open_sealed(&m.sealed, &crypto_box::SecretKey::from(sk)).ok()) else { continue };
-        let shared = payout::shared_secret(&sk, &p.enc_pubkey);
-        out.push((sp.txid.clone(), hex::encode(payout::payment_ovk(&shared, nf, kind))));
+        let key = sk.filter(|_| keyed).and_then(|sk| {
+            let p = n.memo_text.as_deref().and_then(|m| BidMemo::parse(m).ok()).and_then(|m| Payload::open_sealed(&m.sealed, &crypto_box::SecretKey::from(sk)).ok())?;
+            Some(hex::encode(payout::payment_ovk(&payout::shared_secret(&sk, &p.enc_pubkey), nf, kind)))
+        });
+        out.push((sp.txid.clone(), key));
     }
     out
+}
+
+/// The mentor's second review: a payment the host signed to one person, from one deposit or payment, has the plain shape the page checked:
+/// two Ironwood actions (the note spent and the person paid), only the fee leaving the pool, nothing in any other pool, no transparent
+/// output, and transparent inputs only where named (a late ticket spends exactly the page's coin, which only the page can sign, with the late
+/// ticket block as its lock time). `None` when it has that shape; the reason when not, or when the shape was not read.
+fn shape_problem(extra: &Extra, txid: &str, fee: u64, coin: Option<&str>, lock: u32, what: &str) -> Option<String> {
+    let Some(f) = extra.payouts.iter().find(|f| f.txid == txid) else {
+        return Some(format!("{what} {txid}: the transaction was not read from the chain, so what it spends was not checked"));
+    };
+    let Some(sh) = &f.shape else {
+        return Some(format!("{what} {txid}: {}", f.error.as_deref().unwrap_or("the transaction's inputs and outputs were not read, so what it spends was not checked")));
+    };
+    let want_inputs: Vec<String> = coin.map(|c| vec![c.to_string()]).unwrap_or_default();
+    if sh.other_pools || sh.transparent_outputs != 0 {
+        Some(format!("{what} {txid} has parts a payment to one person does not have (another shielded pool or a transparent output)"))
+    } else if sh.actions != 2 {
+        Some(format!("{what} {txid} has {} shielded actions; a payment from one deposit to one person has two", sh.actions))
+    } else if sh.value_balance != fee as i64 {
+        Some(format!("{what} {txid} takes {} out of the shielded pool; only the fee ({fee}) may leave", sh.value_balance))
+    } else if sh.transparent_inputs != want_inputs {
+        Some(match coin {
+            Some(c) => format!("{what} {txid} does not spend exactly the bid page's coin {c} (it spends {}): only the page can sign for its coin, so this is not the late ticket the page signed", if sh.transparent_inputs.is_empty() { "no coin".to_string() } else { sh.transparent_inputs.join(", ") }),
+            None => format!("{what} {txid} also spends transparent coins ({})", sh.transparent_inputs.join(", ")),
+        })
+    } else if sh.lock_time != lock {
+        Some(format!("{what} {txid} has lock time {}, expected {lock}", sh.lock_time))
+    } else {
+        None
+    }
 }
 
 /// A payment the host must send back on its own: mined in the last `LATE_MARGIN_BLOCKS` before the deadline or after it, with a sealed bid
@@ -169,6 +210,10 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
     let mut results = vec![];
     let mut did_not_finish = false;
     let mut warnings = vec![];
+    let missing = s.missing_checks();
+    if !missing.is_empty() {
+        warnings.push(format!("this auction was made before some checks existed, so it cannot be fully checked. Not checked: {}.", missing.join("; ")));
+    }
 
     // R1: the rules, and the revealed viewing key, are the committed ones.
     let mut r1 = vec![];
@@ -325,6 +370,15 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
         Some(format!("{what} {txid} does not pay {} to the refund address in the memo (it pays {})", rules.amount(value), if paid.is_empty() { "nothing its key opens".to_string() } else { paid.join(", ") }))
     };
     // the payload of a memo, opened with the published payload key, when it is for this auction: the host could read its refund address
+    // the mentor's second review: the shape of each payment the host named for a person (what it spends, what leaves the pool). A wrong shape
+    // always fails; a shape that was not read fails for an auction made with every check (late_key), and is left to the "cannot be fully
+    // checked" warning for an older one
+    let shape_check = |txid: &str, coin: Option<&str>, lock: u32, what: String, fails: &mut Vec<String>| {
+        let read = extra.payouts.iter().any(|f| f.txid == txid && f.shape.is_some());
+        if let Some(p) = shape_problem(extra, txid, fee, coin, lock, &what).filter(|_| read || s.late_key) {
+            fails.push(p);
+        }
+    };
     let opens_here = |memo: &BidMemo| -> bool {
         revealed_sk.and_then(|sk| Payload::open_sealed(&memo.sealed, &crypto_box::SecretKey::from(sk)).ok()).is_some_and(|p| hex::encode(p.rules_id) == rid)
     };
@@ -424,6 +478,7 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
                     s4.push(p);
                 }
             }
+            shape_check(&sp.txid, None, 0, format!("deposit {}: the early ticket", d.nf), &mut s4);
         } else {
             s4.push(format!("deposit {} spent by {} in block {}, not by its early ticket", d.nf, sp.txid, sp.height.unwrap_or(0)));
         }
@@ -650,11 +705,25 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
                 if let Some(p) = pays(&sp.txid, &d.memo, d.note.value_zat.saturating_sub(fee), &format!("deposit {}: the refund", d.nf)) {
                     s7.push(p);
                 }
+                shape_check(&sp.txid, None, 0, format!("deposit {}: the refund", d.nf), &mut s7);
             }
-            Some(sp) if Some(sp.txid.as_str()) == late && sp.height.is_some_and(|h| h > s.claim_after) => refunded += d.note.value_zat,
+            // the mentor's second review: a late ticket must spend exactly the page's coin (only the page can sign for it, after checking whom
+            // the ticket pays) with the late ticket block as its lock time; with late_key and the published payload key, it is also opened and
+            // must pay the refund address in the memo the deposit minus the fee
+            Some(sp) if Some(sp.txid.as_str()) == late && sp.height.is_some_and(|h| h > s.claim_after) => {
+                refunded += d.note.value_zat;
+                let coin = coins.get(d.nf.as_str()).map(|c| format!("{}:{}", c.txid, c.index));
+                shape_check(&sp.txid, coin.as_deref(), s.claim_after, format!("deposit {}: the late ticket", d.nf), &mut s7);
+                if s.late_key {
+                    if let Some(p) = pays(&sp.txid, &d.memo, d.note.value_zat.saturating_sub(fee), &format!("deposit {}: the late ticket", d.nf)) {
+                        s7.push(p);
+                    }
+                }
+            }
             Some(sp) if e.is_none() && late_returns.get(d.nf.as_str()) == Some(&sp.txid.as_str()) => {
                 refunded += d.note.value_zat;
                 s7_info.push(format!("deposit {} had no tickets from the host and was sent back by {}", d.nf, sp.txid));
+                shape_check(&sp.txid, None, 0, format!("deposit {}: the return", d.nf), &mut s7);
                 if let Some(p) = pays(&sp.txid, &d.memo, d.note.value_zat.saturating_sub(fee), &format!("deposit {}: the return", d.nf)) {
                     s7.push(p);
                 }
@@ -686,6 +755,7 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
             (Some(sp), _) if own_ticket => s7_info.push(format!("payment {nf} (block {h}, a deposit the chain moved past the last block to bid) went back by its own ticket {}", sp.txid)),
             (Some(sp), Some(t)) if sp.txid == *t => {
                 s7_info.push(format!("payment {nf} came too late to bid (block {h}, deadline {}) and was sent back by {t}", rules.deadline_height));
+                shape_check(t, None, 0, format!("payment {nf}: the return"), &mut s7);
                 match memo {
                     Some(memo) => {
                         if let Some(p) = pays(t, &memo, n.value_zat.saturating_sub(fee), &format!("payment {nf}: the return")) {

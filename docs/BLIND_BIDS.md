@@ -100,6 +100,12 @@ with numbers are the cheating tests of the earlier two ticket prototype.
 | L5 | A ticket window that does not fit is cut down, after wallets are made | It is checked first, and refused when it does not fit | host `second_review_l5_the_ticket_window_is_checked_before_anything_is_made` |
 | L6, L7 | Set up and dashboard wording that is not true for blind bids | Each line corrected, one short line | set up page `L6: …`, `L7: …` |
 
+### From the mentor's second review (22 Oct 2026)
+
+| Id | The cheat | What stops it | Test |
+|---|---|---|---|
+| L-T | The host spends a deposit itself after the late ticket block and writes that spend on its list as the deposit's late ticket; before the fix the recount counted any spend with that id as refunded | S7 reads the spend's shape: a real late ticket spends exactly the bid page's coin, which only the page can sign after checking whom the ticket pays, with the late ticket block as lock time, two actions and only the fee leaving the pool. New auctions also make the late ticket with its own key (`late_key`); the page refuses one made with any other key, and once the host publishes its key the recount opens it and checks it paid the refund address. Refunds, returns and early tickets get the same shape check. An auction made before these checks is flagged as not fully checkable | core `a_hosts_own_spend_named_as_the_late_ticket_is_caught_by_its_shape`, `a_late_ticket_that_does_not_pay_the_person_fails_s7_once_the_key_is_published`, `an_auction_without_every_check_is_flagged_not_fully_checkable`; the four test network proofs P1 to P4 and the sample auction keep their results with the new check (22 Oct 2026) |
+
 ### From the two ticket prototype and the recount tests
 
 | Id | The cheat | What stops it | Test |

@@ -47,7 +47,7 @@ published (after every winner is settled), S1 to S8 wait; R1, R2 and "did not fi
 | S4 | Before the deadline a deposit left only by its early ticket. |
 | S5 | The close carries drand round R's real signature (or the auction is void exactly when round R came too early); the winners and the price are what the opened bids give, for the auction's pricing type; no accepted deposit is a smaller copy of a later payment's memo. |
 | S6 | Every winner was settled before the late tickets became valid, paying exactly its price into the treasury. |
-| S7 | Every other deposit went back by its signed refund, or by its late ticket after the late ticket block. |
+| S7 | Every other deposit went back by its signed refund, or by its late ticket after the late ticket block. Each of these payments spends only that deposit (a late ticket also exactly the page's own coin, which only the page can sign) and lets only the fee leave the pool; once the host publishes its key, each is opened and must pay the person's refund address. An auction made before these checks existed is said to be not fully checkable. |
 | S8 | The viewing key was published only after every settlement was mined. |
 
 **Did not finish.** The report and the campaign page say "The host did not finish" when there is no close by the late ticket block, a winner

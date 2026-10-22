@@ -135,6 +135,8 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
         long_tag: true,
         // the second review, C1: the early ticket made with its own outgoing key, so a take back is checked to pay the person
         early_key: true,
+        // the mentor's second review: the late ticket made with its own outgoing key, so a late take back is checked to pay the person (S7)
+        late_key: true,
         // a payment whose small payment could not be mined by the cutoff is not a deposit: it goes back on its own (an honest host never fails S3)
         coin_margin: sealed::COIN_MARGIN_BLOCKS,
     };
@@ -660,7 +662,9 @@ fn write_coin_entry(run: &Run, backend: &mut dyn WalletBackend, s: &Sealed, nf: 
     let page_key: [u8; 33] = hex::decode(&d.page_key)?.try_into().map_err(|_| anyhow!("page key"))?;
     let coin = libs::CoinInput { txid: coin_txid.into(), index, value_zat: s.coin_zat, page_key };
     let value = d.value_zat - run.rules.refund_fee_zat;
-    let (raw, late_txid) = backend.late_ticket(&format!("ticket:{nf}"), &d.to, value, &coin, s.claim_after)?;
+    // the mentor's second review: with late_key, made with the payment's own key, so the page and (after the reveal) the recount open it
+    let ovk = if s.late_key { Some(payment_key(run, &hex32(&d.enc_pubkey)?, nf, payout::LATE)?) } else { None };
+    let (raw, late_txid) = backend.late_ticket(&format!("ticket:{nf}"), &d.to, value, &coin, s.claim_after, ovk)?;
     let blob = seal_to(&hex32(&d.enc_pubkey)?, &raw)?;
     let path = late_blob_path(run, nf);
     fs::create_dir_all(path.parent().expect("tickets"))?;
@@ -860,9 +864,10 @@ pub fn report(run: &Run, backend: &mut dyn WalletBackend, treasury: Vec<ChainNot
     let coins = backend.coin_facts(&coin_txids.into_iter().collect::<Vec<_>>())?;
     let d = run.rules.deadline_height;
     let block_times = if tip.height >= d { backend.block_times(d.saturating_sub(10), d)? } else { vec![] };
-    // SPEC 9.1, open_payouts: who each payment to a person pays, read from the chain with its key (after the reveal publishes the payload key)
-    let keys = ll_core::sealed_recount::payout_keys(&run.rules, &entries, &notes);
-    let payouts = if keys.is_empty() { vec![] } else { backend.payout_facts(&keys)? };
+    // SPEC 9.1, open_payouts: who each payment to a person pays, read from the chain with its key (after the reveal publishes the payload key),
+    // and what each spends (the mentor's second review)
+    let targets = ll_core::sealed_recount::payout_targets(&run.rules, &entries, &notes);
+    let payouts = if targets.is_empty() { vec![] } else { backend.payout_facts(&targets)? };
     let extra = ll_core::recount::Extra { treasury_notes: treasury, tx_facts: vec![], checks: vec![], coins, block_times, payouts };
     Ok(ll_core::recount::recount_with(&run.rules, &run.rules_id, &entries, &notes, &[], tip.height, true, &extra))
 }
@@ -936,7 +941,7 @@ mod tests {
     use super::*;
 
     fn s(sending: CoinSending) -> Sealed {
-        Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 500, coin_zat: COIN_ZAT, coin_cutoff: 10, coin_sending: sending, timing: Default::default(), open_payouts: false, long_tag: false, early_key: false, coin_margin: 0 }
+        Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 500, coin_zat: COIN_ZAT, coin_cutoff: 10, coin_sending: sending, timing: Default::default(), open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 }
     }
 
     #[test]

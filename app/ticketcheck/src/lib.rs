@@ -287,6 +287,44 @@ pub fn recover_outputs(raw: &[u8], ovk: &[u8; 32]) -> Result<Vec<(String, u64)>,
         .collect())
 }
 
+/// The mentor's second review: a payment transaction as the recount checks it, the outputs its outgoing viewing key opens (none without a
+/// key) and its shape, which needs no key (what it spends in the transparent pool, how many Ironwood actions, what leaves that pool).
+pub fn payout_fact(raw: &[u8], ovk: Option<&[u8; 32]>) -> Result<(Vec<(String, u64)>, ll_core::recount::TxShape), String> {
+    let tx = Transaction::read(raw, BranchId::Nu7).map_err(|e| format!("the transaction could not be read ({e})"))?;
+    let iw = tx.ironwood_bundle();
+    let outputs = match (iw, ovk) {
+        (Some(b), Some(k)) => b
+            .recover_outputs_with_ovks(&[orchard::keys::OutgoingViewingKey::from(*k)])
+            .into_iter()
+            .map(|r| (hex::encode(r.3.to_raw_address_bytes()), r.2.value().inner()))
+            .collect(),
+        _ => vec![],
+    };
+    #[allow(deprecated)]
+    let transparent_inputs = tx
+        .transparent_bundle()
+        .map(|t| {
+            t.vin
+                .iter()
+                .map(|i| {
+                    let mut h = *i.prevout().hash();
+                    h.reverse();
+                    format!("{}:{}", hex::encode(h), i.prevout().n())
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let shape = ll_core::recount::TxShape {
+        actions: iw.map_or(0, |b| b.actions().len() as u32),
+        value_balance: iw.map_or(0, |b| i64::from(*b.value_balance())),
+        transparent_inputs,
+        transparent_outputs: tx.transparent_bundle().map_or(0, |t| t.vout.len() as u32),
+        other_pools: tx.sapling_bundle().is_some() || tx.orchard_bundle().is_some(),
+        lock_time: tx.lock_time(),
+    };
+    Ok((outputs, shape))
+}
+
 /// Overall: "fail" if any check failed, else "pass" (with the list of what was not checked).
 pub fn verdict(checks: &[Check]) -> Status {
     if checks.iter().any(|x| x.status == Status::Fail) { Status::Fail } else { Status::Pass }

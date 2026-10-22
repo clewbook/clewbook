@@ -441,13 +441,32 @@ pub struct Extra {
     pub payouts: Vec<PayoutFact>,
 }
 
-/// One payment's outputs as its outgoing viewing key opens them on the chain.
+/// One payment's outputs as its outgoing viewing key opens them on the chain (none when no key is known yet), and the shape of the
+/// transaction itself, which needs no key.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct PayoutFact {
     pub txid: String,
     pub outputs: Vec<PaidOutput>,
     /// Why the transaction could not be read or opened.
     pub error: Option<String>,
+    /// What the transaction spends and how much leaves the shielded pool (the mentor's second review): read from the transaction alone.
+    #[serde(default)]
+    pub shape: Option<TxShape>,
+}
+
+/// The parts of a payment transaction the recount checks without any key.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TxShape {
+    /// Shielded (Ironwood) actions.
+    pub actions: u32,
+    /// Zatoshis that leave the Ironwood pool (its value balance): the network fee for a payment from one deposit to one person.
+    pub value_balance: i64,
+    /// Transparent inputs as "txid:index" (txid in display order).
+    pub transparent_inputs: Vec<String>,
+    pub transparent_outputs: u32,
+    /// Shielded parts other than Ironwood (Sapling, Orchard).
+    pub other_pools: bool,
+    pub lock_time: u32,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]

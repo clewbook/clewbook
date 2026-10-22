@@ -396,7 +396,7 @@ mod sealed_tests {
             timing: Default::default(),
             open_payouts: false,
             long_tag: false,
-            early_key: false,
+            early_key: false, late_key: false,
             coin_margin: 0,
         });
         r
