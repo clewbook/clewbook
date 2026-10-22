@@ -497,6 +497,9 @@ ticket** (valid only up to the deadline) and a **late ticket** (valid only after
 while the host settles, and everyone gets their deposit back if the host never does. The design and its tests are in the research notes
 (14, 16); this section is the format.
 
+Status: live on the test network since 21 Oct 2026. The host program offers it on the test network only; mainnet waits for the NU7
+upgrade (docs/BLIND_BIDS.md section 3).
+
 It is its own mode, `"sealed_auction"`. Older campaigns keep their rules and ids, and a relay, page or recount that does not know this mode
 refuses it (it drops the unknown `sealed` key, computes a different id and refuses the campaign; the unknown mode is refused as well).
 
@@ -576,6 +579,8 @@ read the lock and the page key; the bid opens only with round R's signature, whi
 - A lock that does not open (altered, locked to another round, or without the marker), or a signature that is not round R's, is no bid. It
   never stops the host or the recount.
 - A valid bid is at least the reserve (if any) and at most its tranche minus `refund_fee_zat`.
+- The bid page refuses a refund address for another network than the auction's, with one line ("This is a mainnet address. Use a
+  testnet one." or the reverse; `ll_core::receiver::network_mismatch`), and never builds a payment for it (`sealed_bid_payment`).
 
 ### 9.4 List entries
 

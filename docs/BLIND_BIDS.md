@@ -3,10 +3,26 @@
 For hosts, for people who bid, and for judges. What a blind bid auction is, what it stops, what it does not stop, and how each claim
 was checked. Every claim below names its test or its transaction.
 
+## Who holds the money
+
+Each campaign's host. The host runs the host program with its own wallet and keys, and holds the deposits until the close, like any
+auctioneer. Clewbook holds money only for campaigns it hosts itself. What is different: every contributor holds a signed refund ticket
+from the moment they pay, and anyone can recount the host's books against the Zcash chain, so a host that keeps money it should not gets
+caught in public.
+
 ## 1. What it is and how it works
 
 In a blind bid auction nobody can read a bid before bidding closes. Not the other people who bid, and not the host. The bids open
 together, after the close, and anyone can recount the result against the chain.
+
+### The bid page
+
+The bid page has three steps: Bid, Pay, Status. The person picks a deposit size from cards and types a bid; while they type, a bid
+that does not fit the chosen deposit is named at once ("Too high for a 0.1 TAZ deposit. Bid up to 0.0999 or pick a bigger deposit.").
+A refund address for the other network is refused with one short line ("This is a mainnet address. Use a testnet one."). The status
+card shows whether the deposit is PROTECTED. Taking a deposit back asks twice ("Take my money back", then "Yes, send it back"). After
+the close the host sends the treasury to its own wallet from the dashboard ("Send to my wallet"). Tests: bid page
+`bid-too-high-e2e.cjs` (the warning and the network check), `blind-cards-e2e.cjs` (the deposit cards), `bid-page-e2e.cjs` (the take back); core `a_refund_address_for_the_other_network_is_named`.
 
 ### A small example
 
@@ -117,7 +133,8 @@ with numbers are the cheating tests of the earlier two ticket prototype.
   deposit was not refunded.
 - **drand.** The design relies on the drand network's members not working together to publish round R early.
 - **The host can still move a deposit with its key.** Nothing on the chain stops it. The recount shows it, and the person keeps a
-  late ticket for the money. Signing by several parties (threshold signing) is on the roadmap.
+  late ticket for the money. Signing by several parties is on the roadmap ("Shared custody" in [ROADMAP.md](ROADMAP.md)); it is
+  research, not built.
 - **The page must stay open until PROTECTED.** The page checks and signs the late ticket only while it is open, and only after the
   coin arrives. A person who closes it before then, and does not open it again before the cutoff, has no late ticket. If the host
   then disappears with its relays, that deposit stays locked. The page says this plainly and warns from 15 blocks before the cutoff.
@@ -125,7 +142,9 @@ with numbers are the cheating tests of the earlier two ticket prototype.
   The person's money then comes back at the close by the signed refund (test network, third rerun: early ticket f36c2433…, not mined;
   refund mined in block 4523126).
 - **The reveal block is the host's claim** (L1 above).
-- **The main network.** Blind bid auctions run on the test network. The host program offers them on the test network only.
+- **The main network.** Blind bid auctions run on the test network, live on app.clewbook.xyz since 21 Oct 2026. The host program offers
+  them on the test network only. Mainnet waits for the NU7 network upgrade, its official activation height, and a split of the page
+  module.
 
 ## 4. How it was checked
 
@@ -136,7 +155,7 @@ with numbers are the cheating tests of the earlier two ticket prototype.
    (sixteen bid pages in a real browser) and `check-sealed-review.sh` (the review fixes with four cheating hosts).
 4. **The public test network.** Four proof auctions (P1 uniform price, P2 second price, P3 pay your bid, P4 host never closes), a big
    run of nine cases (B1 to B9) and three reruns. Each is listed with its transactions on the Blind bids tab of
-   [clewbook.xyz/demo/proofs](https://clewbook.xyz/demo/proofs). Example: P1, auction
+   [clewbook.xyz/demo/proofs](https://clewbook.xyz/demo/proofs), and with their block heights in [EVIDENCE.md](EVIDENCE.md) section 12. Example: P1, auction
    4bbdc3d44705c615ca2d6de3338312685bc19376222817154a94d8cd70cdf6e5, settlements 4d87cc5e… and eb2a2f91…, refund 2d131bc5…, browser recount
    "All checks pass".
 5. **The test network check of the first review's fixes**, auction 6e7a904ad557b2a20941af1d562bc93de783855d240beb79f8087ec2dce877e8 (quick test

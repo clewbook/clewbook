@@ -143,11 +143,11 @@ The project runs one public set of pages, app.clewbook.xyz. Its home page shows 
 
 **From the dashboard (the usual way).** Open the campaign in your dashboard and press **Submit for listing** in the section "Listing on app.clewbook.xyz". A short box says what will be sent, and nothing is sent until you press **Send the request**. The first time, the dashboard makes your **host key**: a long lived key in `host_key.json` in the dashboard's runs folder (readable only by you, never replaced, never printed). Then it sends the request to `https://listing.clewbook.xyz` (another server with `cb-host serve --listing-url <address>`). The campaign then shows the answer: "Sent, waiting for approval" with your host **fingerprint** (five groups of four characters), or the reason it was refused. Later, **Check status** asks the listing server where the request stands: Waiting, Listed, Not listed (with the reason), or Waiting for mainnet listing to open. Closed campaigns can be sent too; they are listed as closed campaigns. Each dashboard folder has its own host key, so two dashboards (for example one for testnet and one for mainnet) have two fingerprints.
 
-**What the request holds**: the campaign id, its relays (from the campaign's `private/relays`), its network, your host's public key, and two signatures, one by your host key and one by the campaign's own ledger key, so only someone who holds both can ask for that campaign. It holds no money, no secret, no name and no label: the listing reads the campaign's name from its relays, and the label comes from us. Before sending, the dashboard checks the campaign's name for the word Clewbook, and does not send a request that would be refused for it. The listing server checks the rest.
+**What the request holds**: the campaign id, its relays (from the campaign's `private/relays`), its network, your host's public key, and two signatures, one by your host key and one by the campaign's own ledger key, so only someone who holds both can ask for that campaign. It holds no money and no secret. From the dashboard it can also hold a name you suggest for yourself (the box "Your name", optional, up to 30 characters; the command line request has none). The listing reads the campaign's name from its relays. Before sending, the dashboard checks the campaign's name for the word Clewbook, and does not send a request that would be refused for it. The listing server checks the rest.
 
 Then:
 
-1. **Tell us who you are.** Open an issue at https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us (this needs a GitHub account) with your fingerprint, the label you would like (see below) and a word about your campaign. Approval is for your host key: once it is approved, your later campaigns are listed on their own, without asking again.
+1. **Tell us who you are.** Open an issue at https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us (this needs a GitHub account) with your fingerprint, the label you would like if you did not suggest one (see below) and a word about your campaign. Approval is for your host key: once it is approved, your later campaigns are listed on their own, without asking again.
 2. **Wait for approval.** Every 10 minutes the listing job reads your campaign from every relay you named and checks it. Your relay must be on https and reachable from the internet. Before it is listed for the first time, your campaign must pass a **recount**: the same check the recount page runs, over your relays' list and the public chain. A fundraiser gets the full recount; an auction before its close gets the two checks that can run without its viewing key, and the full recount after its close. Then, once we approve your host key, the campaign appears on the home page.
 
 **Mainnet campaigns** can be sent the same way. Mainnet campaigns are listed once mainnet listing opens after the next network upgrade; the request is kept until then, and is not removed after 7 days like a testnet request.
@@ -158,20 +158,21 @@ Then:
 2. Send a listing request: `cb-host listing-record --run runs/<campaign folder> --runs-dir runs --out listing-request.json --post https://listing.clewbook.xyz`. It writes the same request as the button to the file and sends it to `https://listing.clewbook.xyz/v1/records`. Its relays come from the campaign's `private/relays`, or repeat `--relay https://<your_relay_address>`. The answer says "received"; nothing is decided at that moment.
 3. Then the same two steps as above.
 
-What approval means: **we show your campaign under Clewbook with your label. It is not an audit**, and it says nothing about what the campaign is for. Once your host key is approved, your campaign's own page and its contribute page show one small line under the campaign's name: "Hosted by <label>". The home page never shows it. The label comes from us, never from your request; it follows the same rules as campaign names, and it may not contain the word Clewbook. Campaign names that look like a name already listed, or like the word Clewbook in any spelling, are refused.
+What approval means: **we show your campaign under Clewbook with your label. It is not an audit**, and it says nothing about what the campaign is for. Once your host key is approved, your campaign's own page and its contribute page show one small line under the campaign's name: "Hosted by <label>". The home page never shows it. The label is the name you suggested, if we approve it as it is, or one we choose. A suggested name is plain text of at most 30 characters, follows the same rules as campaign names, and may not contain a word from the listing's reserved labels list, in any spelling; such a name is refused when the request arrives. Campaign names that look like a name already listed, or like the word Clewbook in any spelling, are refused.
 
 Some things to know:
 
 - A request from a host we have not approved waits at most **7 days**, then it is removed. You can send it again.
 - A listed campaign stays listed after its deadline, as a closed campaign. It is recounted again when its list changes and at least every 6 hours; if a recount fails later, the campaign stays listed and we are told, and we decide whether to take it off.
 - We can hide a campaign or revoke a host key at any time. Nothing is deleted from any relay.
+- If your relay or the chain cannot be reached for a while (no connection, a timeout, an HTTP 5xx answer), a listed campaign stays listed with its last good state for up to 1 hour, then is taken off until the relay answers again. A relay that answers wrongly (a 404, or content that does not check out) takes it off at once.
 - **Mainnet listing is not open yet.** Mainnet requests are kept until it opens (see above). For help with hosting, use the same issue link (Contact us).
 
 A link to a campaign on those pages works without being listed: the pages take the campaign and its relay from the link, provided your relay is on https. We have not tested this with a relay run by someone else.
 
 How the listing job works, its checks and limits: `docs/LISTING.md`.
 
-## 7b. Blind bid auctions (test network only, not shipped)
+## 7b. Blind bid auctions (test network only)
 
 A blind bid auction (SPEC section 9) runs from its own host on port 8786 with its own campaigns folder, `runs/testnet-sealed`, never the
 ports or folders of other hosts: `app/sealed-testnet.sh dry-run | start | stop | status` (start needs `SEALED_RELAY`; there is no
@@ -187,11 +188,15 @@ default). Create one on its set up page (the "Blind bid auction" choice appears 
   the settlements are mined. If you do not, everyone takes their deposit back with their late ticket and the auction is shown as not
   finished.
 
-Tested on private regtest chains only (`app/regtest/README.md`); not run on the public test network.
+After the close, send the treasury to your own wallet from the dashboard ("Send to my wallet").
+
+Tested on private regtest chains (`app/regtest/README.md`) and on the public test network (four proof auctions, `docs/EVIDENCE.md`
+section 12). Live on the test network since 21 Oct 2026. Not offered on mainnet: it waits for the NU7 upgrade (`docs/BLIND_BIDS.md`
+section 3).
 
 ## 8. Mainnet
 
-Testnet campaigns have no restriction. For mainnet, the host program refuses to create a campaign that could still be open when the next Zcash network upgrade (NU7) activates. The upgrade already runs on testnet. The mainnet update of the libraries follows the upgrade and has not been done. Until you give the program the mainnet activation height (`--nu7-mainnet-height`), a campaign must end at least a week before 5 November 2026, the date announced for the upgrade (we have not confirmed it ourselves). Creating a mainnet campaign also needs an explicit confirmation (a tick box on the set up page, or `--confirm-mainnet`). After the upgrade, mainnet hosting waits for a library update. Real money runs so far were two small ones, described in `docs/EVIDENCE.md` section 8.
+Testnet campaigns have no restriction. For mainnet, the host program refuses to create a campaign that could still be open when the next Zcash network upgrade (NU7) activates. The upgrade already runs on testnet. The mainnet update of the libraries follows the upgrade and has not been done. Until you give the program the mainnet activation height (`--nu7-mainnet-height`), a campaign must end at least a week before 5 November 2026, the date announced for the upgrade (we have not confirmed it ourselves). Creating a mainnet campaign also needs an explicit confirmation (a tick box on the set up page, or `--confirm-mainnet`). After the upgrade, mainnet hosting waits for a library update. Real money runs so far: two small early ones (`docs/EVIDENCE.md` section 8) and the four mainnet campaigns listed on app.clewbook.xyz (section 11).
 
 ## 9. Honest cautions
 

@@ -23,7 +23,7 @@ Tests: `app/listing/tests/e2e.rs`, `app/listing/tests/recount.rs` and the unit t
    - `out/campaigns.json`, the combined list for the home page;
    - `out/status.json`, why each record and each fixed entry is where it is, with its last recount;
    - `out/queue.json`, the hosts waiting for approval, the mainnet records waiting for mainnet listing, and listed campaigns flagged "attention".
-4. The operator approves a host key with a **label**. From the next pass on, that host's campaigns that pass every check are listed.
+4. The operator approves a host key with a **label**: the name the host suggested, or one the operator gives. From the next pass on, that host's campaigns that pass every check are listed.
 
 ## The listing record
 
@@ -38,13 +38,14 @@ A JSON object (at most 4096 bytes, unknown fields refused):
 | `host_pubkey` | the host's long lived public key (64 hex) |
 | `ledger_pubkey` | the campaign's ledger key (64 hex); must equal `ledger_pubkey` in its rules |
 | `created` | unix seconds |
+| `host_label` | optional: the name the host suggests for itself, plain text, at most 30 characters, no # |
 | `host_sig`, `ledger_sig` | two signatures over the same bytes |
 
 **Signatures.** Both keys sign the domain tag `clewbook_listing_record_v1\n` followed by the canonical JSON of the record without its two signatures. The tag is never valid JSON, so neither signature can be taken for a ledger entry, a heartbeat or anything else these keys sign.
 
 **Fingerprint.** A host key's fingerprint is BLAKE2b-256 of the key's hex text, personalised `clewbook_hostfp\0`. Its first 10 bytes are shown in groups of four hex digits.
 
-The record carries **no label**: a record with a `label` field is refused (`listing_end_to_end`). Labels come only from the operator's approved hosts file.
+The record carries **no label**: a record with a `label` field is refused (`listing_end_to_end`). Labels come only from the operator's approved hosts file. A host may suggest one in `host_label` (the dashboard's box "Your name"); it is signed with the record, refused when it contains a word of `reserved-labels.txt` in any spelling, shown to the operator in the queue ("suggests") and in the Telegram notice ("Host suggests:"), and used only when the operator approves without `--label` (checked against `reserved-labels.txt` again then). Tests: `a_host_may_suggest_its_name_and_reserved_labels_bind_only_the_host`, `a_suggested_name_is_signed_with_the_record_and_only_plain_short_names_are_accepted`.
 
 ## The checks, in order
 
@@ -81,12 +82,16 @@ The record carries **no label**: a record with a `label` field is refused (`list
      - relays that disagree give no listing;
      - a recount over its time limit gives no listing;
      - a sealed auction gets R1 and R2, and the full recount at its close.
-5. **The attention flag**:
+5. **A short outage**: when a listed campaign's relay or the chain cannot be reached (no connection, a timeout, an HTTP 5xx answer), the
+   campaign stays listed with its last good state for up to 1 hour (`KEEP_WHEN_UNREACHABLE_SECS`), then is taken off until it can be
+   read again. A relay that answers wrongly (a 404, or content that does not check out) takes it off at once. Test:
+   `a_listed_campaign_stays_listed_while_its_relay_is_briefly_unreachable_but_not_for_ever_and_not_when_the_relay_answers_wrong`.
+6. **The attention flag**:
    - A campaign that is already listed and later fails its recount is **not removed**.
    - It is flagged in `out/status.json` and appears in the queue output as `ATTENTION`, with the failing rule and since when. A failure with no verdict also flags it when trying again will not fix it, such as relays that disagree or a limit that was hit.
    - The operator decides whether to hide it. The home page does not show the flag.
    - Test: `a_listed_campaign_that_later_fails_is_flagged_not_removed`.
-6. **Fixed entries**: never checked for listing and never removed; the network rule does not apply to them. Their recount runs for information and is shown in `out/status.json` (`fixed_entries_show_their_recount_and_are_never_removed`).
+7. **Fixed entries**: never checked for listing and never removed; the network rule does not apply to them. Their recount runs for information and is shown in `out/status.json` (`fixed_entries_show_their_recount_and_are_never_removed`).
 
 **Recount limits** (options of `cb-listing run` and `cb-listing serve`):
 
@@ -158,6 +163,7 @@ On 16 October 2026 it used 14 MB of memory at its peak.
 | `records/` | stored records |
 | `approved_hosts.txt` | key, then label |
 | `revoked_hosts.txt`, `hidden.txt` | revoked host keys; hidden campaign ids or host keys |
+| `reserved-labels.txt` | words no host may put in the name it suggests for itself (one per line, # starts a comment; any spelling). They bind only the host: the operator's `--label` may use any word |
 | `reserved.txt` | names no campaign may look like; a line `contains:<word>` refuses any name containing that word; a line `relay:<word>` refuses any relay address containing that word (put a longer word before a shorter one it contains, so the reason names it) |
 | `state/seen.json`, `state/recount.json` | what the job remembers between passes |
 | `out/campaigns.json`, `out/status.json`, `out/queue.json` | the outputs |
@@ -174,6 +180,7 @@ Run on the server. From another computer, put `ssh <server>` in front; quote a l
 L="sudo -u clewbook-listing /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing"
 $L queue                                   # hosts waiting for approval, MAINNET records waiting, and ATTENTION items
 $L approve <fingerprint> --label 'Garden Collective'
+$L approve <fingerprint>                   # use the name the host suggested
 $L label <fingerprint> 'New Label'         # change a label
 $L hide <campaign id>                      # or a fingerprint: every campaign of that host
 $L unhide <campaign id>

@@ -7,7 +7,8 @@ and are marked "partial". "Testnet" means the public Zcash test network after th
 `77190ad9`); "mainnet" means the live Zcash network on the NU6.3 branch (`37a5165b`).
 
 How to look up a transaction: any Zcash block explorer for the matching network, or ask a lightwalletd server for it
-(`GetTransaction`). How to re-run a scenario: the scripts named below, from the repository root, with the test
+(`GetTransaction`). Mainnet ids in section 11 link to mainnet.zcashexplorer.app. We found no public explorer that shows the test
+network after NU7, so testnet ids are given without links; each campaign's recount page reads them from the chain. How to re-run a scenario: the scripts named below, from the repository root, with the test
 wallets described in `app/e2e-one.sh`. The "recount" is `app/recount` (command line) or the recount web page
 (`app/web/www/recount.html`), which re-checks a campaign from its public ledger and the chain.
 
@@ -84,7 +85,7 @@ The cheating hosts above are produced by switches that exist only in builds made
 
 ## 8. Mainnet runs (live network, small amounts)
 
-Transaction ids, campaign ids and block heights of these runs are deliberately not published in this file. Each run was made by the project's own wallets; what was observed is stated below, and nothing is claimed beyond it.
+The ids of these two early runs are not published in this file. Each run was made by the project's own wallets; what was observed is stated below, and nothing is claimed beyond it. The mainnet campaigns listed on app.clewbook.xyz are published with every id in section 11.
 
 ### 8a. Pilot, 2026-10-08 (current version of the payment code and pages)
 
@@ -140,6 +141,134 @@ Unit tests for the outbox: `cargo test -p ll-host` (resend with identical bytes,
 | The key-derivation and sealed-box formats match an independent implementation (libsodium.js). | 22 checks pass | `app/vectors` (`ll-vectors generate`, then `node js/check.cjs vectors.json`) |
 | The campaign, contribute and recount pages work in a real browser against a real campaign. | 24 and 30 browser checks, 17 for the auction result card | `app/web/pages-e2e.cjs`, `contribute-e2e.cjs`, `auction-page-e2e.cjs` |
 | A phone wallet could scan the payment code from a screen and fill in address, amount and message. | observed once on Android with Zkool 6.32.0-rc on testnet; its send then failed (see FINDINGS). On the main network a phone wallet (Vizor, Android) paid a campaign by scanning the page's payment code on 2026-10-06 (earlier code, without the amount sealed in) and a phone wallet did so again on 2026-10-08 with the current code (section 8) | observation only; try it with the contribute page |
+
+## 11. Mainnet campaigns on app.clewbook.xyz (live network, small amounts)
+
+The four mainnet campaigns listed on app.clewbook.xyz, each hosted by the project. Every payment, ticket and close below is on the
+public list on relay.clewbook.xyz. "Ticket used" was checked on 2026-10-22 by asking a public lightwalletd server for each id; a
+ticket that was never sent is not on the chain. The recount results are from the recount page on the same day. Refund addresses are
+never published, so none appear here.
+
+### 11a. Clewbook Live Fundraiser (open)
+
+Campaign `d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d`, goal 0.002 ZEC, deadline block 3,530,676.
+[Recount](https://app.clewbook.xyz/recount.html#c=d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d&relay=https://relay.clewbook.xyz): all checks pass; raised 0.0012 ZEC, taken back early 0.0012.
+
+| Payment | Block | ZEC | Refund ticket | Ticket issued at | Ticket used |
+|---|---|---|---|---|---|
+| [`abb17258e55d65ddfcb6ae13e39853690810374e54e8b9d95579a6e795f665f3`](https://mainnet.zcashexplorer.app/transactions/abb17258e55d65ddfcb6ae13e39853690810374e54e8b9d95579a6e795f665f3) | 3,519,125 | 0.001 | [`3bcb645de5e5b292e497c27c6cb1f6fa506c96d52b4587fc803f1e8c37847925`](https://mainnet.zcashexplorer.app/transactions/3bcb645de5e5b292e497c27c6cb1f6fa506c96d52b4587fc803f1e8c37847925) | 3,519,127 | mined in block 3,519,131 |
+| [`2a886f3916b941b9cb845b53e388ad009ce25e99ea2cd33bc897fb1852caa5ee`](https://mainnet.zcashexplorer.app/transactions/2a886f3916b941b9cb845b53e388ad009ce25e99ea2cd33bc897fb1852caa5ee) | 3,522,465 | 0.0002 | [`eefbc7ad2eaacb1c955d91d09a8cb3a8cf475fc00cc1ef0702ecec9e7385afe8`](https://mainnet.zcashexplorer.app/transactions/eefbc7ad2eaacb1c955d91d09a8cb3a8cf475fc00cc1ef0702ecec9e7385afe8) | 3,522,467 | mined in block 3,522,477 |
+
+Both contributors took their money back with their own tickets before the deadline (an early withdrawal, counted as taken back).
+
+### 11b. $Snarks Presale (demo, no token) (open)
+
+Campaign `fb3f327485c0506c7766412528898fae4986409dcbddaee7b9774f12d1d9ab6c`, soft cap 0.1 ZEC, hard cap 0.5 ZEC, deadline block 3,530,715.
+[Recount](https://app.clewbook.xyz/recount.html#c=fb3f327485c0506c7766412528898fae4986409dcbddaee7b9774f12d1d9ab6c&relay=https://relay.clewbook.xyz): all checks pass; raised 0.0053 ZEC, taken back early 0.0042, still pending 0.0011.
+
+| Payment | Block | ZEC | Refund ticket | Ticket issued at | Ticket used |
+|---|---|---|---|---|---|
+| [`704b0cc97c787952b42db9cff91e9d0b6bb2144b1938f8499a71231f9aeec56f`](https://mainnet.zcashexplorer.app/transactions/704b0cc97c787952b42db9cff91e9d0b6bb2144b1938f8499a71231f9aeec56f) | 3,520,311 | 0.002 | [`535a9658bad545c6a07828e762f5808bf731853a733f36fe4b187a159c34d761`](https://mainnet.zcashexplorer.app/transactions/535a9658bad545c6a07828e762f5808bf731853a733f36fe4b187a159c34d761) | 3,520,313 | mined in block 3,520,577 |
+| [`b745ef6615681a852f304d7e749ca0358aab54bab87b6c49a278612ead3cda78`](https://mainnet.zcashexplorer.app/transactions/b745ef6615681a852f304d7e749ca0358aab54bab87b6c49a278612ead3cda78) | 3,521,336 | 0.0011 | [`acc8fcb8248d8686972b39ef28f9ff0f407a031379459cfa7c404f41789508a2`](https://mainnet.zcashexplorer.app/transactions/acc8fcb8248d8686972b39ef28f9ff0f407a031379459cfa7c404f41789508a2) | 3,521,341 | mined in block 3,521,892 |
+| [`e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5`](https://mainnet.zcashexplorer.app/transactions/e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5) | 3,521,899 | 0.0011 | `8a393daae7844261c76f90b1bac41cdf1c137822fae843588c5196543bcf13b8` | 3,521,901 | not sent: the contribution is still in the campaign |
+| [`942c0f1bb681b68295ab0bbb9fef7feb3a9f6b4024afc956594bd41312ce64d9`](https://mainnet.zcashexplorer.app/transactions/942c0f1bb681b68295ab0bbb9fef7feb3a9f6b4024afc956594bd41312ce64d9) | 3,522,449 | 0.0011 | [`ac8e74ef22e9ef183cdbe1d206223264547fdb785a881e332d8d1d132113600a`](https://mainnet.zcashexplorer.app/transactions/ac8e74ef22e9ef183cdbe1d206223264547fdb785a881e332d8d1d132113600a) | 3,522,451 | mined in block 3,522,453 |
+
+**The browser wallet payment and its refund.** The last payment above (`942c0f1b…64d9`, 0.0011 ZEC, 18 Oct 2026) was paid from the
+Noir browser wallet. Its refund ticket `ac8e74ef…600a` was then used and mined in block 3,522,453, 4 blocks after the payment.
+
+### 11c. Clewbook Pre-seed Raise (closed, goal missed)
+
+Campaign `65d68e703cec8108da5c2a532f860e9b4774f782a4b72d6b836958c6f5c960be`, goal 1000 ZEC, deadline block 3,524,355. Closed at block 3,524,358 as "goal missed".
+[Recount](https://app.clewbook.xyz/recount.html#c=65d68e703cec8108da5c2a532f860e9b4774f782a4b72d6b836958c6f5c960be&relay=https://relay.clewbook.xyz): **R4b fails**; raised 0.0005 ZEC, taken back early 0.0005, kept 0.
+
+| Payment | Block | ZEC | Refund ticket | Ticket issued at | Ticket used |
+|---|---|---|---|---|---|
+| [`a4f90993f4fe0a4609272f27b62155339b29501944c21aa8b641f57534d1b6d5`](https://mainnet.zcashexplorer.app/transactions/a4f90993f4fe0a4609272f27b62155339b29501944c21aa8b641f57534d1b6d5) | 3,514,393 | 0.0002 | [`c25b75a18e02933b0349578e2bea5fe56f272312132462d25d86414fa88f6c9b`](https://mainnet.zcashexplorer.app/transactions/c25b75a18e02933b0349578e2bea5fe56f272312132462d25d86414fa88f6c9b) | 3,514,503 | mined in block 3,519,178 |
+| [`ab039953595e7e1f3162aa67bb4bd621abb0881f48246571c3e1ab8932561c3f`](https://mainnet.zcashexplorer.app/transactions/ab039953595e7e1f3162aa67bb4bd621abb0881f48246571c3e1ab8932561c3f) | 3,520,858 | 0.0003 | [`b224e0f3123ff1a5fb85e07d26ffee0fb7fcce6b24033af5fbdcea61e2370bf1`](https://mainnet.zcashexplorer.app/transactions/b224e0f3123ff1a5fb85e07d26ffee0fb7fcce6b24033af5fbdcea61e2370bf1) | 3,520,859 | mined in block 3,521,891 |
+
+The first ticket was issued 110 blocks after its payment, while the host was offline. The ticket window was 30 blocks, so the recount
+fails R4b for this campaign, and it will keep failing: the recount flags our own host (threat 21 in [THREAT_MODEL.md](THREAT_MODEL.md)).
+Both contributions were taken back by their tickets before the deadline, so at the close there was nothing left to refund or keep.
+
+### 11d. premium billboard slot (#lagoslife) (closed auction)
+
+Campaign `2ea57411c2beee188b43452338e8c63f721ee332496622c1c803fc87dbaf4e59`, 1 item, deadline block 3,516,300. Nobody bid. Closed at block 3,516,693 with no winners, so there were no
+settlements and no refunds. [Recount](https://app.clewbook.xyz/recount.html#c=2ea57411c2beee188b43452338e8c63f721ee332496622c1c803fc87dbaf4e59&relay=https://relay.clewbook.xyz): all checks pass, raised 0.
+
+## 12. Blind bid auctions on the test network: proofs P1 to P4
+
+Four blind bid auctions (SPEC §9, [BLIND_BIDS.md](BLIND_BIDS.md)) with the same three bids, published on relay-test.clewbook.xyz. All
+twelve deposits were paid in one transaction, `a4db7153bd57c441fde0cd1ece353de7b754be36ffbb259ede3780714ee542b1` (block 4,521,810).
+Recount on 2026-10-22 (app-test.clewbook.xyz): P1, P2 and P3 "All checks pass"; P4 "The host did not finish", the expected result.
+Each recount opens every bid itself after the close. Links: the Blind bids tab of
+[clewbook.xyz/demo/proofs](https://clewbook.xyz/demo/proofs).
+
+**P1, uniform price: each winner pays the lowest winning bid.** Auction `4bbdc3d44705c615ca2d6de3338312685bc19376222817154a94d8cd70cdf6e5`, 2 items, deposits of 0.0003 or 0.001 TAZ, deadline 4,521,837, late ticket block 4,522,108.
+
+| Step | Transaction | Block | What it shows |
+|---|---|---|---|
+| Coins to the three bid pages | `a707205be22a65f50ccb94fd26ccf56b829b503b11c3787200f5fc418267c6a5` | 4,521,815 | one transaction, 0.00005 TAZ for each page |
+| Settlement of a winner | `4d87cc5e73922597628791f832b2b96e6aa5f14d4443ee813a3fca4cec1aff97` | 4,521,980 | price 0.00018 TAZ to the treasury, 0.00072 TAZ change back to the winner |
+| Settlement of a winner | `eb2a2f912f70bafb69921a469bf6d4c7aa0e2392964c8fd096931d477e1cb5d6` | 4,521,990 | price 0.00018 TAZ to the treasury, 0.00002 TAZ change back to the winner |
+| Refund of the losing deposit | `2d131bc53da794a4a2b10d192c0666e928e804676e38382a089e7bf298658296` | 4,521,980 | the signed refund, sent by the host at the close |
+
+Closed at block 4,521,976.
+
+**P2, second price: each winner pays the highest losing bid.** Auction `c74cd5cac444019cb4ced354fb7023ff1d8c20e5ae18175aa50538781b5dbc5b`, 2 items, deposits of 0.0003 or 0.001 TAZ, deadline 4,521,838, late ticket block 4,522,109.
+
+| Step | Transaction | Block | What it shows |
+|---|---|---|---|
+| Coins to the three bid pages | `1341f19666fe1fc8e8ef7500f0d839cf5d1d1038ffce7535de8f550abd01a66a` | 4,521,815 | one transaction, 0.00005 TAZ for each page |
+| Settlement of a winner | `0ac449c00029c48411f87c354e634b95fd4b1ccc205820011458ad5e27f9f3f5` | 4,521,992 | price 0.00012 TAZ to the treasury, 0.00008 TAZ change back to the winner |
+| Settlement of a winner | `8a7e25b7d38030c35cbf663b0c66a9860f6fd2159e8b13b4cd96ec36a667f1a6` | 4,521,992 | price 0.00012 TAZ to the treasury, 0.00078 TAZ change back to the winner |
+| Refund of the losing deposit | `8918311cc8f177be47100d313ca12d7235c8a8b831338dc3af0283042976e184` | 4,521,992 | the signed refund, sent by the host at the close |
+
+Closed at block 4,521,989.
+
+**P3, pay your bid: each winner pays their own bid.** Auction `f7fb6f3cc771b74c8e26ac98f0722e7839cdcf1c7ba49cb32646ceea167760d8`, 2 items, deposits of 0.0003 or 0.001 TAZ, deadline 4,521,838, late ticket block 4,522,109.
+
+| Step | Transaction | Block | What it shows |
+|---|---|---|---|
+| Coins to the three bid pages | `76332e993dba2556e5085b6acb331a0f836aa926622e76e3ff73cb515d5c3d40` | 4,521,815 | one transaction, 0.00005 TAZ for each page |
+| Settlement of a winner | `1ba4bb9926dc06bf52d5e0b41da065bbd02cb6f7124fab14e7e063d9f9227235` | 4,521,992 | price 0.00018 TAZ to the treasury, 0.00002 TAZ change back to the winner |
+| Settlement of a winner | `a73aa2ea757869d7bb3676ede8b8c34404b0a7b76b04779eccb09b0c132d36c7` | 4,521,992 | price 0.0008 TAZ to the treasury, 0.0001 TAZ change back to the winner |
+| Refund of the losing deposit | `d555d022155e5cbd9376e15c9bb481a0c14af3702568df88d0aff3d9b6e26646` | 4,521,992 | the signed refund, sent by the host at the close |
+
+Closed at block 4,521,990.
+
+**P4, the host never closes.** Auction `18ef5077cc4a06beaf84b691bd26e9643b5c6ca2ff8819992ab5c997757afb51`, 2 items, deposits of 0.0003 or 0.001 TAZ, deadline 4,521,838, late ticket block 4,522,109.
+
+| Step | Transaction | Block | What it shows |
+|---|---|---|---|
+| Coins to the three bid pages | `5745ede8854e762b278bee9a3649b94587f3034879f9942fe57d343eb18cc019` | 4,521,815 | one transaction, 0.00005 TAZ for each page |
+| Late ticket | `b4103d407ab1b897884bf9008af85e98dace3b94ba223bf287781c69d6a2e760` | 4,522,115 | a deposit taken back with its late ticket, after the late ticket block |
+| Late ticket | `ba7df0fe1ba1a41c3283c733c93c93818844a86b4de78dacc8008a6dc882e99f` | 4,522,115 | a deposit taken back with its late ticket, after the late ticket block |
+| Late ticket | `ccd5527568ac5cf71706978d9ebf6699743907b74dff8baa4eb7a903b99e0f7f` | 4,522,115 | a deposit taken back with its late ticket, after the late ticket block |
+
+In P4 the host never opened the bids. No late ticket works before the late ticket block; all three were mined 6 blocks after it.
+
+## 13. Cancel and refund all, on the test network
+
+One throwaway testnet fundraiser that opted in to "cancel and refund all" (SPEC §4), run on 2026-10-21 through the real pages by
+`app/web/cancel-testnet-check.cjs`: three contributions made on app.clewbook.xyz's contribute page, the cancel pressed on the host's
+dashboard, and a fourth payment made after the cancel. Its public list was later taken off the relay because of a test name we did
+not want published, so its recount link no longer works; the transactions remain on the chain.
+
+| Step | Transaction | Block |
+|---|---|---|
+| Contribution, 0.0005 TAZ | `64ccd90d3b3174133bad33bf3f0dc01911a1851b267c5cd140e0af6c1ea63b7c` | 4,525,907 |
+| Contribution, 0.0004 TAZ | `d8770770cf1afb2398e2d3ccbd666a9436df9c678fb7e846472c6959a1c0a413` | 4,525,913 |
+| Contribution, 0.0003 TAZ | `79cb27248778e77315c423c372744fc94e48ae79ea0a0502e35dc1c7d953b6a6` | 4,525,916 |
+| Cancel (the close entry, "cancelled") | on the list | 4,525,917 |
+| Refund by ticket | `62d9fed5e1d3fafd7ed6f29879042b0d8c24c891538a6c95ac40f698804eb055` | 4,525,918 |
+| Refund by ticket | `5ac8d9e6418cab21485d616ddaaf9cc0f114042650f2458f68cc7ffbba2f09a7` | 4,525,918 |
+| Refund by ticket | `f4a553cbad3e6318ee5e20b173e63f335dc6cb3342ed88cdc95f931b09205a20` | 4,525,918 |
+| Payment after the cancel, 0.0003 TAZ | `755fb52579c1ba00d9678f92836dfa6bd4056ea17a31ab41e6ac5fe56a9b26a1` | 4,525,921 |
+| That payment sent back by the host | `727b58ef7a9c7df974f2f771d63578819f9214275873185807322622c23c0008` | 4,525,926 |
+
+The browser recount on 2026-10-21 said "All checks pass": raised 0.0012 TAZ, refunded 0.0012, kept 0, outcome "Cancelled. Everyone
+refunded." Before anyone paid, the campaign page showed the opt in line ("The host can cancel and refund everyone, minus the network
+fee."). Unit tests: threats 28 and 29 in [THREAT_MODEL.md](THREAT_MODEL.md).
 
 ## Pending
 
