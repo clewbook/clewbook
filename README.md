@@ -1,3 +1,5 @@
+[![Rust tests](https://github.com/clewbook/clewbook/actions/workflows/rust-tests.yml/badge.svg)](https://github.com/clewbook/clewbook/actions/workflows/rust-tests.yml)
+
 <p><img src="app/web/www/img/clewbook-lockup-colour.svg" alt="Clewbook" width="320"></p>
 
 **Private Markets. Public Accounting.**
@@ -8,11 +10,15 @@ Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded 
 - **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
 - **Refund tickets.** Each contributor holds a refund transaction signed in advance, which works without the host while the contribution is unspent.
 
-## Live
+## Quick start
+
+A 2 minute path:
 
 - **The app:** https://app.clewbook.xyz (live campaigns on the main network and the test network).
 - **The demo:** https://clewbook.xyz/demo/ (test network campaigns, no wallet needed).
-- **The proofs:** https://clewbook.xyz/demo/proofs/ (13 finished test campaigns, including dishonest hosts that the recount catches; each recount runs in your browser).
+- **A proof that passes:** [this recount](https://clewbook.xyz/demo/recount.html#c=48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e152133615f&relay=https://clewbook.xyz/demo/relays/a&relay=https://clewbook.xyz/demo/relays/b) of a test fundraiser that closed and refunded everyone says "All checks pass". It is one of the proofs at https://clewbook.xyz/demo/proofs/ (13 finished test campaigns, including dishonest hosts that the recount catches, and 4 blind bid auctions; each recount runs in your browser).
+- **A cheating host caught:** [this recount](https://clewbook.xyz/demo/recount.html#c=3c34b9ff18656a9fad2e81ea91e803320917eced570ba5f69dde1a10dbba4004&relay=https://clewbook.xyz/demo/relays/a&relay=https://clewbook.xyz/demo/relays/b) of a test host that spent two contributions itself says "Some checks FAIL": R5 and R6, each naming the spending transaction.
+- **The live Blind bid sample:** [Kimchi's Porsche](https://app.clewbook.xyz/campaign.html#c=54813f1b962d4343190b513ab1a481f56e3db83c9e1fe9cfdcc1d212404d5d1e&relay=https://relay.clewbook.xyz), a blind bid auction on the test network.
 
 ## How it works
 
@@ -63,10 +69,13 @@ What each check needs, and what it does not show: [docs/CLAIMS.md](docs/CLAIMS.m
 
 - **Fundraiser:** a goal and a deadline. If the goal is not met, everyone is refunded. Options chosen at creation, part of the signed rules:
   - **early close:** the host may close as soon as the goal is met;
-  - **hard cap:** the most the campaign keeps. The goal then becomes the soft cap. At the close, payments are kept in chain order while they fit; one that does not fit is refunded whole by its own ticket.
+  - **hard cap:** the most the campaign keeps. The goal then becomes the soft cap. At the close, payments are kept in chain order while they fit; one that does not fit is refunded whole by its own ticket;
+  - **cancel and refund all:** if the campaign chose it at creation, the host may call the campaign off before the deadline; everyone gets their money back by their own ticket, minus the network fee, and a payment that comes after the cancel is sent back.
 - **Auction:** a number of items; the highest bids win, everyone else is refunded. Bid amounts stay off the public record until the close (the host sees them as they arrive). Two ways to pay:
   - **uniform price:** every winner pays the same price (the lowest winning bid, or the reserve when there are fewer bids than items) and gets the rest back;
   - **pay your bid:** each winner pays their whole bid.
+
+- **Blind bid auction:** bids are locked with drand's timelock until the close, so nobody, the host included, can read a bid before bidding closes. Each person pays a deposit of a fixed size and holds two refund tickets, so the deposit comes back even if the host never finishes. Test network now, main network after the NU7 upgrade. Details: [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md).
 
 An auction can never close early.
 
@@ -107,20 +116,20 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 
 ## Evidence
 
-- **Unit tests:** 179, no network needed (`cd app && cargo test`, last run 14 October 2026). They include fake cheating hosts that the recount must catch.
+- **Unit tests:** 326, no network needed (`cd app && cargo test`, last run 22 October 2026), plus 47 for the listing job (`cargo test -p ll-listing`). They include fake cheating hosts that the recount must catch. The fast set (core, ticket check, relay, listing, host) also runs on GitHub on every push (the badge above).
 - **Browser and test network suites:** contribute, recount, auction, dashboard, capability card, badge, names, heartbeat, saved copies, hard cap and more, each with its count. The full table is in [docs/TESTS.md](docs/TESTS.md).
 - **Saved campaign regression:** after each change to the core, every finished test network campaign saved locally is recounted again. At the last change (the hard cap), all 151 gave text identical line for line.
 - **Hard cap on the test network:** 15 of 15 checks, including a cheating host that keeps a payment over the cap and is caught by R6, and an older relay refusing a capped campaign (`app/cap-e2e.sh`).
-- **Demo proofs:** 13 finished test campaigns, at https://clewbook.xyz/demo/proofs/. They include dishonest hosts the recount catches: a host spending contributions (R5, R6), closing early against its rules (R2), settling late (R9), and keeping a payment over the cap (R6). The demo suite passed 35 of 35 against the live demo on 14 October 2026.
+- **Demo proofs:** 13 finished test campaigns and 4 blind bid auctions, at https://clewbook.xyz/demo/proofs/. They include dishonest hosts the recount catches: a host spending contributions (R5, R6), closing early against its rules (R2), settling late (R9), and keeping a payment over the cap (R6). The demo suite passed 35 of 35 against the live demo on 22 October 2026.
 - **A real late ticket, on the main network:** the Clewbook Pre-seed Raise (campaign `65d68e70…`) received a contribution while its host was down on 11 October 2026. The ticket came 80 blocks late, and the public recount shows it: R4b fails, naming the payment, the height the host reports and the height it was due by.
-- **Main network runs:** [docs/EVIDENCE.md](docs/EVIDENCE.md), section 8.
+- **Main network runs:** [docs/EVIDENCE.md](docs/EVIDENCE.md), sections 8 and 11 (every payment and ticket of the four listed mainnet campaigns, with explorer links). Blind bid proofs and the cancel check on the test network: sections 12 and 13.
 
 ## Honest limits
 
-- **The host holds the campaign's keys, on one machine.** It can spend a contribution that has a ticket. The recount shows it afterwards (R5, R6), but nothing prevents it. The keys are plain files in the campaign folder.
+- **The host (whoever runs the host program; Clewbook only when it hosts for you) holds the campaign's keys, on one machine.** It can spend a contribution that has a ticket. The recount shows it afterwards (R5, R6), but nothing prevents it. The keys are plain files in the campaign folder.
 - **No outside review.** The code and the design have not been reviewed by anyone outside the project. The tests and evidence here are ours.
 - **Some heights are the host's own statement:** when a ticket was issued (R4b) and when an early close happened.
-- **The host sees every bid** in an auction as it arrives, and could bid itself from another wallet.
+- **The host sees every bid** in an auction as it arrives, except in Blind bid auctions, and could bid itself from another wallet.
 - **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade (NU7) has no confirmed date; the project assumes 5 November 2026. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before the project's assumed upgrade date.
 - **Network addresses are not hidden:** relays and public chain servers see who contacts them.
 

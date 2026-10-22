@@ -85,7 +85,7 @@ const CASES = [
     check('the campaign page lists the ledger entries from the files: 6 rows, the newest 5 shown and "Show older (1)"', (await camp.locator('#entries tr').count()) === 6 && (await camp.locator('#entries tr:not([hidden])').count()) === 5 && (await camp.textContent('#entries-more')).trim() === 'Show older (1)');
     await camp.close();
     const idx = await open(`${BASE}/proofs/`);
-    check('the proofs page builds its links from wherever it is served', (await idx.locator('#list a').count()) === 39 && /relays\/a/.test(await idx.locator('#list a').first().getAttribute('href')));
+    check('the proofs page builds its links from wherever it is served', (await idx.locator('#list a').count()) === 51 && /relays\/a/.test(await idx.locator('#list a').first().getAttribute('href')));
     await idx.close();
     check('nothing was requested from a relay program, a page server program or any other site (only the folder and the public chain servers)', other.length === 0, other.slice(0, 3).join(' '));
     check('no errors in the browser console', errors.length === 0, errors.join(' | ').slice(0, 200));

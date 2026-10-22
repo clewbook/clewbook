@@ -73,4 +73,6 @@ HTML
 # the tested milestones page's script and the two pages' own stylesheet (demo only: the app's pages never load them)
 cp app/web/demo/proofs.js "$OUT/proofs/examples.js"
 cp app/web/demo/demo.css "$OUT/demo.css"
+# the pages look up hosted by labels in campaigns.json (public.js); the demo has no approved hosts, so an empty list instead of a 404
+printf '{"campaigns":[]}\n' > "$OUT/campaigns.json"
 echo "static folder ready: $OUT ($(du -sh "$OUT" | cut -f1)); serve it with any static host, for example: python3 -m http.server --directory $OUT 8800"
