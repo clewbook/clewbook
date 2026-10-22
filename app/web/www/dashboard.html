@@ -31,6 +31,7 @@
   </div>
   <p class="muted" id="net-note"></p>
   <div id="banner" class="notice bad" hidden></div>
+  <div id="treasury-reminder" class="notice warn" hidden></div>
   <div id="mainnet-banner" class="notice mainnet" hidden><div class="k">ZCASH MAINNET</div><h3>This program is set to the real Zcash network</h3><p>Everything here runs on Zcash Mainnet. Closing a campaign moves real money and cannot be undone.</p></div>
   <section id="warnings-section" hidden>
     <h2 class="sr">Warnings</h2>
@@ -91,6 +92,13 @@
         <textarea id="treasury-to" rows="2" autocomplete="off" spellcheck="false"></textarea>
         <button type="button" id="treasury-btn">Send to my wallet</button>
         <p id="treasury-result" class="muted" hidden></p>
+      </div>
+      <div id="coins-send" hidden>
+        <p id="coins-line"></p>
+        <label for="coins-to">Your wallet address</label>
+        <textarea id="coins-to" rows="2" autocomplete="off" spellcheck="false"></textarea>
+        <button type="button" id="coins-btn">Send the coin wallet back to my wallet</button>
+        <p id="coins-result" class="muted" hidden></p>
       </div>
     </section>
     <a class="btn dn-new" id="new-btn" href="/setup.html">+ Set up a new campaign</a>

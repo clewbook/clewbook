@@ -58,10 +58,10 @@ Status: **Stopped** (prevented, or always flagged, and a test shows it), **Reduc
 | 31 | A short relay or chain server outage takes a listed campaign off the home page, or a host keeps an old state listed by taking its relay down | The listing keeps a listed campaign for up to 1 hour while its relay or the chain cannot be reached (no connection, a timeout, an HTTP 5xx answer), showing its last good state, then takes it off. A relay that answers but answers wrong (a 404, or content that does not check out) takes it off at once | Reduced (up to 1 hour of an old state) | `cargo test -p ll-listing`: `a_listed_campaign_stays_listed_while_its_relay_is_briefly_unreachable_but_not_for_ever_and_not_when_the_relay_answers_wrong` |
 | 19 | The payment transaction itself shows who paid or how much | The ledger names each payment's transaction. One funded from transparent money (an exchange, a transparent address) shows the paying address and amount on the chain; one that crosses shielded pools shows the amount crossing, which in an auction is close to the bid, before the close. An exchange may also drop the memo, so the payment cannot be ticketed. The payment step says in one line to pay from the payer's own shielded balance; the reasons are in [PRIVACY.md](PRIVACY.md) ("How to pay, and why"). Nothing detects or blocks it | Open (warned) | none |
 
-### Blind bid auctions (test network only)
+### Blind bid auctions
 
-These rows concern only the blind bid auction type (SPEC section 9), live on the test network since 21 Oct 2026; mainnet waits for
-NU7 ([BLIND_BIDS.md](BLIND_BIDS.md) section 3). Every other type is unchanged, threat 24 included.
+These rows concern only the blind bid auction type (SPEC section 9), live on the test network since 21 Oct 2026 and on the main network
+since 23 Oct 2026, where an auction must end before the NU7 upgrade ([BLIND_BIDS.md](BLIND_BIDS.md) section 3). Every other type is unchanged, threat 24 included.
 
 | # | Threat | What stops it | Status | Evidence |
 |---|---|---|---|---|

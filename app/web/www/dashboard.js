@@ -292,6 +292,12 @@ function render(s) {
   const tz = s.sealed && s.phase === 'closed' && s.self_check ? s.self_check.treasury_send_zat : 0;
   $('#treasury-send').hidden = !tz;
   if (tz) $('#treasury-line').textContent = `The treasury holds ${coin(s.self_check.treasury_zat)} ${s.ticker}. Send ${coin(tz)} ${s.ticker} (after the network fee) to your wallet:`;
+  // the owner's request (22 Oct 2026): what is left in the coin wallet goes back to the host's own wallet, once the auction is closed or no bid
+  // waits for its small payment (the host program refuses it otherwise and says why)
+  const cz = s.sealed ? s.sealed.coins_back_zat || 0 : 0;
+  $('#coins-send').hidden = !(cz || (s.sealed && s.phase === 'closed'));
+  if (!cz) $('#coins-line').textContent = 'Send what is left in the coin wallet, after the network fee, to your wallet (the program reads the wallet again first):';
+  else $('#coins-line').textContent = `The coin wallet holds ${coin(s.sealed.coin_balance_zat)} ${s.ticker}. ${s.phase === 'closed' ? 'The auction is closed, so it is no longer needed.' : 'Send it back only when no bid waits for its small payment; later bids before the coin cutoff would then get none.'} Send ${coin(cz)} ${s.ticker} (after the network fee) to your wallet:`;
   // cancel and refund everyone (a fundraiser that opted in, before its deadline): two steps, three on mainnet
   $('#cancel-box').hidden = !s.can_cancel;
   if (!s.can_cancel) $('#cancel-confirm').hidden = true;
@@ -401,6 +407,11 @@ async function refresh() {
       o.selected = c.id === selected;
       return o;
     }));
+    // the owner's rule (22 Oct 2026): the prices a closed blind bid auction collected should not sit in its treasury on this computer
+    const waiting = campaigns.filter((c) => c.treasury_send_zat > 0);
+    const rem = $('#treasury-reminder');
+    rem.hidden = !waiting.length;
+    if (waiting.length) rem.textContent = `Reminder: ${waiting.map((c) => `${coin(c.treasury_send_zat)} ${config ? config.ticker : ''} from ${c.name || c.short + '…'}`).join(', ')} ${waiting.length === 1 ? 'is' : 'are'} still in ${waiting.length === 1 ? 'its' : 'their'} treasury on this computer. Open ${waiting.length === 1 ? 'it' : 'each'} and press "Send to my wallet".`;
     if (selected && campaigns.some((c) => c.id === selected)) render(await api(`campaigns/${selected}`));
     else { $('#live').hidden = true; $('#dmore').hidden = true; $('#close-section').hidden = true; $('#warnings-section').hidden = true; $('#listing-section').hidden = true; }
   } catch (e) {
@@ -509,6 +520,15 @@ async function main() {
     btn.disabled = true; say(out, 'Sending…');
     try {
       const r = await api(`campaigns/${selected}/treasury-send`, { address: $('#treasury-to').value });
+      say(out, `Sent. Transaction ${r.txid}`);
+    } catch (e) { say(out, e.message); }
+    btn.disabled = false;
+  });
+  $('#coins-btn').addEventListener('click', async () => {
+    const btn = $('#coins-btn'), out = $('#coins-result');
+    btn.disabled = true; say(out, 'Sending…');
+    try {
+      const r = await api(`campaigns/${selected}/coins-send`, { address: $('#coins-to').value });
       say(out, `Sent. Transaction ${r.txid}`);
     } catch (e) { say(out, e.message); }
     btn.disabled = false;

@@ -76,8 +76,7 @@ pub fn coin_backend(run: &Run) -> Result<Box<dyn WalletBackend + Send>> {
 
 #[allow(clippy::too_many_arguments)]
 pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32, relays: &[String], ticket_k: u32, name: Option<String>, a: SealedArgs) -> Result<()> {
-    // owner decision 10: testnet first; the main network comes after its NU7 update, with a build that allows it
-    ensure!(network != "main", "blind bid auctions run on the test network only for now");
+    // the main network from 22 Oct 2026 (the owner's decision): the rules check refuses an auction that is not over before the NU7 upgrade
     ensure!(cfg.backend == "libs", "a blind bid auction needs the wallet library backend");
     ensure!(a.timing.is_standard() || network != "main", "the quick test timing is for the test network only");
     sealed::check_bid_window(deadline_in, ticket_k)?;
@@ -100,7 +99,9 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
     write_private(&coin_wallet_path(run), &serde_json::to_vec_pretty(&coin)?)?;
     // the coin wallet's address, for the host to fund it from its own money (shown on the dashboard; not secret)
     let coin_account = libs::LibsBackend::new(run.join(&coin.wallet), run.join(&coin.identity))?.account()?;
-    fs::write(run.join("coin_address"), &coin_account.address)?;
+    // the standard form (u1…, ZIP 316 revision 0) that today's wallets take; the wallet's own form (zu1…) is the same receiver, refused by
+    // common wallets (the owner's report of 22 Oct 2026: Vizor said "Invalid address")
+    fs::write(run.join("coin_address"), ll_core::receiver::to_standard(&coin_account.address)?)?;
     let mut backend = backend_for(run)?;
     backend.sync()?;
     let tip = backend.chain_tip()?;
@@ -606,6 +607,24 @@ fn coins_due(s: &Sealed, waiting: usize, tip: u32, cutoff: u32, last: u64, now: 
     }
 }
 
+/// Deposits still in the auction that have no coin yet (none on the list, none in a batch already paid); a deposit mined after the cutoff
+/// cannot get one in time (it is refunded at the close), so it is not waiting.
+pub fn waiting_for_coins(run: &Run, notes: &[WalletNote], entries: &[Entry]) -> Result<Vec<String>> {
+    let s = run.rules.sealed.as_ref().context("not a blind bid auction")?;
+    let cutoff = s.cutoff_height(run.rules.deadline_height);
+    let has_coin: BTreeSet<String> = entries.iter().filter_map(|e| e.coin.as_ref().map(|c| c.nf.clone())).collect();
+    let batches = load_batches(run);
+    let in_batch: BTreeSet<&str> = batches.iter().flat_map(|b| b.coins.iter().map(|c| c.0.as_str())).collect();
+    let unspent = |nf: &str| notes.iter().any(|w| w.note.nf.as_deref() == Some(nf) && w.note.spent_by.is_none());
+    Ok(entries
+        .iter()
+        .filter(|e| e.kind == "issue")
+        .filter(|e| e.contribution.as_ref().is_some_and(|c| c.height <= cutoff))
+        .filter_map(|e| e.nf().map(str::to_string))
+        .filter(|nf| !has_coin.contains(nf) && !in_batch.contains(nf.as_str()) && unspent(nf))
+        .collect())
+}
+
 /// Sends the coins that are due from the coin wallet, then builds each late ticket and writes its coin entry. A batch that was paid but
 /// whose entries were not all written (an interrupted pass) is finished first, so no deposit is paid twice.
 fn send_coins(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote], entries: &[Entry], tip: &backend::ChainTip) -> Result<usize> {
@@ -622,16 +641,7 @@ fn send_coins(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote], 
             }
         }
     }
-    let in_batch: BTreeSet<&str> = batches.iter().flat_map(|b| b.coins.iter().map(|c| c.0.as_str())).collect();
-    let unspent = |nf: &str| notes.iter().any(|w| w.note.nf.as_deref() == Some(nf) && w.note.spent_by.is_none());
-    // deposits still in the auction that have no coin yet; a deposit mined after the cutoff cannot get one in time (it is refunded at the close)
-    let waiting: Vec<String> = entries
-        .iter()
-        .filter(|e| e.kind == "issue")
-        .filter(|e| e.contribution.as_ref().is_some_and(|c| c.height <= cutoff))
-        .filter_map(|e| e.nf().map(str::to_string))
-        .filter(|nf| !has_coin.contains(nf) && !in_batch.contains(nf.as_str()) && unspent(nf))
-        .collect();
+    let waiting = waiting_for_coins(run, notes, entries)?;
     let last: u64 = fs::read_to_string(run.dir.join("private").join("coins_last")).ok().and_then(|t| t.trim().parse().ok()).unwrap_or(0);
     if !coins_due(s, waiting.len(), tip.height, cutoff, last, now_unix()) {
         if !waiting.is_empty() {
@@ -925,6 +935,42 @@ pub fn send_treasury(run: &Run, to: &str) -> Result<String> {
     sent
 }
 
+/// The owner's request of 22 Oct 2026, "send the coin wallet back to my wallet": what is left in the auction's coin wallet (the host's own money
+/// for the small payments), minus the network fee, in one payment to the address the host gives. Only once the auction is closed, or while
+/// no deposit is waiting for its coin (`waiting`, from the campaign wallet's notes), so it never takes a coin a person still needs. Returns
+/// the transaction id.
+pub fn send_coins_back(run: &Run, waiting: usize, to: &str) -> Result<String> {
+    let r = &run.rules;
+    ensure!(r.is_sealed(), "Only a blind bid auction has a coin wallet.");
+    let closed = close_entry(&run.ledger().load()?).is_some();
+    ensure!(closed || waiting == 0, "{waiting} bid(s) are still waiting for their small payment. Send the coin wallet back once they have it, or after the close.");
+    let to = to.trim();
+    let receiver = treasury_receiver(&r.network, to)?;
+    let cw: CoinWallet = serde_json::from_slice(&fs::read(coin_wallet_path(&run.dir))?)?;
+    let w = resolve_in_folder(&run.dir, &cw.wallet, "coin wallet")?;
+    let mut b = libs::LibsBackend::new(w, resolve_in_folder(&run.dir, &cw.identity, "coin wallet key file")?)?;
+    b.sync()?;
+    let notes: Vec<ChainNote> = b.notes()?.into_iter().map(|n| n.note).filter(|n| n.spent_by.is_none() && n.height.is_some() && n.nf.is_some()).collect();
+    let (value, _) = treasury_payment(&notes.iter().map(|n| n.value_zat).collect::<Vec<_>>()).map_err(|e| anyhow!("{}", e.to_string().replace("treasury", "coin wallet")))?;
+    let owner = "coins-send";
+    for n in &notes {
+        b.lock(&n.txid, n.action, owner, LOCK_FOREVER)?;
+    }
+    let sent = (|| -> Result<String> {
+        let unsigned = b.build(&SpendRequest { to_address: to.into(), value_zat: value, lock_owners: vec![owner.into()], no_expiry: true, expiry_height: None, also_pay: vec![], ovk: None })?;
+        let signed = b.sign(&unsigned)?;
+        let spends = notes.iter().map(|n| Ok((hex32(n.nf.as_deref().unwrap_or_default())?, n.value_zat))).collect::<Result<_>>()?;
+        ticket::check_and_extract(&signed, &Expect { spends, receiver: &receiver, value_zat: value, no_expiry: true, also: vec![] })?;
+        b.broadcast(&signed)
+    })();
+    if sent.is_err() {
+        for n in &notes {
+            let _ = b.unlock(&n.txid, n.action, owner);
+        }
+    }
+    sent
+}
+
 pub fn folder_treasury(run: &Run) -> Vec<ChainNote> {
     let w = run.dir.join("treasury1");
     if !w.join("data.sqlite").exists() || close_entry(&run.ledger().load().unwrap_or_default()).is_none() {
@@ -942,6 +988,33 @@ mod tests {
 
     fn s(sending: CoinSending) -> Sealed {
         Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 500, coin_zat: COIN_ZAT, coin_cutoff: 10, coin_sending: sending, timing: Default::default(), open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 }
+    }
+
+    /// The owner's request of 22 Oct 2026: "send the coin wallet back" is refused while the auction is open and a bid still waits for its
+    /// coin, and passes that check once nobody waits, or after the close (here it then stops at the address, which is not one).
+    #[test]
+    fn the_coin_wallet_goes_back_only_after_the_close_or_while_no_bid_waits_for_its_coin() {
+        let dir = std::env::temp_dir().join(format!("ll-coins-back-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("ledger")).unwrap();
+        let secrets = ll_core::keys::CampaignSecrets { ledger_sk: hex::encode([3u8; 32]), payload_sk: hex::encode([4u8; 32]), amount_key: None };
+        let rules = Rules {
+            v: 1, network: "test".into(), mode: "sealed_auction".into(), goal_zat: None, items: Some(1), start_height: 100, deadline_height: 1_000,
+            ticket_k: 10, close_grace: 10, reissue_window: 20, refund_fee_zat: 10_000, min_contribution_zat: 10_000_000, campaign_ufvk: None,
+            ufvk_hash: Some(hex::encode([1u8; 32])), pay_to: None, early_close: None, cancellable: None, cap_zat: None, name: None, pricing: None,
+            settle_window: None, reserve_zat: None, treasury_address: Some("utest1treasury".into()), treasury_ufvk: Some("uviewtest1treasury".into()),
+            sealed: Some(s(CoinSending::AtOnce)), ledger_pubkey: secrets.ledger_pubkey_hex().unwrap(), payload_pubkey: secrets.payload_pubkey_hex().unwrap(),
+        };
+        let rules_id = hex::encode(rules.id().unwrap());
+        let run = Run { dir: dir.clone(), ledger_dir: dir.join("ledger"), rules, rules_id: rules_id.clone(), secrets, min_confirmations: 1 };
+        let err = |waiting| send_coins_back(&run, waiting, "not an address").unwrap_err().to_string();
+        assert!(err(1).contains("1 bid(s) are still waiting for their small payment"), "{}", err(1));
+        assert!(err(0).contains("Please paste a test network unified address"), "{}", err(0));
+        let mut close = Entry::new(&rules_id, "close");
+        close.close = Some(ll_core::ledger::Close { close_height: 1_020, outcome: "sealed_auction".into(), winners: Some(vec![]), ufvk: None, amount_key: None, clearing_price_zat: None, drand_signature: None });
+        run.append(close).unwrap();
+        assert!(err(3).contains("Please paste a test network unified address"), "after the close: {}", err(3));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

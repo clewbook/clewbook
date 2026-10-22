@@ -270,6 +270,26 @@ The browser recount on 2026-10-21 said "All checks pass": raised 0.0012 TAZ, ref
 refunded." Before anyone paid, the campaign page showed the opt in line ("The host can cancel and refund everyone, minus the network
 fee."). Unit tests: threats 28 and 29 in [THREAT_MODEL.md](THREAT_MODEL.md).
 
+## 14. The first main network blind bid auction
+
+Apparition 69_, campaign `5f40200a94bd98a655eb25c36b8b26b7b12c7d2240e7f3270e64b11c9e59c20d`, hosted by the project on its main network blind
+bid host (created 23 Oct 2026). Rules: 1 item, deposits of 0.0002, 0.0005 and 0.001 ZEC, one price for every winner, every check on
+(`open_payouts`, `long_tag`, `early_key`, `late_key`), standard timing; deadline block 3,529,441, bids open at drand round 33363080 (25 Oct
+2026, 01:43 UTC), late tickets after block 3,530,358, so the auction is over by about block 3,530,488, before the NU7 cutoff 3,542,253.
+The late ticket block is 60 blocks after the plan without its margin (the margin of 60 minutes at 60 s).
+
+| Step | Transaction | Block |
+|---|---|---|
+| First deposit (0.0005 ZEC) | [`47c20e16488bc50a5009f324e9f7a73f98f9f1cc6c35577c5bbcf39344dc17c2`](https://mainnet.zcashexplorer.app/transactions/47c20e16488bc50a5009f324e9f7a73f98f9f1cc6c35577c5bbcf39344dc17c2) | 3,527,157 |
+| Its coin from the host (0.00005 ZEC) | [`0ab8e39c0751ea0327f775d74baa8dfca20499099861ce01294b3dc7267ae4d0`](https://mainnet.zcashexplorer.app/transactions/0ab8e39c0751ea0327f775d74baa8dfca20499099861ce01294b3dc7267ae4d0) | 3,527,158 |
+| Its early ticket (signed in advance, not sent) | `0e85c9a36428d98881c695af9c7e771088afe14c7836064c8843f3536b0515a7` | not on the chain |
+| Its signed refund (sent at the close if the bid loses) | `8bc48ae0a2a4ec927e56dc6732755c60f7cfc666626e72dab4195db110a9cd13` | not on the chain yet |
+| Its late ticket (works after block 3,530,358) | `8217cf3d85b32edc8ddd9ee593f7008a29c9d53955675e89fc22444b5f7640b3` | not on the chain |
+
+The bid page reached PROTECTED for this deposit with both chain servers agreeing (no "Checked with 1 of 2 servers" line). Recount from
+outside on 23 Oct 2026, before the close: "Not yet possible", R1 and R2 pass, S1 to S8 wait for the viewing key, no "cannot be fully
+checked" warning. The close, the settlement and the full recount will be added when they happen.
+
 ## Pending
 
 * A ticket held since 2026-10-06 00:15 UTC (testnet campaign id `c73081f362e81b82af4087a47c24fee636dc23d1e991eb0998c7c5b0e3a0c7eb`, ticket `027b2bcac3c765de9f3eab4346c56575f1ad96ded644919e3e16d51a824febae`) is to be broadcast later to measure how long a ticket really stays valid. No result yet.

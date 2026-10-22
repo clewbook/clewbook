@@ -514,8 +514,9 @@ ticket** (valid only up to the deadline) and a **late ticket** (valid only after
 while the host settles, and everyone gets their deposit back if the host never does. The design and its tests are in the research notes
 (14, 16); this section is the format.
 
-Status: live on the test network since 21 Oct 2026. The host program offers it on the test network only; mainnet waits for the NU7
-upgrade (docs/BLIND_BIDS.md section 3).
+Status: live on the test network since 21 Oct 2026 and on the main network since 23 Oct 2026. A main network auction must be over, late
+tickets included, before `MAIN_UPGRADE_CUTOFF` (block 3,542,253: the NU7 height 3,543,405 of ZIP 259 less `NU7_MAIN_MARGIN`); the quick
+test timing is for the test network only (docs/BLIND_BIDS.md section 3).
 
 It is its own mode, `"sealed_auction"`. Older campaigns keep their rules and ids, and a relay, page or recount that does not know this mode
 refuses it (it drops the unknown `sealed` key, computes a different id and refuses the campaign; the unknown mode is refused as well).

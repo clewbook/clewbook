@@ -148,9 +148,11 @@ with numbers are the cheating tests of the earlier two ticket prototype.
   The person's money then comes back at the close by the signed refund (test network, third rerun: early ticket f36c2433…, not mined;
   refund mined in block 4523126).
 - **The reveal block is the host's claim** (L1 above).
-- **The main network.** Blind bid auctions run on the test network, live on app.clewbook.xyz since 21 Oct 2026. The host program offers
-  them on the test network only. Mainnet waits for the NU7 network upgrade, its official activation height, and a split of the page
-  module.
+- **The main network, before NU7.** Blind bid auctions run on the test network since 21 Oct 2026 and on the main network since 23 Oct
+  2026. A main network auction must be over, late tickets included, before block 3,542,253: the NU7 upgrade is at block 3,543,405 (ZIP
+  259, whose status was still "Proposed" on 22 Oct 2026), less about a day of margin, because signed tickets do not survive a network
+  upgrade. The host refuses a longer one before it makes any wallet. Main network auctions are shared by link; the listing takes other
+  hosts' main network campaigns only after NU7 (the project's own appear on the home page).
 
 ## 4. How it was checked
 
@@ -171,6 +173,8 @@ with numbers are the cheating tests of the earlier two ticket prototype.
    deadline went back on its own (4a41c98d5ff3b43aaaa6eefc7c0cea75ac490c61fb16c2dc387aef093b4b10cf). After the close each losing page opened
    its refund on the chain with its own key and said it pays its refund address, and the late payer's page did the same for its return.
    A copy of a page opened with a link naming another chain server used its own server (M2).
-6. **Two independent reviews.** The first covered the design and the recount; every finding is in section 2 with its test, all but L1
+6. **The main network.** The first main network auction, Apparition 69_ (23 Oct 2026; `docs/EVIDENCE.md` section 14): the first deposit's
+   bid page said PROTECTED with both chain servers agreeing, and the recount from outside passes R1 and R2 before the close.
+7. **Two independent reviews.** The first covered the design and the recount; every finding is in section 2 with its test, all but L1
    fixed. The second covered the host pages, the listing job, the relays, the payment path, the proof worker, the late ticket tool and
    every fix; its Critical and High findings are in section 2 with their tests. Its medium and low findings are listed for the owner.

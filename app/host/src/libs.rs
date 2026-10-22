@@ -138,6 +138,25 @@ struct KeysToml {
     network: Option<String>,
 }
 
+/// The chain's height now, from the default chain server of `network`, without any wallet (a check before wallets are made).
+pub fn server_tip(network: &str) -> Result<u32> {
+    let server = match network {
+        "test" => "https://testnet.zec.rocks:443",
+        "main" => "https://zec.rocks:443",
+        other => bail!("no default chain server for the network {other}"),
+    };
+    let host = server.trim_start_matches("https://").split(':').next().unwrap_or_default().to_string();
+    let rt = Runtime::new()?;
+    rt.block_on(async {
+        let endpoint = Channel::from_shared(server.to_string())?.tls_config(ClientTlsConfig::new().domain_name(host).assume_http2(true).with_webpki_roots())?;
+        let channel = tokio::time::timeout(std::time::Duration::from_secs(20), endpoint.connect())
+            .await
+            .map_err(|_| anyhow::anyhow!("the chain server {server} did not answer within 20 s"))??;
+        let info = CompactTxStreamerClient::new(channel).get_lightd_info(service::Empty {}).await?.into_inner();
+        Ok(info.block_height as u32)
+    })
+}
+
 impl LibsBackend {
     pub fn new(wallet: PathBuf, identity: PathBuf) -> Result<Self> {
         let keys: KeysToml = toml::from_str(&fs::read_to_string(wallet.join("keys.toml"))?)?;

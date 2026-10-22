@@ -172,7 +172,7 @@ A link to a campaign on those pages works without being listed: the pages take t
 
 How the listing job works, its checks and limits: `docs/LISTING.md`.
 
-## 7b. Blind bid auctions (test network only)
+## 7b. Blind bid auctions (test network; main network before NU7)
 
 A blind bid auction (SPEC section 9) runs from its own host on port 8786 with its own campaigns folder, `runs/testnet-sealed`, never the
 ports or folders of other hosts: `app/sealed-testnet.sh dry-run | start | stop | status` (start needs `SEALED_RELAY`; there is no
@@ -191,8 +191,10 @@ default). Create one on its set up page (the "Blind bid auction" choice appears 
 After the close, send the treasury to your own wallet from the dashboard ("Send to my wallet").
 
 Tested on private regtest chains (`app/regtest/README.md`) and on the public test network (four proof auctions, `docs/EVIDENCE.md`
-section 12). Live on the test network since 21 Oct 2026. Not offered on mainnet: it waits for the NU7 upgrade (`docs/BLIND_BIDS.md`
-section 3).
+section 12). Live on the test network since 21 Oct 2026 and on the main network since 23 Oct 2026: there the set up page asks for the
+mainnet tick, takes only the standard timing, and refuses an auction that would still run, late tickets included, at block 3,542,253
+(the NU7 upgrade at 3,543,405, less a day). After the close, send the treasury to your own wallet ("Send to my wallet") and what is left
+in the coin wallet ("Send the coin wallet back to my wallet"); the dashboard reminds you while either still holds money.
 
 ## 8. Mainnet
 

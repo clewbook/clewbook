@@ -274,10 +274,11 @@ fn ticket_k_of(body: &Value) -> Result<u32> {
     }
 }
 
-/// A sealed bid auction (SPEC §9; test network only for now, owner decision 10): its campaign wallet, the host's coin wallet (to be funded
-/// by the host from its own money) and a treasury wallet, all inside the campaign folder.
+/// A sealed bid auction (SPEC §9; on the main network from 22 Oct 2026, the owner's decision, only if it is over before the NU7 upgrade): its
+/// campaign wallet, the host's coin wallet (to be funded by the host from its own money) and a treasury wallet, all inside the campaign folder.
 fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
-    ensure!(st.cfg.network != "main", "Blind bid auctions are offered on the test network only for now.");
+    // the real network: the host must have confirmed it (as for every mainnet campaign)
+    crate::mainnet::require_confirmation(&st.cfg.network, body["confirm_mainnet"].as_bool() == Some(true))?;
     let items = body["items"].as_u64().filter(|n| (1..=1000).contains(n)).ok_or_else(|| anyhow!("Please enter how many items are for sale (1 to 1000)."))? as u32;
     let tranches: Vec<u64> = body["tranches_zat"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
     ensure!((1..=ll_core::sealed::MAX_TRANCHES).contains(&tranches.len()), "Please give 1 to {} deposit sizes.", ll_core::sealed::MAX_TRANCHES);
@@ -285,11 +286,16 @@ fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
     let coin_sending: ll_core::sealed::CoinSending = serde_json::from_value(body["coin_sending"].clone()).map_err(|_| anyhow!("Please choose when the small payments go out: at once, every few bids, or every few minutes."))?;
     let deadline_in = body["deadline_in"].as_u64().filter(|d| (20..=2_000_000).contains(d)).ok_or_else(|| anyhow!("The deadline must be at least 20 blocks from now."))? as u32;
     let ticket_k = ticket_k_of(body)?;
-    // before any wallet is made: enough blocks for deposits, and the timing (quick test only on the test network, which this is)
+    // before any wallet is made: enough blocks for deposits, and on the main network an auction that is over before the NU7 upgrade
     ll_core::sealed::check_bid_window(deadline_in, ticket_k)?;
+    if st.cfg.network == "main" {
+        let tip = crate::libs::server_tip("main").map_err(|e| anyhow!("The chain height could not be read: {}", plain_error(&e)))?;
+        ll_core::sealed::check_main_fits(tip, now(), tip.saturating_add(deadline_in), ticket_k)?;
+    }
     let timing = match body["timing"].as_str() {
         None | Some("standard") => ll_core::sealed::Timing::Standard,
-        Some("quick") => ll_core::sealed::Timing::Quick,
+        Some("quick") if st.cfg.network != "main" => ll_core::sealed::Timing::Quick,
+        Some("quick") => bail!("The quick test timing is for the test network only."),
         Some(_) => bail!("Please choose the standard or the quick test timing."),
     };
     let relays: Vec<String> = body["relays"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).filter(|v: &Vec<String>| !v.is_empty()).unwrap_or_else(|| st.cfg.relays.clone());
@@ -325,7 +331,12 @@ fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], check: Option
     let cutoff = s.cutoff_height(rules.deadline_height);
     let coin_entries = entries.iter().filter(|e| e.kind == "coin").count();
     let coin_wallet = crate::sealed_host::coin_wallet_dir(&c.run);
-    let balance: Option<u64> = coin_wallet.as_ref().and_then(|w| walletdb::read_notes(&w.join("data.sqlite")).ok()).map(|n| n.iter().filter(|w| w.note.spent_by.is_none()).map(|w| w.note.value_zat).sum());
+    let coin_notes: Option<Vec<u64>> = coin_wallet.as_ref().and_then(|w| walletdb::read_notes(&w.join("data.sqlite")).ok()).map(|n| n.iter().filter(|w| w.note.spent_by.is_none()).map(|w| w.note.value_zat).collect());
+    let balance: Option<u64> = coin_notes.as_ref().map(|v| v.iter().sum());
+    // what "send the coin wallet back" would send, after the network fee (mined notes only)
+    let coins_back: u64 = coin_wallet.as_ref().and_then(|w| walletdb::read_notes(&w.join("data.sqlite")).ok())
+        .map(|n| n.iter().filter(|w| w.note.spent_by.is_none() && w.note.height.is_some()).map(|w| w.note.value_zat).collect::<Vec<_>>())
+        .and_then(|v| crate::sealed_host::treasury_payment(&v).ok()).map_or(0, |(v, _)| v);
     let ob = crate::outbox::Outbox::load(&c.run.dir).ok();
     let count = |kind: &str, done: bool| ob.as_ref().map_or(0, |o| o.items.iter().filter(|b| b.kind == kind && (!done || b.status == "confirmed")).count());
     let close = close_entry(entries);
@@ -336,7 +347,7 @@ fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], check: Option
         "deposits": check.map_or(Value::Null, |v| v["deposits"].clone()), "withdrawn": check.map_or(Value::Null, |v| v["withdrawn"].clone()),
         "did_not_finish": check.is_some_and(|v| v["did_not_finish"] == true),
         "coins_sent": coin_entries,
-        "coin_address": fs::read_to_string(c.run.dir.join("coin_address")).ok(), "coin_balance_zat": balance,
+        "coin_address": fs::read_to_string(c.run.dir.join("coin_address")).ok().map(|a| ll_core::receiver::to_standard(a.trim()).unwrap_or(a)), "coin_balance_zat": balance, "coins_back_zat": coins_back,
         "treasury_address": rules.treasury_address,
         "closed": close.is_some(), "outcome": close.map(|c| c.outcome.clone()), "winners": close.and_then(|c| c.winners.clone()).map(|w| w.len()),
         "price_zat": close.and_then(|c| c.clearing_price_zat),
@@ -546,7 +557,7 @@ fn status(st: &State, c: &Campaign) -> Value {
         let has_coin: std::collections::BTreeSet<&str> = entries.iter().filter_map(|e| e.coin.as_ref().map(|c| c.nf.as_str())).collect();
         let waiting = entries.iter().filter(|e| e.kind == "issue" && e.contribution.as_ref().is_some_and(|c| c.height <= cutoff)).filter_map(|e| e.nf()).filter(|nf| !has_coin.contains(nf)).count();
         if let (Some(why), true) = (crate::sealed_host::coins_problem(&c.run), waiting > 0) {
-            let addr = fs::read_to_string(c.run.dir.join("coin_address")).unwrap_or_default();
+            let addr = fs::read_to_string(c.run.dir.join("coin_address")).map(|a| ll_core::receiver::to_standard(a.trim()).unwrap_or(a)).unwrap_or_default();
             let when = if t <= cutoff { format!("Fund it at {} before block {cutoff}", addr.trim()) } else { format!("The cutoff, block {cutoff}, has passed") };
             // the wallet library's words ("InsufficientFunds { available: Zatoshis(0), required: Zatoshis(40000) }") in plain ones
             let zat_after = |key: &str| why.find(key).and_then(|i| why[i + key.len()..].split(|ch: char| !ch.is_ascii_digit()).next()?.parse::<u64>().ok());
@@ -936,13 +947,15 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
         match (method, parts.as_slice()) {
             (tiny_http::Method::Get, ["config"]) => json_response(200, json!({
                 "ok": true, "network": st.cfg.network, "ticker": if st.cfg.network == "main" { "ZEC" } else { "TAZ" },
-                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true, "sealed": st.cfg.network != "main", "sealed_quick_timing": st.cfg.network != "main",
+                "relays": st.cfg.relays, "nu7_mainnet_height": st.cfg.nu7_mainnet_height, "min_floor_zat": MIN_FLOOR_ZAT, "fee_zat": 10_000, "hard_cap": true, "sealed": true, "sealed_quick_timing": st.cfg.network != "main",
                 "listing_url": st.cfg.listing_url, "host_fingerprint": host_fingerprint(&st.cfg.runs_dir),
             })),
             (tiny_http::Method::Get, ["campaigns"]) => {
                 let list: Vec<Value> = lock(&st.campaigns).iter().rev().map(|c| {
                     let s = status(st, c);
-                    json!({ "id": c.id, "short": &c.id[..8], "name": s["name"], "mode": s["mode"], "phase": s["phase"], "deadline_height": s["deadline_height"], "tip": s["tip"] })
+                    // a closed blind bid auction whose prices still sit in its treasury wallet on this computer (the dashboard reminds the host to send them on)
+                    let treasury = if s["phase"] == "closed" { s["self_check"]["treasury_send_zat"].as_u64().unwrap_or(0) } else { 0 };
+                    json!({ "id": c.id, "short": &c.id[..8], "name": s["name"], "mode": s["mode"], "phase": s["phase"], "deadline_height": s["deadline_height"], "tip": s["tip"], "treasury_send_zat": treasury })
                 }).collect();
                 json_response(200, json!({ "ok": true, "campaigns": list }))
             }
@@ -978,6 +991,19 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
             (tiny_http::Method::Post, ["campaigns", id, "treasury-send"]) => match find(st, id) {
                 // under the campaign's lock, so the watcher's treasury sync never runs at the same time
                 Some(c) => match { let _g = lock(&c.backend); crate::sealed_host::send_treasury(&c.run, body["address"].as_str().unwrap_or_default()) } {
+                    Ok(txid) => json_response(200, json!({ "ok": true, "txid": txid })),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "coins-send"]) => match find(st, id) {
+                // under the campaign's lock, so the watcher never sends coins at the same time; refused while a bid waits for its coin
+                Some(c) => match (|| {
+                    let mut g = lock(&c.backend);
+                    let notes = g.notes()?;
+                    let waiting = crate::sealed_host::waiting_for_coins(&c.run, &notes, &c.run.ledger().load()?)?.len();
+                    crate::sealed_host::send_coins_back(&c.run, waiting, body["address"].as_str().unwrap_or_default())
+                })() {
                     Ok(txid) => json_response(200, json!({ "ok": true, "txid": txid })),
                     Err(e) => fail(400, e),
                 },

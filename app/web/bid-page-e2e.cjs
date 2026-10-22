@@ -12,7 +12,7 @@ const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
 const BIN = process.env.BIN || 'app/target-sealed/release';
 const WWW = process.env.WWW || 'app/web/www';
-const WEB = 8812, RELAY = 18797, CHAIN = 18798;
+const WEB = 8812, RELAY = 18797, CHAIN = 18798, CHAIN2 = 18799;
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };
 const FX = JSON.parse(fs.readFileSync('app/web/testdata/bid-page/fixture.json', 'utf8'));
@@ -84,14 +84,22 @@ function answer(method, req) {
     default: return { status: 12, msgs: [] };
   }
 }
-const chainServer = http.createServer((req, res) => {
+// the owner's rule (22 Oct 2026): a second stand in chain server for the two server check; with `lie` it puts the host's small payment
+// in another block than the first server does
+const chain2 = { lie: false };
+const answer2 = (method, msg) => {
+  const a = answer(method, msg);
+  if (chain2.lie && method === 'GetTransaction' && a.msgs.length) return { msgs: [[...fb(1, Buffer.from(LATE.coin_tx.hex, 'hex')), ...fv(2, LATE.coin_tx.height + 1)]] };
+  return a;
+};
+const serve = (answerOf) => http.createServer((req, res) => {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-grpc-web,x-user-agent', 'access-control-expose-headers': 'grpc-status,grpc-message' };
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
   const chunks = [];
   req.on('data', (c) => chunks.push(c));
   req.on('end', () => {
     const body = Buffer.concat(chunks), msg = body.subarray(5);
-    const { msgs, status = 0 } = answer(req.url.split('/').pop(), msg);
+    const { msgs, status = 0 } = answerOf(req.url.split('/').pop(), msg);
     const frames = [];
     for (const m of msgs) { const b = Buffer.from(m), h = Buffer.alloc(5); h.writeUInt32BE(b.length, 1); frames.push(h, b); }
     const t = Buffer.from(`grpc-status:${status}\r\ngrpc-message:${status ? 'not found' : 'OK'}\r\n`), th = Buffer.alloc(5); th[0] = 0x80; th.writeUInt32BE(t.length, 1);
@@ -100,6 +108,7 @@ const chainServer = http.createServer((req, res) => {
     res.end(Buffer.concat(frames));
   });
 });
+const chainServer = serve(answer), chainServer2 = serve(answer2);
 
 (async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bid-page-'));
@@ -107,10 +116,12 @@ const chainServer = http.createServer((req, res) => {
   const relay = spawn(`${BIN}/ll-relay`, ['serve', '--allow-regtest', '--dir', tmp, '--listen', `127.0.0.1:${RELAY}`], { stdio: 'ignore' });
   const web = spawn('python3', ['-m', 'http.server', String(WEB), '--bind', '127.0.0.1', '--directory', WWW], { stdio: 'ignore' });
   chainServer.listen(CHAIN, '127.0.0.1');
+  chainServer2.listen(CHAIN2, '127.0.0.1');
   await new Promise((r) => setTimeout(r, 1500));
   let browser;
   try { browser = await chromium.launch(); } catch (e) { relay.kill(); web.kill(); chainServer.close(); fs.rmSync(tmp, { recursive: true, force: true }); throw e; }
-  const link = (id) => `c=${id}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`;
+  let extraLink = ''; // the second server, for the two server check
+  const link = (id) => `c=${id}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}${extraLink}`;
   const BASE = `http://127.0.0.1:${WEB}`;
   const errors = [];
   const fresh = async (noirCfg) => { const ctx = await browser.newContext(); if (process.env.SHOTS) await ctx.addInitScript(() => { try { localStorage.setItem('cb-theme', 'dark'); } catch { /* shots only */ } }); if (noirCfg) await ctx.addInitScript(stub, noirCfg); const p = await ctx.newPage(); p.on('pageerror', (e) => errors.push(String(e))); return { ctx, p }; };
@@ -291,6 +302,33 @@ const chainServer = http.createServer((req, res) => {
       check('L4: reopened after the coin left the chain, PROTECTED becomes NOT PROTECTED, with the take back button', /gone from the chain/.test(t) && !(await p.$eval('#take-back', (b) => b.hidden)), t.slice(0, 140));
       chain.coinGone = false;
       await ctx.close();
+    }
+
+    // the owner's rule (22 Oct 2026): before PROTECTED the page asks two chain servers at the same time. They disagree: not PROTECTED, "The
+    // servers disagree. Wait or take your money back.", nothing signed. They agree: PROTECTED. Only one answers: PROTECTED, "Checked with 1 of 2 servers"
+    {
+      chain.tip = 130;
+      extraLink = `&server2=http://127.0.0.1:${CHAIN2}`;
+      chain2.lie = true;
+      ({ ctx, p } = await withState(FX.N, n1));
+      await waitTitle(p, /^The servers disagree$/, 120000).catch(() => {});
+      let t = await full(p);
+      const kept = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)), FX.N);
+      check('two chain servers that disagree about the host\'s small payment: not PROTECTED, "Wait or take your money back.", nothing signed, the take back offered', /The servers disagree/.test(await text(p, '#st-title')) && /Wait or take your money back\./.test(t) && !kept.late && !(await p.$eval('#take-back', (b) => b.hidden)), t.slice(0, 200));
+      await ctx.close();
+      chain2.lie = false;
+      ({ ctx, p } = await withState(FX.N, n1));
+      await waitTitle(p, /^PROTECTED$/);
+      t = await full(p);
+      check('two chain servers that agree: PROTECTED, with no "1 of 2" line', !/Checked with 1 of 2 servers/.test(t), t.slice(0, 160));
+      await ctx.close();
+      extraLink = '&server2=http://127.0.0.1:1'; // nothing answers there
+      ({ ctx, p } = await withState(FX.N, n1));
+      await waitTitle(p, /^PROTECTED$/, 120000);
+      t = await full(p);
+      check('only one chain server answers: PROTECTED, with "Checked with 1 of 2 servers"', /Checked with 1 of 2 servers\./.test(t), t.slice(0, 200));
+      await ctx.close();
+      extraLink = '';
     }
 
     // M3: before the host's small payment the page says plainly to keep it open until PROTECTED, and warns from 15 blocks before the
@@ -495,7 +533,7 @@ const chainServer = http.createServer((req, res) => {
     check('run', false, String(e).slice(0, 300));
   } finally {
     await browser.close();
-    relay.kill(); web.kill(); chainServer.close();
+    relay.kill(); web.kill(); chainServer.close(); chainServer2.close();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
   console.log(failed ? `${failed} FAILED` : 'ALL PASS');

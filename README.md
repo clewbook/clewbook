@@ -4,7 +4,7 @@
 
 **Private Markets. Public Accounting.**
 
-Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network now, main network after NU7).
+Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network, and main network auctions that end before NU7).
 
 - **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
 - **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
@@ -75,7 +75,7 @@ What each check needs, and what it does not show: [docs/CLAIMS.md](docs/CLAIMS.m
   - **uniform price:** every winner pays the same price (the lowest winning bid, or the reserve when there are fewer bids than items) and gets the rest back;
   - **pay your bid:** each winner pays their whole bid.
 
-- **Blind bid auction:** bids are locked with drand's timelock until the close, so nobody, the host included, can read a bid before bidding closes. Each person pays a deposit of a fixed size and holds two refund tickets, so the deposit comes back even if the host never finishes. Test network now, main network after the NU7 upgrade. Details: [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md).
+- **Blind bid auction:** bids are locked with drand's timelock until the close, so nobody, the host included, can read a bid before bidding closes. Each person pays a deposit of a fixed size and holds two refund tickets, so the deposit comes back even if the host never finishes. On the test network, and on the main network for auctions that end before the NU7 upgrade (shared by link; public listing after NU7). Details: [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md).
 
 An auction can never close early.
 

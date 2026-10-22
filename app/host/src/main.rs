@@ -176,6 +176,9 @@ enum Cmd {
         test_drand_round: Option<u64>,
         #[arg(long, hide = true)]
         test_claim_after_in: Option<u32>,
+        /// Required on the main network: real ZEC is used
+        #[arg(long)]
+        confirm_mainnet: bool,
     },
     /// Sealed bid auction, after the deadline: fetch round R, open the bids, write the close, settle the winners, send everyone else's
     /// signed refund; once every settlement is mined, publish the viewing key. Safe to repeat; the watcher also continues it
@@ -1781,7 +1784,8 @@ fn main() -> Result<()> {
             };
             create(&run, RunConfig { backend, devtool, wallet, identity, min_confirmations }, &network, &mode, goal_zat, items, deadline_in, &relay, min_contribution_zat, uniform, ticket_k, MainnetCheck { confirmed: confirm_mainnet, nu7_height: nu7_mainnet_height }, name, early_close, cap_zat, cancellable)
         }
-        Cmd::CreateSealed { run, wallet, identity, coin_wallet, coin_identity, network, items, tranches_zat, pricing, reserve_zat, treasury_address, treasury_ufvk, coin_sending, timing, deadline_in, relay, ticket_k, min_confirmations, name, test_drand_round, test_claim_after_in } => {
+        Cmd::CreateSealed { run, wallet, identity, coin_wallet, coin_identity, network, items, tranches_zat, pricing, reserve_zat, treasury_address, treasury_ufvk, coin_sending, timing, deadline_in, relay, ticket_k, min_confirmations, name, test_drand_round, test_claim_after_in, confirm_mainnet } => {
+            mainnet::require_confirmation(&network, confirm_mainnet)?;
             let args = sealed_host::SealedArgs {
                 items, tranches_zat, pricing, reserve_zat, treasury_address, treasury_ufvk, coin_sending: sealed_host::parse_coin_sending(&coin_sending)?,
                 timing: match timing.as_str() { "standard" => ll_core::sealed::Timing::Standard, "quick" => ll_core::sealed::Timing::Quick, t => bail!("the timing is standard or quick, not {t}") },

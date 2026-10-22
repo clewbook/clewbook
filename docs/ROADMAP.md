@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | Raise (top up) | A public bidder tag in the payment note groups payments into one bid | Raise a bid, one step Replace | 6 to 9 days |  |
 | Quantity per bid | "2 items at 2 ZEC each" in one payment | Multi item bids | 5 to 8 days |  |
-| Timed release bids | Encrypted bids opened at the deadline | The host cannot read bids early | 8 to 12 days | ✓ (testnet) |
+| Timed release bids | Encrypted bids opened at the deadline | The host cannot read bids early | 8 to 12 days | ✓ (testnet; mainnet by link, ends before NU7; public listing after NU7) |
 | Pay your bid, settled like uniform | Winners pay their sealed bid, the rest is returned | No overpay loss | 3 to 5 days |  |
 | Auto close at the cap | The campaign closes by itself once the kept amount reaches the hard cap | Presale style caps that stop at once | Not scoped |  |
 | Refund only the excess | A payment that only partly fits under the hard cap keeps the part that fits; only the rest is refunded | Fewer whole refunds near the cap | Not scoped |  |

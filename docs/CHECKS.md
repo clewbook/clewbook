@@ -34,7 +34,7 @@ Every recount produces a report. The report hash is SHA-256 of the report as can
 
 The proof module is downloaded only on request: 3.58 MB (0.87 MB gzipped). Measured in headless Chromium on a 16-core laptop while another test was running: building the verifying key took about 14 s, and about 60 s with the processor slowed four times (a stand-in for a slow phone, not measured on a phone); each proof then took about 0.19 s (about 0.8 s slowed).
 
-## Blind bid auctions (test network only, not shipped)
+## Blind bid auctions
 
 A blind bid auction (SPEC section 9) is checked by R1 and R2 as above, then by S1 to S8 in place of R3 to R12. Until its viewing key is
 published (after every winner is settled), S1 to S8 wait; R1, R2 and "did not finish" need only the list and the chain height.

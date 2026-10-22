@@ -350,3 +350,28 @@ fn second_review_h2_junk_cannot_fill_a_rejected_payments_challenge_slots() {
     assert_eq!(status(&r.put_challenge(&o.id, &ch([2; 32], Some(memo))).unwrap_err()), 400);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The mainnet Blind bid auctions of 22 Oct 2026 carry every check, `late_key` included: such an auction on the main network, over before the
+/// NU7 cutoff, registers and takes its first deposit. With LATE_KEY_RULES_OUT set, its rules are also written there (to show an older relay,
+/// which does not know `late_key`, refuses them: it drops the field and computes another id).
+#[test]
+fn a_mainnet_blind_bid_auction_with_late_key_registers() {
+    let mut c = campaign(41, true);
+    c.rules.network = "main".into();
+    c.rules.treasury_address = Some("u1treasury".into());
+    c.rules.treasury_ufvk = Some("uview1treasury".into());
+    let s = c.rules.sealed.as_mut().unwrap();
+    (s.open_payouts, s.long_tag, s.early_key, s.late_key) = (true, true, true, true);
+    let s = s.clone();
+    assert!(ll_core::sealed::life_end(&c.rules, &s) < ll_core::sealed::MAIN_UPGRADE_CUTOFF);
+    c.id = hex::encode(c.rules.id().unwrap());
+    if let Ok(path) = std::env::var("LATE_KEY_RULES_OUT") {
+        std::fs::write(&path, serde_json::to_vec(&c.rules).unwrap()).unwrap();
+        std::fs::write(format!("{path}.id"), &c.id).unwrap();
+    }
+    let (_dir, r) = relay();
+    r.register(&c.rules).unwrap();
+    let mut stored = vec![];
+    put(&r, &c, &mut stored, c.issue(1, true)).unwrap();
+    assert!(String::from_utf8(serde_json::to_vec(&c.rules).unwrap()).unwrap().contains("\"late_key\":true"));
+}

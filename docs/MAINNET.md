@@ -8,3 +8,13 @@ Moved here from the README on 14 October 2026, unchanged.
 - The mainnet NU7 activation height and date: **unverified** (reports only, not read from an official specification by us). State them here only once confirmed.
 
 Built for the Zcash network. It runs today on the testnet that has activated NU7 (consensus branch 0x77190ad9), using the Ironwood shielded pool. Two small runs on the main network are recorded in docs/EVIDENCE.md section 8: one on 2026-10-06 with an earlier version of the payment code and pages, and a pilot on 2026-10-08 with the current version (one phone-wallet contribution, taken back with its ticket; one relay only, so the recount was marked limited). What was not tested there is listed in section 8 and in the list above.
+
+## Blind bid auctions on the main network (from 23 Oct 2026)
+
+A blind bid auction (docs/BLIND_BIDS.md) runs on the main network only if it is over, late tickets included, before block 3,542,253: the
+NU7 upgrade is at block 3,543,405 (ZIP 259, still "Proposed" on 22 Oct 2026), less about a day of margin. Signed tickets, early and late,
+are valid for one network version only, so an auction that ran across the upgrade could leave late tickets the network refuses. The host
+checks this before it makes any wallet, the rules check refuses such an auction everywhere (host, relay, bid page, recount), and the quick
+test timing is refused. The bid page trusts the host's small payment after 2 confirmations and asks two chain servers before it says
+PROTECTED. The project runs its main network blind bid host on its own server; each auction's wallets are made there. The first auction
+and its transactions are in docs/EVIDENCE.md section 14.

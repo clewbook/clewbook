@@ -19,8 +19,12 @@ const cfg = {
   id: (params.get('c') || '').toLowerCase(),
   relays: params.getAll('relay').map((u) => u.replace(/\/$/, '')),
   server: (params.get('server') || '').replace(/\/$/, ''),
+  // a second chain server for a private test chain (its tests only; on the test and main networks the page picks its own two)
+  server2: (params.get('server2') || '').replace(/\/$/, ''),
 };
 const DEFAULT_SERVER = { test: 'https://zjs.zec.rocks/testnet', main: 'https://zjs.zec.rocks/mainnet' };
+// the owner's rule (22 Oct 2026): before PROTECTED the page asks two chain servers at the same time; the second is run by someone else
+const SECOND_SERVER = { test: 'https://zcash-testnet.chainsafe.dev', main: 'https://zcash-mainnet.chainsafe.dev' };
 const POLL_MS = 5000;
 // confirmations before the page trusts the host's small payment (owner decision): 1 on the test network, 2 on the main network
 const COIN_CONFIRMATIONS = { test: 1, regtest: 1, main: 2 };
@@ -33,6 +37,7 @@ let rulesJson = null, rules = null, campaign = null, entries = [];
 let tip = null, tipTime = null;
 let refused = null, busy = false, work = '';
 let ignoredServer = null; // M2: a chain server the link named, not used
+let serversDisagree = false; // the two chain servers gave different answers on this refresh: not PROTECTED, asked again on the next
 let planProblem; // M1: undefined until checked, then null or why the round or the late ticket block is later than the deadline needs
 
 const bytesToHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
@@ -89,6 +94,8 @@ async function readLists() {
 function applyNetwork() {
   if (!campaign || refused) return;
   const kind = setNetwork(campaign.network);
+  // the unit next to the bid box: the auction's own (ZEC on the main network, TAZ on the test network; the owner's report of 22 Oct 2026)
+  for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker || '';
   if (campaign.network === 'regtest') {
     // the second review, M4: a private test chain runs on one computer; anywhere else "regtest" would only switch off the checks
     if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname)) { refused = 'This auction is for a private test chain and opens only on the computer that runs it.'; return; }
@@ -100,6 +107,23 @@ function applyNetwork() {
   // host's own server could fake the coin, the note trees and the heights); it uses its own
   if (cfg.server && cfg.server !== DEFAULT_SERVER[kind]) ignoredServer = cfg.server;
   cfg.server = DEFAULT_SERVER[kind];
+  cfg.server2 = SECOND_SERVER[kind];
+}
+
+/** The same question to both chain servers at the same time: each answer's first message, null for "not found" (an answer too: a coin can
+ *  leave the chain), or undefined for a server that did not answer (in 20 seconds). On a private test chain without a second server, only the first. */
+async function askBoth(method, req) {
+  const ask = (server) => Promise.race([grpcWeb(server, method, req).then((m) => m[0] ?? null), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 20000))])
+    .catch((e) => (/grpc-status 5\b/.test(String(e && e.message)) ? null : undefined));
+  return Promise.all([cfg.server, cfg.server2].filter(Boolean).map(ask));
+}
+/** What the servers that answered say, after `read` (which may throw for a broken answer, counted as no answer): `{ value, answered }`, or
+ *  `{ disagree: true }` when two answers differ. */
+function agree(answers, read) {
+  const got = [];
+  for (const a of answers) { if (a === undefined) continue; try { got.push(read(a)); } catch { /* no usable answer */ } }
+  if (got.length === 2 && JSON.stringify(got[0]) !== JSON.stringify(got[1])) return { disagree: true };
+  return { value: got[0], answered: got.length };
 }
 
 // M1: the round and the late ticket block must be what the plan gives from the block before the start (no years long wait for a late ticket)
@@ -183,6 +207,10 @@ async function publishChallenge() {
 async function networkBranch() {
   try { const [m] = await grpcWeb(cfg.server, 'GetLightdInfo', new Uint8Array()); return JSON.parse(W.parse_lightd_info(m)).branch; } catch { return null; }
 }
+/** The network version, from both servers (the owner's rule): `{ value, answered }` or `{ disagree: true }`. */
+async function networkBranchBoth() {
+  return agree((await askBoth('GetLightdInfo', new Uint8Array())).map((m) => (m === null ? undefined : m)), (m) => JSON.parse(W.parse_lightd_info(m)).branch);
+}
 async function checkTickets() {
   const e = myIssue(), blob = hexToBytes(state.ticket.blob_hex);
   const problems = [];
@@ -228,9 +256,11 @@ async function recheckCoin() {
   const ce = myCoinEntry();
   if (!ce) return;
   try {
-    const [raw] = await grpcWeb(cfg.server, 'GetTransaction', W.tx_filter_request(ce.coin.txid));
-    const found = JSON.parse(W.find_coin(raw, state.pageKey));
-    state.coinGone = !found || found.height == null;
+    const seen = agree(await askBoth('GetTransaction', W.tx_filter_request(ce.coin.txid)), (raw) => (raw === null ? null : JSON.parse(W.find_coin(raw, state.pageKey))));
+    serversDisagree = !!seen.disagree;
+    if (seen.disagree) { coinRechecked = false; return; } // asked again on the next refresh
+    if (!seen.answered) { coinRechecked = false; return; }
+    state.coinGone = !seen.value || seen.value.height == null;
   } catch { state.coinGone = true; }
   save();
 }
@@ -284,8 +314,11 @@ async function protectLate() {
   if (!ce || state.late || state.lateProblem) return;
   const s = rules.sealed;
   const cutoff = rules.deadline_height - s.coin_cutoff;
-  const [raw] = await grpcWeb(cfg.server, 'GetTransaction', W.tx_filter_request(ce.coin.txid));
-  const found = JSON.parse(W.find_coin(raw, state.pageKey));
+  // the owner's rule: the coin as two servers see it; when they differ, nothing is signed and the page asks again on the next refresh
+  const coinSeen = agree(await askBoth('GetTransaction', W.tx_filter_request(ce.coin.txid)), (raw) => (raw === null ? 'not found' : JSON.parse(W.find_coin(raw, state.pageKey))));
+  serversDisagree = !!coinSeen.disagree;
+  if (coinSeen.disagree || !coinSeen.answered || coinSeen.value === 'not found') return; // not on the chain yet: on its way
+  const found = coinSeen.value;
   state.coin = found ? { ...found, txid: ce.coin.txid } : null;
   if (!found) { state.lateProblem = 'The host\'s small payment does not pay this page\'s address.'; save(); return; }
   if (found.height == null || tip < found.height + coinConfirmations() - 1) return; // on its way
@@ -296,7 +329,9 @@ async function protectLate() {
   if (!blob) return;
   // the second review, L2: when the chain server cannot say which network version it runs, ask again on the next refresh (never saved as
   // a failed late ticket)
-  const branchNow = await networkBranch();
+  const branchSeen = await networkBranchBoth();
+  if (branchSeen.disagree) { serversDisagree = true; work = ''; return; }
+  const branchNow = branchSeen.value;
   if (branchNow == null) { work = ''; return; }
   try {
     const opened = JSON.parse(W.open_late(state.seed, JSON.stringify(ce), blob));
@@ -309,10 +344,14 @@ async function protectLate() {
       current_branch: branchNow, // H5: built for the network version in use now
     });
     const checked = JSON.parse(W.check_late(state.seed, opened.raw_hex, opened.ovk_hex, expect));
-    const [ts] = await grpcWeb(cfg.server, 'GetTreeState', W.tree_state_request(opened.anchor_height));
-    if (W.ironwood_root(ts) !== checked.anchor_hex) throw new Error('The late ticket\'s anchor is not a note tree root of the chain.');
+    const rootSeen = agree(await askBoth('GetTreeState', W.tree_state_request(opened.anchor_height)), (ts) => (ts === null ? null : W.ironwood_root(ts)));
+    if (rootSeen.disagree) { serversDisagree = true; work = ''; return; }
+    if (!rootSeen.answered) { work = ''; return; }
+    if (rootSeen.value !== checked.anchor_hex) throw new Error('The late ticket\'s anchor is not a note tree root of the chain.');
     if (!(await proofOk(opened.raw_hex, JSON.parse(expect).current_branch))) throw new Error('The late ticket\'s proof does not verify.');
-    state.late = { signed_hex: W.sign_late(state.seed, opened.raw_hex, expect), txid: opened.txid };
+    // how many servers agreed on the coin, the network version and the note tree (2, or 1 when the other did not answer)
+    const checkedWith = Math.min(coinSeen.answered, branchSeen.answered, rootSeen.answered);
+    state.late = { signed_hex: W.sign_late(state.seed, opened.raw_hex, expect), txid: opened.txid, checkedWith, ofServers: cfg.server2 ? 2 : 1 };
   } catch (e) {
     state.lateProblem = String(e.message || e);
   }
@@ -416,6 +455,7 @@ function status() {
       ? S('r', 'PROBLEM', 'Your ticket does not check out', 'Do not rely on it. Take your money back now.', `${what} The recount marks the host.`, { action: 'early' })
       : S('r', 'PROBLEM', 'Your ticket does not check out', tc.earlyOk ? `${atClose} Keep your backup file.` : 'This page cannot take your money back for you. Keep your backup file.', `${what} ${tc.earlyOk ? tooLate : ''} The recount marks the host.`);
   }
+  if (serversDisagree) return S('a', 'WAIT', 'The servers disagree', 'Wait or take your money back.', `Two chain servers gave different answers about your ticket, so this page does not say PROTECTED. It asks both again every few seconds.${canTake ? '' : ` ${tooLate}`}`, { action: early });
   if (state.late && state.coinGone) return S('a', 'ACTION NEEDED', 'The host\'s small payment is gone', `It is gone from the chain. ${canTake ? takeNow : atClose}`, `The chain was reorganised, so your late ticket would not work.${canTake ? '' : ` ${tooLate}`}`, { action: early });
   if (paidAt != null && paidAt > cutoff && !state.late) {
     const why = `Your deposit was mined in block ${fmtB(paidAt)}, after the cutoff for the host's small payment (block ${fmtB(cutoff)}). Without that payment you have no late ticket: if the host never closes, nothing gives your money back on its own.`;
@@ -427,7 +467,7 @@ function status() {
   const backMore = canTake ? `You can take your money back until block ${fmtB(take)}.` : `${tooLate} If the host never closes, this page holds no late ticket for you.`;
   if (planProblem) return S('r', 'PROBLEM', 'This auction\'s timing is wrong', back, `${planProblem} ${backMore}`, { action: early });
   if (planProblem === undefined) return S('m', 'CHECKING', 'Checking the auction', 'Keep this page open.', 'This page checks the auction\'s timing against the chain.', { action: early, pulse: 1 });
-  if (state.late) return S('g', 'YOUR MONEY IS COVERED', 'PROTECTED', canTake ? `You can take your money back until block ${fmtB(take)}.` : atClose, `Your refund ticket checks out. Your bid stays locked until bids open. If the host does not finish the auction, from block ${fmtB(hs + 1)} you can take your deposit back on your own.`, { big: 1, num: amount(state.tranche), unit: `${ticker()} deposit`, action: early, grey: 1 });
+  if (state.late) return S('g', 'YOUR MONEY IS COVERED', 'PROTECTED', canTake ? `You can take your money back until block ${fmtB(take)}.` : atClose, `${state.late.ofServers === 2 && state.late.checkedWith === 1 ? 'Checked with 1 of 2 servers. ' : ''}Your refund ticket checks out. Your bid stays locked until bids open. If the host does not finish the auction, from block ${fmtB(hs + 1)} you can take your deposit back on your own.`, { big: 1, num: amount(state.tranche), unit: `${ticker()} deposit`, action: early, grey: 1 });
   if (state.lateProblem) return S('r', 'PROBLEM', 'Your ticket does not check out', back, `${state.lateProblem} ${backMore}`, { action: early });
   if (tip >= cutoff) return S('a', 'ACTION NEEDED', 'The host\'s small payment did not arrive', back, `Without it, your refund ticket cannot be completed by the host. ${backMore}`, { action: early });
   // M3: the page checks and signs the late ticket only while it is open; it warns from the block by which the host must have sent its

@@ -172,6 +172,7 @@ async function onCreate(ev) {
       if ($('#s-reserve').value.trim()) body.reserve_zat = toZat($('#s-reserve').value, 'the reserve price');
       const nm = $('#campaign-name').value.trim();
       if (nm) body.name = nm;
+      if (config && config.network === 'main') body.confirm_mainnet = $('#confirm-mainnet').checked;
       btn.disabled = true; btn.textContent = 'Creating… this can take a few minutes';
       await api('campaigns', body);
       location.href = '/';
@@ -222,7 +223,7 @@ async function main() {
   for (const el of document.querySelectorAll('.ticker')) el.textContent = config.ticker;
   // the hard cap field only when this host program knows the hard cap (an older one would ignore it and make a campaign without one)
   $('#cap-row').hidden = config.hard_cap !== true;
-  // the sealed bid auction only when this host program offers it (test network only for now)
+  // the blind bid auction when this host program offers it (on the main network only while it can end before the NU7 upgrade)
   $('#sealed-choice').hidden = config.sealed !== true;
   // the quick test timing: test network only, and only from a host program that knows it (an older one would make a standard auction)
   $('#s-timing').hidden = config.network === 'main' || config.sealed_quick_timing !== true;
