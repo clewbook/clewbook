@@ -59,3 +59,4 @@ target-drop/
 /design_handoff_*/
 /app/target-testnet
 /app/target-regtest
+__pycache__/

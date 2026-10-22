@@ -1,0 +1,2 @@
+# The operator bot may run exactly three listing commands as the listing job's user, nothing else.
+clewbook-opbot ALL=(clewbook-listing) NOPASSWD: /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing queue, /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing approve *, /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing hide *

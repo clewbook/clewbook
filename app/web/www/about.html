@@ -49,7 +49,7 @@
     <li>Kept in your browser only: the secret behind your payment code, your refund ticket, and small settings (theme, layout, the network you picked). We never receive them. Your backup file holds the same secret, so keep it private.</li>
     <li>Our page server writes no log of requests. The relay counts requests per network address in memory, to limit abuse. The listing keeps the network address that sent each listing request, to limit requests from hosts not yet approved.</li>
     <li>Our pages, the relay and the listing are reached through Cloudflare, which sees that traffic. The public Zcash servers your page asks for blocks and transactions see your network address and what it asks for; some of those requests pass through our page server on the way.</li>
-    <li>What is public about a campaign: its rules and its signed list. A fundraiser shows each amount. An auction shows every bid after the close. A blind bid auction shows every bid and every refund address after the close. In other campaigns your refund address is published only if you choose to publish proof for a payment the host set aside.</li>
+    <li>What is public about a campaign: its rules and its signed list. A fundraiser shows each amount. An auction shows every bid after the close. A blind bid auction shows every bid and every refund address after the close, even for a bid taken back before it. In other campaigns your refund address is published only if you choose to publish proof for a payment the host set aside.</li>
   </ul>
 </article>
 </main>

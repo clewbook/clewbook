@@ -196,6 +196,18 @@ mainnet tick, takes only the standard timing, and refuses an auction that would 
 (the NU7 upgrade at 3,543,405, less a day). After the close, send the treasury to your own wallet ("Send to my wallet") and what is left
 in the coin wallet ("Send the coin wallet back to my wallet"); the dashboard reminds you while either still holds money.
 
+## 7c. Operator bot (Telegram, optional)
+
+`app/opbot/opbot.py` lets the operator run a few commands from Telegram for the hosts on a server and the listing job: `/status`,
+`/queue`, `/approve`, `/hide`, `/close`, `/send_treasury`, `/send_coin_back`, `/help`. It polls Telegram (no webhook, no open port), answers
+only the user id and chat id in its configuration, ignores and logs everyone else, and allows at most 10 commands a minute. It acts only
+through the hosts' dashboard API on 127.0.0.1 and three listing commands, never through a shell, and reads no wallet. Closing and sending
+need a Confirm button that shows the exact amount and destination, and money goes only to the payout addresses in a root owned file on
+the server (`main=` and `test=`), never to an address typed in the chat. It also sends alerts: the bids are open with the last block to
+close, 6 hours and 1 hour before that, the coin wallet running low, and an auction marked "did not finish". Service file and sudo rule:
+`app/opbot/clewbook-opbot.service`, `app/opbot/clewbook-opbot.sudoers`; the install steps, with their rollbacks, in `app/opbot/INSTALL.md`.
+Checked end to end on the test network with `app/opbot/opbot-e2e.py`.
+
 ## 8. Mainnet
 
 Testnet campaigns have no restriction. For mainnet, the host program refuses to create a campaign that could still be open when the next Zcash network upgrade (NU7) activates. The upgrade already runs on testnet. The mainnet update of the libraries follows the upgrade and has not been done. Until you give the program the mainnet activation height (`--nu7-mainnet-height`), a campaign must end at least a week before 5 November 2026, the date announced for the upgrade (we have not confirmed it ourselves). Creating a mainnet campaign also needs an explicit confirmation (a tick box on the set up page, or `--confirm-mainnet`). After the upgrade, mainnet hosting waits for a library update. Real money runs so far: two small early ones (`docs/EVIDENCE.md` section 8) and the project's four mainnet campaigns (section 11).

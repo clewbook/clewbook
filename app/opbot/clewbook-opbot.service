@@ -1,0 +1,33 @@
+[Unit]
+Description=Clewbook operator bot (Telegram commands for the server's hosts and the listing job; no open port)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=clewbook-opbot
+Group=clewbook-opbot
+# systemd opens the StandardOutput file before LogsDirectory= makes its folder, so the install creates /var/log/clewbook-opbot and
+# /var/lib/clewbook-opbot first (owner clewbook-opbot); without them the start fails with 209/STDOUT
+StateDirectory=clewbook-opbot
+LogsDirectory=clewbook-opbot
+# root-owned files, mode 600, handed to the bot by systemd; the bot never reads /etc itself
+LoadCredential=telegram:/etc/clewbook-opbot/telegram.conf
+LoadCredential=payout:/etc/clewbook-opbot/payout.conf
+ExecStart=/usr/bin/python3 /opt/clewbook-opbot/opbot.py --hosts test=http://127.0.0.1:8797 --listing "sudo -n -u clewbook-listing /opt/clewbook-listing/cb-listing --dir /var/lib/clewbook-listing" --state /var/lib/clewbook-opbot/state.json
+StandardOutput=append:/var/log/clewbook-opbot/bot.log
+StandardError=append:/var/log/clewbook-opbot/bot.log
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=256M
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/clewbook-opbot /var/log/clewbook-opbot
+# no way to the hosts' wallets and campaign folders, whatever else happens
+InaccessiblePaths=/var/lib/clewbook-blind /var/lib/clewbook-blind-main /home/clewbook
+# sudo (to run the three listing commands as the listing job's user) needs setuid, so this stays off
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

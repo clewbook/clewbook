@@ -270,7 +270,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
     const ask = (await text(p, '#take-ask')).replace(/\s+/g, ' ');
     const feeN = JSON.parse(fs.readFileSync(path.join(tmp, 'campaigns', FX.N, 'rules.json'), 'utf8')).refund_fee_zat;
     const backZat = String((n1.tranche - feeN) / 1e8), shortRefund = `${n1.refund.slice(0, 6)}…${n1.refund.slice(-6)}`;
-    check('take my money back asks once more, naming the amount (the deposit minus the fee) and the refund address, and sends nothing yet', ask.startsWith(`Send ${backZat} `) && ask.includes(` back to ${shortRefund}? Your bid leaves the auction.`) && chain.sent.length === before && await p.$eval('#take-back', (b) => b.hidden), ask);
+    check('take my money back asks once more, naming the amount (the deposit minus the fee) and the refund address, and sends nothing yet', ask.startsWith(`Send ${backZat} `) && ask.includes(` back to ${shortRefund}? Your bid leaves the auction. Your bid and refund address still become public after the close.`) && chain.sent.length === before && await p.$eval('#take-back', (b) => b.hidden), ask);
     await p.click('#take-yes');
     await p.waitForFunction(() => /on its way back/.test(document.querySelector('#st-title').textContent), null, { timeout: 30000 });
     check('take my money back sends the early ticket', chain.sent.length === before + 1 && chain.sent[before].length > 1000 && (await text(p, '#send-msg')) === '✓ Sent. It shows in your wallet after a block or two.');
