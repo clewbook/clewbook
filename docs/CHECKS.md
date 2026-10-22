@@ -13,8 +13,8 @@ The recount runs in the browser as WebAssembly (and as a command-line tool, `cb-
 | R3 | Every entry in the public list is a real payment to the campaign. |
 | R4 | Every contribution has a refund ticket on the list once the ticket window has passed (inside it, the ticket is pending). |
 | R4b | Each ticket was issued within the ticket window, going by the issue height the host itself writes (host reported: the recount cannot check that height). Until 14 October 2026 R4 and R4b were one check. |
-| R5 | No contribution was spent before the deadline except by its own ticket. |
-| R6 | Contributions that are not kept left the campaign only through their tickets. |
+| R5 | No contribution was spent before the deadline except by a ticket the list names for it and the recount accepts: its first ticket, or a re-issue written before the close under a new network version (at most one per version; R2 fails for any other). Not shown: that the ticket pays the contributor; only the contributor's page can check that. |
+| R6 | Contributions that are not kept left the campaign only through such tickets (with the same limit). |
 | R7 | The declared outcome (in an auction, the winners and the price) is what the rules select. |
 | R8 | No published challenge opens a valid payment for a payment the campaign set aside. |
 | R9 to R12 (uniform-price auctions only) | Each winner paid exactly the clearing price into the treasury with the exact fee; the treasury received exactly the sum of the clearing prices; settlements returned no value to the campaign account and have no other outputs; the proofs winners published that their excess arrived hold. |

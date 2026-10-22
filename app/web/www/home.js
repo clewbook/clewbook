@@ -4,7 +4,7 @@
 // Presentation (design round 2): a first visit intro, a search box and a layout button (both kept in this browser only), cards for open campaigns
 // and a table for closed ones.
 import init, * as W from './pkg/ll_web.js';
-import { setup, markReady, decorateAmounts, outcomeWords, amountHTML } from './ui.js';
+import { setup, markReady, decorateAmounts, outcomeWords, amountHTML, useNetFilter } from './ui.js';
 import { readRelay, judge, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS } from './public.js';
 
 const $ = (s) => document.querySelector(s);
@@ -162,22 +162,37 @@ function emptyCard(text) {
   return d;
 }
 
-// ---------- search and paging ----------
-let closedAll = false;
+// ---------- search, the network switch and paging ----------
+let closedAll = false, net = 'main', listed = false;
+const NET_WORD = { main: 'mainnet', test: 'testnet' };
 function filter() {
   const q = $('#search').value.trim().toLowerCase();
-  const match = (el) => !q || el.dataset.search.includes(q);
-  for (const c of document.querySelectorAll('#live .camp')) c.hidden = !match(c);
-  const rows = [...document.querySelectorAll('#closed .crow')];
+  // a campaign whose rules could not be read, or on a private chain (only on a developer's computer), is shown on both sides rather than lost
+  const onNet = (el) => !['main', 'test'].includes(el.dataset.net) || el.dataset.net === net;
+  const match = (el) => onNet(el) && (!q || el.dataset.search.includes(q));
+  const cards = [...document.querySelectorAll('#live .camp')];
+  for (const c of cards) c.hidden = !match(c);
+  const rows = [...document.querySelectorAll('#closed .crow')].filter((r) => { const ok = onNet(r); if (!ok) r.hidden = true; return ok; });
   const hits = rows.filter(match);
   rows.forEach((r) => { r.hidden = true; });
   hits.slice(0, closedAll ? hits.length : 6).forEach((r) => { r.hidden = false; });
   $('#closed-more').hidden = closedAll || hits.length <= 6;
   $('#closed-none').hidden = !rows.length || hits.length > 0;
+  $('#closed-card').hidden = !rows.length;
+  $('#closed-count').textContent = String(rows.length);
+  // nothing open on this network: one plain card, as before for an empty list
+  const old = $('#live .empty-card'); if (old) old.remove();
+  const open = cards.filter(onNet).length;
+  $('#live').classList.toggle('none', listed && !open);
+  if (listed && !open) $('#live').append(emptyCard(`No ${NET_WORD[net]} campaign is open right now.`));
+  $('#demo-under').hidden = net !== 'test';
 }
 
 async function main() {
   setup('Campaigns', { netbar: false });
+  net = useNetFilter();
+  addEventListener('cb-net', (e) => { net = e.detail; closedAll = false; filter(); });
+  $('#demo-under').hidden = net !== 'test';
   intro(); replayLink();
   applyView();
   $('#layout-btn').addEventListener('click', () => { const v = currentView(); lsSet(VIEW_KEY, CYCLE[narrow() ? 'narrow' : 'wide'][v]); applyView(); });
@@ -193,7 +208,7 @@ async function main() {
   } catch { /* no list: said below */ }
   markReady();
   $('#loading').remove();
-  if (!list.length) { $('#live').classList.add('none'); $('#live').append(emptyCard('No campaigns are listed yet.')); return; }
+  if (!list.length) { $('#live').classList.add('none'); $('#live').append(emptyCard('No campaigns are listed yet.')); $('#demo-under').hidden = true; return; }
   try { await init(); } catch { $('#live').textContent = 'This page could not start. Please reload it.'; return; }
   const shown = [];
   await Promise.all(list.map(async (item) => {
@@ -207,16 +222,12 @@ async function main() {
   // never keeps the page empty. Main network campaigns come first, as before.
   const order = (s) => (s.info && s.info.network === 'main' ? 0 : 1);
   shown.sort((a, b) => order(a) - order(b));
-  let live = 0, closed = 0;
   for (const s of shown) {
     const isClosed = !!(s.info && s.closed);
     s.el = isClosed ? closedRow(s.item, s.info, s.entries) : openCard(s.item, s.info);
     (isClosed ? $('#closed') : $('#live')).append(s.el);
-    if (isClosed) closed++; else live++;
   }
-  if (!live) { $('#live').classList.add('none'); $('#live').append(emptyCard('No campaign is open right now.')); }
-  $('#closed-card').hidden = !closed;
-  $('#closed-count').textContent = String(closed);
+  listed = true;
   filter();
   decorateAmounts(document.querySelector('main'));
   // the chain height, once per network

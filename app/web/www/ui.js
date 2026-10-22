@@ -111,15 +111,20 @@ function mountChrome({ host }) {
     const replay = document.createElement('a'); replay.className = 'foot-link'; replay.href = './#intro'; replay.textContent = 'Replay intro'; replay.id = 'replay-intro';
     ctl.prepend(replay);
   }
+  // About (owner, 22 Oct 2026): in the footer line, so the phone footer shows it too, and in the phone menu
+  const line = foot && foot.querySelector(':scope > span');
+  if (line && !host && !line.querySelector('.foot-about')) line.append(' · ', Object.assign(document.createElement('a'), { className: 'foot-about', href: 'about.html', textContent: 'About' }));
   const bar = document.querySelector('header.bar'), nav = bar && bar.querySelector('nav.nav');
   if (!bar || !nav || bar.querySelector('.menu-btn')) return;
   const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'menu-btn'; btn.setAttribute('aria-label', 'Menu'); btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰';
   nav.before(btn);
+  if (!host) nav.append(buildSwitch());
   let panel = null;
   const close = () => { if (!panel) return; panel.remove(); panel = null; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰'; };
   const open = () => {
     panel = document.createElement('div'); panel.className = 'menu-panel';
-    // first row: the testnet demo (a gold link), or inside the demo the place you are
+    // first row: the network switch (on phones it is here, not in the header); then the testnet demo (a gold link), or inside the demo the place you are
+    if (!host) panel.append(buildSwitch());
     const demo = nav.querySelector('.demo-link');
     if (demo && demo.matches('[aria-current]')) {
       const cur = document.createElement('span'); cur.className = 'demo-row cur'; cur.setAttribute('aria-current', 'page');
@@ -131,7 +136,8 @@ function mountChrome({ host }) {
       a.append('Testnet demo', Object.assign(document.createElement('span'), { textContent: 'no real money' }));
       panel.append(a);
     }
-    for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    for (const a of nav.querySelectorAll('a:not(.demo-link):not(.ns-side)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    if (!host) { const ab = Object.assign(document.createElement('a'), { href: 'about.html', textContent: 'About' }); if (/\/about\.html$/.test(location.pathname)) ab.setAttribute('aria-current', 'page'); panel.append(ab); }
     // owner rule M1: Replay intro and the Theme control, after a hairline (the phone footer no longer shows them)
     const replay = document.getElementById('replay-intro');
     if (replay || document.getElementById('theme-ctl')) panel.append(Object.assign(document.createElement('hr'), { className: 'menu-div' }));
@@ -146,6 +152,52 @@ function mountChrome({ host }) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel) { close(); btn.focus(); } });
   addEventListener('resize', () => { if (innerWidth >= 720) close(); });
 }
+// ---------- the network switch (owner, 22 Oct 2026): "Mainnet | Testnet", where the Testnet demo button was ----------
+// On a campaign's pages it shows that campaign's network (setNetwork), and each side opens that network's campaign list. On the home page
+// (useNetFilter) the sides are buttons that filter the list, and the page hears 'cb-net'. Pages with no network show neither side lit.
+const NET_KEY = 'cb-net';
+let switchMode = 'link', switchNet = null;
+/** The network the home page shows: ?net= in the address, else the last one chosen in this browser, else the main network. */
+export function chosenNet() {
+  const q = new URLSearchParams(location.search).get('net');
+  if (q === 'main' || q === 'test') return q;
+  try { const v = localStorage.getItem(NET_KEY); if (v === 'main' || v === 'test') return v; } catch { /* the page works without it */ }
+  return 'main';
+}
+function buildSwitch() {
+  const box = document.createElement('div'); box.className = 'netswitch'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Network');
+  for (const [net, label] of [['main', 'Mainnet'], ['test', 'Testnet']]) {
+    const el = document.createElement(switchMode === 'filter' ? 'button' : 'a');
+    el.className = `ns-side ns-${net}`; el.dataset.net = net; el.textContent = label;
+    if (switchMode === 'filter') { el.type = 'button'; el.addEventListener('click', () => chooseNet(net)); } else el.href = `./?net=${net}`;
+    box.append(el);
+  }
+  paintSwitch(box);
+  return box;
+}
+function paintSwitch(box) {
+  for (const el of box.querySelectorAll('.ns-side')) {
+    const on = el.dataset.net === switchNet;
+    el.classList.toggle('on', on);
+    if (switchMode === 'filter') el.setAttribute('aria-pressed', String(on));
+    else if (on) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+    el.title = switchMode === 'filter' ? `Show ${el.textContent} campaigns` : on ? `This campaign is on ${el.textContent}` : `${el.textContent} campaigns`;
+  }
+}
+/** The home page: the switch filters the list. Returns the network shown first. */
+export function useNetFilter() {
+  switchMode = 'filter'; switchNet = chosenNet();
+  for (const b of document.querySelectorAll('.netswitch')) b.replaceWith(buildSwitch());
+  return switchNet;
+}
+function chooseNet(net) {
+  switchNet = net;
+  try { localStorage.setItem(NET_KEY, net); } catch { /* the page works without it */ }
+  const u = new URL(location.href); u.searchParams.set('net', net); history.replaceState(history.state, '', u);
+  for (const b of document.querySelectorAll('.netswitch')) paintSwitch(b);
+  dispatchEvent(new CustomEvent('cb-net', { detail: net }));
+}
+
 /** The frame on a page that has no other script work (the demo's start pages): the Theme control and the phone menu, no Replay intro. */
 export function mountFrame() { mountTheme(); mountChrome({ host: true }); }
 
@@ -163,6 +215,7 @@ export function setNetwork(network) {
   const kind = network === 'test' || network === 'main' ? network : 'unknown';
   const [cls, head, tail] = NETBAR[kind];
   document.documentElement.dataset.net = kind;
+  if (switchMode !== 'filter') { switchNet = kind === 'unknown' ? null : kind; for (const b of document.querySelectorAll('.netswitch')) paintSwitch(b); }
   const bar = document.getElementById('netbar');
   if (!bar) return kind;
   bar.className = `netbar ${cls}`;
@@ -270,13 +323,14 @@ export const CHECKS = {
   spends_your_coin: ['Spends your coin', 'The refund spends your contribution and nothing else.'],
   your_amount: ['Your amount', 'The public list shows at least the amount you meant to pay; paying more is fine.'],
   coin_unspent: ['Coin unspent', 'Nothing else has used your contribution, so the refund can still be sent.'],
-  coin_used_by_list: ['Coin used by the list', 'Your coin was used only by a transaction the campaign’s signed list names.'],
-  pays_you: ['Pays you', 'The refund output pays the address you gave.'],
+  coin_used_by_list: ['Coin used by your ticket', 'Your coin was used only by one of your own tickets or its settlement.'],
+  reissue_opens: ['New ticket opens', 'Any newer ticket the list names for your contribution opens with your secret.'],
+  pays_you: ['Pays you', 'The refund output pays the address you gave. A re-issued ticket must pass this check.'],
   proof: ['Proof', 'The zero knowledge proof inside the refund verifies (run only when you ask).'],
   anchor: ['Chain state', 'Whether the refund’s chain state (anchor) is a real one; this check is not available yet.'],
   // the recount
   R1: ['Rules', 'The published rules (and, for an auction, the revealed key) match what the campaign committed to.'],
-  R2: ['List integrity', 'The public list is signed, chained, gap free, and closed at most once, after the deadline.'],
+  R2: ['List integrity', 'The public list is signed, chained, gap free, and closed at most once, after the deadline. A payment gets a new ticket only as a re-issue after a network upgrade, before the close.'],
   R3: ['Entries are real', 'Every entry in the public list is a real payment to the campaign.'],
   R4: ['Tickets issued', 'Every contribution has a refund ticket on the list once the allowed number of blocks has passed.'],
   R4b: ['Ticket timing (host reported)', 'Each ticket was issued within the allowed number of blocks, going by the height the host itself wrote. The recount cannot check that height.'],

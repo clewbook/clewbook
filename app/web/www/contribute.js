@@ -303,10 +303,18 @@ async function detectTicket() {
     if (!mine && !W.blob_is_mine(state.seed, blob)) continue;
     try {
       W.open_ticket(state.seed, JSON.stringify(entry), blob); // checks it against the signed entry
-    } catch { continue; }
+    } catch {
+      // a newer ticket the list names for this very contribution that this page cannot open: whatever it is, it is not a refund to this
+      // contributor (a host could name its own spend as a re-issued ticket, SPEC §4). Said plainly; the ticket held so far stays.
+      if (mine) { state.reissueBad = { seq: entry.seq, txid: entry.ticket.txid }; save(); }
+      continue;
+    }
     found = { nf, entry, blob };
   }
   if (found) {
+    // the page's own tickets for this coin, the only ones whose spend of it is expected (not every ticket the list names)
+    state.heldTxids = [...new Set([...(state.heldTxids || []), ...(state.ticket ? [state.ticket.entry.ticket.txid] : []), found.entry.ticket.txid])];
+    if (state.reissueBad && found.entry.seq > state.reissueBad.seq) delete state.reissueBad;
     state.ticket = { nf: found.nf, entry: found.entry, blob_hex: bytesToHex(found.blob) };
     state.txid = `${found.entry.contribution.txid}:${found.entry.contribution.action}`;
     save();
@@ -1359,7 +1367,8 @@ async function checkTicket() {
     return;
   }
   const nf = state.ticket.nf;
-  const known = view.entries.filter((e) => e.ticket && e.contribution && e.contribution.nf === nf).map((e) => e.ticket.txid)
+  // this page's own tickets (opened and checked here) and the settlement of this coin; a spend by any other transaction is not expected
+  const known = [...new Set([...(state.heldTxids || []), state.ticket.entry.ticket.txid])]
     .concat(view.entries.filter((e) => e.kind === 'settle' && e.settle.nf === nf).map((e) => e.settle.txid));
   const c = state.coin || {};
   const fresh = JSON.parse(W.verify_ticket(JSON.stringify({
@@ -1369,7 +1378,13 @@ async function checkTicket() {
     opening, refund_receiver_hex: state.refund ? (W.refund_receiver_hex(state.refund) || null) : null,
     // fundraiser: exactly the listed contribution minus the fee; auction: at least the amount this page asked the contributor to pay, minus the fee
     expected_value_zat: expectedRefundZat(state.ticket.entry.contribution.value_zat ?? null, state.amountZat ?? null, opening ? opening.value_zat : null, campaign.fee_zat),
+    reissued: state.ticket.entry.kind === 'reissue',
   })));
+  if (state.reissueBad) {
+    fresh.checks.push({ id: 'reissue_opens', status: 'fail', label: 'a newer ticket the list names for your contribution does not open with your secret, so it is not a refund to you',
+      detail: `entry ${state.reissueBad.seq}, transaction ${state.reissueBad.txid}. If that transaction spends your coin, your money did not come back to you.` });
+    fresh.verdict = 'fail';
+  }
   const pr = proofResults.get(state.ticket.entry.ticket.txid);
   if (pr) {
     const k = fresh.checks.findIndex((x) => x.id === 'proof');

@@ -10,6 +10,9 @@
 #      --assume-branch-id); the watch loop re-issues every ticket by itself, locks carry over
 #   f  re-issue: host re-issues every ticket; ledger gains reissue entries, wallet locks carry
 #      over, a contributor withdraws with the re-issued ticket, host refunds the other at close
+#   Since 22 Oct 2026 (SPEC §4, "Re-issue") the host re-issues only tickets under an older network version than the chain really
+#   reports, and the recount refuses a re-issue under the same version. On a network that is not upgrading, f and g therefore
+#   re-issue nothing; a simulated branch change is not a real one.
 # Optional: CAMPAIGN_NAME="a public name" gives the campaign a name.
 # Each run ends with the host's lock-release pass and a full recount (R1-R8).
 # Run from the repository root. 1 confirmation everywhere. Log it with: ... > runs/x.log 2>&1

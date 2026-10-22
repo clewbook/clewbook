@@ -85,7 +85,7 @@ The cheating hosts above are produced by switches that exist only in builds made
 
 ## 8. Mainnet runs (live network, small amounts)
 
-The ids of these two early runs are not published in this file. Each run was made by the project's own wallets; what was observed is stated below, and nothing is claimed beyond it. The mainnet campaigns listed on app.clewbook.xyz are published with every id in section 11.
+The ids of these two early runs are not published in this file. Each run was made by the project's own wallets; what was observed is stated below, and nothing is claimed beyond it. The project's mainnet campaigns are published with every id in section 11.
 
 ### 8a. Pilot, 2026-10-08 (current version of the payment code and pages)
 
@@ -142,9 +142,9 @@ Unit tests for the outbox: `cargo test -p ll-host` (resend with identical bytes,
 | The campaign, contribute and recount pages work in a real browser against a real campaign. | 24 and 30 browser checks, 17 for the auction result card | `app/web/pages-e2e.cjs`, `contribute-e2e.cjs`, `auction-page-e2e.cjs` |
 | A phone wallet could scan the payment code from a screen and fill in address, amount and message. | observed once on Android with Zkool 6.32.0-rc on testnet; its send then failed (see FINDINGS). On the main network a phone wallet (Vizor, Android) paid a campaign by scanning the page's payment code on 2026-10-06 (earlier code, without the amount sealed in) and a phone wallet did so again on 2026-10-08 with the current code (section 8) | observation only; try it with the contribute page |
 
-## 11. Mainnet campaigns on app.clewbook.xyz (live network, small amounts)
+## 11. The project's mainnet campaigns (live network, small amounts)
 
-The four mainnet campaigns listed on app.clewbook.xyz, each hosted by the project. Every payment, ticket and close below is on the
+The four mainnet campaigns hosted by the project, all listed on the app.clewbook.xyz home page. Every payment, ticket and close below is on the
 public list on relay.clewbook.xyz. "Ticket used" was checked on 2026-10-22 by asking a public lightwalletd server for each id; a
 ticket that was never sent is not on the chain. The recount results are from the recount page on the same day. Refund addresses are
 never published, so none appear here.

@@ -211,14 +211,84 @@ fn goal_missed_refunds_pass() {
     assert_eq!(r.totals.refunded_zat, 1_000_000);
 }
 
+/// A re-issue as after a network upgrade: before the close, under the new network version.
+fn reissue_of(f: &Fx, n: &ChainNote, txid: &str, branch: &str, issue_height: u32) -> Entry {
+    let mut re = f.entry("reissue", n);
+    let t = re.ticket.as_mut().unwrap();
+    (t.txid, t.branch_id, t.issue_height) = (txid.into(), branch.into(), issue_height);
+    re
+}
+
 #[test]
 fn reissued_ticket_is_honest_too() {
     let f = fx("raise");
     let a = f.note(1, 1_000_000, 110, f.good_memo(1));
-    let mut re = f.entry("reissue", &a);
-    re.ticket.as_mut().unwrap().txid = "reissued".into();
-    let l = f.ledger(vec![f.entry("issue", &a), re]);
+    let l = f.ledger(vec![f.entry("issue", &a), reissue_of(&f, &a, "reissued", "4dec4df0", 140)]);
     assert!(f.run(&l, &[spent(a, "reissued", 150)], &[], 160).all_pass());
+}
+
+/// The theft the outside review describes: the host spends a contribution itself and writes that spend into the list as a re-issued ticket,
+/// with no network upgrade. Before 22 Oct 2026 the recount took any ticket the list named, so R5 passed.
+#[test]
+fn a_spend_named_as_a_reissue_without_a_network_upgrade_is_caught() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![f.entry("issue", &a), reissue_of(&f, &a, "theft", "77190ad9", 140)]);
+    let r = f.run(&l, &[spent(a, "theft", 150)], &[], 160);
+    assert_eq!(failing(&r), vec!["R2", "R5"], "{:?}", failing(&r));
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("same network version")), "{:?}", by_id(&r, "R2").details);
+    assert!(by_id(&r, "R5").details.iter().any(|d| d.contains("theft")));
+    assert_eq!(r.totals.withdrawn_zat, 0);
+}
+
+/// The same after the deadline: a goal missed, the host keeps a contribution and names its spend a re-issue written after the close.
+#[test]
+fn a_spend_named_as_a_reissue_after_the_close_is_caught() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![f.entry("issue", &a), f.close("goal_missed", None), reissue_of(&f, &a, "theft", "4dec4df0", 206)]);
+    let r = f.run(&l, &[spent(a.clone(), "theft", 207)], &[], 230);
+    assert_eq!(failing(&r), vec!["R2", "R6"], "{:?}", failing(&r));
+    assert!(by_id(&r, "R2").details.iter().any(|d| d.contains("after the close")));
+    assert!(by_id(&r, "R6").details.iter().any(|d| d.contains("theft")));
+    // written before the close entry but reported after the close height: refused as well
+    let mut early = reissue_of(&f, &a, "theft", "4dec4df0", 206);
+    early.ticket.as_mut().unwrap().issue_height = 206;
+    let l = f.ledger(vec![f.entry("issue", &a), early, f.close("goal_missed", None)]);
+    assert!(failing(&f.run(&l, &[spent(a, "theft", 207)], &[], 230)).contains(&"R6"));
+}
+
+/// A re-issue needs an earlier ticket, and a second "issue" for the same payment is not a way around the rule.
+#[test]
+fn a_reissue_without_a_ticket_or_a_second_issue_is_not_a_ticket() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![reissue_of(&f, &a, "theft", "4dec4df0", 112)]);
+    let r = f.run(&l, &[spent(a.clone(), "theft", 150)], &[], 160);
+    assert!(failing(&r).contains(&"R2") && failing(&r).contains(&"R5"), "{:?}", failing(&r));
+    let mut second = f.entry("issue", &a);
+    second.ticket.as_mut().unwrap().txid = "theft".into();
+    let l = f.ledger(vec![f.entry("issue", &a), second]);
+    let r = f.run(&l, &[spent(a, "theft", 150)], &[], 160);
+    assert_eq!(failing(&r), vec!["R2", "R5"], "{:?}", failing(&r));
+}
+
+/// One re-issue per network upgrade: a second one under the version already re-issued to is refused, a later upgrade allows another.
+#[test]
+fn one_reissue_per_network_upgrade() {
+    let f = fx("raise");
+    let a = f.note(1, 1_000_000, 110, f.good_memo(1));
+    let l = f.ledger(vec![
+        f.entry("issue", &a),
+        reissue_of(&f, &a, "re1", "4dec4df0", 130),
+        reissue_of(&f, &a, "theft", "4dec4df0", 140),
+        reissue_of(&f, &a, "re2", "77190ad9", 150),
+    ]);
+    assert_eq!(refused_tickets(&l).iter().map(|(s, _)| *s).collect::<Vec<_>>(), vec![2]);
+    // the refused entry stays on the list, so R2 fails; the spend by the accepted later re-issue is a withdrawal
+    let r = f.run(&l, &[spent(a.clone(), "re2", 160)], &[], 170);
+    assert_eq!((failing(&r), r.totals.withdrawn_zat), (vec!["R2"], 1_000_000));
+    assert_eq!(failing(&f.run(&l, &[spent(a, "theft", 160)], &[], 170)), vec!["R2", "R5"]);
 }
 
 #[test]

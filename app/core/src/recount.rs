@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     hex32,
-    ledger::{Close, Entry, GENESIS_PREV, amount_commit, verifying_key},
+    ledger::{Close, Entry, GENESIS_PREV, Ticket, amount_commit, verifying_key},
     payload::{Payload, is_payload_shaped},
     rules::{Rules, ufvk_hash},
 };
@@ -154,6 +154,41 @@ pub fn cancel_of<'a>(rules: &Rules, ledger: &'a [Entry]) -> Option<&'a Close> {
     close_entry(ledger).filter(|c| c.outcome == "cancelled" && rules.allows_cancel() && c.close_height <= rules.deadline_height)
 }
 
+/// Ticket entries the recount does not take as tickets (SPEC §4, "Re-issue"), each with its sequence number and the reason. A payment's first
+/// ticket entry is an "issue". Every later one must be a "reissue", written before the close (in the list and by its reported height), under
+/// another network version (branch id) than the payment's previous accepted ticket: a ticket is re-issued only after a network upgrade. A
+/// spend by a refused ticket counts as a spend by something other than a ticket (R5, R6), so a host cannot name its own spend a re-issue.
+/// What this cannot show: that a re-issued ticket pays the contributor (only the contributor's page can open it), or that the branch id the
+/// host wrote is the one the network really moved to.
+pub fn refused_tickets(ledger: &[Entry]) -> Vec<(u64, String)> {
+    let close_at = ledger.iter().position(|e| e.kind == "close");
+    let close_height = close_at.and_then(|i| ledger[i].close.as_ref()).map(|c| c.close_height);
+    let mut last: BTreeMap<&str, &Ticket> = BTreeMap::new();
+    let mut out = vec![];
+    for (i, e) in ledger.iter().enumerate().filter(|(_, e)| matches!(e.kind.as_str(), "issue" | "reissue")) {
+        let (Some(nf), Some(t)) = (e.nf(), &e.ticket) else { continue };
+        let why = match (last.get(nf), e.kind.as_str()) {
+            (None, "issue") => None,
+            (None, _) => Some("a re-issue for a payment that has no earlier ticket".to_string()),
+            (Some(_), "issue") => Some("a second first ticket for a payment that already has one (a new ticket must be a re-issue)".to_string()),
+            (Some(p), _) if p.branch_id.eq_ignore_ascii_case(&t.branch_id) => Some(format!(
+                "a re-issue under the same network version ({}) as the payment's previous ticket; tickets are re-issued only after a network upgrade",
+                t.branch_id
+            )),
+            _ => None,
+        };
+        let after_close = e.kind == "reissue" && (close_at.is_some_and(|c| i > c) || close_height.is_some_and(|h| t.issue_height > h));
+        let why = why.or_else(|| after_close.then(|| "a re-issue after the close; tickets are re-issued only before the close".to_string()));
+        match why {
+            Some(w) => out.push((e.seq, w)),
+            None => {
+                last.insert(nf, t);
+            }
+        }
+    }
+    out
+}
+
 pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNote], challenges: &[Challenge]) -> Analysis {
     let mut a = Analysis::default();
     let end = contribution_end(rules, ledger);
@@ -165,7 +200,8 @@ pub fn analyze(rules: &Rules, rules_id: &str, ledger: &[Entry], notes: &[ChainNo
         ledger.iter().filter(|e| e.kind == "reject").filter_map(Entry::nf).collect();
     let rejected_nfs: BTreeSet<String> = rejected.iter().map(|x| x.to_string()).collect();
     let replay_keys = replayed_keys_until(rules, end, notes, &rejected_nfs);
-    for e in ledger.iter().filter(|e| e.ticket.is_some()) {
+    let refused: BTreeSet<u64> = refused_tickets(ledger).into_iter().map(|(seq, _)| seq).collect();
+    for e in ledger.iter().filter(|e| e.ticket.is_some() && !refused.contains(&e.seq)) {
         let (Some(nf), Some(t)) = (e.nf(), &e.ticket) else { continue };
         a.tickets.entry(nf.into()).or_default().insert(t.txid.clone());
         let h = a.first_issue.entry(nf.into()).or_insert(t.issue_height);
@@ -546,6 +582,10 @@ pub fn recount_with(
     }
     if ledger.iter().filter(|e| e.kind == "close").count() > 1 {
         r2.push("more than one close entry".into());
+    }
+    for (seq, why) in refused_tickets(ledger) {
+        let txid = ledger.iter().find(|e| e.seq == seq).and_then(|e| e.ticket.as_ref()).map_or("", |t| t.txid.as_str());
+        r2.push(format!("entry {seq}: ticket {txid} is not accepted: {why}"));
     }
     if let Some(c) = close.filter(|c| c.outcome == "cancelled") {
         // a cancel (SPEC §4.4): only a fundraiser whose rules allow it, and only by the deadline

@@ -16,7 +16,7 @@ hex.workspace = true
 rand_core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-ll-core.workspace = true
+ll-core = { workspace = true, features = ["walletdb"] }
 # the recount: the relay crate's agreement check, and the browser's own recount module (app/web, unchanged), compiled natively
 ll-relay = { path = "../relay", optional = true }
 ll-web = { path = "../web", optional = true }

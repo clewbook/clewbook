@@ -74,9 +74,14 @@ pub struct Inputs {
     /// Level 2: what the refund should be (contribution minus fee), when the contribution amount is public.
     #[serde(default)]
     pub expected_value_zat: Option<u64>,
-    /// Transactions the signed ledger names for this coin (its tickets, a settlement): a spend by one of them is expected.
+    /// This page's own tickets for this coin (the ones it opened and checked) and its settlement: a spend by one of them is expected. Not
+    /// every ticket the signed list names: a host could name its own spend as a ticket (SPEC §4, "Re-issue").
     #[serde(default)]
     pub known_txids: Vec<String>,
+    /// This ticket replaces an earlier one (a re-issue after a network upgrade, SPEC §4): it is taken only when it shows that it pays the
+    /// contributor, so "it pays you" not checked counts as a failure.
+    #[serde(default)]
+    pub reissued: bool,
     /// Sealed bid auction, the early ticket (the independent review, H4): it must expire exactly at this block (the deadline), not never.
     #[serde(default)]
     pub expected_expiry: Option<u32>,
@@ -94,7 +99,7 @@ fn label_of(id: &str) -> &'static str {
         "spends_your_coin" => "it spends your contribution",
         "your_amount" => "the list shows the amount you meant to pay",
         "coin_unspent" => "your contribution's coin is not used by anything else",
-        "coin_used_by_list" => "your coin was used only by a transaction the campaign's list names",
+        "coin_used_by_list" => "your coin was used only by one of your own tickets or its settlement",
         "pays_you" => "it pays you (its refund output pays the address you gave)",
         "proof" => "the proof",
         "anchor" => "its chain state (anchor)",
@@ -193,7 +198,7 @@ pub fn check(i: &Inputs) -> Vec<Check> {
     // the coin is still unspent (or was used by a transaction the signed list names)
     out.push(match (&i.spent, i.scanned_to) {
         (Some(s), _) if i.known_txids.iter().any(|t| t.eq_ignore_ascii_case(&s.txid)) => {
-            c("coin_used_by_list", Pass, format!("the coin was used in block {} by {}, a transaction the campaign's list names", s.height, s.txid))
+            c("coin_used_by_list", Pass, format!("the coin was used in block {} by {}, one of your own tickets or its settlement", s.height, s.txid))
         }
         (Some(s), _) => c("coin_unspent", Fail, format!("the coin was already spent in block {} by {}, which is not this ticket", s.height, s.txid)),
         (None, Some(h)) => c("coin_unspent", Pass, format!("the coin is not spent yet (looked up to block {h})")),
@@ -210,7 +215,11 @@ pub fn check(i: &Inputs) -> Vec<Check> {
         (Some(l), None, Some(_)) => c("your_amount", Pass, format!("the list shows your contribution as {l} zatoshi, which is what you paid or more")),
         _ => c("your_amount", NotChecked, "the amount was not compared (it is hidden in a sealed-bid auction, or not known on this device)"),
     });
-    out.push(pays_you(i, b));
+    let mut pays = pays_you(i, b);
+    if i.reissued && pays.status != Status::Pass {
+        pays = c("pays_you", Fail, format!("this is a re-issued ticket, and a re-issued ticket is taken only when it shows that it pays you; this one does not ({})", pays.detail));
+    }
+    out.push(pays);
     out.push(c("proof", NotChecked, "the zero-knowledge proof (press \"Check the proof too\" to run it)"));
     out.push(c("anchor", NotChecked, "that its chain state (anchor) is real"));
     out

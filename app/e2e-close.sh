@@ -125,7 +125,7 @@ grep -h "ticket issued\|rejected\|ALERT" "$ROOT"/*/watch.log | sed 's/^/   /'
 say "5. Auction D before close: viewing key sealed, only R1-R2 checkable"
 has D && { recount D || true; }
 
-say "6. B: host re-issues every outstanding ticket (as after a network upgrade)"
+say "6. B: host re-issue pass (since 22 Oct 2026 it re-issues only tickets under an older network version, so none on an unchanged network)"
 # the host program holds one lock per campaign folder: B's watcher steps aside while the re-issue runs, then watches again
 if has B; then
 kill "${WATCHERS[B]}" 2>/dev/null || true; sleep 4

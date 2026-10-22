@@ -27,6 +27,15 @@
       <p class="rsub">Check a campaign's books yourself, in your browser, against the Zcash chain.</p>
       <div class="rfacts"><span>9 checks for a fundraiser</span><span>13 for an auction</span><span>10 for a blind bid auction</span><span>No account, nothing to install</span></div>
     </div>
+    <form class="rfind" id="find" role="search" autocomplete="off" novalidate>
+      <label class="rfind-k" for="find-q">Recount a campaign</label>
+      <div class="rfind-row">
+        <input id="find-q" type="search" placeholder="Name, campaign id or link" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-list">
+        <button type="submit" class="rfind-go">Recount</button>
+      </div>
+      <ul class="rfind-list" id="find-list" role="listbox" aria-label="Listed campaigns" hidden></ul>
+      <p class="warnline" id="find-error" role="alert" hidden></p>
+    </form>
     <div class="ebody">
       <div class="etabs" role="tablist" aria-label="Recount">
         <button type="button" role="tab" id="etab-recount" aria-selected="true">RECOUNT</button>

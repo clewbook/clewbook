@@ -462,6 +462,96 @@ function showSavedCard(j) {
   box.append(ul);
 }
 
+// ---------- the search box (owner, 22 Oct 2026): a campaign's name, id or link, with suggestions from the listed campaigns ----------
+const DEFAULT_RELAY = 'https://relay.clewbook.xyz';
+const relayOk = (u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(u);
+/** The campaigns on the home page's list, each with the name, type and network its relay's checked rules give (by id when they cannot be read). */
+async function listedCampaigns() {
+  let list = [];
+  try {
+    const r = await fetch('campaigns.json', { cache: 'no-store' });
+    if (r.ok) list = ((await r.json()).campaigns || []).filter((c) => /^[0-9a-f]{64}$/.test(String(c.id || '')) && Array.isArray(c.relays) && c.relays.length);
+  } catch { /* no list: only links and whole ids work */ }
+  return Promise.all(list.map(async (c) => {
+    const relays = c.relays.map((u) => String(u).replace(/\/$/, ''));
+    const out = { id: c.id, relays, name: null, kind: 'Campaign', net: '' };
+    try {
+      const j = judge(await Promise.all(relays.map((u) => readRelay(u, c.id))));
+      if (j.rules) {
+        const info = JSON.parse(W.campaign_summary(j.rules, c.id));
+        out.name = info.name || null;
+        out.kind = info.sealed ? 'Blind bid' : info.mode === 'auction' ? 'Auction' : 'Fundraiser';
+        out.net = info.network === 'main' ? 'mainnet' : info.network === 'test' ? 'testnet' : '';
+      }
+    } catch { /* shown by its id */ }
+    return out;
+  }));
+}
+function openRecount(id, relays) {
+  location.hash = `c=${id}${relays.map((r) => `&relay=${r}`).join('')}`;
+  location.reload();
+}
+/** What was typed or pasted: a link that names a campaign (with its relays), or a whole campaign id. Anything else is looked up by name. */
+function parseFind(text, list) {
+  const t = text.trim();
+  const m = t.match(/[#?&]c=([0-9a-f]{64})(?![0-9a-f])/i);
+  const id = (m ? m[1] : /^[0-9a-f]{64}$/i.test(t) ? t : '').toLowerCase();
+  if (!id) return null;
+  const given = m ? new URLSearchParams(t.slice(t.search(/[#?]/) + 1)).getAll('relay').map((u) => u.replace(/\/$/, '')).filter(relayOk) : [];
+  const known = list.find((c) => c.id === id);
+  return { id, relays: given.length ? given : known ? known.relays : [DEFAULT_RELAY] };
+}
+function findMatches(text, list) {
+  const q = text.trim().toLowerCase();
+  if (!q) return list.slice(0, 8);
+  return list.filter((c) => (c.name || '').toLowerCase().includes(q) || c.id.startsWith(q)).slice(0, 8);
+}
+function wireFind() {
+  const form = $('#find'), input = $('#find-q'), ul = $('#find-list'), err = $('#find-error');
+  const NONE = 'No listed campaign matches. Paste a campaign link or its whole id.';
+  let list = [], loading = null, items = [], active = -1;
+  const load = () => loading || (loading = listedCampaigns().then((l) => { list = l; return l; }));
+  const close = () => { ul.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); active = -1; };
+  const paint = () => {
+    [...ul.querySelectorAll('[role=option]')].forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+    if (active >= 0) input.setAttribute('aria-activedescendant', `find-o${active}`); else input.removeAttribute('aria-activedescendant');
+  };
+  const show = () => {
+    if (document.activeElement !== input) return;
+    items = parseFind(input.value, list) ? [] : findMatches(input.value, list);
+    ul.replaceChildren(...items.map((c, i) => {
+      const li = document.createElement('li'); li.id = `find-o${i}`; li.setAttribute('role', 'option');
+      li.append(Object.assign(document.createElement('span'), { className: 'rf-name', textContent: c.name || `${c.kind} ${c.id.slice(0, 8)}…` }),
+        Object.assign(document.createElement('span'), { className: 'rf-meta', textContent: [c.kind, c.net, `${c.id.slice(0, 8)}…`].filter(Boolean).join(' · ') }));
+      li.addEventListener('mousedown', (e) => { e.preventDefault(); openRecount(c.id, c.relays); });
+      return li;
+    }));
+    if (!items.length && input.value.trim() && !parseFind(input.value, list)) ul.append(Object.assign(document.createElement('li'), { className: 'rf-none', textContent: NONE }));
+    active = items.length && input.value.trim() ? 0 : -1;
+    paint();
+    ul.hidden = !ul.children.length;
+    input.setAttribute('aria-expanded', String(!ul.hidden));
+  };
+  input.addEventListener('focus', () => { load().then(show); });
+  input.addEventListener('input', () => { err.hidden = true; load().then(show); });
+  input.addEventListener('blur', () => setTimeout(close, 150));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && items.length) { e.preventDefault(); active = (active + 1) % items.length; paint(); }
+    else if (e.key === 'ArrowUp' && items.length) { e.preventDefault(); active = (active - 1 + items.length) % items.length; paint(); }
+    else if (e.key === 'Escape') close();
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await load();
+    const direct = parseFind(input.value, list);
+    if (direct) { openRecount(direct.id, direct.relays); return; }
+    const pick = (active >= 0 && items[active]) || findMatches(input.value, list)[0];
+    if (pick && input.value.trim()) { openRecount(pick.id, pick.relays); return; }
+    err.textContent = input.value.trim() ? NONE : 'Type a campaign name, or paste its id or link.';
+    err.hidden = false;
+  });
+}
+
 /** The page opened with no campaign at all: it asks for a saved copy and takes the campaign (its number and rules) from that file. Nothing is asked of
  *  any relay; the chain servers are the defaults of the network the file's rules name. Returns once a usable file was loaded. */
 async function uploadMode() {
@@ -473,6 +563,7 @@ async function uploadMode() {
   $('#nav-campaign').hidden = true;
   markReady();
   await init();
+  wireFind();
   await new Promise((done) => {
     $('#upload-file').addEventListener('change', async (ev) => {
       const f = ev.target.files[0];

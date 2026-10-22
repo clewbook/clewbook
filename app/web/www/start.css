@@ -51,6 +51,9 @@
 @keyframes cb-ledger { from { transform: translateY(0); } to { transform: translateY(-50%); } }
 @media (prefers-reduced-motion: reduce) { .scene .bg { display: none; } .t-intro { letter-spacing: -.05em; } }
 
+/* the home hero line (owner, 22 Oct 2026) and the Testnet demo link under the testnet list */
+.hero-line { margin: 32px 0 0; max-width: 46ch; font: 500 clamp(18px, 2.3vw, 22px)/1.4 var(--cb-font-body); color: var(--cb-ink-2); }
+.demo-under { margin: 4px 0 0; }
 .live { position: relative; isolation: isolate; padding: 40px 0 64px; display: flex; flex-direction: column; gap: 16px; }
 .with-intro .live { border-top: 1px solid var(--cb-rule); }
 .live-glow { position: absolute; inset: -80px -12% -40px; z-index: -1; pointer-events: none; filter: blur(8px); animation: cb-drift 22s ease-in-out infinite alternate;
@@ -164,6 +167,17 @@
 /* the host page (host page handoff): a centred hero, the two kinds of campaign as two groups of cards (GroupHeading, HostTypeCard with its
    IconChip and Badge), two links and one quiet line. The aurora behind it is the home page's. Group tones: --cb-fund and --cb-auction (ui.css). */
 .hostpage { padding-top: 0; padding-bottom: 0; }
+/* the About page (owner, 22 Oct 2026): plain text in one readable column */
+.aboutpage { padding-top: 0; }
+.about { max-width: 720px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) 0 clamp(56px, 8vw, 96px); }
+.about h1 { margin: 16px 0 8px; font: 700 clamp(30px, 4.4vw, 44px)/1.12 var(--cb-font-display, var(--cb-font-body)); color: var(--cb-ink); }
+.about .about-lede { margin: 0 0 32px; font: 500 18px/1.45 var(--cb-font-body); color: var(--cb-ink-2); }
+.about h2 { margin: 32px 0 10px; font: 600 20px/1.3 var(--cb-font-body); color: var(--cb-ink); }
+.about p, .about li { font: 400 16px/1.6 var(--cb-font-body); color: var(--cb-ink-2); }
+.about p { margin: 0 0 12px; }
+.about ul li { list-style: disc; }
+.about ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.about a { color: var(--cb-accent-text); }
 .hp { max-width: 1180px; margin: 0 auto; padding: clamp(40px, 7vw, 88px) 0 clamp(56px, 8vw, 96px); display: flex; flex-direction: column; align-items: center; gap: clamp(40px, 5vw, 64px); }
 .hhero { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; max-width: 720px; }
 .heyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--cb-radius-pill); background: var(--cb-fund-tint); border: 1px solid rgba(63,184,154,.35);

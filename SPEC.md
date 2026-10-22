@@ -222,8 +222,25 @@ BLAKE2b-256("ledgerlab_amount", amount_key || nf || value as 8-byte little-endia
 txid) is visible during the auction.
 
 `entry_hash = BLAKE2b-256("ledgerlab_entry", canonical entry including sig)`.
-A later entry for the same `nf` supersedes earlier ones for delivery. On chain, any listed ticket
-for that `nf` is an honest spend (a ticket re-issued within the same upgrade epoch leaves both valid).
+A later entry for the same `nf` supersedes earlier ones for delivery. On chain, a spend by any accepted ticket for that `nf` is an
+honest spend (a ticket re-issued after an upgrade leaves the earlier one valid until the network refuses it).
+
+### Re-issue
+
+A payment's first ticket entry is an `"issue"`. A later ticket entry for the same `nf` is accepted only when all of these hold
+(`ll_core::recount::refused_tickets`); otherwise R2 fails with the entry's number and the reason, and its ticket is not a ticket: a
+spend by it fails R5 or R6.
+
+- it is a `"reissue"` (a second `"issue"` is refused, and so is a `"reissue"` with no earlier ticket);
+- its `ticket.branch_id` differs from that of the payment's previous accepted ticket: a ticket is re-issued only after a network upgrade,
+  so at most once per network version;
+- it comes before the close entry in the list, and its `issue_height` is at most the close height.
+
+The host program writes a re-issue only for a ticket whose branch id differs from the one the chain reports (since 22 Oct 2026).
+What the recount does **not** show: that any ticket, first or re-issued, pays the contributor (only the contributor can open it), or
+that the branch id the host wrote is the one the network really moved to. The contribute page checks the first: a re-issued ticket must
+pass "it pays you", a newer ticket entry for the contributor's payment that does not open with their secret is a failure, and a spend
+of the coin is expected only by a ticket the page itself opened.
 
 ### Early close (fundraisers whose rules carry `early_close`)
 
@@ -304,8 +321,8 @@ by value (ties: lower height, then txid, then action).
 | R3 | Every entry points at a real payment with matching details (raise amounts; auction commitments; rejects only for payload-shaped memos; auction entries never show amounts) | fake or leaky entry |
 | R4 | Every contribution has a ticket entry once `tip > height + ticket_k` (inside the window it is pending) | missing ticket |
 | R4b | Every ticket's `issue_height ≤ height + ticket_k`. The issue height is written by the host, so this is the host's report (the title says so) | ticket issued late, by the host's own height |
-| R5 | No contribution is spent at or before `deadline_height` except by one of its listed tickets | early spend (evidence: nf, spending txid, height) |
-| R6 | After the deadline, contributions outside the kept set leave only through their tickets | stolen refund |
+| R5 | No contribution is spent at or before `deadline_height` except by one of its accepted tickets (§4, "Re-issue") | early spend (evidence: nf, spending txid, height) |
+| R6 | After the deadline, contributions outside the kept set leave only through their accepted tickets | stolen refund |
 | R7 | The close entry's outcome (raise) or winners (auction) equal the recomputed ones | wrong outcome or winner list |
 | R8 | No published challenge opens a valid payload for a rejected payment | false reject |
 

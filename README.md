@@ -4,7 +4,7 @@
 
 **Private Markets. Public Accounting.**
 
-Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host.
+Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network now, main network after NU7).
 
 - **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
 - **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
@@ -54,8 +54,8 @@ Details of what is public and what is not: [docs/PRIVACY.md](docs/PRIVACY.md). T
 | R3 | Every entry on the list is a real payment to the campaign. |
 | R4 | Every contribution has a refund ticket once the ticket window has passed. |
 | R4b | Each ticket was issued within the window, going by the issue height the host writes (the host's own report). |
-| R5 | No contribution was spent before the deadline, except by its own ticket. |
-| R6 | Contributions that are not kept left the campaign only through their own tickets. |
+| R5 | No contribution was spent before the deadline, except by a ticket the list accepts for it: its first ticket, or a re-issue before the close under a new network version. That the ticket pays the contributor is checked on the contributor's page, not here. |
+| R6 | Contributions that are not kept left the campaign only through such tickets (with the same limit). |
 | R7 | The declared outcome (goal met or missed; an auction's winners and price) is what the rules select. |
 | R8 | No published proof shows that a payment the host set aside was in fact valid. |
 | R9 | Uniform price auction: each winner paid exactly the clearing price into the treasury, with the exact fee. |
@@ -83,7 +83,7 @@ An auction can never close early.
 
 Clewbook is built on the Zcash libraries by the Electric Coin Company and the Zcash community, all under **MIT OR Apache-2.0**:
 
-- `orchard` (the shielded protocol behind our payments, tickets and refund addresses; the Ironwood pool of the NU7 upgrade uses its addresses), `sapling-crypto`, `halo2_proofs`;
+- `orchard` (the shielded protocol behind our payments, tickets and refund addresses; the Ironwood pool, live on the main network since the NU6.3 upgrade at block 3,428,143 (28 July 2026), uses its addresses), `sapling-crypto`, `halo2_proofs`;
 - `zcash_primitives`, `zcash_protocol`, `zcash_address`, `zcash_keys`, `zcash_note_encryption`, `zcash_proofs`;
 - `zcash_client_backend` and `zcash_client_sqlite` (the wallet), `pczt` (transactions built in steps, which is how a ticket is signed in advance), `zip32`, `zip321`, `incrementalmerkletree`;
 - the **zcash-devtool** wallet tool (patched, see below).
@@ -122,7 +122,7 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 - **Hard cap on the test network:** 15 of 15 checks, including a cheating host that keeps a payment over the cap and is caught by R6, and an older relay refusing a capped campaign (`app/cap-e2e.sh`).
 - **Demo proofs:** 13 finished test campaigns and 4 blind bid auctions, at https://clewbook.xyz/demo/proofs/. They include dishonest hosts the recount catches: a host spending contributions (R5, R6), closing early against its rules (R2), settling late (R9), and keeping a payment over the cap (R6). The demo suite passed 35 of 35 against the live demo on 22 October 2026.
 - **A real late ticket, on the main network:** the Clewbook Pre-seed Raise (campaign `65d68e70…`) received a contribution while its host was down on 11 October 2026. The ticket came 80 blocks late, and the public recount shows it: R4b fails, naming the payment, the height the host reports and the height it was due by.
-- **Main network runs:** [docs/EVIDENCE.md](docs/EVIDENCE.md), sections 8 and 11 (every payment and ticket of the four listed mainnet campaigns, with explorer links). Blind bid proofs and the cancel check on the test network: sections 12 and 13.
+- **Main network runs:** [docs/EVIDENCE.md](docs/EVIDENCE.md), sections 8 and 11 (every payment and ticket of the project's four mainnet campaigns, with explorer links). Blind bid proofs and the cancel check on the test network: sections 12 and 13.
 
 ## Honest limits
 
@@ -130,7 +130,7 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 - **No outside review.** The code and the design have not been reviewed by anyone outside the project. The tests and evidence here are ours.
 - **Some heights are the host's own statement:** when a ticket was issued (R4b) and when an early close happened.
 - **The host sees every bid** in an auction as it arrives, except in Blind bid auctions, and could bid itself from another wallet.
-- **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade (NU7) has no confirmed date; the project assumes 5 November 2026. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before the project's assumed upgrade date.
+- **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade, NU7, is set for block 3,543,405 ([ZIP 259](https://zips.z.cash/zip-0259), status Proposed), expected around 5 to 6 November 2026. It keeps the same transaction format (version 6, the Ironwood pool) but changes the network version, so tickets signed before it must be issued again after it. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before 5 November 2026.
 - **Network addresses are not hidden:** relays and public chain servers see who contacts them.
 
 All limits: [docs/LIMITS.md](docs/LIMITS.md). Who can do what, and what stops them: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). Mainnet and the upgrade: [docs/MAINNET.md](docs/MAINNET.md).

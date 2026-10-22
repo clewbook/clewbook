@@ -18,6 +18,7 @@
   --cb-accent-text: #1D5A52; --cb-logo-thread: #176B5B;
   --cb-pass: #1C7A4A; --cb-pass-2: #1C6B42; --cb-fail: #B3261E; --cb-info: #2C55A8; --cb-info-2: #1C3C7C; --cb-wait: #7A5600; --cb-wait-2: #5A4000;
   --cb-testnet-bg: #FBF5E1; --cb-testnet-edge: #B8962E;
+  --cb-net-main-bg: #DCF0E4; --cb-net-main-ink: #155E39; --cb-net-test-bg: #F7E6AE; --cb-net-test-ink: #634500;
   --cb-yours-bg: #FFF3EC; --cb-yours-bg-2: #FFEDE4; --cb-yours-edge: #EADFD8;
   --cb-fail-bg: #F0D4CF; --cb-fail-bg-2: #FBE3E0; --cb-fail-edge: #E0A9A1;
   --cb-overlay-rgb: 20,24,32; --cb-page-rgb: 244,243,239;
@@ -66,6 +67,7 @@
   --cb-accent-text: #7FDCC4; --cb-logo-thread: #FFFDF8;
   --cb-pass: #5FD49A; --cb-pass-2: #9BE8C1; --cb-fail: #FF8A80; --cb-info: #6E9BFF; --cb-info-2: #A9C2FF; --cb-wait: #F5C451; --cb-wait-2: #FFE08A;
   --cb-testnet-bg: #22251A; --cb-testnet-edge: #6A5A26;
+  --cb-net-main-bg: rgba(95,212,154,.18); --cb-net-main-ink: #8BE6B8; --cb-net-test-bg: rgba(245,196,81,.20); --cb-net-test-ink: #F7CF6B;
   --cb-yours-bg: #13302B; --cb-yours-bg-2: #102823; --cb-yours-edge: #1B3530;
   --cb-fail-bg: #3A2626; --cb-fail-bg-2: #3A2020; --cb-fail-edge: #4A2626;
   --cb-overlay-rgb: 238,240,243; --cb-page-rgb: 15,30,27;
@@ -161,6 +163,21 @@ button { font: inherit; color: inherit; }
 .menu-panel > .menu-div { height: 0; margin: 6px 4px; border: 0; border-top: 1px solid var(--cb-border); }
 .menu-panel > a.replay { color: var(--cb-ink-3); }
 .menu-panel .theme-seg button { min-height: 36px; }
+/* the network switch (owner, 22 Oct 2026): "Mainnet | Testnet" where the Testnet demo button was, the same size (140 by 38) and never wider;
+   green for the main network, amber for the test network. On phones it is the first row of the menu, full width there. */
+.netswitch { display: inline-grid; grid-template-columns: 1fr 1fr; width: 140px; height: 38px; margin-left: 6px; padding: 3px; gap: 2px; box-sizing: border-box; flex: none; border: 1px solid var(--cb-border-strong); border-radius: 999px; }
+:is(.nav, .menu-panel) .netswitch .ns-side { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 999px; background: transparent; color: var(--cb-ink-3); font: 600 12px var(--cb-font-body); text-decoration: none; white-space: nowrap; cursor: pointer; transition: background .2s, color .2s; }
+:is(.nav, .menu-panel) .netswitch .ns-side:hover { background: rgba(var(--cb-overlay-rgb), .08); color: var(--cb-ink); }
+:is(.nav, .menu-panel) .netswitch .ns-main.on { background: var(--cb-net-main-bg); color: var(--cb-net-main-ink); }
+:is(.nav, .menu-panel) .netswitch .ns-test.on { background: var(--cb-net-test-bg); color: var(--cb-net-test-ink); }
+:is(.nav, .menu-panel) .netswitch .ns-side:focus-visible { outline: 2px solid #3FB89A; outline-offset: 1px; }
+.nav .demo-link { display: none; } /* the Testnet demo moved under the testnet list on the home page and into the phone menu */
+.menu-panel > .netswitch { width: 100%; height: 48px; margin: 0 0 8px; }
+.menu-panel > .netswitch .ns-side { font-size: 15px; }
+.sitefoot .foot-about { color: inherit; }
+/* a testnet campaign's name carries a small TESTNET pill on every screen size (owner, 22 Oct 2026); mainnet pages get nothing. Drawn from the
+   page's checked network (html[data-net], setNetwork), so the name's own text is unchanged */
+:root[data-net="test"] :is(#display-name, #cname)::after, :root[data-net="test"] #cid-copy::after { content: "TESTNET"; display: inline-block; vertical-align: middle; margin-left: 12px; padding: 3px 9px; border-radius: 999px; background: var(--cb-testnet); color: var(--cb-testnet-ink); font: 600 12px/1.2 var(--cb-font-body); letter-spacing: .02em; white-space: nowrap; }
 
 .sitefoot {
   display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 14px; padding: 18px clamp(16px, 4vw, 32px); border-top: 1px solid var(--cb-rule);
@@ -604,7 +621,7 @@ details.plain[open] > summary:before { content: "▾"; }
 .netbar b { font: 600 13px/1.35 var(--cb-font-body); letter-spacing: .02em; white-space: nowrap; }
 .netbar.checking { background: var(--cb-surface-2); color: var(--cb-ink-2); font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
 .netbar.test { background: var(--cb-testnet) repeating-linear-gradient(-45deg, rgba(0,0,0,.09) 0 10px, transparent 10px 20px); color: var(--cb-testnet-ink); }
-.netbar.main { display: none; }
+.netbar.main, .netbar.test, .netbar.checking { display: none; } /* the network switch shows the network (owner, 22 Oct 2026: no separate banner) */
 .netbar.unknown { background: var(--cb-surface-2); color: var(--cb-ink); border-bottom: 1px dashed var(--cb-border-hover); }
 .netbar.unknown b { letter-spacing: .08em; }
 

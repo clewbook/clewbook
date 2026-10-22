@@ -15,7 +15,7 @@ fn inputs(f: &Fx, raw: &[u8]) -> Inputs {
         raw_hex: hex::encode(raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(),
         fee_zat: 10_000, current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: None, refund_receiver_hex: None, expected_value_zat: None, listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
-        expected_expiry: None,
+        expected_expiry: None, reissued: false,
     }
 }
 
@@ -138,7 +138,7 @@ fn inputs2(f: &V2) -> Inputs {
         raw_hex: hex::encode(&f.raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(), fee_zat: 10_000,
         current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: Some(f.opening), refund_receiver_hex: Some(f.receiver.clone()), expected_value_zat: Some(f.opening.value_zat), listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
-        expected_expiry: None,
+        expected_expiry: None, reissued: false,
     }
 }
 
@@ -364,4 +364,20 @@ fn second_review_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_ref
     let more = late::LateExpect { deposit_zat: e.deposit_zat - 1_000, ..late_fixture().2 };
     let err = late::check(&raw, branch, &ovk, &more).unwrap_err();
     assert!(err.contains("only the deposit minus the refund"), "{err}");
+}
+
+/// The outside review's theft, on the contributor's page: a re-issued ticket that does not show it pays the contributor is a failure, even
+/// when every other check passes (an old format ticket without opening values, or no refund address on this device).
+#[test]
+fn a_reissued_ticket_must_show_that_it_pays_you() {
+    let f = v2();
+    let mut i = inputs2(&f);
+    i.reissued = true;
+    assert!(failing(&check(&i)).is_empty(), "an honest re-issue that pays you passes");
+    i.refund_receiver_hex = None;
+    let ch = check(&i);
+    assert_eq!(failing(&ch), vec!["pays_you"], "{ch:?}");
+    assert!(ch.iter().any(|x| x.id == "pays_you" && x.detail.contains("re-issued")));
+    i.reissued = false;
+    assert_eq!(status(&check(&i), "pays_you"), Status::NotChecked, "a first ticket without the address is only not checked");
 }

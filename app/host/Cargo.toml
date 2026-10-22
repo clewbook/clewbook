@@ -9,7 +9,7 @@ publish.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 hex.workspace = true
-ll-core.workspace = true
+ll-core = { workspace = true, features = ["walletdb"] }
 ll-listing = { path = "../listing", default-features = false } # PROTOTYPE (listing, testnet only)
 ll-relay = { path = "../relay" }
 pczt = { workspace = true, features = ["io-finalizer", "zcp-builder"] }

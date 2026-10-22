@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="start.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/app-icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="recount.html">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+</header>
+<div class="aurora" aria-hidden="true"><div></div></div>
+<main class="page aboutpage">
+<article class="about">
+  <span class="heyebrow"><span class="dot"></span>ABOUT</span>
+  <h1>About Clewbook</h1>
+  <p class="about-lede">Fundraisers and auctions on Zcash. Pay privately, hold a refund ticket, check the books yourself.</p>
+
+  <h2>Who runs it</h2>
+  <p>Clewbook is an independent open source project, built by one developer so far. We run these pages, the relay that stores the campaigns' public lists, the listing that picks the campaigns on the home page, and the <a href="https://clewbook.xyz/demo/">testnet demo</a>. The code is public on <a href="https://github.com/clewbook/clewbook">GitHub</a>.</p>
+  <p>Each campaign is run by its host. The host holds the campaign's money until the close; Clewbook holds money only for the campaigns it hosts itself. What is different: every contributor holds a refund ticket, and anyone can recount the host's books against the Zcash chain.</p>
+
+  <h2>Contact</h2>
+  <p>Open an issue on <a href="https://github.com/clewbook/clewbook/issues">GitHub</a> (this needs a GitHub account). To host a campaign with us, use <a href="https://github.com/clewbook/clewbook/issues/new?title=Host%20with%20us">Host with us</a>.</p>
+
+  <h2>Terms, in plain words</h2>
+  <ul>
+    <li>These pages and the code are offered as they are. We make no promise that they work without faults, or that a campaign reaches its goal or delivers what it describes.</li>
+    <li>A campaign's host decides what it is for, holds its money and answers for it. A campaign on our home page means we approved its host's key, not that we checked the campaign.</li>
+    <li>Your refund ticket works without us and without the host, while your contribution is unspent.</li>
+    <li>We can hide a campaign or a host from the home page at any time. That deletes nothing from a relay, and the campaign's own links keep working.</li>
+    <li>Test network coins (TAZ) have no value.</li>
+    <li>The code is licensed under MIT or Apache 2.0, at your choice.</li>
+  </ul>
+
+  <h2>Privacy, in plain words</h2>
+  <ul>
+    <li>No account, no cookies, no analytics or tracking on these pages. Your name is never asked for.</li>
+    <li>Kept in your browser only: the secret behind your payment code, your refund ticket, and small settings (theme, layout, the network you picked). We never receive them. Your backup file holds the same secret, so keep it private.</li>
+    <li>Our page server writes no log of requests. The relay counts requests per network address in memory, to limit abuse. The listing keeps the network address that sent each listing request, to limit requests from hosts not yet approved.</li>
+    <li>Our pages, the relay and the listing are reached through Cloudflare, which sees that traffic. The public Zcash servers your page asks for blocks and transactions see your network address and what it asks for; some of those requests pass through our page server on the way.</li>
+    <li>What is public about a campaign: its rules and its signed list. A fundraiser shows each amount. An auction shows every bid after the close. A blind bid auction shows every bid and every refund address after the close. In other campaigns your refund address is published only if you choose to publish proof for a payment the host set aside.</li>
+  </ul>
+</article>
+</main>
+<footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
+<script src="loadguard.js"></script>
+<script type="module" src="about.js"></script>
+</body>
+</html>

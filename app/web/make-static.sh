@@ -10,10 +10,10 @@ WWW=${WWW:-app/web/www}   # WWW=<folder> builds the demo from another copy of th
 [ -f $WWW/pkg/ll_web_bg.wasm ] && [ -f $WWW/proof/ll_proofcheck_bg.wasm ] || { echo "make-static.sh: build the browser module first (app/web/build.sh)" >&2; exit 1; }
 rm -rf "$OUT"; mkdir -p "$OUT"
 # the pages and what they load; the host-only pages (dashboard, set-up) are left out because they need the host program
-for f in recount campaign card badge contribute; do cp $WWW/$f.html "$OUT/"; done
+for f in recount campaign card badge contribute about; do cp $WWW/$f.html "$OUT/"; done
 # inside the demo the header's "Testnet demo" is the place you are: a marked item, not a link (design round 11)
 for f in recount campaign card contribute; do sed -i 's#<a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a>#<span class="demo-link cur" aria-current="page" title="Testnet demo, no real money"><i class="demo-dot" aria-hidden="true"></i>Testnet demo</span>#' "$OUT/$f.html"; grep -q 'demo-link cur' "$OUT/$f.html" || { echo "make-static.sh: no demo item in $f.html" >&2; exit 1; }; done
-for f in recount recount-page campaign card badge contribute public capabilities canon ui brand blocktime recount proof-worker loadguard copies; do [ -f $WWW/$f.js ] && cp $WWW/$f.js "$OUT/"; done
+for f in recount recount-page campaign card badge contribute public capabilities canon ui brand blocktime recount proof-worker loadguard copies about; do [ -f $WWW/$f.js ] && cp $WWW/$f.js "$OUT/"; done
 cp $WWW/ui.css $WWW/start.css $WWW/recount.css $WWW/campaign.css $WWW/card.css $WWW/badge.css $WWW/contribute.css "$OUT/"
 cp -r $WWW/fonts $WWW/img $WWW/pkg $WWW/proof "$OUT/"
 # two relays, as two copies of the examples (a demonstration, not independent evidence)

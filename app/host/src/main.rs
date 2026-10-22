@@ -302,7 +302,8 @@ enum Cmd {
         #[arg(long)]
         run: PathBuf,
     },
-    /// Re-issue the ticket of every outstanding contribution (after a network upgrade)
+    /// Re-issue the ticket of every outstanding contribution after a network upgrade (tickets already under the network version the chain
+    /// reports are left alone: the recount refuses a re-issue under the same version)
     Reissue {
         #[arg(long)]
         run: PathBuf,
@@ -1712,8 +1713,8 @@ fn reissue(run: &Run, backend: &mut dyn WalletBackend) -> Result<()> {
     Ok(())
 }
 
-/// Re-issues the latest ticket of every unspent, ticketed contribution. With
-/// `only_stale = Some(branch)`, tickets already issued under that branch are left alone.
+/// Re-issues the latest ticket of every unspent, ticketed contribution whose ticket is not already under the network version the chain
+/// reports. With `only_stale = Some(branch)`, tickets already issued under that branch are left alone too.
 /// The wallet lock is taken again under the same owner, so it carries over unchanged.
 fn reissue_inner(run: &Run, backend: &mut dyn WalletBackend, only_stale: Option<&str>) -> Result<usize> {
     backend.sync()?;
@@ -1736,8 +1737,10 @@ fn reissue_inner(run: &Run, backend: &mut dyn WalletBackend, only_stale: Option<
             .filter_map(|e| e.ticket.as_ref())
             .next_back()
             .map(|t| t.branch_id.clone());
-        if only_stale.is_some() && latest_branch.as_deref() == only_stale {
-            continue; // already issued under the current branch
+        // already issued under the network version a new ticket would be built for: a re-issue under the same version is refused by the
+        // recount (SPEC §4, "Re-issue"), so none is written, whatever the caller asked
+        if latest_branch.as_deref().is_some_and(|b| b.eq_ignore_ascii_case(&tip.branch_id)) || (only_stale.is_some() && latest_branch.as_deref() == only_stale) {
+            continue;
         }
         let payload = Payload::open(n.memo_text.as_deref().unwrap_or_default(), &run.secrets.payload_key()?)?;
         let e = issue_ticket(run, backend, n, &payload, tip.height, "reissue")?;

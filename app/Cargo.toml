@@ -29,4 +29,4 @@ pczt = { version = "=0.10.0-pre.0", features = ["orchard", "prover", "signer", "
 orchard = { version = "0.16", default-features = false }
 rand = { version = "0.10", default-features = false, features = ["std", "sys_rng"] }
 
-ll-core = { path = "core" }
+ll-core = { path = "core", default-features = false }
