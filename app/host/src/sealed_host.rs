@@ -997,7 +997,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ll-coins-back-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("ledger")).unwrap();
-        let secrets = ll_core::keys::CampaignSecrets { ledger_sk: hex::encode([3u8; 32]), payload_sk: hex::encode([4u8; 32]), amount_key: None };
+        let secrets = ll_core::keys::CampaignSecrets::generate();
         let rules = Rules {
             v: 1, network: "test".into(), mode: "sealed_auction".into(), goal_zat: None, items: Some(1), start_height: 100, deadline_height: 1_000,
             ticket_k: 10, close_grace: 10, reissue_window: 20, refund_fee_zat: 10_000, min_contribution_zat: 10_000_000, campaign_ufvk: None,
