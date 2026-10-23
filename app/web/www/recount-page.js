@@ -324,7 +324,7 @@ async function recount() {
   if (partial) warn('warn', 'Only one public server answered. A single server could leave blocks out, so this is not a cross check.');
   if (oneRelay && !j.fromFile) warn('info', cfg.relays.length > 1 ? 'Only one relay gave a usable list.' : 'Only one relay was asked, so the list has not been cross checked.');
   if (r.sealed && r.sealed.cannot_conclude && r.rules.every((x) => x.pass || x.waiting)) {
-    // the review, L2: a sealed bid auction whose block times around the deadline could not be read: whether it is void is not known
+    // set 1, L2: a sealed bid auction whose block times around the deadline could not be read: whether it is void is not known
     verdict('cannot', 'Cannot conclude', `Nothing was concluded: ${r.sealed.cannot_conclude}. Try again later or add another server below.`);
   } else if (r.all_pass) {
     // a saved copy keeps its one line: what a result from a file can and cannot show is said nowhere else

@@ -6,7 +6,7 @@ default-members = ["core", "host", "contrib", "recount", "vectors", "relay", "ti
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 publish = false
 
 [workspace.dependencies]

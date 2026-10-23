@@ -12,6 +12,8 @@ import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { setup, setNetwork, markReady } from './ui.js';
 import { milestones } from './public.js';
+import { afterNu7, firstMeasured } from './nu7.js';
+import { findAnchor } from './anchor.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -97,13 +99,13 @@ function applyNetwork() {
   // the unit next to the bid box: the auction's own (ZEC on the main network, TAZ on the test network; the owner's report of 22 Oct 2026)
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker || '';
   if (campaign.network === 'regtest') {
-    // the second review, M4: a private test chain runs on one computer; anywhere else "regtest" would only switch off the checks
+    // set 2, M4: a private test chain runs on one computer; anywhere else "regtest" would only switch off the checks
     if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname)) { refused = 'This auction is for a private test chain and opens only on the computer that runs it.'; return; }
     if (!cfg.server) refused = 'This auction is on a private test chain; this page needs that chain\'s server in its link.';
     return;
   }
   if (kind === 'unknown') { refused = 'This page cannot tell which network this auction is on, so it will not take a bid.'; return; }
-  // the review, M2: the host gives out the link, so on the test and main networks the page never uses a chain server the link names (a
+  // set 1, M2: the host gives out the link, so on the test and main networks the page never uses a chain server the link names (a
   // host's own server could fake the coin, the note trees and the heights); it uses its own
   if (cfg.server && cfg.server !== DEFAULT_SERVER[kind]) ignoredServer = cfg.server;
   cfg.server = DEFAULT_SERVER[kind];
@@ -136,24 +138,27 @@ async function checkPlan() {
   } catch { /* tried again on the next refresh */ }
 }
 
-let spb = null; // seconds per block, measured once over the last 200 blocks (for "~6 days")
+let spb = null; // seconds per block, measured once over the last 200 blocks, after NU7 only once it has come (for "~6 days")
 async function readTip() {
   const [msg] = await grpcWeb(cfg.server, 'GetLatestBlock', new Uint8Array());
   tip = readVarintField(msg, 1);
   const [b] = await grpcWeb(cfg.server, 'GetBlockRange', W.block_range_request(tip, tip));
   tipTime = readVarintField(b, 5);
-  if (spb == null && tip > 200) {
-    try { const [o] = await grpcWeb(cfg.server, 'GetBlockRange', W.block_range_request(tip - 200, tip - 200)); const t0 = readVarintField(o, 5); if (t0 && tipTime > t0) spb = (tipTime - t0) / 200; } catch { /* the pill says Open */ }
+  const h0 = firstMeasured(rules && rules.network, tip, 200);
+  if (spb == null && tip - h0 >= 20) {
+    try { const [o] = await grpcWeb(cfg.server, 'GetBlockRange', W.block_range_request(h0, h0)); const t0 = readVarintField(o, 5); if (t0 && tipTime > t0) spb = (tipTime - t0) / (tip - h0); } catch { /* the pill says Open */ }
   }
 }
 
 // An early ticket expires at the deadline. Zebra (7.0.0-rc.0) drops a transaction from its mempool once the chain tip reaches its expiry
 // height (remove_expired_transactions: tip_height >= expiry_height): sent while the tip is below the deadline, plus 1 of safety, gives the
 // deadline minus 2. zcashd refuses one that is "expiring soon" (next block height + 3 > expiry height): sent while the tip is at most the
-// deadline minus 4. The page uses the larger margin (the review, L5): it offers the early ticket while the tip is at most the deadline minus 4.
+// deadline minus 4. The page uses the larger margin (set 1, L5): it offers the early ticket while the tip is at most the deadline minus 4.
 const ZEBRA_MARGIN = 1 + 1, ZCASHD_MARGIN = 1 + 3;
 const TAKE_BACK_MARGIN = Math.max(ZEBRA_MARGIN, ZCASHD_MARGIN);
 const lastTakeBack = () => rules.deadline_height - TAKE_BACK_MARGIN;
+const COIN_WARN_BLOCKS = 15; // ll_core::sealed::COIN_WARN_BLOCKS
+const coinScale = () => ((rules.sealed.timing || 'standard') === 'standard' && afterNu7(rules.network, rules.start_height) ? 3 : 1);
 // the last block a payment can be mined in and still bid (with a coin margin, its small payment must be able to arrive by the cutoff)
 const lastDeposit = () => { const s = rules.sealed, d = rules.deadline_height, base = d - 3; return s.coin_margin ? Math.min(base, d - s.coin_cutoff - s.coin_margin) : base; };
 
@@ -190,7 +195,7 @@ async function publishChallenge() {
   const rj = state.rejected;
   if (!rj) return;
   const sent = state.challenge || { ok: [] };
-  // the second review, H2: with open payouts the challenge carries the payment's memo, so a relay checks the secret opens it
+  // set 2, H2: with open payouts the challenge carries the payment's memo, so a relay checks the secret opens it
   const body = rules.sealed.open_payouts ? W.challenge_json_memo(state.seed, rj.txid, rj.action, state.memo) : W.challenge_json(state.seed, rj.txid, rj.action);
   for (const r of cfg.relays) {
     if (sent.ok.includes(r)) continue;
@@ -201,7 +206,7 @@ async function publishChallenge() {
   render();
 }
 
-// the independent review, H4 and C1: before PROTECTED and before the take back button, the early ticket and the refund the host signed with
+// set 1, H4 and C1: before PROTECTED and before the take back button, the early ticket and the refund the host signed with
 // the deposit are checked in full, like a refund ticket: who they pay and how much (from their own note commitments), that they spend this
 // deposit, their signatures, the network version, the expiry (the deadline for the early ticket, never for the refund), the fee, and the proof
 async function networkBranch() {
@@ -220,13 +225,17 @@ async function checkTickets() {
     if (branch == null) return; // the network could not be asked: checked again on the next refresh, never saved as a failure
     const base = {
       contribution_nf: state.ticket.nf, fee_zat: rules.refund_fee_zat, current_branch: branch, known_txids: [],
-      // the second review, M1: a deposit may pay more than its size; a ticket pays back at least the size minus the fee, and the early
+      // set 2, M1: a deposit may pay more than its size; a ticket pays back at least the size minus the fee, and the early
       // ticket's own value then says what was paid (the recount checks the exact amount after the close)
       refund_receiver_hex: W.refund_receiver_hex(state.refund) || null, intended_contribution_zat: Number(state.tranche),
     };
     const run = async (t, extra, what) => {
-      const r = JSON.parse(W.verify_ticket(JSON.stringify({ ...base, raw_hex: t.raw_hex, expected_txid: t.txid, ticket_branch: t.branch_id, opening: t.opening || null, ...extra })));
-      // the second review, C1: who a ticket pays and the network version must be checked, not only "not failed": a ticket this page cannot
+      // level 4: the ticket's anchor is the note tree of a real block, as both chain servers say. A server that does not answer leaves it not
+      // checked (never a failure); only a range every server answered without it fails. Run once, before PROTECTED: a page that already
+      // checked its tickets never runs it again
+      const anchor = await findAnchor(W, [cfg.server, cfg.server2].filter(Boolean), () => W.ticket_anchor(t.raw_hex), e.contribution.height, e.ticket.issue_height, tip).catch(() => null);
+      const r = JSON.parse(W.verify_ticket(JSON.stringify({ ...base, raw_hex: t.raw_hex, expected_txid: t.txid, ticket_branch: t.branch_id, opening: t.opening || null, anchor, ...extra })));
+      // set 2, C1: who a ticket pays and the network version must be checked, not only "not failed": a ticket this page cannot
       // open (no opening values, an older format) could pay anyone, so it never counts as checked and its take back is never offered
       const must = (c) => (c.id === 'pays_you' || c.id === 'network_version') && c.status !== 'pass';
       const bad = r.checks.filter((c) => c.status === 'fail' || must(c)).map((c) => `${what}: ${c.status === 'fail' ? c.detail : c.id === 'pays_you' ? 'this page cannot see who it pays, so it is not used' : 'the network could not be asked which version it runs, so it is not used yet'}`);
@@ -294,7 +303,7 @@ async function detectTicket() {
   }
 }
 
-// the second review, L3: a worker that cannot load answers "no" (never a page that waits for ever), and the proof is checked for the network
+// set 2, L3: a worker that cannot load answers "no" (never a page that waits for ever), and the proof is checked for the network
 // version the chain server reports
 function proofOk(rawHex, branch) {
   return new Promise((resolve) => {
@@ -306,6 +315,17 @@ function proofOk(rawHex, branch) {
     w.onerror = () => { w.terminate(); resolve(false); };
     w.postMessage({ raw_hex: rawHex, branch: branch || '77190ad9' });
   });
+}
+
+// "Payment seen, waiting for the network": only for a payment this page knows the id of (sent with Noir). A blind bid auction's viewing key
+// is not public, so the page cannot open other payments waiting in the mempool; a wallet payment shows once the host lists it. Cleared once
+// the payment is mined.
+async function detectPending() {
+  if (!state || state.ticket || !state.noirTxid) return;
+  const [raw] = await grpcWeb(cfg.server, 'GetTransaction', W.tx_filter_request(state.noirTxid));
+  const h = raw && raw.length ? readVarintField(raw, 2) : null;
+  const waiting = !!(raw && raw.length) && !(h != null && h > 0 && h < 0xffffffff);
+  if (waiting !== !!state.pendingSeen) { state.pendingSeen = waiting; save(); }
 }
 
 /** The coin came: open the late ticket, check it against the list and the chain (coin, anchor, refund output, signatures, proof), sign it. */
@@ -327,7 +347,7 @@ async function protectLate() {
   work = 'The host\'s small payment arrived. Checking and signing your late ticket.'; render();
   const blob = await getBytes(`blobs/${ce.blob_hash}`);
   if (!blob) return;
-  // the second review, L2: when the chain server cannot say which network version it runs, ask again on the next refresh (never saved as
+  // set 2, L2: when the chain server cannot say which network version it runs, ask again on the next refresh (never saved as
   // a failed late ticket)
   const branchSeen = await networkBranchBoth();
   if (branchSeen.disagree) { serversDisagree = true; work = ''; return; }
@@ -335,7 +355,7 @@ async function protectLate() {
   if (branchNow == null) { work = ''; return; }
   try {
     const opened = JSON.parse(W.open_late(state.seed, JSON.stringify(ce), blob));
-    // the mentor's second review: with late_key the late ticket is made with this payment's own key, which this page works out itself, so
+    // set 3: with late_key the late ticket is made with this payment's own key, which this page works out itself, so
     // the recount can later open it and check whom it paid
     if (s.late_key && opened.ovk_hex !== W.payout_ovk(state.seed, rules.payload_pubkey, state.ticket.nf, 'late')) throw new Error('The late ticket is not made with the key this page works out, so a recount could not check whom it pays.');
     const expect = JSON.stringify({
@@ -352,10 +372,27 @@ async function protectLate() {
     // how many servers agreed on the coin, the network version and the note tree (2, or 1 when the other did not answer)
     const checkedWith = Math.min(coinSeen.answered, branchSeen.answered, rootSeen.answered);
     state.late = { signed_hex: W.sign_late(state.seed, opened.raw_hex, expect), txid: opened.txid, checkedWith, ofServers: cfg.server2 ? 2 : 1 };
+    // a copy for the late ticket watcher, which sends it after the late ticket block if the host never closes (docs/BLIND_BIDS.md). Only for a
+    // late ticket signed from 23 Oct 2026 on: a page that signed one before keeps doing what it did
+    state.lateUpload = { done: [], tries: 0 };
   } catch (e) {
     state.lateProblem = String(e.message || e);
   }
   work = '';
+  save();
+  await uploadLate();
+}
+
+/** Gives each list server a copy of the signed late ticket (write only: a server never shows it, as it would show the deposit's size before
+ *  the close). A server that does not take it (an older one) is asked again on the next two refreshes, then left. */
+async function uploadLate() {
+  const u = state && state.late && state.lateUpload;
+  if (!u || u.tries >= 3 || u.done.length === cfg.relays.length) return;
+  u.tries++;
+  const body = hexToBytes(state.late.signed_hex);
+  for (const r of cfg.relays.filter((x) => !u.done.includes(x))) {
+    try { const res = await fetch(`${r}/v1/campaigns/${cfg.id}/late/${state.ticket.nf}`, { method: 'PUT', body }); if (res.ok) u.done.push(r); } catch { /* asked again */ }
+  }
   save();
 }
 
@@ -432,6 +469,7 @@ function status() {
   if (state.earlySent && tip <= d) return S('t', 'SENDING BACK', 'Your money is on its way back', 'Keep this page open until it is mined.', `Your early ticket must be mined by block ${fmtB(d)}.`, { pulse: 1 });
   if (state.earlySent && state.refundMined) return S('g', 'REFUNDED', 'Your money is back', 'It came back by the host\'s signed refund.', `Your early ticket was not mined before the deadline, so the deposit stayed in the auction; the refund was mined in block ${fmtB(state.refundMined)}.`);
   if (state.lateSent) return S('t', 'SENDING BACK', 'Your deposit is on its way back', 'It goes to your refund address, minus the fee.', 'You sent your late ticket.', { pulse: 1 });
+  if (!state.ticket && state.pendingSeen) return S('m', 'PAYMENT SEEN', 'Payment seen, waiting for the network', 'Sent with Noir. This page updates by itself.', `Your payment is waiting to be mined. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
   if (!state.ticket) return S('m', 'WAITING', 'Waiting for your payment', state.noirTxid || state.noirSent ? 'Sent with Noir. This page updates by itself.' : `Pay ${coin(state.tranche)} from your wallet. This page updates by itself.`, `Usually a minute or two after you send it. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
   const c = closeEntry();
   if (c) {
@@ -467,14 +505,15 @@ function status() {
   const backMore = canTake ? `You can take your money back until block ${fmtB(take)}.` : `${tooLate} If the host never closes, this page holds no late ticket for you.`;
   if (planProblem) return S('r', 'PROBLEM', 'This auction\'s timing is wrong', back, `${planProblem} ${backMore}`, { action: early });
   if (planProblem === undefined) return S('m', 'CHECKING', 'Checking the auction', 'Keep this page open.', 'This page checks the auction\'s timing against the chain.', { action: early, pulse: 1 });
-  if (state.late) return S('g', 'YOUR MONEY IS COVERED', 'PROTECTED', canTake ? `You can take your money back until block ${fmtB(take)}.` : atClose, `${state.late.ofServers === 2 && state.late.checkedWith === 1 ? 'Checked with 1 of 2 servers. ' : ''}Your refund ticket checks out. Your bid stays locked until bids open. If the host does not finish the auction, from block ${fmtB(hs + 1)} you can take your deposit back on your own.`, { big: 1, num: amount(state.tranche), unit: `${ticker()} deposit`, action: early, grey: 1 });
+  if (state.late) return S('g', 'YOUR MONEY IS COVERED', 'PROTECTED', canTake ? `You can take your money back until block ${fmtB(take)}.` : atClose, `${state.late.ofServers === 2 && state.late.checkedWith === 1 ? 'Checked with 1 of 2 servers. ' : ''}Your refund ticket checks out. Your bid stays locked until bids open. If the host never finishes, open your bid page after block ${fmtB(hs)} and press Take my money back.`, { big: 1, num: amount(state.tranche), unit: `${ticker()} deposit`, action: early, grey: 1 });
   if (state.lateProblem) return S('r', 'PROBLEM', 'Your ticket does not check out', back, `${state.lateProblem} ${backMore}`, { action: early });
   if (tip >= cutoff) return S('a', 'ACTION NEEDED', 'The host\'s small payment did not arrive', back, `Without it, your refund ticket cannot be completed by the host. ${backMore}`, { action: early });
   // M3: the page checks and signs the late ticket only while it is open; it warns from the block by which the host must have sent its
-  // small payment (COIN_RUSH_BLOCKS before the cutoff) plus 5 blocks to mine it, well before the cutoff
+  // small payment (COIN_RUSH_BLOCKS before the cutoff) plus 5 blocks to mine it, well before the cutoff. An auction made after NU7 with the
+  // standard timing has three times both (ll_core::sealed::coin_scale): the same time with 25 second blocks
   const signs = `This page signs your late ticket only while it is open. You can take your money back until block ${fmtB(take)}.`;
   const coming = !!myCoinEntry();
-  if (tip >= cutoff - 15) return S('a', 'ACTION NEEDED', 'Not protected yet, and the cutoff is close', `Keep this page open. If it does not say PROTECTED by block ${fmtB(cutoff)}, take your money back.`, `${coming ? 'The host\'s small payment is on its way.' : `The host's small payment has not come; it must be mined by block ${fmtB(cutoff)}.`} ${signs}`, { action: early, pulse: 1 });
+  if (tip >= cutoff - COIN_WARN_BLOCKS * coinScale()) return S('a', 'ACTION NEEDED', 'Not protected yet, and the cutoff is close', `Keep this page open. If it does not say PROTECTED by block ${fmtB(cutoff)}, take your money back.`, `${coming ? 'The host\'s small payment is on its way.' : `The host's small payment has not come; it must be mined by block ${fmtB(cutoff)}.`} ${signs}`, { action: early, pulse: 1 });
   return S('t', 'ALMOST THERE', 'Waiting for your ticket', 'Keep this page open until it says PROTECTED.', `Your payment arrived. ${coming ? 'The host\'s small payment that completes your refund ticket is on its way.' : `The host now sends a small payment that completes your refund ticket. If it has not come by block ${fmtB(cutoff)}, take your money back.`} ${signs}${coming ? '' : ' If you close this page, open it again before then.'}`, { action: early, pulse: 1 });
 }
 
@@ -780,7 +819,7 @@ function downloadBackup() {
   document.body.append(a); a.click(); a.remove();
 }
 
-// the second review, L4: the payment code is shown as an image, never as markup, so a code taken from a stored or restored state cannot
+// set 2, L4: the payment code is shown as an image, never as markup, so a code taken from a stored or restored state cannot
 // run script in this page (an SVG loaded as an image never runs script)
 function qrImage(svg) {
   const img = new Image();
@@ -823,6 +862,8 @@ async function refresh() {
     await readTip();
     if (planProblem === undefined) await checkPlan();
     if (state && !state.ticket) await detectTicket();
+    if (state && !state.ticket) { try { await detectPending(); } catch { /* asked again on the next refresh */ } }
+    if (state && state.lateUpload) await uploadLate();
     if (state && state.ticket && !state.paidZat) { state.paidZat = Number(state.tranche); save(); }
     if (state && state.ticket && !state.ticketsChecked) await checkTickets();
     if (state && state.ticket) await protectLate();

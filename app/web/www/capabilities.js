@@ -6,7 +6,7 @@
 export const NOT_CHECKED = [
   ['the amount each payment message promised', "it needs the contributor's one time secret, which only a published challenge reveals"],
   ['the proof inside each refund ticket', 'it is checked only on a contributor\'s own device, when they press "Check the proof too"'],
-  ['Ticket anchors', "whether each ticket's chain anchor is still valid is not checked"],
+  ['Ticket anchors', "whether each ticket's chain anchor is a real state of the chain is checked only on a contributor's own device"],
   ['Ledger anchoring', "once the campaign is closed, the host signs the list's fingerprint (the number of entries and the hash of the last one), but it is not anchored on any public ledger"],
   ['When each ticket was issued', "the issue height in the list is the host's own statement; the recount cannot check it"],
   ['Whether the host spent a contribution first', 'nothing prevents it; R5 and R6 show such a spend after it happens'],
@@ -21,8 +21,8 @@ export const LEVELS = [
     what: 'The refund output is recomputed from the values sealed with the ticket and the address you gave, and must equal the output inside the ticket itself. Older tickets cannot be checked this way and say so.' },
   { level: 3, when: 'only when you press "Check the proof too"', chip: 'open', ids: ['proof'],
     what: 'The zero knowledge proof inside the ticket is verified on your device by a separate module that is downloaded only on request.' },
-  { level: 4, when: 'not built yet', chip: 'nc', ids: ['anchor'],
-    what: "The ticket's chain anchor is checked to be a real earlier state of the chain." },
+  { level: 4, when: 'automatic, asked of two chain servers', chip: 'open', ids: ['anchor'],
+    what: "The ticket's chain anchor must be the note tree of a real block, from the block your payment was mined in on. A server that does not answer leaves it not checked, never failed." },
 ];
 
 const NET = { test: { label: 'Test network', money: 'no real money', ticker: 'TAZ' }, main: { label: 'Main network', money: 'real money', ticker: 'ZEC' } };

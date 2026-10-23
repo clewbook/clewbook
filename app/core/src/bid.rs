@@ -20,7 +20,7 @@ pub const TAG_LEN: usize = 7;
 pub const MARKER: u8 = 0x01;
 /// A memo holds at most 512 bytes; this text memo is well under it (the bound kind fills it exactly).
 pub const MEMO_MAX: usize = 512;
-/// The bound kind (auctions with `long_tag`, the review, M4): the lock holds a random key; the bid (6 bytes, a bid below 2^48 zatoshis)
+/// The bound kind (auctions with `long_tag`, set 1, M4): the lock holds a random key; the bid (6 bytes, a bid below 2^48 zatoshis)
 /// and a 16 byte tag made with that key follow it in the clear part. Nobody knows the key before round R, so nobody can make a tag for
 /// another memo: copying a lock is caught with odds of 2^128 to 1, and each try costs a deposit on the chain.
 pub const BID_CT_LEN: usize = 6;
@@ -188,7 +188,7 @@ pub fn open_memo(memo: &BidMemo, round: u64, signature: &[u8]) -> std::result::R
 }
 
 /// Whether `eph_sk` (a challenge's one time secret) opens the sealed part of this blind bid memo with the auction's payload key: what a
-/// relay checks before it stores a challenge (the second review, H2).
+/// relay checks before it stores a challenge (set 2, H2).
 pub fn challenge_opens(memo_text: &str, payload_pubkey: &[u8; 32], eph_sk: &[u8; 32]) -> bool {
     BidMemo::parse(memo_text).is_ok_and(|m| crate::payload::Payload::open_sealed_challenged(&m.sealed, payload_pubkey, &crypto_box::SecretKey::from(*eph_sk)).is_ok())
 }

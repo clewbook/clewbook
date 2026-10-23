@@ -18,3 +18,20 @@ checks this before it makes any wallet, the rules check refuses such an auction 
 test timing is refused. The bid page trusts the host's small payment after 2 confirmations and asks two chain servers before it says
 PROTECTED. The project runs its main network blind bid host on its own server; each auction's wallets are made there. The first auction
 and its transactions are in docs/EVIDENCE.md section 14.
+
+## 25 second blocks after NU7
+
+NU7 brings blocks every 25 s instead of 75 s (ZIP 218). Windows counted in blocks would last a third as long, so a campaign made at or
+after NU7 on its network (main from block 3,543,405; test since block 4,465,026) gets three times the blocks. A campaign's rules are
+signed when it is made, so one made before NU7 keeps its own numbers.
+
+| What | Made before NU7 | Made after NU7 | Test |
+|---|---|---|---|
+| Default ticket window K, close grace, reissue window, settle window | 30, 10, 20, 40 blocks | 90, 30, 60, 120 blocks | core `a_campaign_made_after_nu7_gets_three_times_the_default_windows` |
+| Blind bid timing on the main network | blocks of 60 to 80 s | 20 to 80 s, as on the test network | core `on_the_main_network_an_auction_made_from_nu7_on_plans_with_25_second_blocks` |
+| Blind bid: the host sends coins at once, and the bid page warns, before the coin cutoff | 20 and 15 blocks | 60 and 45 blocks (standard timing) | core `the_coin_rush_and_warning_are_tripled_for_a_standard_auction_made_after_nu7_only`, host `coins_go_out_as_the_host_chose_and_always_near_the_cutoff` |
+| Expiry of the coin payments (the only sends that expire) | the wallet library's 40 blocks | 120 blocks, as ZIP 218 advises | host `a_coin_send_after_nu7_expires_after_120_blocks_and_before_it_keeps_the_default` |
+| "About N days" on the pages | the last 100 or 200 blocks | only blocks after NU7 (no estimate for the first 20) | `app/web/nu7-e2e.cjs` |
+| Listing job: blocks and time per recount | 60,000 blocks, 1,800 s (were 20,000 and 600 s) | the same | listing tests |
+
+The quick test timing keeps its short numbers.

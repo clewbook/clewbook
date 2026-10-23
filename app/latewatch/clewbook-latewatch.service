@@ -1,0 +1,26 @@
+[Unit]
+Description=Clewbook late ticket watcher (sends the late tickets kept by the relay when a blind bid host never finishes; no open port)
+After=network-online.target clewbook-relay.service
+Wants=network-online.target
+
+[Service]
+# the relay's user, for read access to its folder; the watcher holds no key and no wallet
+User=clewbook
+Group=clewbook
+StateDirectory=clewbook-latewatch
+ExecStart=/usr/bin/python3 /opt/clewbook-latewatch/latewatch.py --relay-dir /home/clewbook/clewbook/relay-data --server test=https://zjs.zec.rocks/testnet,https://zcash-testnet.chainsafe.dev --server main=https://zjs.zec.rocks/mainnet,https://zcash-mainnet.chainsafe.dev --state /var/lib/clewbook-latewatch/state.json --wait-minutes 60 --every 300
+Restart=always
+RestartSec=30
+Nice=10
+MemoryMax=128M
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+# of the home folders only the relay's folder, read only: no way to the hosts' wallets and campaign folders
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/clewbook/clewbook/relay-data
+InaccessiblePaths=-/var/lib/clewbook-blind -/var/lib/clewbook-blind-main
+ReadWritePaths=/var/lib/clewbook-latewatch
+
+[Install]
+WantedBy=multi-user.target

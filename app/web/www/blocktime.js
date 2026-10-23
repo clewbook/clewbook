@@ -1,5 +1,6 @@
 // Seconds per block, measured from the block times of the last 100 blocks on a public server; no wasm needed, so the host's pages
 // (which are served by the host program, not by the page server) can use it. Returns null if no server answers: no guessed constant.
+import { firstMeasured } from './nu7.js';
 const SERVICE = 'cash.z.wallet.sdk.rpc.CompactTxStreamer';
 
 const varint = (n) => { const o = []; do { let b = n & 0x7f; n = Math.floor(n / 128); if (n) b |= 0x80; o.push(b); } while (n); return o; };
@@ -39,7 +40,7 @@ export async function measureBlocks(network) {
       const [m] = await call(s, 'GetLatestBlock', new Uint8Array());
       const tip = readVarint(m, 1);
       const timeOf = async (h) => { const id = lenField(1, field(1, h)); const range = new Uint8Array([...lenField(1, field(1, h)), ...lenField(2, field(1, h))]); const [b] = await call(s, 'GetBlockRange', range); return readVarint(b, 5); };
-      const h0 = Math.max(1, tip - 100), t0 = await timeOf(h0), t1 = await timeOf(tip);
+      const h0 = firstMeasured(network, tip, 100), t0 = await timeOf(h0), t1 = await timeOf(tip);
       return { tip, secondsPerBlock: t0 != null && t1 != null && t1 > t0 && tip - h0 >= 20 ? (t1 - t0) / (tip - h0) : null, spanBlocks: tip - h0, server: s };
     } catch { /* next server */ }
   }

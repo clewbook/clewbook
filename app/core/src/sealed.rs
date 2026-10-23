@@ -26,15 +26,22 @@ pub const BLOCK_SECS_TEST: (u64, u64) = (20, 80);
 /// The block time range of the quick test timing (test network only, the owner's decision of 20 Oct 2026): 20 to 40 s.
 pub const BLOCK_SECS_QUICK: (u64, u64) = (20, 40);
 
-/// The block time range for a network (`Rules::network`) and timing: the main network's, the test network's for every other, or the quick
-/// test range when the auction chose it.
-pub fn block_secs(network: &str, timing: Timing) -> (u64, u64) {
+/// The block time range for a network (`Rules::network`), timing and the auction's first block: the main network's before NU7, the test
+/// network's for every other (and on the main network from NU7 on, the owner's decision of 22 Oct 2026), or the quick test range when the
+/// auction chose it. An auction made before NU7 keeps its range.
+pub fn block_secs(network: &str, timing: Timing, start_height: u32) -> (u64, u64) {
     match timing {
         Timing::Quick => BLOCK_SECS_QUICK,
-        Timing::Standard if network == "main" => BLOCK_SECS,
+        Timing::Standard if network == "main" && !crate::rules::after_nu7(network, start_height) => BLOCK_SECS,
         Timing::Standard => BLOCK_SECS_TEST,
     }
 }
+/// The default ticket window of a new blind bid auction: the quick test timing keeps the short one; otherwise as for every campaign (tripled
+/// from NU7 on).
+pub fn default_ticket_k(network: &str, timing: Timing, start_height: u32) -> u32 {
+    if timing.is_standard() { crate::rules::default_ticket_k(network, start_height) } else { crate::rules::DEFAULT_TICKET_K }
+}
+
 /// Seconds between the close of bidding and the moment the bids can open, at the least (covers the lag of the median block time).
 pub const GAP_SECS: u64 = 30 * 60;
 /// The same for the quick test timing: 10 minutes.
@@ -81,6 +88,15 @@ pub const COIN_ZAT: u64 = 5_000;
 pub const COIN_CUTOFF_BLOCKS: u32 = 10;
 /// Within this many blocks before the coin cutoff, the host sends coins at once whatever it chose.
 pub const COIN_RUSH_BLOCKS: u32 = 20;
+/// From this many blocks before the coin cutoff, a bid page that has no late ticket yet warns that the cutoff is close (the host's rush plus
+/// five blocks to mine the coin, so an honest host's coin is on its way before the warning).
+pub const COIN_WARN_BLOCKS: u32 = 15;
+
+/// How many times `COIN_RUSH_BLOCKS` and `COIN_WARN_BLOCKS` an auction uses: 3 for one made after NU7 with the standard timing, so the
+/// warnings keep their time with 25 second blocks (the owner's decision of 22 Oct 2026); the quick test timing and older auctions keep 1.
+pub fn coin_scale(rules: &crate::rules::Rules, s: &Sealed) -> u32 {
+    if s.timing.is_standard() { crate::rules::window_scale(&rules.network, rules.start_height) } else { 1 }
+}
 /// A payment mined in the last blocks before the deadline (the deadline itself and the two before it) is not a deposit: its early ticket,
 /// which expires at the deadline, could not be built in time (the wallet library refuses an expiry below the next block). Like a payment
 /// after the deadline, the host sends it back on its own (SPEC 9.5).
@@ -154,15 +170,15 @@ pub struct Sealed {
     /// earlier ones (their ids are unchanged; their recount does not check destinations).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub open_payouts: bool,
-    /// The review, M4: bids use the bound kind of memo (a 16 byte tag made with the locked key, `bid::lock_bid_bound`); the older kind is
-    /// no bid. Set by every auction made from 20 Oct 2026 on (after the review); left out by earlier ones.
+    /// Set 1, M4: bids use the bound kind of memo (a 16 byte tag made with the locked key, `bid::lock_bid_bound`); the older kind is
+    /// no bid. Set by every auction made from 20 Oct 2026 on; left out by earlier ones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub long_tag: bool,
-    /// The second review, C1: the early ticket is made with its own outgoing key too (kind `payout::EARLY`), so a deposit taken back
+    /// Set 2, C1: the early ticket is made with its own outgoing key too (kind `payout::EARLY`), so a deposit taken back
     /// before the deadline can be checked to have paid the person's refund address (S4). Set by every auction made from 21 Oct 2026 on.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub early_key: bool,
-    /// The mentor's second review: the late ticket is made with its own outgoing key too (kind `payout::LATE`), so once the reveal publishes
+    /// Set 3: the late ticket is made with its own outgoing key too (kind `payout::LATE`), so once the reveal publishes
     /// the payload key the recount also checks that a late ticket paid the person's refund address the deposit minus the fee (S7). Set by
     /// every auction made from 22 Oct 2026 on.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -209,13 +225,13 @@ pub const MAIN_UPGRADE_CUTOFF: u32 = NU7_MAIN_HEIGHT - NU7_MAIN_MARGIN;
 /// Blocks after the late ticket block for the late tickets to be sent and mined, plus a margin.
 pub const LATE_LIFE_BLOCKS: u32 = 100;
 
-/// The last block a sealed bid auction needs: its late ticket block, the ticket window and `LATE_LIFE_BLOCKS` (the review, L7: counted
+/// The last block a sealed bid auction needs: its late ticket block, the ticket window and `LATE_LIFE_BLOCKS` (set 1, L7: counted
 /// from the late ticket block, not from the deadline).
 pub fn life_end(rules: &crate::rules::Rules, s: &Sealed) -> u32 {
     s.claim_after.saturating_add(rules.ticket_k).saturating_add(LATE_LIFE_BLOCKS)
 }
 
-/// The review, L7: on the main network a sealed bid auction is taken only if its whole life, up to and past its late ticket block, ends
+/// Set 1, L7: on the main network a sealed bid auction is taken only if its whole life, up to and past its late ticket block, ends
 /// before the network upgrade (`next_upgrade`); without a height, not at all. The rules check runs this, so the host, the bid page and the recount all refuse it.
 pub fn upgrade_guard(rules: &crate::rules::Rules, s: &Sealed, next_upgrade: Option<u32>) -> Result<()> {
     if rules.network != "main" {
@@ -261,7 +277,7 @@ pub fn plan(network: &str, timing: Timing, tip: u32, tip_time: u64, deadline: u3
     if deadline <= tip {
         bail!("the deadline must be after the current block");
     }
-    let (fast, slow) = block_secs(network, timing);
+    let (fast, slow) = block_secs(network, timing, tip.saturating_add(1));
     let n = (deadline - tip) as u64;
     let unlock = tip_time + n * slow + gap_secs(timing);
     let round = round_at(unlock);
@@ -303,7 +319,7 @@ impl Sealed {
         if self.claim_after <= rules.deadline_height {
             bail!("late tickets must become valid after the deadline");
         }
-        // a lock time of 500,000,000 or more is read by the network as a date (long past), so late tickets would work at once (the review, M1)
+        // a lock time of 500,000,000 or more is read by the network as a date (long past), so late tickets would work at once (set 1, M1)
         if self.claim_after >= LOCK_TIME_THRESHOLD {
             bail!("the late ticket block must be below {LOCK_TIME_THRESHOLD}");
         }
@@ -343,8 +359,8 @@ impl Sealed {
     /// Whether the round and the late ticket block are still safe for a chain at `tip` (its block time `tip_time`): the page checks this
     /// before it lets anyone bid, and the host before it creates the auction. Both hold as the chain moves on, as long as blocks stay
     /// inside `BLOCK_SECS`.
-    pub fn check_timing(&self, network: &str, deadline: u32, tip: u32, tip_time: u64) -> Result<()> {
-        let (fast, slow) = block_secs(network, self.timing);
+    pub fn check_timing(&self, network: &str, start_height: u32, deadline: u32, tip: u32, tip_time: u64) -> Result<()> {
+        let (fast, slow) = block_secs(network, self.timing, start_height);
         if deadline <= tip {
             bail!("bidding has closed");
         }
@@ -359,7 +375,7 @@ impl Sealed {
         Ok(())
     }
 
-    /// The review, M1: the round and the late ticket block are no later than the plan for this deadline gives from the block before the
+    /// Set 1, M1: the round and the late ticket block are no later than the plan for this deadline gives from the block before the
     /// start (the chain as the host saw it when it made the auction: `plan_time` is that block's time), with a small slack. A host cannot
     /// set late tickets to work years later, or the bids to open long after the close.
     pub fn check_not_too_late(&self, network: &str, start_height: u32, deadline: u32, plan_time: u64) -> Result<()> {
@@ -404,7 +420,7 @@ mod tests {
         let (tip, t0, deadline) = (100_000u32, 1_800_000_000u64, 108_064u32);
         let (round, after) = plan("main", Timing::Standard, tip, t0, deadline).unwrap();
         let s = Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
-        s.check_timing("main", deadline, tip, t0).unwrap();
+        s.check_timing("main", tip + 1, deadline, tip, t0).unwrap();
         // slow chain (80 s): the close comes before the bids open, with the gap
         let close_slow = t0 + 8_064 * 80;
         assert!(round_time(round) >= close_slow + GAP_SECS);
@@ -417,17 +433,17 @@ mod tests {
         assert!((2_760..=2_860).contains(&wait), "{wait}");
         // the margin: a run of fast blocks right after the plan (the owner's case of 22 Oct 2026, 19 blocks at 54.6 s) does not make the late
         // ticket block "too early" for a page that checks then
-        s.check_timing("main", deadline, tip + 19, t0 + 1_038).unwrap();
-        s.check_timing("main", deadline, tip + 200, t0 + 200 * 45).unwrap();
+        s.check_timing("main", tip + 1, deadline, tip + 19, t0 + 1_038).unwrap();
+        s.check_timing("main", tip + 1, deadline, tip + 200, t0 + 200 * 45).unwrap();
         // as the chain moves on at 70 s a block, the same settings stay safe
-        s.check_timing("main", deadline, tip + 4_000, t0 + 4_000 * 70).unwrap();
+        s.check_timing("main", tip + 1, deadline, tip + 4_000, t0 + 4_000 * 70).unwrap();
         // a round that is too early, or a late ticket block that is too early, is refused
         let mut early = s.clone();
         early.drand_round -= 200; // ten minutes earlier
-        assert!(early.check_timing("main", deadline, tip, t0).is_err());
+        assert!(early.check_timing("main", tip + 1, deadline, tip, t0).is_err());
         let mut soon = s.clone();
         soon.claim_after -= 100;
-        assert!(soon.check_timing("main", deadline, tip, t0).is_err());
+        assert!(soon.check_timing("main", tip + 1, deadline, tip, t0).is_err());
     }
 
     #[test]
@@ -504,7 +520,7 @@ mod tests {
         assert!(round_time(round) >= t0 + 90 * 80 + GAP_SECS);
         assert!(t0 + (after + 1 - tip) as u64 * 20 >= round_time(round) + SETTLE_SECS_TEST);
         let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
-        s.check_timing("test", deadline, tip, t0).unwrap();
+        s.check_timing("test", tip + 1, deadline, tip, t0).unwrap();
         // at the test network's real pace (25 s), the late tickets work about 4.95 h after creation (3.7 h before the plan's margin of
         // 60 minutes at 20 s, 180 blocks), the bids open about 2.5 h after
         let (open_h, claim_h) = ((round_time(round) - t0) as f64 / 3600.0, (after - tip) as f64 * 25.0 / 3600.0);
@@ -523,19 +539,57 @@ mod tests {
         assert!(round_time(round) >= t0 + 30 * 40 + GAP_SECS_QUICK);
         assert!(t0 + (after + 1 - tip) as u64 * 20 >= round_time(round) + SETTLE_SECS_TEST);
         let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Quick, open_payouts: false, long_tag: false, early_key: false, late_key: false, coin_margin: 0 };
-        s.check_timing("test", tip + 30, tip, t0).unwrap();
+        s.check_timing("test", tip + 1, tip + 30, tip, t0).unwrap();
         // the same round under the standard timing is too early: the timing is part of what is checked
-        assert!(Sealed { timing: Timing::Standard, ..s.clone() }.check_timing("test", tip + 30, tip, t0).is_err());
+        assert!(Sealed { timing: Timing::Standard, ..s.clone() }.check_timing("test", tip + 1, tip + 30, tip, t0).is_err());
         // 30 blocks: the bids open after 30 minutes (70 standard), late tickets 210 blocks on (180 before the margin of 10 minutes at 20 s;
         // 480 standard), about 88 minutes at 25 s
         assert!((1_800..1_803).contains(&(round_time(round) - t0)), "{}", round_time(round) - t0);
         assert!((210..=211).contains(&(after - tip)), "{}", after - tip);
         // blocks slower than 40 s: after 10 blocks of 60 s the page stops taking bids (the round could come before the close)
-        assert!(s.check_timing("test", tip + 30, tip + 10, t0 + 600).is_err());
+        assert!(s.check_timing("test", tip + 1, tip + 30, tip + 10, t0 + 600).is_err());
         // the main network never uses it, whatever is asked
-        assert_eq!(block_secs("main", Timing::Standard), BLOCK_SECS);
-        assert_eq!(block_secs("test", Timing::Standard), BLOCK_SECS_TEST);
+        assert_eq!(block_secs("main", Timing::Standard, NU7_MAIN_HEIGHT - 1), BLOCK_SECS);
+        assert_eq!(block_secs("test", Timing::Standard, 1), BLOCK_SECS_TEST);
         assert_eq!((gap_secs(Timing::Standard), gap_secs(Timing::Quick)), (30 * 60, 10 * 60));
+    }
+
+    #[test]
+    fn on_the_main_network_an_auction_made_from_nu7_on_plans_with_25_second_blocks() {
+        // before NU7: 60 to 80 s, as for the auctions already made (Apparition 69_ among them); from the NU7 block on: 20 to 80 s
+        assert_eq!(block_secs("main", Timing::Standard, NU7_MAIN_HEIGHT - 1), (60, 80));
+        assert_eq!(block_secs("main", Timing::Standard, NU7_MAIN_HEIGHT), (20, 80));
+        assert_eq!(block_secs("main", Timing::Quick, NU7_MAIN_HEIGHT), BLOCK_SECS_QUICK);
+        // the plan from the block before NU7 starts the auction at NU7, so it uses the new range; at 25 s blocks the late ticket block
+        // stays after the bids open plus the settlement time
+        let (tip, t0) = (NU7_MAIN_HEIGHT - 1, 1_794_000_000u64);
+        let deadline = tip + 3 * 1_152; // about a day at 25 s
+        let (round, after) = plan("main", Timing::Standard, tip, t0, deadline).unwrap();
+        assert!(t0 + (after + 1 - tip) as u64 * 20 >= round_time(round) + SETTLE_SECS, "fast blocks cannot reach the late ticket block early");
+        assert!(round_time(round) >= t0 + (deadline - tip) as u64 * 80 + GAP_SECS, "slow blocks cannot close after the bids open");
+        let s = Sealed { tranches_zat: vec![10_000_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: round, claim_after: after, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: true, early_key: true, late_key: true, coin_margin: COIN_MARGIN_BLOCKS };
+        s.check_timing("main", tip + 1, deadline, tip + 100, t0 + 100 * 25).unwrap();
+        s.check_not_too_late("main", tip + 1, deadline, t0).unwrap();
+        // why: the old range's plan (an auction starting one block before NU7) puts the late ticket block where 25 s blocks reach it
+        // before the bids open plus the settlement time
+        let (round_old, after_old) = plan("main", Timing::Standard, tip - 1, t0 - 75, deadline).unwrap();
+        assert!(t0 - 75 + (after_old + 1 - (tip - 1)) as u64 * 25 < round_time(round_old) + SETTLE_SECS);
+    }
+
+    #[test]
+    fn the_coin_rush_and_warning_are_tripled_for_a_standard_auction_made_after_nu7_only() {
+        let mut r: crate::rules::Rules = serde_json::from_str(r#"{"v":1,"network":"main","mode":"sealed_auction","items":1,"start_height":3527801,"deadline_height":3528000,"ticket_k":30,"close_grace":10,"reissue_window":20,"refund_fee_zat":10000,"min_contribution_zat":30000,"ledger_pubkey":"aa","payload_pubkey":"bb"}"#).unwrap();
+        let s = Sealed { tranches_zat: vec![30_000], pricing: "uniform".into(), drand_chain: QUICKNET_CHAIN_HASH.into(), drand_round: 1, claim_after: 1, coin_zat: COIN_ZAT, coin_cutoff: COIN_CUTOFF_BLOCKS, coin_sending: CoinSending::AtOnce, timing: Timing::Standard, open_payouts: true, long_tag: true, early_key: true, late_key: true, coin_margin: COIN_MARGIN_BLOCKS };
+        // a main network auction made before NU7 (as Apparition 69_, from block 3,527,801): unchanged
+        assert_eq!(coin_scale(&r, &s), 1);
+        r.start_height = NU7_MAIN_HEIGHT;
+        assert_eq!(coin_scale(&r, &s), 3);
+        // the quick test timing keeps its short numbers
+        (r.network, r.start_height) = ("test".into(), 4_600_000);
+        assert_eq!(coin_scale(&r, &Sealed { timing: Timing::Quick, ..s.clone() }), 1);
+        assert_eq!(coin_scale(&r, &s), 3);
+        // the page's warning stays inside the host's rush, so an honest host's coin is on its way before any warning
+        assert!(COIN_WARN_BLOCKS + 5 <= COIN_RUSH_BLOCKS);
     }
 
     #[test]

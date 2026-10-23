@@ -90,9 +90,9 @@ pub struct JobConfig {
     pub nu7_mainnet_height: Option<u32>,
     /// Our relays on each network (network, url; a network may have several). A Blind bid auction is listed only if its record names one
     /// of ours: ours refuse entries added once the bids are about to open, so the recount sees a late added bid as relays that disagree (the
-    /// second review, M2 and M3).
+    /// set 2, M2 and M3).
     pub our_relays: Vec<(String, String)>,
-    /// The second review, M6: at most this many new records from one address while their hosts are not approved, per queue time.
+    /// Set 2, M6: at most this many new records from one address while their hosts are not approved, per queue time.
     pub max_queue_per_source: usize,
     /// The recount check (None: no recount, as before; the command line always sets it).
     #[cfg(feature = "recount")]
@@ -278,7 +278,7 @@ pub fn submit_from(cfg: &JobConfig, bytes: &[u8], source: Option<&str>) -> Resul
             if !approved.contains(&r.host_pubkey) {
                 let queued = all.iter().filter(|x| !approved.contains(&x.host_pubkey) && !waits_for_mainnet(cfg, &x.network)).count();
                 ensure!(queued < cfg.max_queue, "the queue for hosts not approved yet is full");
-                // the second review, M6: host keys cost nothing, so new records from hosts not approved are also counted per address
+                // set 2, M6: host keys cost nothing, so new records from hosts not approved are also counted per address
                 if let Some(src) = source {
                     let now = crate::host::now_secs();
                     let path = cfg.p("state/sources.json");
@@ -402,7 +402,7 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
     }
     match first {
         Some(rules) if errors.is_empty() => {
-            // the second review, M2 and M3: a Blind bid auction is listed here only if it publishes to our relay, which refuses entries added
+            // set 2, M2 and M3: a Blind bid auction is listed here only if it publishes to our relay, which refuses entries added
             // once the bids are about to open; read from ours too, a bid added late on another relay shows as relays that disagree
             if rules.is_sealed() {
                 let ours = our_relays(cfg, &rules.network);
@@ -414,7 +414,7 @@ fn check_campaign(r: &ListingRecord, cfg: &JobConfig, tips: &dyn Fn(&str) -> Opt
             // as cb-host's guard (app/host/src/mainnet.rs): the campaign's whole life (deadline, ticket window, close grace, re-issue window)
             // and a margin of 50 blocks must end before the NU7 activation; its refund tickets would not survive the upgrade
             if let (true, "main", Some(nu7)) = (require_open, rules.network.as_str(), cfg.nu7_mainnet_height) {
-                // a sealed bid auction lives until its late tickets are done (the review, L7: from the late ticket block)
+                // a sealed bid auction lives until its late tickets are done (set 1, L7: from the late ticket block)
                 let end = match rules.sealed.as_ref() {
                     Some(s) => ll_core::sealed::life_end(&rules, s),
                     None => rules.deadline_height.saturating_add(rules.ticket_k).saturating_add(rules.close_grace).saturating_add(rules.reissue_window).saturating_add(50),

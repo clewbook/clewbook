@@ -1,4 +1,4 @@
-// The bid page when the host rejects a valid deposit (the independent review, H3), in a real browser, with the real relay serving the public
+// The bid page when the host rejects a valid deposit (set 1, H3), in a real browser, with the real relay serving the public
 // list of auction A from the private chain check of the review fixes (app/regtest/check-sealed-review.sh writes it, with the rejected
 // payer's page state, to <run>/fixture) and a stand in for the chain server (tip and block times only). It checks: the page finds the
 // reject by its memo hash and says so plainly, with the return the host sent on its own; no payment card invites a second payment; the
@@ -91,7 +91,7 @@ const chainServer = http.createServer((req, res) => {
     check('the relay took the challenge for the rejected payment', Array.isArray(got) && got.some((c) => c.txid === rej.contribution.txid && c.action === rej.contribution.action && /^[0-9a-f]{64}$/.test(c.eph_sk)), JSON.stringify(got).slice(0, 160));
     check('the page says so, and the button is gone once every relay has it', await p.$eval('#challenge', (b) => b.hidden));
     await ctx.close();
-    // the second review, M1: a5 paid 0.31 with a memo for the 0.3 deposit; its tickets pay back 0.31 minus the fee, and the page accepts them
+    // set 2, M1: a5 paid 0.31 with a memo for the 0.3 deposit; its tickets pay back 0.31 minus the fee, and the page accepts them
     // (before, it expected exactly 0.3 minus the fee and said the host's honest ticket did not check out)
     if (FX.a5) {
       const c5 = await browser.newContext(), q = await c5.newPage();
@@ -102,7 +102,7 @@ const chainServer = http.createServer((req, res) => {
       await q.goto(`${BASE}/bid.html#c=${FX.A}&relay=http://127.0.0.1:${RELAY}&server=http://127.0.0.1:${CHAIN}`);
       await q.waitForFunction((id) => { const st = JSON.parse(localStorage.getItem(`ll:sealed:${id}`)); return st && st.ticketsChecked; }, FX.A, { timeout: 180000 }).catch(() => {});
       const st = await q.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)), FX.A);
-      check('second review M1: a deposit that paid more than its size: its tickets check out, and the page knows what was paid', st.ticketsChecked && st.ticketsChecked.ok && st.paidZat === FX.a5.paid, JSON.stringify(st.ticketsChecked && st.ticketsChecked.problems) + ` paid ${st.paidZat}`);
+      check('set 2 M1: a deposit that paid more than its size: its tickets check out, and the page knows what was paid', st.ticketsChecked && st.ticketsChecked.ok && st.paidZat === FX.a5.paid, JSON.stringify(st.ticketsChecked && st.ticketsChecked.problems) + ` paid ${st.paidZat}`);
       await c5.close();
     }
     check('no page errors', errors.length === 0, errors.join(' | ').slice(0, 200));

@@ -75,11 +75,13 @@ pub fn coin_backend(run: &Run) -> Result<Box<dyn WalletBackend + Send>> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32, relays: &[String], ticket_k: u32, name: Option<String>, a: SealedArgs) -> Result<()> {
+pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32, relays: &[String], ticket_k: Option<u32>, name: Option<String>, a: SealedArgs) -> Result<()> {
     // the main network from 22 Oct 2026 (the owner's decision): the rules check refuses an auction that is not over before the NU7 upgrade
     ensure!(cfg.backend == "libs", "a blind bid auction needs the wallet library backend");
     ensure!(a.timing.is_standard() || network != "main", "the quick test timing is for the test network only");
-    sealed::check_bid_window(deadline_in, ticket_k)?;
+    if let Some(k) = ticket_k {
+        sealed::check_bid_window(deadline_in, k)?;
+    }
     if let Some(n) = &name {
         ll_core::rules::check_name(n)?;
     }
@@ -106,6 +108,10 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
     backend.sync()?;
     let tip = backend.chain_tip()?;
     let tip_time = backend.tip_time()?;
+    // the windows of an auction made after NU7 are three times as many blocks (25 second blocks)
+    let start = tip.height + 1;
+    let ticket_k = ticket_k.unwrap_or_else(|| sealed::default_ticket_k(network, a.timing, start));
+    sealed::check_bid_window(deadline_in, ticket_k)?;
     check_treasury(network, &a.treasury_address, &a.treasury_ufvk)?;
     let deadline = tip.height + deadline_in;
     let (round, claim_after) = match (a.test_round, a.test_claim_after_in) {
@@ -132,17 +138,17 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
         timing: a.timing,
         // SPEC 9.1, open_payouts: every payment to a person checkable by the page and the recount
         open_payouts: true,
-        // the review, M4: a 16 byte binding tag made with the locked key
+        // set 1, M4: a 16 byte binding tag made with the locked key
         long_tag: true,
-        // the second review, C1: the early ticket made with its own outgoing key, so a take back is checked to pay the person
+        // set 2, C1: the early ticket made with its own outgoing key, so a take back is checked to pay the person
         early_key: true,
-        // the mentor's second review: the late ticket made with its own outgoing key, so a late take back is checked to pay the person (S7)
+        // set 3: the late ticket made with its own outgoing key, so a late take back is checked to pay the person (S7)
         late_key: true,
         // a payment whose small payment could not be mined by the cutoff is not a deposit: it goes back on its own (an honest host never fails S3)
         coin_margin: sealed::COIN_MARGIN_BLOCKS,
     };
     if a.test_round.is_none() {
-        sealed.check_timing(network, deadline, tip.height, tip_time)?;
+        sealed.check_timing(network, tip.height + 1, deadline, tip.height, tip_time)?;
         sealed.check_not_too_late(network, tip.height + 1, deadline, tip_time)?;
     }
     let rules = Rules {
@@ -154,8 +160,8 @@ pub fn create_sealed(run: &Path, cfg: RunConfig, network: &str, deadline_in: u32
         start_height: tip.height + 1,
         deadline_height: deadline,
         ticket_k,
-        close_grace: 10,
-        reissue_window: 20,
+        close_grace: ll_core::rules::default_close_grace(network, start),
+        reissue_window: ll_core::rules::default_reissue_window(network, start),
         refund_fee_zat: fee,
         min_contribution_zat: *a.tranches_zat.first().context("at least one tranche")?,
         campaign_ufvk: None,
@@ -293,10 +299,10 @@ fn return_late(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote],
             && n.height.is_some_and(|h| h >= r.start_height && h <= r.sealed.as_ref().map_or(sealed::last_deposit_height(r.deadline_height), |s| s.last_deposit(r.deadline_height)))
             && n.value_zat > fee
             && n.memo_text.as_deref().is_some_and(bid::is_bid_memo);
-        // a late payment goes back even when it has tickets: a reorganised chain can move a deposit into the last blocks (the review, L6)
+        // a late payment goes back even when it has tickets: a reorganised chain can move a deposit into the last blocks (set 1, L6)
         let late = ll_core::sealed_recount::is_late_deposit(r, &n);
         let unticketed = closed && in_window && !ticketed.contains(nf.as_str()) && !rejected.contains(nf.as_str());
-        // a rejected payment (a false reject, or a second payment with an accepted deposit's memo) goes back at once (the review, H3, M5)
+        // a rejected payment (a false reject, or a second payment with an accepted deposit's memo) goes back at once (set 1, H3, M5)
         let refused = open && in_window && rejected.contains(nf.as_str());
         // TEST ONLY (`test-cheats` builds): `LL_TEST_KEEP_REJECTS=1` makes a cheating host that keeps the payments it rejected
         #[cfg(feature = "test-cheats")]
@@ -503,7 +509,7 @@ fn issue_deposit(run: &Run, backend: &mut dyn WalletBackend, n: &ChainNote, memo
     let early_ovk = if r.sealed.as_ref().is_some_and(|s| s.early_key) { Some(payment_key(run, &payload.enc_pubkey, &nf, payout::EARLY)?) } else { None };
     let (early_receiver, early_to) = (pay_receiver, to.clone());
     // TEST ONLY (`test-cheats` builds): `LL_TEST_EARLY_TO=<address>` makes a cheating host whose early ticket pays that address, sealed in
-    // the oldest format (no opening values, no signed refund), as in the second review's C1
+    // the oldest format (no opening values, no signed refund), as in set 2's C1
     #[cfg(feature = "test-cheats")]
     let cheat_early = std::env::var("LL_TEST_EARLY_TO").ok();
     #[cfg(not(feature = "test-cheats"))]
@@ -525,7 +531,7 @@ fn issue_deposit(run: &Run, backend: &mut dyn WalletBackend, n: &ChainNote, memo
         ensure!(checked.branch_id == now.branch_id, "the early ticket was built for branch {} but the network reports {}", checked.branch_id, now.branch_id);
     }
     // the refund signed with the deposit. With open payouts (SPEC 9.1, open_payouts) it is finished now, made with the key the page works out, and sealed
-    // to the page with the early ticket, so the page checks before it says PROTECTED that it pays the person who bid (the review, C1)
+    // to the page with the early ticket, so the page checks before it says PROTECTED that it pays the person who bid (set 1, C1)
     let open = r.sealed.as_ref().is_some_and(|s| s.open_payouts);
     let (refund, refund_txid, refund_opening) = if open {
         let ovk = payment_key(run, &payload.enc_pubkey, &nf, payout::REFUND)?;
@@ -593,11 +599,11 @@ fn load_batches(run: &Run) -> Vec<Batch> {
 }
 
 /// Whether coins are due now, by the host's choice; near the coin cutoff they always are.
-fn coins_due(s: &Sealed, waiting: usize, tip: u32, cutoff: u32, last: u64, now: u64) -> bool {
+fn coins_due(s: &Sealed, rush: u32, waiting: usize, tip: u32, cutoff: u32, last: u64, now: u64) -> bool {
     if waiting == 0 || tip >= cutoff {
         return false;
     }
-    if tip + COIN_RUSH_BLOCKS >= cutoff {
+    if tip + rush >= cutoff {
         return true;
     }
     match s.coin_sending {
@@ -643,7 +649,7 @@ fn send_coins(run: &Run, backend: &mut dyn WalletBackend, notes: &[WalletNote], 
     }
     let waiting = waiting_for_coins(run, notes, entries)?;
     let last: u64 = fs::read_to_string(run.dir.join("private").join("coins_last")).ok().and_then(|t| t.trim().parse().ok()).unwrap_or(0);
-    if !coins_due(s, waiting.len(), tip.height, cutoff, last, now_unix()) {
+    if !coins_due(s, COIN_RUSH_BLOCKS * sealed::coin_scale(&run.rules, s), waiting.len(), tip.height, cutoff, last, now_unix()) {
         if !waiting.is_empty() {
             println!("{} deposit(s) waiting for their coin (coin cutoff block {cutoff})", waiting.len());
         }
@@ -672,7 +678,7 @@ fn write_coin_entry(run: &Run, backend: &mut dyn WalletBackend, s: &Sealed, nf: 
     let page_key: [u8; 33] = hex::decode(&d.page_key)?.try_into().map_err(|_| anyhow!("page key"))?;
     let coin = libs::CoinInput { txid: coin_txid.into(), index, value_zat: s.coin_zat, page_key };
     let value = d.value_zat - run.rules.refund_fee_zat;
-    // the mentor's second review: with late_key, made with the payment's own key, so the page and (after the reveal) the recount open it
+    // set 3: with late_key, made with the payment's own key, so the page and (after the reveal) the recount open it
     let ovk = if s.late_key { Some(payment_key(run, &hex32(&d.enc_pubkey)?, nf, payout::LATE)?) } else { None };
     let (raw, late_txid) = backend.late_ticket(&format!("ticket:{nf}"), &d.to, value, &coin, s.claim_after, ovk)?;
     let blob = seal_to(&hex32(&d.enc_pubkey)?, &raw)?;
@@ -875,7 +881,7 @@ pub fn report(run: &Run, backend: &mut dyn WalletBackend, treasury: Vec<ChainNot
     let d = run.rules.deadline_height;
     let block_times = if tip.height >= d { backend.block_times(d.saturating_sub(10), d)? } else { vec![] };
     // SPEC 9.1, open_payouts: who each payment to a person pays, read from the chain with its key (after the reveal publishes the payload key),
-    // and what each spends (the mentor's second review)
+    // and what each spends (set 3)
     let targets = ll_core::sealed_recount::payout_targets(&run.rules, &entries, &notes);
     let payouts = if targets.is_empty() { vec![] } else { backend.payout_facts(&targets)? };
     let extra = ll_core::recount::Extra { treasury_notes: treasury, tx_facts: vec![], checks: vec![], coins, block_times, payouts };
@@ -1020,20 +1026,24 @@ mod tests {
     #[test]
     fn coins_go_out_as_the_host_chose_and_always_near_the_cutoff() {
         let (cutoff, now) = (300, 10_000);
+        let coins_due_1 = |s: &Sealed, waiting, tip, cutoff, last, now| coins_due(s, COIN_RUSH_BLOCKS, waiting, tip, cutoff, last, now);
         // at once
-        assert!(coins_due(&s(CoinSending::AtOnce), 1, 100, cutoff, now, now));
+        assert!(coins_due_1(&s(CoinSending::AtOnce), 1, 100, cutoff, now, now));
         // every 3 bids: not for 2, yes for 3
-        assert!(!coins_due(&s(CoinSending::EveryBids { n: 3 }), 2, 100, cutoff, now, now));
-        assert!(coins_due(&s(CoinSending::EveryBids { n: 3 }), 3, 100, cutoff, now, now));
+        assert!(!coins_due_1(&s(CoinSending::EveryBids { n: 3 }), 2, 100, cutoff, now, now));
+        assert!(coins_due_1(&s(CoinSending::EveryBids { n: 3 }), 3, 100, cutoff, now, now));
         // every 10 minutes: not after 9, yes after 10
-        assert!(!coins_due(&s(CoinSending::EveryMinutes { n: 10 }), 1, 100, cutoff, now - 540, now));
-        assert!(coins_due(&s(CoinSending::EveryMinutes { n: 10 }), 1, 100, cutoff, now - 600, now));
+        assert!(!coins_due_1(&s(CoinSending::EveryMinutes { n: 10 }), 1, 100, cutoff, now - 540, now));
+        assert!(coins_due_1(&s(CoinSending::EveryMinutes { n: 10 }), 1, 100, cutoff, now - 600, now));
         // within COIN_RUSH_BLOCKS of the cutoff: at once whatever the choice
-        assert!(coins_due(&s(CoinSending::EveryBids { n: 100 }), 1, cutoff - COIN_RUSH_BLOCKS, cutoff, now, now));
-        assert!(!coins_due(&s(CoinSending::EveryBids { n: 100 }), 1, cutoff - COIN_RUSH_BLOCKS - 1, cutoff, now, now));
+        assert!(coins_due_1(&s(CoinSending::EveryBids { n: 100 }), 1, cutoff - COIN_RUSH_BLOCKS, cutoff, now, now));
+        assert!(!coins_due_1(&s(CoinSending::EveryBids { n: 100 }), 1, cutoff - COIN_RUSH_BLOCKS - 1, cutoff, now, now));
         // at or after the cutoff a coin can no longer arrive in time; nothing waiting, nothing sent
-        assert!(!coins_due(&s(CoinSending::AtOnce), 1, cutoff, cutoff, now, now));
-        assert!(!coins_due(&s(CoinSending::AtOnce), 0, 100, cutoff, now, now));
+        assert!(!coins_due_1(&s(CoinSending::AtOnce), 1, cutoff, cutoff, now, now));
+        assert!(!coins_due_1(&s(CoinSending::AtOnce), 0, 100, cutoff, now, now));
+        // an auction made after NU7 rushes three times as many blocks before the cutoff (the same time with 25 second blocks)
+        assert!(coins_due(&s(CoinSending::EveryBids { n: 100 }), 3 * COIN_RUSH_BLOCKS, 1, cutoff - 3 * COIN_RUSH_BLOCKS, cutoff, now, now));
+        assert!(!coins_due(&s(CoinSending::EveryBids { n: 100 }), 3 * COIN_RUSH_BLOCKS, 1, cutoff - 3 * COIN_RUSH_BLOCKS - 1, cutoff, now, now));
     }
 
     #[test]

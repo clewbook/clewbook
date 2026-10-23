@@ -112,6 +112,44 @@ pub const MIN_TICKET_K: u32 = 10;
 pub const MAX_TICKET_K: u32 = 1000;
 pub const DEFAULT_TICKET_K: u32 = 30;
 
+/// NU7 on the test network (ZIP 218: blocks every 25 s instead of 75 s), from block 4,465,026 (4 Oct 2026).
+pub const NU7_TEST_HEIGHT: u32 = 4_465_026;
+
+/// The NU7 height of a network, where this code knows one (a private test chain mines its blocks on demand: none).
+pub fn nu7_height(network: &str) -> Option<u32> {
+    match network {
+        "main" => Some(crate::sealed::NU7_MAIN_HEIGHT),
+        "test" => Some(NU7_TEST_HEIGHT),
+        _ => None,
+    }
+}
+
+/// Whether a campaign that starts at `start_height` runs on 25 second blocks (made at or after NU7 on its network).
+pub fn after_nu7(network: &str, start_height: u32) -> bool {
+    nu7_height(network).is_some_and(|h| start_height >= h)
+}
+
+/// How many times the default block windows a new campaign gets: 3 when it is made after NU7, so each window lasts about as long as
+/// before (the owner's decision of 22 Oct 2026). The rules are signed when a campaign is made, so a campaign made before keeps its own.
+pub fn window_scale(network: &str, start_height: u32) -> u32 {
+    if after_nu7(network, start_height) { 3 } else { 1 }
+}
+
+/// The default windows of a new campaign starting at `start_height`: the ticket window K, the close grace, the reissue window and the
+/// settle window of a uniform price auction.
+pub fn default_ticket_k(network: &str, start_height: u32) -> u32 {
+    DEFAULT_TICKET_K * window_scale(network, start_height)
+}
+pub fn default_close_grace(network: &str, start_height: u32) -> u32 {
+    10 * window_scale(network, start_height)
+}
+pub fn default_reissue_window(network: &str, start_height: u32) -> u32 {
+    20 * window_scale(network, start_height)
+}
+pub fn default_settle_window(network: &str, start_height: u32) -> u32 {
+    40 * window_scale(network, start_height)
+}
+
 pub fn ufvk_hash(ufvk: &str) -> String {
     hex::encode(hash(b"ledgerlab_ufvk", ufvk.as_bytes()))
 }
@@ -174,7 +212,7 @@ impl Rules {
     }
 
     pub fn validate(&self) -> Result<()> {
-        // the second review, M4: only the networks this project knows (a relay or a page decides separately whether it takes regtest)
+        // set 2, M4: only the networks this project knows (a relay or a page decides separately whether it takes regtest)
         if !matches!(self.network.as_str(), "main" | "test" | "regtest") {
             bail!("the network must be main, test or regtest, not {:?}", self.network);
         }
@@ -290,6 +328,25 @@ mod name_tests {
         a.validate().unwrap();
         a.cancellable = Some(true);
         assert!(a.validate().unwrap_err().to_string().contains("only a fundraiser can allow cancelling"));
+    }
+
+    #[test]
+    fn a_campaign_made_after_nu7_gets_three_times_the_default_windows() {
+        use crate::sealed::NU7_MAIN_HEIGHT;
+        // the main network: before the NU7 block the windows are as they were; from it on, three times as many (25 second blocks)
+        let before = |n: &str, h: u32| (default_ticket_k(n, h), default_close_grace(n, h), default_reissue_window(n, h), default_settle_window(n, h));
+        assert_eq!(before("main", NU7_MAIN_HEIGHT - 1), (30, 10, 20, 40));
+        assert_eq!(before("main", NU7_MAIN_HEIGHT), (90, 30, 60, 120));
+        // the test network has run 25 second blocks since block 4,465,026
+        assert_eq!(before("test", NU7_TEST_HEIGHT - 1), (30, 10, 20, 40));
+        assert_eq!(before("test", 4_600_000), (90, 30, 60, 120));
+        // a private test chain mines its blocks on demand: unchanged
+        assert_eq!(before("regtest", 5_000_000), (30, 10, 20, 40));
+        // the tripled defaults make valid rules
+        let mut r = base();
+        (r.ticket_k, r.close_grace, r.reissue_window) = (90, 30, 60);
+        r.validate().unwrap();
+        assert!(after_nu7("main", NU7_MAIN_HEIGHT) && !after_nu7("main", NU7_MAIN_HEIGHT - 1) && !after_nu7("regtest", u32::MAX));
     }
 
     #[test]

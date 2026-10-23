@@ -93,9 +93,10 @@ enum Cmd {
         treasury_address: Option<String>,
         #[arg(long)]
         treasury_ufvk: Option<String>,
-        /// The ticket window K in blocks: a refund ticket must be issued within K blocks of a contribution, and after the deadline the host has K blocks to close before contributors may claim their own refunds
-        #[arg(long, default_value_t = ll_core::rules::DEFAULT_TICKET_K)]
-        ticket_k: u32,
+        /// The ticket window K in blocks: a refund ticket must be issued within K blocks of a contribution, and after the deadline the host has K blocks to close before contributors may claim their own refunds.
+        /// Default 30, or 90 for a campaign made after NU7 (25 second blocks)
+        #[arg(long)]
+        ticket_k: Option<u32>,
         /// Confirmations a payment needs before its entry and ticket are written (default: 3 on the main network, 1 on the test network).
         /// Kept in the campaign's private config.json; it is not part of the rules
         #[arg(long)]
@@ -165,8 +166,9 @@ enum Cmd {
         deadline_in: u32,
         #[arg(long)]
         relay: Vec<String>,
-        #[arg(long, default_value_t = ll_core::rules::DEFAULT_TICKET_K)]
-        ticket_k: u32,
+        /// Default 30, or 90 for an auction made after NU7 (25 second blocks); 30 with the quick test timing
+        #[arg(long)]
+        ticket_k: Option<u32>,
         #[arg(long)]
         min_confirmations: Option<u32>,
         #[arg(long)]
@@ -579,7 +581,7 @@ fn create(
     relays: &[String],
     min_contribution_zat: Option<u64>,
     uniform: Option<Uniform>,
-    ticket_k: u32,
+    ticket_k: Option<u32>,
     mainnet: MainnetCheck,
     name: Option<String>,
     early_close: bool,
@@ -606,15 +608,27 @@ fn create(
         real.strip_prefix(&canon).map(PathBuf::from).map_err(|_| anyhow!("the {what} {} must be inside the campaign folder {}", p.display(), run.display()))
     };
     let min_confirmations = cfg.min_confirmations.or((network == "main").then_some(MAINNET_MIN_CONFIRMATIONS)).filter(|n| *n > 1);
+    let room = |k: u32, n: u32| -> Result<()> {
+        ensure!(k >= n + 5, "the ticket window K ({k} blocks) must leave room after {n} confirmations: at least {} blocks", n + 5);
+        Ok(())
+    };
     if let Some(n) = min_confirmations {
         ensure!(n <= 20, "--min-confirmations must be 20 or fewer, not {n}");
-        ensure!(ticket_k >= n + 5, "the ticket window K ({ticket_k} blocks) must leave room after {n} confirmations: at least {} blocks", n + 5);
+        if let Some(k) = ticket_k {
+            room(k, n)?;
+        }
     }
     let cfg = RunConfig { wallet: inside(&cfg.wallet, "wallet")?, identity: inside(&cfg.identity, "wallet key file")?, min_confirmations, ..cfg };
     fs::write(run.join("config.json"), serde_json::to_vec_pretty(&cfg)?)?;
     let mut backend = backend_for(run)?;
     backend.sync()?;
     let tip = backend.chain_tip()?;
+    // the windows of a campaign made after NU7 are three times as many blocks (25 second blocks); the rules keep them, so they never change
+    let start = tip.height + 1;
+    let ticket_k = ticket_k.unwrap_or_else(|| ll_core::rules::default_ticket_k(network, start));
+    if let Some(n) = min_confirmations {
+        room(ticket_k, n)?;
+    }
     mainnet::nu7_guard(network, Some(tip.height), mainnet::blocks_needed(deadline_in, ticket_k), now_unix(), mainnet.nu7_height)?;
     let account = backend.account()?;
     let secrets = CampaignSecrets::generate();
@@ -635,18 +649,18 @@ fn create(
         mode: mode.into(),
         goal_zat: if auction { None } else { goal_zat },
         items: if auction { items } else { None },
-        start_height: tip.height + 1,
+        start_height: start,
         deadline_height: tip.height + deadline_in,
         ticket_k,
-        close_grace: 10,
-        reissue_window: 20,
+        close_grace: ll_core::rules::default_close_grace(network, start),
+        reissue_window: ll_core::rules::default_reissue_window(network, start),
         refund_fee_zat: fee,
         min_contribution_zat: min_contribution_zat.unwrap_or(2 * fee),
         campaign_ufvk: (!auction).then(|| account.ufvk.clone()),
         ufvk_hash: auction.then(|| ufvk_hash(&account.ufvk)),
         pay_to: Some(ll_core::receiver::to_standard(&account.address)?),
         pricing: uniform.as_ref().map(|_| "uniform".to_string()),
-        settle_window: uniform.as_ref().map(|_| 40.max(ticket_k)),
+        settle_window: uniform.as_ref().map(|_| ll_core::rules::default_settle_window(network, start).max(ticket_k)),
         reserve_zat: uniform.as_ref().map(|u| u.reserve_zat),
         treasury_address: uniform.as_ref().map(|u| ll_core::receiver::to_standard(&u.treasury_address)).transpose()?,
         treasury_ufvk: uniform.as_ref().map(|u| u.treasury_ufvk.clone()),

@@ -41,7 +41,7 @@ async function main() {
 
   let tip = null;
   for (const e of [cfg.server, ...endpoints].filter(Boolean)) { tip = await tipOf(e); if (tip != null) break; }
-  const secPerBlock = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), tip);
+  const secPerBlock = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), tip, c.network);
   const closeE = j.entries.find((e) => e.kind === 'close');
   const closed = !!closeE, left = tip == null ? null : c.deadline_height - tip;
   const outcome = closeE && closeE.close ? closeE.close.outcome : null;

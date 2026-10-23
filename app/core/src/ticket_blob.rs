@@ -46,7 +46,7 @@ pub fn encode_v2(raw_tx: &[u8], opening: &Opening) -> Vec<u8> {
 /// Sealed bid auctions with open payouts (SPEC §9.1, open_payouts): what is sealed to the person who bid in an issue entry's blob. `"LLS1" ||
 /// u32le(len(early)) || early || opening(41) || u32le(len(refund)) || refund || opening(41)`: the early ticket and the refund the host
 /// signed with the deposit, both finished transactions, each with the opening values of its output, so the page checks before it says
-/// PROTECTED that the refund pays the person who bid, as it does for the early ticket (the independent review, C1).
+/// PROTECTED that the refund pays the person who bid, as it does for the early ticket (set 1, C1).
 pub const MAGIC_SEALED: &[u8; 4] = b"LLS1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]

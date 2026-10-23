@@ -13,16 +13,29 @@ permissions:
 
 jobs:
   test:
+    name: test (Rust ${{ matrix.rust }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # stable, and the oldest version the crates build with (rust-version in app/Cargo.toml)
+        rust: [stable, "1.89"]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      # takes priority over rust-toolchain.toml, which names stable
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
     defaults:
       run:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+      - name: Rust ${{ matrix.rust }}
+        working-directory: .
+        run: rustup toolchain install ${{ matrix.rust }} --profile minimal && rustc --version
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: app
+          key: ${{ matrix.rust }}
       - name: Core, ticket check, relay, listing
         run: cargo test --locked -p ll-core -p ll-ticketcheck -p ll-relay -p ll-listing
       - name: Host

@@ -8,7 +8,7 @@ Words used here: the **host** is whoever runs a campaign. A **relay** is a small
 
 The README lists some of these. The ones it leaves out are marked with a star.
 
-- Rust, stable, version 1.88 or newer, installed with `rustup`.
+- Rust, stable, version 1.89 or newer, installed with `rustup`.
 - A C compiler and linker, and `git` (star, untested: on Ubuntu the package `build-essential` normally provides the compiler and linker). Other system packages may be needed on a bare machine. We did not record which.
 - Python 3 (the page server uses only its standard library).
 - A few gigabytes of free disk for build output. The first build takes a while because the Zcash libraries are large. We did not time it on a clean machine.
@@ -185,7 +185,8 @@ default). Create one on its set up page (the "Blind bid auction" choice appears 
 - **Keep the program running** until the cutoff, 10 blocks before the deadline.
 - **Close after the deadline**, once drand round R is out (the dashboard shows R and its time) and before the late ticket block. Closing
   opens the bids, pays each price into the auction's treasury, sends everyone else their signed refund, and publishes the viewing key once
-  the settlements are mined. If you do not, everyone takes their deposit back with their late ticket and the auction is shown as not
+  the settlements are mined. If you do not, everyone whose page signed a late ticket can take their deposit back with it (each person opens their bid page after
+  the late ticket block and presses one button), and the auction is shown as not
   finished.
 
 After the close, send the treasury to your own wallet from the dashboard ("Send to my wallet").
@@ -208,6 +209,12 @@ close, 6 hours and 1 hour before that, the coin wallet running low, and an aucti
 `app/opbot/clewbook-opbot.service`, `app/opbot/clewbook-opbot.sudoers`; the install steps, with their rollbacks, in `app/opbot/INSTALL.md`.
 Checked end to end on the test network with `app/opbot/opbot-e2e.py`.
 
+## 7d. Late ticket watcher (optional, next to a relay)
+
+A relay keeps the copies of signed late tickets that bid pages give it, and never serves them. `app/latewatch/latewatch.py` (Python
+standard library, no key, no wallet) reads them from the relay's folder. 60 minutes after an auction's late ticket block (`--wait-minutes`), if its list
+shows no close and no settlement, it sends each to the chain servers. Install steps, each with its rollback: `app/latewatch/INSTALL.md`.
+
 ## 8. Mainnet
 
 Testnet campaigns have no restriction. For mainnet, the host program refuses to create a campaign that could still be open when the next Zcash network upgrade (NU7) activates. The upgrade already runs on testnet. The mainnet update of the libraries follows the upgrade and has not been done. Until you give the program the mainnet activation height (`--nu7-mainnet-height`), a campaign must end at least a week before 5 November 2026, the date announced for the upgrade (we have not confirmed it ourselves). Creating a mainnet campaign also needs an explicit confirmation (a tick box on the set up page, or `--confirm-mainnet`). After the upgrade, mainnet hosting waits for a library update. Real money runs so far: two small early ones (`docs/EVIDENCE.md` section 8) and the project's four mainnet campaigns (section 11).
@@ -215,7 +222,6 @@ Testnet campaigns have no restriction. For mainnet, the host program refuses to 
 ## 9. Honest cautions
 
 - **Keys are plain files on the host's machine today.** The campaign's signing and memo keys are in `secrets.json` in the campaign folder (readable only by its owner, but not protected by a passphrase). The wallet's seed phrase file is locked with a key file that sits in the same folder, so it adds no protection against someone who can read the folder.
-- **There has been no outside review of the code or of the design.** The tests and evidence in this repository are ours.
 - **The host machine must stay online** from before the first contribution until the campaign is closed and refunds are confirmed. If it is off, new payments get no ticket, and the recount flags it.
 - **Try it on the test network first.** Its coins have no value. A real money campaign asks for an extra confirmation (section 8).
 - **The campaign folder is the key.** Back it up before taking any money, keep the backup private, and never share the folder. There is no key import. If you lose it, nothing can recover the wallet or the key; contributors can still use their own tickets.

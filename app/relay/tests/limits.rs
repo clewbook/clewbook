@@ -144,7 +144,7 @@ fn reject_entry(id: &str, seq: u64, prev: &str, secrets: &CampaignSecrets) -> En
 }
 
 #[test]
-fn second_review_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network() {
+fn set2_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network() {
     let (url, _) = relay(Limits::default());
     let r = Relay::new(&url);
     let (mut ru, _) = rules(21);
@@ -159,7 +159,7 @@ fn second_review_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network
 }
 
 #[test]
-fn second_review_m5_a_campaign_and_the_relay_have_a_storage_cap() {
+fn set2_m5_a_campaign_and_the_relay_have_a_storage_cap() {
     // one campaign may store about two entries' worth; a stranger's third entry is refused (507), and other campaigns keep working
     let (url, _) = relay(Limits { max_campaign_bytes: 2_200, ..Limits::default() });
     let r = Relay::new(&url);

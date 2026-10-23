@@ -1,7 +1,7 @@
 //! Sealed bid auctions (SPEC §9.1, open_payouts): every payment the host signs to a person (the refund signed with the deposit, a winner's change, the
 //! return of a payment too late to bid, of a deposit without tickets, of a rejected or repeated payment) is made with an outgoing viewing
 //! key that the person's page works out on its own, and that anyone works out once the host publishes its payload key at the reveal. So
-//! the page and the recount both open the payment's outputs on the chain and see who it pays and how much (the independent review, C1 and
+//! the page and the recount both open the payment's outputs on the chain and see who it pays and how much (set 1, C1 and
 //! H2). A version 6 transaction id covers every output's note commitment and ciphertexts (ZIP 244 effecting data), so what is opened is what
 //! was mined under that id.
 
@@ -11,9 +11,9 @@ use crate::hash;
 pub const REFUND: &str = "refund";
 pub const CHANGE: &str = "change";
 pub const RETURN: &str = "return";
-/// The early ticket (the second review, C1).
+/// The early ticket (set 2, C1).
 pub const EARLY: &str = "early";
-/// The late ticket (the mentor's second review): a deposit taken back after the late ticket block is checked to have paid the person.
+/// The late ticket (set 3): a deposit taken back after the late ticket block is checked to have paid the person.
 pub const LATE: &str = "late";
 
 /// The X25519 secret shared by the host's payload key and the person's page key (`secret` one side's private key, `public` the other's

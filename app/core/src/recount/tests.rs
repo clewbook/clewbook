@@ -227,7 +227,7 @@ fn reissued_ticket_is_honest_too() {
     assert!(f.run(&l, &[spent(a, "reissued", 150)], &[], 160).all_pass());
 }
 
-/// The theft the outside review describes: the host spends a contribution itself and writes that spend into the list as a re-issued ticket,
+/// The fake re-issue theft: the host spends a contribution itself and writes that spend into the list as a re-issued ticket,
 /// with no network upgrade. Before 22 Oct 2026 the recount took any ticket the list named, so R5 passed.
 #[test]
 fn a_spend_named_as_a_reissue_without_a_network_upgrade_is_caught() {

@@ -103,7 +103,7 @@ Not tested in this pilot, and so not claimed for the current version on the main
 
 * **The host refunding a contribution at close.** The only contribution was taken back by its owner before the deadline. (This path was run on the main network on 2026-10-06 with an earlier version, section 8b, and on the test network with the current version, section 4.)
 * **Re-issuing a ticket across a real network upgrade.** No upgrade happened during the pilot. It was done once, by hand, on the test network at the NU7 activation (section 1).
-* **The ticket proof check and the anchor check.** The proof check was not run on the main network. The anchor check (L4) and ledger anchoring are not built.
+* **The ticket proof check and the anchor check.** The proof check was not run on the main network. The anchor check (L4) was built on 23 Oct 2026 and tested on the test network only (`app/web/anchor-e2e.cjs`); ledger anchoring is not built.
 * More than one contribution, an auction on the main network, other wallets, and a full multi-relay recount.
 
 Other things observed: loading the page through a free tunnel the first time took about 2 minutes, so a demo should not run from one.

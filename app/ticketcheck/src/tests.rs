@@ -15,7 +15,7 @@ fn inputs(f: &Fx, raw: &[u8]) -> Inputs {
         raw_hex: hex::encode(raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(),
         fee_zat: 10_000, current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: None, refund_receiver_hex: None, expected_value_zat: None, listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
-        expected_expiry: None, reissued: false,
+        expected_expiry: None, reissued: false, anchor: None,
     }
 }
 
@@ -138,7 +138,7 @@ fn inputs2(f: &V2) -> Inputs {
         raw_hex: hex::encode(&f.raw), expected_txid: f.txid.clone(), ticket_branch: f.branch.clone(), contribution_nf: f.nf.clone(), fee_zat: 10_000,
         current_branch: Some("77190ad9".into()), scanned_to: Some(4_471_000), spent: None, known_txids: vec![f.txid.clone()],
         opening: Some(f.opening), refund_receiver_hex: Some(f.receiver.clone()), expected_value_zat: Some(f.opening.value_zat), listed_contribution_zat: None, intended_contribution_zat: None, paid_zat: None,
-        expected_expiry: None, reissued: false,
+        expected_expiry: None, reissued: false, anchor: None,
     }
 }
 
@@ -356,7 +356,7 @@ fn l3_a_late_ticket_whose_fee_the_network_would_not_relay_is_refused() {
 }
 
 #[test]
-fn second_review_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_refund_out_of_the_pool_is_refused() {
+fn set2_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_refund_out_of_the_pool_is_refused() {
     let (raw, ovk, e) = late_fixture();
     let branch = zcash_protocol::consensus::BranchId::Nu7;
     assert!(late::check(&raw, branch, &ovk, &e).is_ok(), "the honest late ticket passes");
@@ -366,7 +366,7 @@ fn second_review_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_ref
     assert!(err.contains("only the deposit minus the refund"), "{err}");
 }
 
-/// The outside review's theft, on the contributor's page: a re-issued ticket that does not show it pays the contributor is a failure, even
+/// The fake re-issue theft, on the contributor's page: a re-issued ticket that does not show it pays the contributor is a failure, even
 /// when every other check passes (an old format ticket without opening values, or no refund address on this device).
 #[test]
 fn a_reissued_ticket_must_show_that_it_pays_you() {
@@ -380,4 +380,24 @@ fn a_reissued_ticket_must_show_that_it_pays_you() {
     assert!(ch.iter().any(|x| x.id == "pays_you" && x.detail.contains("re-issued")));
     i.reissued = false;
     assert_eq!(status(&check(&i), "pays_you"), Status::NotChecked, "a first ticket without the address is only not checked");
+}
+
+#[test]
+fn the_anchor_passes_only_when_found_fails_only_when_absent_from_every_block_and_is_otherwise_not_checked() {
+    let f = fx();
+    let at = |a: Option<AnchorSeen>| {
+        let ch = check(&Inputs { anchor: a, ..inputs(&f, &f.raw) });
+        ch.into_iter().find(|x| x.id == "anchor").unwrap()
+    };
+    let none = at(None);
+    assert_eq!(none.status, Status::NotChecked, "a server that did not answer is never a failure");
+    let both = at(Some(AnchorSeen::Found { height: 4_470_900, servers: 2 }));
+    assert!(both.status == Status::Pass && both.detail.contains("block 4470900") && both.detail.contains("both"), "{both:?}");
+    let one = at(Some(AnchorSeen::Found { height: 4_470_900, servers: 1 }));
+    assert!(one.status == Status::Pass && one.detail.contains("1 of 2"), "{one:?}");
+    let absent = at(Some(AnchorSeen::Absent { from: 4_470_800, to: 4_471_000 }));
+    assert!(absent.status == Status::Fail && absent.detail.contains("4470800") && absent.detail.contains("4471000"), "{absent:?}");
+    // the page sends it as JSON
+    let j: AnchorSeen = serde_json::from_str(r#"{"seen":"found","height":5,"servers":2}"#).unwrap();
+    assert_eq!(j, AnchorSeen::Found { height: 5, servers: 2 });
 }

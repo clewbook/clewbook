@@ -291,15 +291,15 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
     try {
       // the demo button: a neutral outlined pill on the plain pages, the amber "you are here" item inside the demo
       p = await newPage({ viewport: { width: 1280, height: 900 } });
-      await p.goto(`${WWW}/index.html`); await p.waitForSelector('.nav .demo-link');
-      const dl = await p.evaluate(() => { const d = document.querySelector('.nav .demo-link'), cs = getComputedStyle(d), cur = getComputedStyle(document.querySelector('.nav a[aria-current]'));
-        return { tag: d.tagName, text: d.textContent, title: d.title, label: d.getAttribute('aria-label'), bw: cs.borderTopWidth, bg: cs.backgroundColor, curBg: cur.backgroundColor, curBw: cur.borderTopWidth, weight: cs.fontWeight, family: cs.fontFamily.split(',')[0].replace(/"/g, ''), h: Math.round(d.getBoundingClientRect().height), navH: Math.round(document.querySelector('.nav a[aria-current]').getBoundingClientRect().height) }; });
-      check('demo button: a link "Testnet demo", "Testnet demo, no real money", outlined (1px), no fill, Chivo Mono 600, the size of the nav items, not like the filled current item', dl.tag === 'A' && dl.text === 'Testnet demo' && dl.title === 'Testnet demo, no real money' && dl.label === 'Testnet demo, no real money' && dl.bw === '1px' && dl.bg === 'rgba(0, 0, 0, 0)' && dl.weight === '600' && dl.family === 'Chivo Mono' && Math.abs(dl.h - dl.navH) <= 1 && dl.curBg !== dl.bg && dl.curBw === '0px', JSON.stringify(dl));
+      // 22 Oct 2026 (4219f5d): the Mainnet | Testnet switch took the header demo button's place; the demo link stays in the markup for the
+      // phone menu, hidden in the header
+      await p.goto(`${WWW}/index.html`); await p.waitForSelector('.nav .demo-link', { state: 'attached' });
+      check('1280: the header shows no demo button (the network switch took its place)', await p.isHidden('.nav .demo-link'));
       const desk = await p.evaluate(() => ({ replay: !!document.querySelector('.sitefoot #replay-intro')?.offsetParent, theme: !!document.querySelector('.sitefoot .theme-seg')?.offsetParent }));
       check('1280: the footer still has Replay intro and the Theme control', desk.replay && desk.theme, JSON.stringify(desk));
       await p.context().close();
       p = await newPage({ viewport: { width: 1280, height: 900 } }); tip = RAISE.deadline - 100;
-      await p.goto(link(RAISE)); await p.waitForSelector('.nav .demo-link');
+      await p.goto(link(RAISE)); await p.waitForSelector('.nav .demo-link', { state: 'attached' });
       const cur = await p.evaluate(() => { const d = document.querySelector('.nav .demo-link'); return { tag: d.tagName, current: d.getAttribute('aria-current'), color: getComputedStyle(d).color, text: d.textContent }; });
       check('inside the demo: the "Testnet demo" item is the amber "you are here" span', cur.tag === 'SPAN' && cur.current === 'page' && cur.text === 'Testnet demo' && /rgb\(122, 86, 0\)/.test(cur.color), JSON.stringify(cur));
       await p.context().close();
@@ -308,12 +308,14 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
         p = await newPage({ viewport: { width: 390, height: 844 } }); tip = RAISE.deadline - 100;
         await p.goto(url); await p.waitForSelector('.menu-btn');
         const foot = await p.evaluate(() => ({ text: document.querySelector('.sitefoot').innerText.replace(/\s+/g, ' ').trim(), replay: !!document.querySelector('.sitefoot #replay-intro')?.offsetParent, theme: !!document.querySelector('.sitefoot .theme-seg')?.offsetParent }));
-        check(`390, ${where}: the footer shows only "Clewbook · Private Markets. Public Accounting." (no Replay intro, no Theme control)`, foot.text === 'Clewbook · Private Markets. Public Accounting.' && !foot.replay && !foot.theme, JSON.stringify(foot));
+        // 22 Oct 2026: the About page joined the footer line
+        check(`390, ${where}: the footer shows only "Clewbook · Private Markets. Public Accounting. · About" (no Replay intro, no Theme control)`, foot.text === 'Clewbook · Private Markets. Public Accounting. · About' && !foot.replay && !foot.theme, JSON.stringify(foot));
         await p.click('.menu-btn');
         const menu = await p.evaluate(() => [...document.querySelectorAll('.menu-panel > *')].map((x) => ({ tag: x.tagName, text: x.textContent.replace(/\s+/g, ' ').trim(), h: Math.round(x.getBoundingClientRect().height) })));
         const first = where === 'the demo' ? 'Testnet demo · you are here' : 'Testnet demono real money';
-        const ok = menu[0].text === first && menu.slice(1, 4).map((m) => m.text).join('|') === 'Campaigns|Recount|Host' && menu[4].tag === 'HR' && menu[5].text === 'Replay intro' && /^ThemeSystemLightDark$/.test(menu[6].text) && menu.filter((m) => m.tag !== 'HR').every((m) => m.h >= 48);
-        check(`390, ${where}: the menu: the demo row first, Campaigns, Recount, Host, a hairline, Replay intro, Theme; every row at least 48 px`, ok, JSON.stringify(menu));
+        // 22 Oct 2026: the Mainnet | Testnet switch heads the menu, and About follows Host
+        const ok = menu[0].text === 'MainnetTestnet' && menu[1].text === first && menu.slice(2, 6).map((m) => m.text).join('|') === 'Campaigns|Recount|Host|About' && menu[6].tag === 'HR' && menu[7].text === 'Replay intro' && /^ThemeSystemLightDark$/.test(menu[8].text) && menu.filter((m) => m.tag !== 'HR').every((m) => m.h >= 48);
+        check(`390, ${where}: the menu: the network switch, the demo row, Campaigns, Recount, Host, About, a hairline, Replay intro, Theme; every row at least 48 px`, ok, JSON.stringify(menu));
         await p.click('.menu-panel .theme-seg button[data-theme="dark"]'); await p.reload(); await p.waitForSelector('.menu-btn'); await p.click('.menu-btn');
         const kept = await p.evaluate(() => ({ theme: document.documentElement.dataset.theme, pressed: [...document.querySelectorAll('.menu-panel .theme-seg button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent).join() }));
         check(`390, ${where}: Dark chosen in the menu is kept after a reload`, kept.theme === 'dark' && kept.pressed === 'Dark', JSON.stringify(kept));

@@ -45,7 +45,14 @@ A host sells 1 item. The deposit sizes (tranches) are 0.0002 and 0.0004. The pri
 5. **The close.** After the deadline drand publishes round R. The host opens every bid with the round's signature, writes the close
    on the list, sends the winner's price to the treasury and the rest of the winner's deposit back as change, and sends every other
    deposit back with its signed refund. Then it publishes its viewing key and its payload key.
-6. **If the host never closes.** After the late ticket block, Ana's page sends her late ticket: her deposit comes back on its own.
+6. **If the host never finishes.** If the host never finishes, open your bid page after block N and press Take my money back. N is the
+   auction's late ticket block; the bid page shows it. The deposit, minus the fee, comes back by the late ticket. A backup file restored on
+   any device works too. This needs the page to have said PROTECTED: the host's small payment (the coin) reached it before the cutoff and the
+   page checked and signed the late ticket (step 4). A page that signs a late ticket from 23 Oct 2026 on also gives each list server a
+   copy, which the server keeps and never shows (before the close it would show the deposit's size). A late ticket watcher running next
+   to the relay sends each copy 60 minutes after the late ticket block (a setting) when the list shows no close and no settlement by then
+   (`app/latewatch/`). The copy can only pay
+   the deposit back to the refund address the page signed. On the project's server the watcher is staged, not running yet.
 7. **The recount.** Anyone can recount the auction against the chain: checks R1 and R2 for the list, and S1 to S8 for the auction.
    It opens every bid itself, works out the winners and the price, and checks every payment the host made: the price to the
    treasury, and each refund, change and return to the refund address in the memo of the person it belongs to.
@@ -54,10 +61,10 @@ A host sells 1 item. The deposit sizes (tranches) are 0.0002 and 0.0004. The pri
 
 Each row is a cheat and the test that tries it and shows it caught. "Core", "ticket check", "relay" and "module" are Rust or browser
 tests in this repository; "private chain" means a run on a private regtest chain on one machine, with no public network and no money;
-"bid page" means the real page in a real browser. The ids C1 to L7 are from the independent review of 20 Oct 2026; the ids B and H
-with numbers are the cheating tests of the earlier two ticket prototype.
+"bid page" means the real page in a real browser. The ids are grouped in three sets by date; the ids B and H with numbers are the
+cheating tests of the earlier two ticket prototype.
 
-### From the independent review
+### First set (20 Oct 2026)
 
 | Id | The cheat | What stops it | Test |
 |---|---|---|---|
@@ -68,7 +75,7 @@ with numbers are the cheating tests of the earlier two ticket prototype.
 | H4 | The host hands out a broken early ticket, and the page still says PROTECTED | The page runs the full ticket check (who it pays, amount, signatures, proof, expiry equal to the deadline) before PROTECTED or the take back button | ticket check `h4_an_early_ticket_must_expire_exactly_at_the_deadline`; bid page `H4: an early ticket that does not pay this page's refund address is NOT PROTECTED` |
 | H5 | The host builds the late ticket for another network version, so the network never takes it | The page asks the network for its version and refuses a late ticket built for another | ticket check `h5_a_late_ticket_for_another_network_version_is_refused` |
 | M1 | The host sets late tickets to work years later, or the bids to open long after the close, or a late ticket block read as a date | The rules check refuses a late ticket block of 500,000,000 or more; the page compares the round and the late ticket block with what the plan gives from the chain when the auction was made | core `m1_the_round_and_the_late_ticket_block_have_upper_limits`; module `M1: a late ticket block a year after the plan is refused`, `M1: a round a day after the plan is refused` |
-| M2 | The host's link names the host's own chain server, which fakes the coin and the heights | On the test and main networks the bid page uses its own chain server and ignores the one in the link | test network check of the review fixes (section 4): a link naming a dead server; the page asked only its own server and said so |
+| M2 | The host's link names the host's own chain server, which fakes the coin and the heights | On the test and main networks the bid page uses its own chain server and ignores the one in the link | test network check of the fixes (section 4): a link naming a dead server; the page asked only its own server and said so |
 | M3 | A person closes the page before PROTECTED, and has no late ticket | The page says plainly to keep it open until PROTECTED, and warns from 15 blocks before the cutoff | bid page `M3: … the page says to keep it open until PROTECTED`, `M3: 8 blocks before the cutoff …, warns, and offers the take back` |
 | M4 | A funded host searches for a memo whose 7 byte tag matches someone else's lock | New auctions use a 16 byte tag made with a key inside the lock; nobody knows the key before round R, so nobody can search for a match; the memo fills its 512 bytes exactly | core `m4_the_bound_kind_fills_the_memo_and_a_copied_lock_never_binds`, `m4_with_the_long_tag_a_copied_lock_and_an_older_memo_are_no_bid`; module `M4: … exactly fills 512 bytes` |
 | M5 | A person pays twice with the same memo, and the host keeps the second payment | The second payment is sent back on its own, minus the fee; S7 requires it | core `m5_a_second_payment_with_a_deposits_memo_goes_back`; private chain, auction A |
@@ -80,27 +87,27 @@ with numbers are the cheating tests of the earlier two ticket prototype.
 | L6 | A reorganised chain moves a deposit into the last blocks before the deadline, and nothing sends it back | The host sends back any payment in those blocks, with or without tickets; the recount requires it | core `l6_a_deposit_a_reorg_moves_into_the_last_blocks_still_goes_back`; relay `h3_…_and_l6_…` |
 | L7 | A main network auction needs its late tickets after a network upgrade, which they would not survive | The rules check counts the whole life of the auction, up to and past the late ticket block, and refuses it unless it ends before the upgrade height (an assumed height until the official one is published) | core `l7_on_the_main_network_the_upgrade_cutoff_counts_from_the_late_ticket_block` |
 
-### From the second independent review
+### Second set (21 Oct 2026)
 
 | Id | The cheat | What stops it | Test |
 |---|---|---|---|
-| C1 | The host hands out an early ticket that pays the host, in a format the page cannot open, and the page still offers the take back | The page uses a ticket only when it has checked who it pays and the network version; new auctions make the early ticket with its own outgoing key, and S4 checks a deposit taken back paid the refund address in its memo | core `second_review_c1_a_deposit_taken_back_must_have_paid_its_refund_address`; private chain `check-sealed-review.sh`, auction E (a take back to the host: S4 fails); bid page `bid-page-early-e2e.cjs` |
-| H1 | Every refund address becomes public at the close, and nobody was told | Said plainly before the payment on the bid page and on the set up page, and in section 3 | bid page `second review H1: before the payment the form says …` |
-| H2 | The host fills a rejected payment's challenge slots on the relay with junk, so the real proof is refused | In new auctions the relay takes a challenge only with the payment's memo (checked against the reject's hash) and only if its secret opens that memo | relay `second_review_h2_junk_cannot_fill_a_rejected_payments_challenge_slots`; bid page `bid-page-reject-e2e.cjs` (the real challenge is taken) |
-| M1 | A person pays a little more than the deposit size, and the page wrongly says the host's honest ticket does not check out | The page accepts a ticket paying at least the size minus the fee and takes the amount paid from the ticket; the recount checks the exact amount | bid page `second review M1: a deposit that paid more than its size …` (private chain fixture) |
-| M2 | The listing cannot judge a blind bid auction, and never marks a host that does not finish | The listing reads the coins and judges at the chain's height; it lists a blind bid auction only if it publishes to our relay, judged together with ours | listing `second_review_m2_a_blind_bid_auction_is_listed_only_through_our_relay`, `…_a_late_entry_only_on_the_hosts_relay_shows_the_relays_disagree`, `…_a_host_that_never_closes_is_marked_did_not_finish_by_the_listing` |
+| C1 | The host hands out an early ticket that pays the host, in a format the page cannot open, and the page still offers the take back | The page uses a ticket only when it has checked who it pays and the network version; new auctions make the early ticket with its own outgoing key, and S4 checks a deposit taken back paid the refund address in its memo | core `set2_c1_a_deposit_taken_back_must_have_paid_its_refund_address`; private chain `check-sealed-review.sh`, auction E (a take back to the host: S4 fails); bid page `bid-page-early-e2e.cjs` |
+| H1 | Every refund address becomes public at the close, and nobody was told | Said plainly before the payment on the bid page and on the set up page, and in section 3 | bid page `set 2 H1: before the payment the form says …` |
+| H2 | The host fills a rejected payment's challenge slots on the relay with junk, so the real proof is refused | In new auctions the relay takes a challenge only with the payment's memo (checked against the reject's hash) and only if its secret opens that memo | relay `set2_h2_junk_cannot_fill_a_rejected_payments_challenge_slots`; bid page `bid-page-reject-e2e.cjs` (the real challenge is taken) |
+| M1 | A person pays a little more than the deposit size, and the page wrongly says the host's honest ticket does not check out | The page accepts a ticket paying at least the size minus the fee and takes the amount paid from the ticket; the recount checks the exact amount | bid page `set 2 M1: a deposit that paid more than its size …` (private chain fixture) |
+| M2 | The listing cannot judge a blind bid auction, and never marks a host that does not finish | The listing reads the coins and judges at the chain's height; it lists a blind bid auction only if it publishes to our relay, judged together with ours | listing `set2_m2_a_blind_bid_auction_is_listed_only_through_our_relay`, `…_a_late_entry_only_on_the_hosts_relay_shows_the_relays_disagree`, `…_a_host_that_never_closes_is_marked_did_not_finish_by_the_listing` |
 | M3 | A host that runs the only relay adds a late bid | Not fixed by code: a documented limit (section 3) | none |
-| M4 | Rules that say "regtest" switch off the test network's checks | The rules check takes only main, test and regtest; public relays refuse regtest rules; the bid page opens a regtest auction only on the computer of that chain | relay `second_review_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network`; bid page `second review M4: …` |
-| M5 | A stranger fills a relay's disk | Storage caps per campaign (64 MB) and per relay (4 GB) | relay `second_review_m5_a_campaign_and_the_relay_have_a_storage_cap` |
-| M6 | A stranger fills the listing queue with free host keys | At most 5 new records per address per week from hosts not approved | listing `second_review_m6_one_address_cannot_fill_the_queue_with_new_host_keys` |
-| L1 | A late ticket that spends more than the deposit | Exactly two actions, and only the deposit minus the refund may leave the pool; a balanced extra spend is still not visible (section 3) | ticket check `second_review_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_refund_out_of_the_pool_is_refused` |
-| L2 | The network version cannot be asked, and the page takes that as fine or as a lasting failure | The page asks again on the next refresh and uses no ticket meanwhile | bid page `second review L2: …` |
-| L3 | The proof checker fails to load and the page waits for ever | The page then says NOT PROTECTED; the checker uses the network's version | bid page `second review L3: …` |
-| L4 | A crafted backup file runs script in the page | The payment code is shown as an image, and a restored file is checked | bid page `second review L4: a crafted backup file …`, `… a backup file with a malformed key is refused` |
-| L5 | A ticket window that does not fit is cut down, after wallets are made | It is checked first, and refused when it does not fit | host `second_review_l5_the_ticket_window_is_checked_before_anything_is_made` |
+| M4 | Rules that say "regtest" switch off the test network's checks | The rules check takes only main, test and regtest; public relays refuse regtest rules; the bid page opens a regtest auction only on the computer of that chain | relay `set2_m4_a_public_relay_takes_no_regtest_rules_and_no_unknown_network`; bid page `set 2 M4: …` |
+| M5 | A stranger fills a relay's disk | Storage caps per campaign (64 MB) and per relay (4 GB) | relay `set2_m5_a_campaign_and_the_relay_have_a_storage_cap` |
+| M6 | A stranger fills the listing queue with free host keys | At most 5 new records per address per week from hosts not approved | listing `set2_m6_one_address_cannot_fill_the_queue_with_new_host_keys` |
+| L1 | A late ticket that spends more than the deposit | Exactly two actions, and only the deposit minus the refund may leave the pool; a balanced extra spend is still not visible (section 3) | ticket check `set2_l1_a_late_ticket_that_takes_more_than_the_deposit_minus_the_refund_out_of_the_pool_is_refused` |
+| L2 | The network version cannot be asked, and the page takes that as fine or as a lasting failure | The page asks again on the next refresh and uses no ticket meanwhile | bid page `set 2 L2: …` |
+| L3 | The proof checker fails to load and the page waits for ever | The page then says NOT PROTECTED; the checker uses the network's version | bid page `set 2 L3: …` |
+| L4 | A crafted backup file runs script in the page | The payment code is shown as an image, and a restored file is checked | bid page `set 2 L4: a crafted backup file …`, `… a backup file with a malformed key is refused` |
+| L5 | A ticket window that does not fit is cut down, after wallets are made | It is checked first, and refused when it does not fit | host `set2_l5_the_ticket_window_is_checked_before_anything_is_made` |
 | L6, L7 | Set up and dashboard wording that is not true for blind bids | Each line corrected, one short line | set up page `L6: …`, `L7: …` |
 
-### From the mentor's second review (22 Oct 2026)
+### Third set (22 Oct 2026)
 
 | Id | The cheat | What stops it | Test |
 |---|---|---|---|
@@ -143,7 +150,7 @@ with numbers are the cheating tests of the earlier two ticket prototype.
   research, not built.
 - **The page must stay open until PROTECTED.** The page checks and signs the late ticket only while it is open, and only after the
   coin arrives. A person who closes it before then, and does not open it again before the cutoff, has no late ticket. If the host
-  then disappears with its relays, that deposit stays locked. The page says this plainly and warns from 15 blocks before the cutoff.
+  then disappears with its relays, that deposit stays locked. The page says this plainly and warns from 15 blocks before the cutoff (45 for an auction made after NU7).
 - **Inclusion is not promised.** An early ticket sent before the deadline minus 4 may still not be mined in time on a slow network.
   The person's money then comes back at the close by the signed refund (test network, third rerun: early ticket f36c2433…, not mined;
   refund mined in block 4523126).
@@ -160,13 +167,13 @@ with numbers are the cheating tests of the earlier two ticket prototype.
    to H6.
 2. **The cheating tests in this repository**, listed in section 2, run with every change.
 3. **Private chain runs of the whole auction:** `app/regtest/check-sealed-intake.sh`, `check-sealed-close.sh`, `check-e2e.sh`
-   (sixteen bid pages in a real browser) and `check-sealed-review.sh` (the review fixes with four cheating hosts).
+   (sixteen bid pages in a real browser) and `check-sealed-review.sh` (the fixes in section 2 with four cheating hosts).
 4. **The public test network.** Four proof auctions (P1 uniform price, P2 second price, P3 pay your bid, P4 host never closes), a big
    run of nine cases (B1 to B9) and three reruns. Each is listed with its transactions on the Blind bids tab of
    [clewbook.xyz/demo/proofs](https://clewbook.xyz/demo/proofs), and with their block heights in [EVIDENCE.md](EVIDENCE.md) section 12. Example: P1, auction
    4bbdc3d44705c615ca2d6de3338312685bc19376222817154a94d8cd70cdf6e5, settlements 4d87cc5e… and eb2a2f91…, refund 2d131bc5…, browser recount
    "All checks pass".
-5. **The test network check of the first review's fixes**, auction 6e7a904ad557b2a20941af1d562bc93de783855d240beb79f8087ec2dce877e8 (quick test
+5. **The test network check of the first set's fixes**, auction 6e7a904ad557b2a20941af1d562bc93de783855d240beb79f8087ec2dce877e8 (quick test
    timing, uniform price, 1 item). Every page of the five people who bid said PROTECTED before the deadline. One page closed and opened
    again was still PROTECTED. A person who paid after the coin cutoff took the deposit back with the early ticket
    (688027766e55c1d7ec2a76226237eac668c4c9f645ae769b0a321f7d017ffca9, mined in block 4523380, before the deadline 4523383). A payment after the
@@ -175,6 +182,3 @@ with numbers are the cheating tests of the earlier two ticket prototype.
    A copy of a page opened with a link naming another chain server used its own server (M2).
 6. **The main network.** The first main network auction, Apparition 69_ (23 Oct 2026; `docs/EVIDENCE.md` section 14): the first deposit's
    bid page said PROTECTED with both chain servers agreeing, and the recount from outside passes R1 and R2 before the close.
-7. **Two independent reviews.** The first covered the design and the recount; every finding is in section 2 with its test, all but L1
-   fixed. The second covered the host pages, the listing job, the relays, the payment path, the proof worker, the late ticket tool and
-   every fix; its Critical and High findings are in section 2 with their tests. Its medium and low findings are listed for the owner.

@@ -8,7 +8,7 @@ use prost::Message;
 use wasm_bindgen::prelude::*;
 use zcash_client_backend::{
     proto::{
-        compact_formats::CompactBlock,
+        compact_formats::{CompactBlock, CompactTx},
         service::{BlockId, BlockRange, RawTransaction, TxFilter},
     },
     scanning::{ScanningKeys, SpendIdentifiers, scan_block},
@@ -100,6 +100,14 @@ pub fn tx_filter_request(txid: &str) -> Result<Vec<u8>, JsError> {
     let mut hash = hex::decode(txid).map_err(js_err)?;
     hash.reverse();
     Ok(TxFilter { hash, ..Default::default() }.encode_to_vec())
+}
+
+/// The transaction id (display order) of one `CompactTx` of the mempool stream (`GetMempoolTx`).
+#[wasm_bindgen]
+pub fn compact_tx_id(bytes: &[u8]) -> Result<String, JsError> {
+    let mut hash = CompactTx::decode(bytes).map_err(js_err)?.txid;
+    hash.reverse();
+    Ok(hex::encode(hash))
 }
 
 /// Watches compact blocks for the spending of given coins by their nullifiers. Needs no viewing key: compact blocks
@@ -299,6 +307,23 @@ impl Recount {
         Ok(matched)
     }
 
+    /// A payment still waiting to be mined (RawTransaction protobuf of a mempool transaction): `txid:action` of the output this campaign's
+    /// key opens whose memo is exactly `memo`, else an empty string. Nothing is recorded: a payment counts only once it is mined and scanned.
+    pub fn pending_payment(&self, bytes: &[u8], memo: &str) -> Result<String, JsError> {
+        let raw = RawTransaction::decode(bytes).map_err(js_err)?;
+        let next = BlockHeight::from_u32(self.last_height.saturating_add(1));
+        let tx = Transaction::read(&raw.data[..], BranchId::for_height(&self.params, next)).map_err(js_err)?;
+        let txid = tx.txid().to_string();
+        let ufvks = HashMap::from([(0u32, self.ufvk.clone())]);
+        let dec = zcash_client_backend::decrypt_transaction(&self.params, None, Some(BlockHeight::from_u32(self.last_height)), &tx, &ufvks);
+        Ok(dec
+            .ironwood_outputs()
+            .iter()
+            .find(|o| ll_core::memo_text(o.memo().as_slice()).as_deref() == Some(memo))
+            .map(|o| format!("{txid}:{}", o.index()))
+            .unwrap_or_default())
+    }
+
     /// Sealed bid auctions: the coin transactions named on the list (`coin` entries), which the recount fetches in full.
     pub fn coin_txids(&self, ledger_json: &str) -> Result<Vec<String>, JsError> {
         let ledger: Vec<Entry> = serde_json::from_str(ledger_json).map_err(js_err)?;
@@ -342,7 +367,7 @@ impl Recount {
         let challenges: Vec<Challenge> = serde_json::from_str(challenges_json).map_err(js_err)?;
         let treasury_notes: Vec<ChainNote> = if treasury_notes_json.is_empty() { vec![] } else { serde_json::from_str(treasury_notes_json).map_err(js_err)? };
         // SPEC 9.1, open_payouts: who each payment the host signed to a person pays, opened with its key from the transactions already fetched
-        // and, for every payment the host named for a person, its shape (the mentor's second review), which needs no key
+        // and, for every payment the host named for a person, its shape (set 3), which needs no key
         let payouts = ll_core::sealed_recount::payout_targets(&rules, &ledger, &self.notes)
             .into_iter()
             .map(|(txid, k)| {

@@ -137,7 +137,7 @@ Evidence is in `docs/EVIDENCE.md` (numbered sections) and the test table in [TES
 ## Honest limits
 
 - The main network has not had NU7 yet, so the host program refuses campaigns that could still be open when it activates. The mainnet update follows the upgrade and is not done.
-- Keys live in plain files on the host's own machine. There has been no outside review of the code or the design. See `docs/HOSTING.md`.
+- Keys live in plain files on the host's own machine. See `docs/HOSTING.md`.
 - The host must stay online until the campaign closes. If it is off, new payments get no ticket.
 - The relay accepts campaign registrations from anyone, so a public relay needs size limits.
 - Amounts in a fundraiser, block times and the funding source of a payment can still help someone who already knows a person's payment. [PRIVACY.md](PRIVACY.md) lists what is hidden and what is not.

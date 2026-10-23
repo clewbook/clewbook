@@ -2,6 +2,7 @@
 // goes to the dashboard. Function only: the look is in ui.css and setup.css. Every refusal is a calm notice, never a raw error.
 import { setup, setNetwork, decorateAmounts, amountHTML, etaText, markReady } from './ui.js';
 import { measureBlocks } from './blocktime.js';
+import { NU7_HEIGHT, afterNu7 } from './nu7.js';
 
 const $ = (s) => document.querySelector(s);
 let config = null, measured = { tip: null, secondsPerBlock: null, spanBlocks: 0 };
@@ -252,9 +253,21 @@ async function main() {
     $(id).addEventListener('focus', pick);
     $(id).addEventListener('input', pick);
   }
-  modeChanged(); deadlineHint(); ticketHint(); decorateAmounts(document.querySelector('main'));
+  // the default ticket window until the host types one: 30 blocks, three times that for a campaign made after NU7 (25 second blocks), as the
+  // host program chooses when it is left out (ll_core::rules::default_ticket_k); the quick test timing keeps 30
+  let kTyped = false;
+  $('#ticketk').addEventListener('input', () => { kTyped = true; });
+  const defaultK = () => {
+    if (kTyped) return;
+    const start = measured.tip != null ? measured.tip + 1 : config.network === 'test' ? NU7_HEIGHT.test : 0;
+    const quick = mode() === 'sealed_auction' && sealedTiming() === 'quick';
+    $('#ticketk').value = String(30 * (!quick && afterNu7(config.network, start) ? 3 : 1));
+    deadlineHint(); ticketHint(); renderTerms();
+  };
+  for (const r of document.querySelectorAll('input[name=stiming], input[name=mode]')) r.addEventListener('change', defaultK);
+  modeChanged(); defaultK(); deadlineHint(); ticketHint(); decorateAmounts(document.querySelector('main'));
   measured = await measureBlocks(config.network);
-  deadlineHint(); ticketHint(); renderTerms(); decorateAmounts(document.querySelector('main'));
+  defaultK(); deadlineHint(); ticketHint(); renderTerms(); decorateAmounts(document.querySelector('main'));
 }
 
 main().catch(() => { $('#banner').textContent = 'Something went wrong while loading this page. Please reload it.'; $('#banner').hidden = false; });

@@ -127,6 +127,20 @@ pub struct LibsBackend {
     proving_key: Option<(u32, orchard::circuit::ProvingKey)>,
 }
 
+/// Blocks until a send that may expire (the coins of a blind bid auction) expires, on a network past NU7: ZIP 218 advises 120 for 25 second
+/// blocks (the owner's decision of 22 Oct 2026). Before NU7 the wallet library's default stays (40 blocks).
+pub const SEND_EXPIRY_AFTER_NU7: u32 = 120;
+
+/// The expiry of a send that may expire, mined from `target` on: `None` (the library's default) before NU7 on its network.
+pub fn send_expiry(params: &impl Parameters, target: u32) -> Option<BlockHeight> {
+    let network = match params.network_type() {
+        NetworkType::Main => "main",
+        NetworkType::Test => "test",
+        NetworkType::Regtest => "regtest",
+    };
+    ll_core::rules::after_nu7(network, target).then(|| BlockHeight::from_u32(target + SEND_EXPIRY_AFTER_NU7))
+}
+
 /// Same derivation as the devtool's `wallet lock-note --owner`.
 fn lock_owner(label: &str) -> LockOwner {
     LockOwner::new(ll_core::hash(b"ledgerlab_lock", label.as_bytes()))
@@ -486,7 +500,7 @@ impl WalletBackend for LibsBackend {
             account,
             req.ovk.map_or(OvkPolicy::Discard, |k| OvkPolicy::custom_from_common_bytes(&k)),
             &proposal,
-            req.expiry_height.or(req.no_expiry.then_some(0)).map(BlockHeight::from_u32),
+            req.expiry_height.or(req.no_expiry.then_some(0)).map(BlockHeight::from_u32).or_else(|| send_expiry(&self.params, u32::from(proposal.min_target_height()))),
             zcash_primitives::transaction::builder::BundlePadding::DEFAULT,
         )
         .map_err(|e| anyhow!("PCZT creation failed: {e:?}"))?;
@@ -613,6 +627,20 @@ impl WalletBackend for LibsBackend {
             Err(s) if s.code() == tonic::Code::NotFound || s.code() == tonic::Code::InvalidArgument => Ok(false),
             Err(s) => Err(anyhow!("server error: {s}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::{SEND_EXPIRY_AFTER_NU7, send_expiry};
+    use zcash_protocol::consensus::{BlockHeight, Network};
+
+    #[test]
+    fn a_coin_send_after_nu7_expires_after_120_blocks_and_before_it_keeps_the_default() {
+        let nu7 = ll_core::sealed::NU7_MAIN_HEIGHT;
+        assert_eq!(send_expiry(&Network::MainNetwork, nu7 - 1), None, "before NU7: the library's default, as for the sends of today's auctions");
+        assert_eq!(send_expiry(&Network::MainNetwork, nu7), Some(BlockHeight::from_u32(nu7 + SEND_EXPIRY_AFTER_NU7)));
+        assert_eq!(send_expiry(&Network::TestNetwork, 4_600_000), Some(BlockHeight::from_u32(4_600_120)));
     }
 }
 

@@ -165,7 +165,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
     await p.waitForSelector('#form-card:not([hidden])', { timeout: 30000 });
     const deps = await p.$$eval('#tranche [role=radio]', (o) => o.map((x) => `${x.getAttribute('aria-checked')} ${x.textContent}`));
     check('the bid form shows the deposit sizes as cards, each with its real limit (the deposit minus the fee), the first one chosen', deps.length === 2 && /^true 0\.1\S* ?\S*bids up to 0\.0999$/.test(deps[0].replace(/\s+/g, ' ')) && /^false 0\.3\S* ?\S*bids up to 0\.2999$/.test(deps[1].replace(/\s+/g, ' ')), JSON.stringify(deps));
-    check('second review H1: before the payment the form says bids and refund addresses become public after the close (more: what the host sees)', /Bids and refund addresses become public after the close/.test(await text(p, '#public-note')) && /your refund address, never your bid/.test(await p.textContent('#public-more')), (await text(p, '#public-note')).slice(0, 120));
+    check('set 2 H1: before the payment the form says bids and refund addresses become public after the close (more: what the host sees)', /Bids and refund addresses become public after the close/.test(await text(p, '#public-note')) && /your refund address, never your bid/.test(await p.textContent('#public-more')), (await text(p, '#public-note')).slice(0, 120));
     // a private test chain's block times are not real, so the page judges only the last block for a deposit there (the real time check is
     // `Sealed::check_timing`, tested in cargo test -p ll-core)
     check('the button waits until the bid and the refund address are good', await p.$eval('#create', (b) => b.disabled));
@@ -376,7 +376,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       await ctx3.close();
     }
 
-    // second review L2: when the chain server cannot say which network version it runs, the page waits and asks again; it never saves that
+    // set 2 L2: when the chain server cannot say which network version it runs, the page waits and asks again; it never saves that
     // as a failed ticket
     {
       chain.tip = 130; chain.infoDown = true;
@@ -386,11 +386,11 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       const saved = await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).ticketsChecked || null, FX.N);
       chain.infoDown = false;
       await waitTitle(p, /^PROTECTED$/, 120000).catch(() => {});
-      check('second review L2: with no answer on the network version the page keeps checking (nothing saved), then says PROTECTED once it can ask', /Checking your tickets/.test(t1) && saved === null && /^PROTECTED$/.test(await p.textContent('#st-title')), `${t1} → ${await p.textContent('#st-title')}`);
+      check('set 2 L2: with no answer on the network version the page keeps checking (nothing saved), then says PROTECTED once it can ask', /Checking your tickets/.test(t1) && saved === null && /^PROTECTED$/.test(await p.textContent('#st-title')), `${t1} → ${await p.textContent('#st-title')}`);
       await ctx.close();
     }
 
-    // second review L3: a proof checker that cannot load answers no: the page says NOT PROTECTED instead of checking for ever
+    // set 2 L3: a proof checker that cannot load answers no: the page says NOT PROTECTED instead of checking for ever
     {
       chain.tip = 130;
       const { ctx: c6, p: q } = await fresh();
@@ -400,11 +400,11 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       await q.goto(`${BASE}/bid.html#${link(FX.N)}`);
       await waitTitle(q, /^Your ticket does not check out$/, 120000).catch(() => {});
       const more = await q.textContent('#st-more');
-      check('second review L3: when the proof checker fails to load, the page says NOT PROTECTED (its proof does not verify) and does not wait for ever', /^Your ticket does not check out$/.test(await q.textContent('#st-title')) && /proof does not verify/.test(more), `${await q.textContent('#st-title')}: ${more.slice(0, 120)}`);
+      check('set 2 L3: when the proof checker fails to load, the page says NOT PROTECTED (its proof does not verify) and does not wait for ever', /^Your ticket does not check out$/.test(await q.textContent('#st-title')) && /proof does not verify/.test(more), `${await q.textContent('#st-title')}: ${more.slice(0, 120)}`);
       await c6.close();
     }
 
-    // second review M4: an auction whose rules say "regtest" opens only on the computer that runs that chain; from any other address the page
+    // set 2 M4: an auction whose rules say "regtest" opens only on the computer that runs that chain; from any other address the page
     // refuses it (so "regtest" cannot switch off the test network's checks)
     {
       const b2 = await chromium.launch({ args: ['--host-resolver-rules=MAP pages.example 127.0.0.1'] });
@@ -412,11 +412,11 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       await q.goto(`http://pages.example:${WEB}/bid.html#${link(FX.N)}`);
       await q.waitForFunction(() => document.querySelector('#banners').textContent.length > 0, null, { timeout: 60000 }).catch(() => {});
       const shown = await q.textContent('#banners');
-      check('second review M4: a regtest auction opened from another address is refused, with the reason', /private test chain and opens only on the computer that runs it/.test(shown) && await q.$eval('#form-card', (e) => e.hidden), shown.slice(0, 140));
+      check('set 2 M4: a regtest auction opened from another address is refused, with the reason', /private test chain and opens only on the computer that runs it/.test(shown) && await q.$eval('#form-card', (e) => e.hidden), shown.slice(0, 140));
       await b2.close();
     }
 
-    // second review L4: a crafted backup file whose payment code carries script; restoring it must run nothing
+    // set 2 L4: a crafted backup file whose payment code carries script; restoring it must run nothing
     {
       const hostile = path.join(tmp, 'hostile-backup.json');
       const evil = `<img src=x onerror="window.__pwned='img'"><svg xmlns="http://www.w3.org/2000/svg" onload="window.__pwned='svg'"><script>window.__pwned='script'</script></svg>`;
@@ -428,7 +428,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       await q.waitForSelector('#pay-card:not([hidden])', { timeout: 30000 });
       await q.waitForTimeout(1500);
       const r = await q.evaluate(() => ({ pwned: window.__pwned || null, tags: [...document.querySelectorAll('#qr *')].map((e) => e.tagName) }));
-      check('second review L4: a crafted backup file restores without running its script (the code is shown as an image)', r.pwned === null && r.tags.length === 1 && r.tags[0] === 'IMG', JSON.stringify(r));
+      check('set 2 L4: a crafted backup file restores without running its script (the code is shown as an image)', r.pwned === null && r.tags.length === 1 && r.tags[0] === 'IMG', JSON.stringify(r));
       const bad = path.join(tmp, 'bad-backup.json');
       fs.writeFileSync(bad, JSON.stringify({ kind: 'sealed-bid-backup', version: 1, campaign: FX.N, state: { seed: '<b>x</b>', refund: FX.refund_address, memo: 'LL3:x' } }));
       const { ctx: c5, p: q2 } = await fresh();
@@ -436,7 +436,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       await q2.waitForSelector('#form-card:not([hidden])', { timeout: 60000 });
       await q2.setInputFiles('#restore', bad);
       await q2.waitForFunction(() => !document.querySelector('#restore-error').hidden, null, { timeout: 15000 }).catch(() => {});
-      check('second review L4: a backup file with a malformed key is refused', /not a backup of a bid in this auction/.test(await q2.textContent('#restore-error')) && await q2.$eval('#pay-card', (e) => e.hidden));
+      check('set 2 L4: a backup file with a malformed key is refused', /not a backup of a bid in this auction/.test(await q2.textContent('#restore-error')) && await q2.$eval('#pay-card', (e) => e.hidden));
       await c4.close(); await c5.close();
     }
 

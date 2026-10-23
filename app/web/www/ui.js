@@ -327,7 +327,7 @@ export const CHECKS = {
   reissue_opens: ['New ticket opens', 'Any newer ticket the list names for your contribution opens with your secret.'],
   pays_you: ['Pays you', 'The refund output pays the address you gave. A re-issued ticket must pass this check.'],
   proof: ['Proof', 'The zero knowledge proof inside the refund verifies (run only when you ask).'],
-  anchor: ['Chain state', 'Whether the refund’s chain state (anchor) is a real one; this check is not available yet.'],
+  anchor: ['Chain state', 'The refund’s chain state (anchor) is the note tree of a real block, as the chain servers say.'],
   // the recount
   R1: ['Rules', 'The published rules (and, for an auction, the revealed key) match what the campaign committed to.'],
   R2: ['List integrity', 'The public list is signed, chained, gap free, and closed at most once, after the deadline. A payment gets a new ticket only as a re-issue after a network upgrade, before the close.'],

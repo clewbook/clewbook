@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Private chain check of the fixes from the independent review (research note 20) that touch the chain: four sealed bid auctions on one
+# Private chain check of the fixes of set 1 (docs/BLIND_BIDS.md section 2) that touch the chain: four sealed bid auctions on one
 # regtest chain with NU7 active, made with open payouts and the long tag. A has an honest host: a valid deposit that a cheating step
 # rejects (H3) and a second payment with an accepted deposit's memo (M5) are sent back on their own, and so is a payment in the last
 # blocks before the deadline; after the close every refund, change and return is opened on the chain with its own outgoing key and pays
 # the refund address in its memo (C1, H2): A's recount passes. B's host keeps a payment it rejected (S7 fails). C's host signs refunds
 # that pay its own address (C1: S7 fails). D's host sends a winner's change to its own address (H2: S6 fails). E's host makes early tickets
-# that pay its own address, sealed without opening values (the second review's C1): one person takes the deposit back with it anyway, and
+# that pay its own address, sealed without opening values (set 2's C1): one person takes the deposit back with it anyway, and
 # S4 fails. A's relay copy with the rejected payer's page state, and E's (before the take back) with its first payer's, are kept for the bid
 # page tests (app/web/bid-page-reject-e2e.cjs). Offline, throwaway keys, no money.
 # Usage: ZEBRAD=... BIN=<folder with cb-host (regtest and test-cheats build), ll-relay, ll-contrib, zcash-devtool (regtest build)>
@@ -102,7 +102,7 @@ done
 [ "${#MEMO[a1]}" = 512 ] || fail "the bound memo is ${#MEMO[a1]} bytes, not 512"
 # the deposits that a cheating step rejects before the host tickets them (H3): A's and B's third payer
 bid A a3 10000000 4000000; bid B b3 10000000 4000000
-# the second review, M1: a5 pays 0.31 with a memo made for the 0.3 deposit (a person who typed a little more): a deposit like any other
+# set 2, M1: a5 pays 0.31 with a memo made for the 0.3 deposit (a person who typed a little more): a deposit like any other
 "$BIN/ll-contrib" keygen --out "$R/b/a5.seed" >/dev/null
 MEMO[a5]=$("$BIN/ll-contrib" bid-memo --rules "$R/A/rules.json" --seed "$R/b/a5.seed" --refund-address "$(cat "$R/w/payer.address")" --tranche-zat 30000000 --bid-zat 6000000)
 echo -n "${MEMO[a5]}" > "$R/b/a5.memo"

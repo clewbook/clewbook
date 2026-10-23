@@ -51,12 +51,12 @@ pub fn sealed_bid_window(rules_json: &str, tip: u32, tip_time: f64) -> Result<St
     } else if rules.network == "regtest" {
         None // a private test chain: its block times are not real times, so the round's timing cannot be judged from them
     } else {
-        s.check_timing(&rules.network, rules.deadline_height, tip, tip_time as u64).err().map(|e| format!("This auction's timing is not safe any more ({e}). Do not bid."))
+        s.check_timing(&rules.network, rules.start_height, rules.deadline_height, tip, tip_time as u64).err().map(|e| format!("This auction's timing is not safe any more ({e}). Do not bid."))
     };
     Ok(serde_json::json!({ "ok": reason.is_none(), "reason": reason, "last_block": last }).to_string())
 }
 
-/// The review, M1: whether the round and the late ticket block are no later than the plan gives for this deadline, from the time of the
+/// Set 1, M1: whether the round and the late ticket block are no later than the plan gives for this deadline, from the time of the
 /// block before the start (the chain as the host saw it). JSON `{ok, reason}`; on a private test chain the test chooses them, so it is ok.
 #[wasm_bindgen]
 pub fn sealed_plan_check(rules_json: &str, plan_time: f64) -> Result<String, JsError> {
@@ -112,7 +112,7 @@ pub fn sealed_bid_payment(rules_json: &str, seed_hex: &str, refund_address: &str
     let sealed = ll_core::payload::sealed_bytes(&payload.to_memo(&pk, &k.memo_ephemeral_key()).map_err(|_| plain("The payment message could not be prepared."))?)
         .ok_or_else(|| plain("The payment message could not be prepared."))?;
     let page_key = late::page_public_key(&k.page_secret()).ok_or_else(|| plain("This secret gives no page key. Please start again with a new secret."))?;
-    // the review, M4: an auction with the long tag takes the bound kind of memo (a 16 byte tag made with the locked key)
+    // set 1, M4: an auction with the long tag takes the bound kind of memo (a 16 byte tag made with the locked key)
     let memo = if s.long_tag {
         let (lock, bound) = bid::lock_bid_bound(bid_zat, &rid, &sealed, &page_key, tranche, s.drand_round).map_err(|_| plain("The bid could not be locked."))?;
         bid::BidMemo { sealed, lock, page_key, bound: Some(bound) }.to_text()
@@ -163,7 +163,7 @@ struct Expect {
     lock_time: u32,
     refund_address: String,
     refund_zat: u64,
-    /// The deposit's amount (L1 of the second review).
+    /// The deposit's amount (set 2, L1).
     deposit_zat: u64,
     /// The network version the chain server reports now (hex), H5.
     #[serde(default)]
@@ -235,6 +235,16 @@ pub fn tree_state_request(height: u32) -> Vec<u8> {
 pub fn ironwood_root(tree_state: &[u8]) -> Result<String, JsError> {
     let ts = TreeState::decode(tree_state).map_err(|_| plain("The server's answer could not be read."))?;
     ironwood_root_hex(&ts.ironwood_tree)
+}
+
+/// Level 4: a ticket's chain state (anchor), hex in the same order as `ironwood_root`, read from the ticket's own transaction (never a value
+/// the host states). The page looks for the block whose note tree root it is.
+#[wasm_bindgen]
+pub fn ticket_anchor(raw_hex: &str) -> Result<String, JsError> {
+    let raw = hex::decode(raw_hex.trim()).map_err(|_| plain("The ticket could not be read."))?;
+    let tx = Transaction::read(&raw[..], BranchId::Nu7).map_err(|_| plain("The ticket could not be read."))?;
+    let b = tx.ironwood_bundle().ok_or_else(|| plain("The ticket has no Ironwood part."))?;
+    Ok(hex::encode(b.anchor().to_bytes()))
 }
 
 /// The root (hex) of an Ironwood note tree given as hex, as servers and nodes print it.

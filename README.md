@@ -75,7 +75,7 @@ What each check needs, and what it does not show: [docs/CLAIMS.md](docs/CLAIMS.m
   - **uniform price:** every winner pays the same price (the lowest winning bid, or the reserve when there are fewer bids than items) and gets the rest back;
   - **pay your bid:** each winner pays their whole bid.
 
-- **Blind bid auction:** bids are locked with drand's timelock until the close, so nobody, the host included, can read a bid before bidding closes. Each person pays a deposit of a fixed size and holds two refund tickets, so the deposit comes back even if the host never finishes. On the test network, and on the main network for auctions that end before the NU7 upgrade (shared by link; public listing after NU7). Details: [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md).
+- **Blind bid auction:** bids are locked with drand's timelock until the close, so nobody, the host included, can read a bid before bidding closes. Each person pays a deposit of a fixed size and holds two refund tickets. If the host never finishes, open your bid page after the auction's late ticket block and press Take my money back; this works once the page has said PROTECTED. On the test network, and on the main network for auctions that end before the NU7 upgrade (shared by link; public listing after NU7). Details: [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md).
 
 An auction can never close early.
 
@@ -127,18 +127,17 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 ## Honest limits
 
 - **The host (whoever runs the host program; Clewbook only when it hosts for you) holds the campaign's keys, on one machine.** It can spend a contribution that has a ticket. The recount shows it afterwards (R5, R6), but nothing prevents it. The keys are plain files in the campaign folder.
-- **No outside review.** The code and the design have not been reviewed by anyone outside the project. The tests and evidence here are ours.
 - **Some heights are the host's own statement:** when a ticket was issued (R4b) and when an early close happened.
 - **The host sees every bid** in an auction as it arrives, except in Blind bid auctions, and could bid itself from another wallet.
 - **A ticket is valid for one network version.** Tickets signed before a network upgrade must be issued again after it. The main network's next upgrade, NU7, is set for block 3,543,405 ([ZIP 259](https://zips.z.cash/zip-0259), status Proposed), expected around 5 to 6 November 2026. It keeps the same transaction format (version 6, the Ironwood pool) but changes the network version, so tickets signed before it must be issued again after it. Until this build's libraries are updated for it, the host program accepts only main network campaigns that end at least a week before 5 November 2026.
 - **Network addresses are not hidden:** relays and public chain servers see who contacts them.
 
-All limits: [docs/LIMITS.md](docs/LIMITS.md). Who can do what, and what stops them: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). Mainnet and the upgrade: [docs/MAINNET.md](docs/MAINNET.md).
+All limits: [docs/LIMITS.md](docs/LIMITS.md). Who can do what, and what stops them: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). Every attack tried, and whether it is caught, flagged or not prevented: [docs/ADVERSARIAL.md](docs/ADVERSARIAL.md). Mainnet and the upgrade: [docs/MAINNET.md](docs/MAINNET.md).
 
 ## Run it yourself
 
 **What you need:**
-- Rust (stable, 1.88 or newer, with `rustup`), Python 3, and Node 22 (for the browser tests);
+- Rust (stable, 1.89 or newer, with `rustup`), Python 3, and Node 22 (for the browser tests);
 - for the browser module: `rustup target add wasm32-unknown-unknown`, `cargo install wasm-bindgen-cli --version 0.2.129`, and Zig 0.14 (https://ziglang.org/download/).
 
 Tested on Ubuntu under WSL 2. A first build takes about 20 minutes.

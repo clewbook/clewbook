@@ -3,6 +3,7 @@
 import * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { amountHTML, outcomeWords, decorateAmounts } from './ui.js';
+import { firstMeasured } from './nu7.js';
 
 export const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
 
@@ -78,13 +79,16 @@ export const DEFAULT_ENDPOINTS = {
 
 export const coin = (zat) => (zat / 1e8).toFixed(8).replace(/0+$/, '').replace(/\.$/, '') || '0';
 
-/** Seconds per block, measured from the block times of the last 100 blocks at the first endpoint that answers. null if none does. */
-export async function observedBlockSeconds(endpoints, tip) {
+/** Seconds per block, measured from the block times of the last 100 blocks at the first endpoint that answers (on `network`, only blocks
+ *  after NU7 once it has come: fewer than 20 of them give no estimate). null if none does. */
+export async function observedBlockSeconds(endpoints, tip, network) {
   if (tip == null) return null;
   for (const e of endpoints) {
     try {
       const timeOf = async (h) => { const [b] = await grpcWeb(e, 'GetBlockRange', W.block_range_request(h, h), { timeoutMs: 12000 }); return varintField(b, 5); };
-      const h0 = Math.max(1, tip - 100), t0 = await timeOf(h0), t1 = await timeOf(tip);
+      const h0 = firstMeasured(network, tip, 100);
+      if (tip - h0 < 20) return null;
+      const t0 = await timeOf(h0), t1 = await timeOf(tip);
       if (t0 != null && t1 != null && tip - h0 >= 20 && t1 > t0) return (t1 - t0) / (tip - h0);
     } catch { /* try the next endpoint */ }
   }

@@ -99,8 +99,8 @@ The record carries **no label**: a record with a `label` field is refused (`list
 |---|---|
 | Recounts at a time | one |
 | Recounts per pass | 2 (`--recounts-per-pass`) |
-| Time per recount | 600 s (`--recount-seconds`) |
-| Blocks per recount | 20,000 (`--recount-max-blocks`) |
+| Time per recount | 1,800 s (`--recount-seconds`) |
+| Blocks per recount | 60,000 (`--recount-max-blocks`), about 17 days of the 25 second blocks after NU7 |
 | Recheck of a submitted listed campaign | every 6 h (`--recheck-hours`) |
 | Recheck of a fixed entry | every 24 h (`--recheck-fixed-hours`) |
 
@@ -237,14 +237,14 @@ Optional. When a new request enters the queue (testnet, waiting for approval, or
 
 ## Mainnet
 
-Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. The review of what mainnet would need is `app/listing/MAINNET-REVIEW.md`.
+Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. What mainnet would need is in `app/listing/MAINNET-REVIEW.md`.
 
 **Status lookup.** `GET /v1/records/<campaign id>` answers with the request's state from the last pass and a plain reason, nothing else: `Waiting` (received, or waiting for approval, or waiting for its first recount), `Listed`, `Not listed` (with the reason: refused, expired, hidden or revoked), or `Waiting for mainnet listing to open`; `Not found` when there is no request for that campaign. It counts toward the same per source limit as submissions. The dashboard's **Check status** button calls it.
 
 ## Known limits
 
 - **One chain server per network.** The recount page compares up to three; a dishonest chain server could hide payments.
-- **Every recount scans from the campaign's start height.** A campaign longer than 20,000 blocks (about 17 days of mainnet) gets no verdict.
+- **Every recount scans from the campaign's start height.** A campaign longer than 60,000 blocks (about 17 days of the 25 second blocks after NU7) gets no verdict.
 - **The home page shows neither the host's label nor the attention flag.** The label is in `out/campaigns.json` for a page that wants it.
 - **Look-alike letters** from scripts outside the comparison table (for example Armenian) are not caught. A campaign name is not compared with host labels.
 - **The endpoint trusts `CF-Connecting-IP` from the server itself,** so an account on the server can make any number of requests.

@@ -36,10 +36,10 @@ struct PassArgs {
     #[arg(long)]
     nu7_mainnet_height: Option<u32>,
     /// Longest one recount may take, in seconds.
-    #[arg(long, default_value_t = 600)]
+    #[arg(long, default_value_t = 1_800)]
     recount_seconds: u64,
     /// Largest block range one recount scans.
-    #[arg(long, default_value_t = 20_000)]
+    #[arg(long, default_value_t = 60_000)]
     recount_max_blocks: u32,
     /// At most this many recounts per pass (new records first), one at a time.
     #[arg(long, default_value_t = 2)]
@@ -136,9 +136,9 @@ enum Cmd {
         chain_server: String,
         #[arg(long, default_value = ll_listing::tip::DEFAULT_MAINNET)]
         chain_server_main: String,
-        #[arg(long, default_value_t = 600)]
+        #[arg(long, default_value_t = 1_800)]
         recount_seconds: u64,
-        #[arg(long, default_value_t = 20_000)]
+        #[arg(long, default_value_t = 60_000)]
         recount_max_blocks: u32,
     },
 }

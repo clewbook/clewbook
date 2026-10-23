@@ -218,7 +218,7 @@ pub fn challenge_json(seed_hex: &str, txid: &str, action: u32) -> Result<String,
 }
 
 /// The same for a blind bid auction made with open payouts: it carries the payment's memo, so a relay can check the secret opens it before it
-/// stores it (the second review, H2: junk secrets can no longer fill the challenge slots).
+/// stores it (set 2, H2: junk secrets can no longer fill the challenge slots).
 #[wasm_bindgen]
 pub fn challenge_json_memo(seed_hex: &str, txid: &str, action: u32, memo: &str) -> Result<String, JsError> {
     let c = Challenge { txid: txid.to_lowercase(), action, eph_sk: hex::encode(keys_from(seed_hex)?.memo_ephemeral_key().to_bytes()), uivk: None, complaint: false, memo: Some(memo.to_string()) };

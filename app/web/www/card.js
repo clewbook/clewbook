@@ -45,7 +45,7 @@ async function main() {
   { const rb = document.querySelector('#recount-btn'); rb.href = on(sibling('recount', { id: cfg.id, relays: cfg.relays, endpoints: cfg.endpoints, server: cfg.server })); rb.hidden = false; }
   const rules = JSON.parse(rulesText);
   const endpoints = cfg.endpoints.length ? cfg.endpoints : DEFAULT_ENDPOINTS[summary.network] || [];
-  const spb = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), (await tipFrom([cfg.server, ...endpoints].filter(Boolean))));
+  const spb = await observedBlockSeconds([cfg.server, ...endpoints].filter(Boolean), (await tipFrom([cfg.server, ...endpoints].filter(Boolean))), summary.network);
   const m = cardModel(summary, rules, spb);
 
   $('#net-label').textContent = m.net.label;

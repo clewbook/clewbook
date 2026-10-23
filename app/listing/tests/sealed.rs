@@ -73,7 +73,7 @@ fn scratch(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn second_review_m2_a_blind_bid_auction_is_listed_only_through_our_relay() {
+fn set2_m2_a_blind_bid_auction_is_listed_only_through_our_relay() {
     let root = scratch("ours");
     let ours = relay_at(&root.join("ours"), None);
     let theirs = relay_at(&root.join("theirs"), None);
@@ -134,7 +134,7 @@ fn a_testnet_blind_bid_auction_lists_through_either_of_our_relays_and_never_thro
 }
 
 #[test]
-fn second_review_m2_a_late_entry_only_on_the_hosts_relay_shows_the_relays_disagree() {
+fn set2_m2_a_late_entry_only_on_the_hosts_relay_shows_the_relays_disagree() {
     let root = scratch("late");
     let (rules, secrets, id) = blind_rules("Late entry");
     let opens = ll_core::sealed::round_time(40_000_000);
@@ -162,7 +162,7 @@ fn second_review_m2_a_late_entry_only_on_the_hosts_relay_shows_the_relays_disagr
 }
 
 #[test]
-fn second_review_m2_a_host_that_never_closes_is_marked_did_not_finish_by_the_listing() {
+fn set2_m2_a_host_that_never_closes_is_marked_did_not_finish_by_the_listing() {
     let root = scratch("dnf");
     let relay = relay_at(&root.join("relay"), None);
     let (rules, _secrets, id) = blind_rules("Never closed");
@@ -178,7 +178,7 @@ fn second_review_m2_a_host_that_never_closes_is_marked_did_not_finish_by_the_lis
 }
 
 #[test]
-fn second_review_m6_one_address_cannot_fill_the_queue_with_new_host_keys() {
+fn set2_m6_one_address_cannot_fill_the_queue_with_new_host_keys() {
     let root = scratch("m6");
     let mut cfg = ll_listing::job::JobConfig::new(root.join("listing"));
     cfg.max_queue_per_source = 5;

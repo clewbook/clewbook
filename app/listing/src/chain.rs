@@ -155,7 +155,7 @@ impl Chain for GrpcChain {
             guarded("reading a transaction", || rc.add_raw_transaction(raw))?.map_err(|_| anyhow!("transaction {txid} could not be read"))?;
             stats.full_txs += 1;
         }
-        // a Blind bid auction: the coins the host sent to the bid pages, for check S3 (the second review, M2; as the recount page does)
+        // a Blind bid auction: the coins the host sent to the bid pages, for check S3 (set 2, M2; as the recount page does)
         let coins = guarded("listing the coins", || rc.coin_txids(&req.ledger_json))?.map_err(|_| anyhow!("the coin entries could not be read"))?;
         for txid in coins {
             ensure!(Instant::now() < deadline, "the recount took longer than its time limit (reading the coins)");

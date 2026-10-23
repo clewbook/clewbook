@@ -21,5 +21,5 @@
 | Pay from a wallet extension | A "Pay with Noir" button that fills in the address, amount and memo. Vizor already opens from our payment link | Paying from a browser wallet without copying anything | About 1.5 sessions | ✓ |
 | Open ended fundraiser or donation mode | No deadline and no tickets; periodic signed snapshots; sweeps recorded in the ledger | Ongoing donations | Not scoped |  |
 | Hosted by label | The opened campaign page shows the label of its approved host; it is never shown on the home page | Visitors see who hosts a campaign | About half a day | ✓ |
-| Mainnet listing of other hosts' campaigns | Automatic listing for mainnet, after the upgrade height is published and a review | Other hosts' mainnet campaigns on the home page | About half a day plus review |  |
+| Mainnet listing of other hosts' campaigns | Automatic listing for mainnet, after the upgrade height is published | Other hosts' mainnet campaigns on the home page | About half a day |  |
 | Shared custody | The host team and Clewbook, plus an independent guardian, must co-sign before money moves (2 of 3 or 3 of 5, FROST) | No single party can move the money alone | Not started. Research stage; we are looking for developers and cryptographers to help |  |

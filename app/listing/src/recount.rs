@@ -40,8 +40,9 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        // measured on 16 Oct 2026 against public servers: 25 to 60 blocks a second, so 20 000 blocks (about 17 days of mainnet) fit in 600 s
-        Limits { wall: Duration::from_secs(600), max_blocks: 20_000, per_pass: 2, recheck: Duration::from_secs(6 * 3600),
+        // measured on 16 Oct 2026 against public servers: 25 to 60 blocks a second. 60 000 blocks (about 17 days of 25 second blocks after
+        // NU7, the owner's decision of 22 Oct 2026; 20 000 before) take 1 000 to 2 400 s, so the time limit is 1 800 s (600 before)
+        Limits { wall: Duration::from_secs(1_800), max_blocks: 60_000, per_pass: 2, recheck: Duration::from_secs(6 * 3600),
             recheck_fixed: Duration::from_secs(24 * 3600), max_ledger_bytes: 8 << 20 }
     }
 }
@@ -223,7 +224,7 @@ pub fn recount_campaign(chain: &Arc<dyn Chain>, relays: &[String], id: &str, net
     let report: Result<serde_json::Value> = match ufvk {
         None => {
             o.scope = "sealed".into();
-            // the second review, M2: at the chain's height, so a host that never closes is marked "did not finish"
+            // set 2, M2: at the chain's height, so a host that never closes is marked "did not finish"
             std::panic::catch_unwind(|| ll_web::report_sealed_at(&rules_json, id, &ledger_json, tip)).map_err(|_| anyhow!("the sealed recount failed"))
                 .and_then(|r| r.map_err(|_| anyhow!("the sealed recount could not read the campaign")))
                 .and_then(|t| Ok(serde_json::from_str(&t)?))

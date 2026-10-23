@@ -14,7 +14,7 @@ const { execSync } = require('child_process');
 const fs = require('fs'), path = require('path');
 const DIR = process.env.RERUN_DIR || 'runs/testnet-rerun', STATE = `${DIR}/state.json`;
 const E = process.env;
-// DASH, APP and RELAY can be set: the check of the review fixes runs its own dashboard, pages and relay on this machine
+// DASH, APP and RELAY can be set: the check of the fixes runs its own dashboard, pages and relay on this machine
 const DASH = E.DASH || 'http://127.0.0.1:8786', APP = E.APP || 'https://app-test.clewbook.xyz', RELAY = E.RELAY || 'https://relay-test.clewbook.xyz', CHAIN = 'https://zjs.zec.rocks/testnet';
 const NAME = E.RERUN_NAME || 'Sealed rerun B4 B8 B9';
 // B4 pays this many blocks after the coin cutoff (the deposit must still be mined at least 3 blocks before the deadline)

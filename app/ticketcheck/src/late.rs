@@ -32,9 +32,9 @@ pub struct LateExpect {
     /// The refund address's Ironwood receiver and what it must receive.
     pub refund_receiver: [u8; 43],
     pub refund_zat: u64,
-    /// The deposit's amount (what the person paid): the second review, L1, only the deposit minus the refund may leave the shielded pool.
+    /// The deposit's amount (what the person paid): set 2, L1, only the deposit minus the refund may leave the shielded pool.
     pub deposit_zat: u64,
-    /// The independent review, H5: the network version (consensus branch id) the network reports now; the ticket must be built for it.
+    /// Set 1, H5: the network version (consensus branch id) the network reports now; the ticket must be built for it.
     /// `None` when it could not be asked (then the ticket is refused: an unknown version is not checked).
     pub current_branch: Option<u32>,
 }
@@ -122,7 +122,7 @@ pub fn check(raw: &[u8], branch: BranchId, ovk: &[u8; 32], e: &LateExpect) -> Re
     if !iw.actions().iter().any(|a| a.nullifier().to_bytes() == e.deposit_nf) {
         return Err("it does not spend this deposit".into());
     }
-    // the second review, L1: two actions (the deposit spent, the refund paid; the library pads to two) and nothing else leaving the pool.
+    // set 2, L1: two actions (the deposit spent, the refund paid; the library pads to two) and nothing else leaving the pool.
     // An extra spend of another note of the host's, balanced by an equal extra output, still cannot be seen from here (BLIND_BIDS.md, 3)
     if iw.actions().len() != 2 {
         return Err(format!("it has {} shielded actions; a late ticket has two (the deposit and the refund)", iw.actions().len()));

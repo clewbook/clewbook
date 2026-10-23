@@ -239,7 +239,8 @@ impl LibsBackend {
         )
         .map_err(|e| anyhow!("the coin wallet cannot pay the coins: {e:?}"))?;
         let pczt = create_pczt_from_proposal::<_, _, std::convert::Infallible, _, std::convert::Infallible, _>(
-            &mut db, &self.params, &SystemClock, &mut rng(), account, OvkPolicy::Discard, &proposal, None, zcash_primitives::transaction::builder::BundlePadding::DEFAULT,
+            &mut db, &self.params, &SystemClock, &mut rng(), account, OvkPolicy::Discard, &proposal,
+            super::send_expiry(&self.params, u32::from(proposal.min_target_height())), zcash_primitives::transaction::builder::BundlePadding::DEFAULT,
         )
         .map_err(|e| anyhow!("PCZT creation failed: {e:?}"))?;
         let branch = BranchId::try_from(*pczt.global().consensus_branch_id()).map_err(|_| anyhow!("unknown branch"))?;
@@ -275,7 +276,7 @@ impl LibsBackend {
             let fact = match self.fetch(&mut client, tip, TxId::from_bytes(b))? {
                 None => ll_core::recount::PayoutFact { txid: t.clone(), outputs: vec![], error: Some("the transaction is not on the chain".into()), shape: None },
                 Some((tx, _)) => {
-                    // the same reading as the recount page's (the mentor's second review: the shape needs no key)
+                    // the same reading as the recount page's (set 3: the shape needs no key)
                     let mut raw = vec![];
                     tx.write(&mut raw)?;
                     match ll_ticketcheck::payout_fact(&raw, ovk.as_ref()) {

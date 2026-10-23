@@ -9,6 +9,7 @@ import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
+import { findAnchor } from './anchor.js';
 import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones } from './public.js';
 
 const $ = (s) => document.querySelector(s);
@@ -21,6 +22,7 @@ const cfg = {
   server: (params.get('server') || '').replace(/\/$/, ''),
 };
 const DEFAULT_SERVER = { test: 'https://zjs.zec.rocks/testnet', main: 'https://zjs.zec.rocks/mainnet' };
+const SECOND_SERVER = { test: 'https://zcash-testnet.chainsafe.dev', main: 'https://zcash-mainnet.chainsafe.dev' };
 let refused = null; // set when this page must not take a payment: the sentence that says why
 const POLL_MS = 5000;
 let flowBackHref = '#'; // the campaign's own page, for the Back of question 1
@@ -346,6 +348,34 @@ async function detectPayment() {
   }
 }
 
+// "Payment seen, waiting for the network": a payment in the mempool, before it is mined. With a transaction id the page knows (sent with
+// Noir, or pasted) it asks for that one; otherwise, for a fundraiser (its viewing key is public), it fetches every transaction waiting in the
+// mempool once, whoever it is for, so the server cannot tell which one is this person's, and opens each with the campaign's key. It records
+// nothing: "Contribution received" and everything after it still wait for the payment to be mined.
+const MEMPOOL_MAX = 200;
+/** The height a RawTransaction answer says it was mined at; null while it waits in the mempool (no height, 0, or the largest number). */
+const minedAt = (raw) => { const h = readVarintField(raw, 2); return h != null && h > 0 && h < 0xffffffff ? h : null; };
+const mempoolChecked = new Set();
+async function detectPending() {
+  if (state.txid || state.ticket || tip == null) return;
+  if (state.manualTxid) {
+    // asked on every refresh: the caption goes once the payment is mined
+    const [raw] = await grpcWeb(cfg.server, 'GetTransaction', W.tx_filter_request(state.manualTxid));
+    const waiting = !!(raw && raw.length) && !minedAt(raw) ? state.manualTxid : null;
+    if (waiting !== (state.pendingTxid || null)) { state.pendingTxid = waiting; save(); }
+    return;
+  }
+  if (state.pendingTxid || !rc || !state.memo) return;
+  const ids = (await grpcWeb(cfg.server, 'GetMempoolTx', new Uint8Array())).map((m) => W.compact_tx_id(m)).filter((id) => !mempoolChecked.has(id));
+  for (const id of ids.slice(0, MEMPOOL_MAX)) {
+    mempoolChecked.add(id);
+    const [raw] = await grpcWeb(cfg.server, 'GetTransaction', W.tx_filter_request(id));
+    if (!state) return; // the person left this payment code meanwhile
+    const hit = raw && raw.length ? rc.pending_payment(raw, state.memo) : '';
+    if (hit) { state.pendingTxid = hit.split(':')[0]; save(); return; }
+  }
+}
+
 /** Whether the ticket's transaction is already known to the network (so a refund was already sent). */
 async function ticketAlreadySent() {
   try {
@@ -650,7 +680,8 @@ function renderProgress() {
   setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet', !state.backupDownloaded && savedTick ? 'saved, by your word' : '');
   $('#s-backup').classList.toggle('warn', !(state.backupDownloaded || savedTick)); // not saved yet: the yellow ring
   const t = !!state.ticket;
-  setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : 'waiting for you to pay');
+  const pending = !state.txid && !t && !!state.pendingTxid;
+  setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : pending ? 'Payment seen, waiting for the network' : 'waiting for you to pay', pending ? 'Payment seen, waiting for the network' : '');
   setStep('#s-received', t, t ? 'done' : 'waiting');
   const tcv = ticketCheck && ticketCheck.verdict;
   setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…', t && tcv === 'fail' ? 'did NOT pass a check' : '');
@@ -1020,7 +1051,7 @@ function askLeave(kind) {
   $('#leave-confirm').scrollIntoView({ block: 'center' }); // the question sits below the code; bring it to where the button was tapped
 }
 
-const paymentSeen = () => !!(state && (state.txid || state.manualTxid));
+const paymentSeen = () => !!(state && (state.txid || state.manualTxid || state.pendingTxid));
 const canKeepLeft = () => { try { const k = `${earlierKey}:probe`; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } };
 let skipPop = false; // the history entry of the payment step is being consumed by our own back()
 
@@ -1124,6 +1155,7 @@ async function refresh() {
       if (!state.ticket) {
         await detectTicket();
         try { await detectPayment(); } catch { /* the network server may be busy; try again */ }
+        try { await detectPending(); } catch { /* the mempool is asked again on the next refresh */ }
       } else {
         await detectTicket(); // picks up a re-issued ticket
         if (!state.refundSentAt && (await ticketAlreadySent())) { state.refundSentAt = Date.now(); state.refundTrack = { fromHeight: state.ticket.entry.contribution.height, lastSendTip: tip ?? 0, sends: 1, status: 'sent', minedHeight: null, spender: null, scanned: null }; save(); }
@@ -1351,6 +1383,23 @@ function cancelProofCheck() {
   renderTicketChecks();
 }
 
+// Level 4: the ticket's anchor is the note tree of a real block, asked of both chain servers (anchor.js). Kept once sure (found, or absent from
+// every block); not sure (a server did not answer, the servers disagree) is "not checked" and asked again after two minutes, in the background.
+const ANCHOR_RETRY_MS = 120000;
+const anchorTried = new Map();
+let anchorBusy = false;
+async function lookAnchor(raw) {
+  const e = state.ticket.entry, txid = e.ticket.txid;
+  if ((state.anchors || {})[txid] || anchorBusy || tip == null || Date.now() - (anchorTried.get(txid) || 0) < ANCHOR_RETRY_MS) return;
+  anchorBusy = true; anchorTried.set(txid, Date.now());
+  const mine = state;
+  try {
+    const servers = [...new Set([cfg.server, SECOND_SERVER[campaign.network]].filter(Boolean))];
+    const r = await findAnchor(W, servers, () => W.ticket_anchor(raw), e.contribution.height, e.ticket.issue_height, tip);
+    if (r && state === mine) { state.anchors = { ...(state.anchors || {}), [txid]: r }; save(); }
+  } catch { /* not checked; asked again later */ } finally { anchorBusy = false; }
+}
+
 async function checkTicket() {
   if (!state || !state.ticket || !campaign) return;
   let branch = null;
@@ -1379,7 +1428,9 @@ async function checkTicket() {
     // fundraiser: exactly the listed contribution minus the fee; auction: at least the amount this page asked the contributor to pay, minus the fee
     expected_value_zat: expectedRefundZat(state.ticket.entry.contribution.value_zat ?? null, state.amountZat ?? null, opening ? opening.value_zat : null, campaign.fee_zat),
     reissued: state.ticket.entry.kind === 'reissue',
+    anchor: (state.anchors || {})[state.ticket.entry.ticket.txid] || null,
   })));
+  lookAnchor(raw); // in the background; its answer shows on a later refresh
   if (state.reissueBad) {
     fresh.checks.push({ id: 'reissue_opens', status: 'fail', label: 'a newer ticket the list names for your contribution does not open with your secret, so it is not a refund to you',
       detail: `entry ${state.reissueBad.seq}, transaction ${state.reissueBad.txid}. If that transaction spends your coin, your money did not come back to you.` });

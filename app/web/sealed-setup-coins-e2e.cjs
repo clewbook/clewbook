@@ -36,7 +36,7 @@ const fits = (p, sel) => p.$eval(sel, (e) => {
     await p.waitForSelector('#sealed-choice:not([hidden])', { timeout: 30000 });
     await p.check('input[name=mode][value=sealed_auction]');
     if (w === 1280) {
-      // second review L6 and L7: what the set up page says for a blind bid auction is true for it, in one short line each
+      // set 2 L6 and L7: what the set up page says for a blind bid auction is true for it, in one short line each
       const coinHint = await p.textContent('#s-coins .hint');
       check('L7: the small payments go out at once from 20 blocks before the cutoff, as the host does', /From 20 blocks before the cutoff they go out at once/.test(coinHint) && !/10 blocks before the deadline/.test(coinHint), coinHint);
       check('L6: the ticket window hint is about deposits and their tickets', /Each deposit must get its tickets within this many blocks/.test(await p.textContent('#ticketk-hint')), await p.textContent('#ticketk-hint'));

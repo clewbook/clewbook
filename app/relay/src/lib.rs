@@ -43,16 +43,16 @@ pub struct Limits {
     pub per_source_per_minute: u32,
     /// TESTS ONLY: a fixed clock (unix seconds) for the sealed bid auction's time limit; `None` is the real clock.
     pub test_now: Option<u64>,
-    /// The second review, M4: rules for a private regtest chain are taken only by a relay started for one (`serve --allow-regtest`); a public
+    /// Set 2, M4: rules for a private regtest chain are taken only by a relay started for one (`serve --allow-regtest`); a public
     /// relay refuses them, so nobody can switch off the test network's protections by calling an auction "regtest".
     pub allow_regtest: bool,
-    /// The second review, M5: the bytes one campaign may store on this relay (rules, entries, sealed tickets, challenges).
+    /// Set 2, M5: the bytes one campaign may store on this relay (rules, entries, sealed tickets, challenges).
     pub max_campaign_bytes: u64,
     /// The bytes this relay stores in all.
     pub max_total_bytes: u64,
 }
 
-/// The independent review, H1: from this long before a sealed bid auction's drand round R is published, its list takes no new deposit
+/// Set 1, H1: from this long before a sealed bid auction's drand round R is published, its list takes no new deposit
 /// (issue, reissue), reject or small payment (coin) entry, so a host that reads every bid once R is out cannot add bids of its own then.
 /// (A private test chain's rounds and block times are not real times, so this does not apply to the regtest network.)
 pub const SEALED_ENTRY_MARGIN_SECS: u64 = 5 * 60;
@@ -67,6 +67,12 @@ impl Default for Limits {
 }
 /// At most this many different challenge secrets are kept per payment (anyone may post one).
 pub const MAX_CHALLENGES_PER_PAYMENT: usize = 8;
+/// At most this many different late tickets are kept per deposit: the relay cannot check a signature, so a junk copy cannot crowd out the
+/// page's own (the watcher sends each; the network refuses all but a valid one).
+pub const MAX_LATE_PER_DEPOSIT: usize = 4;
+/// A late ticket's size, smallest and largest (a real one is about 9 kB: two Ironwood actions with their proof, and the coin's input).
+pub const MIN_LATE_BYTES: usize = 1_000;
+pub const MAX_LATE_BYTES: usize = 32 * 1024;
 
 #[derive(Debug)]
 pub enum StoreError {
@@ -157,7 +163,7 @@ impl Store {
         self
     }
 
-    /// The second review, M5: counts `bytes` against the campaign's and the relay's storage, or refuses them (507) when either would be full.
+    /// Set 2, M5: counts `bytes` against the campaign's and the relay's storage, or refuses them (507) when either would be full.
     fn charge(&self, id: &str, bytes: u64) -> R<()> {
         let mut g = self.usage.lock().map_err(|_| StoreError::Internal("storage count".into()))?;
         let u = g.get_or_insert_with(|| {
@@ -545,7 +551,7 @@ impl Store {
         if (c.uivk.is_some() || c.complaint) && !settled {
             return bad("a viewing key or a complaint only applies to a settled auction winner");
         }
-        // the second review, H2: in a blind bid auction with open payouts the reject names the payment's memo by its hash, so the challenge
+        // set 2, H2: in a blind bid auction with open payouts the reject names the payment's memo by its hash, so the challenge
         // carries that memo and the relay checks the secret opens it; junk secrets are refused and cannot fill the slots of a payment
         let rules = self.rules(id)?;
         if rejected && rules.sealed.as_ref().is_some_and(|s| s.open_payouts) {
@@ -575,6 +581,49 @@ impl Store {
         let canonical = to_canonical(&c).map_err(|e| StoreError::Internal(e.to_string()))?;
         self.charge(id, canonical.len() as u64)?;
         fs::write(path, canonical)?;
+        Ok(Put::Created)
+    }
+
+    /// A blind bid page's signed late ticket (the raw transaction), kept so the late ticket watcher can send it once the late ticket block has
+    /// passed if the host never closed (docs/BLIND_BIDS.md). Write only: the relay never serves it, because before the close it would show
+    /// the deposit's size, which the list keeps hidden; the watcher reads it from this relay's folder. Taken only for a deposit that has a
+    /// small payment on the list, and only when it spends that deposit and that small payment.
+    pub fn put_late(&self, id: &str, nf: &str, body: &[u8]) -> R<Put> {
+        let rules = self.rules(id)?;
+        if rules.sealed.is_none() {
+            return bad("only a blind bid auction takes late tickets");
+        }
+        if !is_hex32(nf) {
+            return bad("the deposit must be named by its nullifier, 64 lowercase hex characters");
+        }
+        if !(MIN_LATE_BYTES..=MAX_LATE_BYTES).contains(&body.len()) {
+            return bad("that is not the size of a late ticket");
+        }
+        let entries = self.entries(id)?;
+        let Some(coin) = entries.iter().filter_map(|e| e.coin.as_ref()).find(|c| c.nf == nf) else {
+            return bad("no small payment on this list names that deposit, so it has no late ticket");
+        };
+        let contains = |needle: &[u8]| body.windows(needle.len()).any(|w| w == needle);
+        let nf_bytes = hex::decode(nf).or_else(|_| bad("the nullifier is not hex"))?;
+        let mut outpoint = hex::decode(&coin.txid).or_else(|_| bad("the small payment's id is not hex"))?;
+        outpoint.reverse();
+        outpoint.extend(coin.index.to_le_bytes());
+        if !contains(&nf_bytes) || !contains(&outpoint) {
+            return bad("that is not this deposit's late ticket: it must spend the deposit and its small payment");
+        }
+        let dir = self.dir(id)?.join("late");
+        fs::create_dir_all(&dir)?;
+        let tag = hex::encode(&ll_core::hash(b"ledgerlab_late", body)[..8]);
+        let path = dir.join(format!("{nf}-{tag}.tx"));
+        if path.exists() {
+            return Ok(Put::AlreadyStored);
+        }
+        let same = fs::read_dir(&dir)?.filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().starts_with(&format!("{nf}-"))).count();
+        if same >= MAX_LATE_PER_DEPOSIT {
+            return Err(StoreError::Conflict("too many different late tickets for this deposit".into()));
+        }
+        self.charge(id, body.len() as u64)?;
+        fs::write(path, body)?;
         Ok(Put::Created)
     }
 
@@ -659,6 +708,7 @@ pub fn handle(store: &Store, method: &str, url: &str, body: &[u8]) -> Resp {
             Ok(respond(200, "application/json", store.ledger_json(id, from)?))
         }
         ("PUT", ["v1", "campaigns", id, "challenges"]) => store.put_challenge(id, body).map(ok_put),
+        ("PUT", ["v1", "campaigns", id, "late", nf]) => store.put_late(id, nf, body).map(ok_put),
         ("GET", ["v1", "campaigns", id, "challenges"]) => Ok(respond(200, "application/json", store.challenges_json(id)?)),
         ("PUT", ["v1", "campaigns", id, "final"]) => store.put_final(id, body).map(ok_put),
         ("GET", ["v1", "campaigns", id, "final"]) => Ok(respond(200, "application/json", store.final_raw(id)?)),

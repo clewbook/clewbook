@@ -1,5 +1,5 @@
-// The bid page when a cheating host hands out an early ticket that pays the host, sealed without opening values (the second review, C1), in
-// a real browser, with the real relay serving the public list of auction E from the private chain check of the review fixes (written
+// The bid page when a cheating host hands out an early ticket that pays the host, sealed without opening values (set 2, C1), in
+// a real browser, with the real relay serving the public list of auction E from the private chain check of the fixes (written
 // before anyone took a deposit back, with the first payer's page state, to <run>/fixture-early) and a stand in chain server. It checks: the
 // page cannot see who the early ticket pays, so it says NOT PROTECTED, says why, and offers no take back button.
 // Run from the repository root with BIN=<folder with ll-relay> (FIXTURE=<run>/fixture-early for a fresh run; app/web/testdata/bid-early

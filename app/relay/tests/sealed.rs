@@ -303,7 +303,7 @@ fn h3_a_rejected_payment_and_l6_a_deposit_a_reorg_made_late_are_sent_back() {
 }
 
 #[test]
-fn second_review_h2_junk_cannot_fill_a_rejected_payments_challenge_slots() {
+fn set2_h2_junk_cannot_fill_a_rejected_payments_challenge_slots() {
     use ll_core::{keys::ContributorKeys, payload::Payload, recount::Challenge};
     let (dir, r) = relay();
     let mut c = campaign(9, true);
@@ -374,4 +374,59 @@ fn a_mainnet_blind_bid_auction_with_late_key_registers() {
     let mut stored = vec![];
     put(&r, &c, &mut stored, c.issue(1, true)).unwrap();
     assert!(String::from_utf8(serde_json::to_vec(&c.rules).unwrap()).unwrap().contains("\"late_key\":true"));
+}
+
+#[test]
+fn a_late_ticket_is_kept_write_only_for_a_deposit_with_a_small_payment_and_junk_cannot_crowd_it_out() {
+    let dir = std::env::temp_dir().join(format!("ll-relay-late-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (server, url) = ll_relay::spawn(&dir, "127.0.0.1:0").unwrap();
+    std::mem::forget(server);
+    let r = Relay::new(&url);
+    let c = campaign(7, true);
+    r.register(&c.rules).unwrap();
+    let mut stored = vec![];
+    put(&r, &c, &mut stored, c.issue(1, true)).unwrap();
+    put(&r, &c, &mut stored, c.issue(2, true)).unwrap();
+    put(&r, &c, &mut stored, c.coin(1)).unwrap();
+    let send = |nf: &str, body: &[u8]| match ureq::put(&format!("{url}/v1/campaigns/{}/late/{nf}", c.id)).send_bytes(body) {
+        Ok(res) => res.status(),
+        Err(ureq::Error::Status(s, _)) => s,
+        Err(e) => panic!("{e}"),
+    };
+    // a late ticket spends the deposit (its nullifier) and the small payment (its outpoint: the coin's txid in transaction order, then the index)
+    let coin = stored[2].coin.clone().unwrap();
+    let mut outpoint = hex::decode(&coin.txid).unwrap();
+    outpoint.reverse();
+    outpoint.extend(coin.index.to_le_bytes());
+    let ticket = |fill: u8| [vec![fill; 600], hex::decode(nf(1)).unwrap(), vec![fill; 300], outpoint.clone(), vec![fill; 2000]].concat();
+    assert_eq!(send(&nf(1), &ticket(1)), 201);
+    assert_eq!(send(&nf(1), &ticket(1)), 200, "the same bytes again: already kept");
+    // never served: before the close it would show the deposit's size, which the list keeps hidden
+    assert!(matches!(ureq::get(&format!("{url}/v1/campaigns/{}/late/{}", c.id, nf(1))).call(), Err(ureq::Error::Status(s, _)) if s >= 400));
+    let files = std::fs::read_dir(dir.join("campaigns").join(&c.id).join("late")).unwrap().count();
+    assert_eq!(files, 1, "kept in the relay's folder for the watcher");
+    // refused: a deposit without a small payment on the list, a transaction that does not spend this deposit or its small payment, a size
+    // that is not a late ticket's, a campaign that is not a blind bid auction
+    assert_eq!(send(&nf(2), &[vec![0; 600], hex::decode(nf(2)).unwrap(), outpoint.clone(), vec![0; 2000]].concat()), 400);
+    assert_eq!(send(&nf(1), &[vec![0; 600], hex::decode(nf(1)).unwrap(), vec![0; 2000]].concat()), 400);
+    assert_eq!(send(&nf(1), &[vec![0; 600], outpoint.clone(), vec![0; 2000]].concat()), 400);
+    assert_eq!(send(&nf(1), &[hex::decode(nf(1)).unwrap(), outpoint.clone()].concat()), 400);
+    assert_eq!(send(&nf(1), &vec![0; 40 * 1024]), 400);
+    let plain = campaign(8, false);
+    r.register(&plain.rules).unwrap();
+    assert_eq!(send_to(&url, &plain.id, &nf(1), &ticket(1)), 400);
+    // the relay cannot check a signature: up to four different copies are kept, so junk sent first cannot shut out the page's own
+    for k in 2..=4 {
+        assert_eq!(send(&nf(1), &ticket(k)), 201);
+    }
+    assert_eq!(send(&nf(1), &ticket(5)), 409);
+}
+
+fn send_to(url: &str, id: &str, nf: &str, body: &[u8]) -> u16 {
+    match ureq::put(&format!("{url}/v1/campaigns/{id}/late/{nf}")).send_bytes(body) {
+        Ok(res) => res.status(),
+        Err(ureq::Error::Status(s, _)) => s,
+        Err(e) => panic!("{e}"),
+    }
 }

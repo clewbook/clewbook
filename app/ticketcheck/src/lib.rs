@@ -40,6 +40,9 @@ pub struct Spent {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Inputs {
+    /// Level 4: what the page found when it looked for the ticket's anchor on the chain (both chain servers), if it looked to the end.
+    #[serde(default)]
+    pub anchor: Option<AnchorSeen>,
     /// The ticket's raw transaction, hex.
     pub raw_hex: String,
     /// From the signed ledger entry.
@@ -82,7 +85,7 @@ pub struct Inputs {
     /// contributor, so "it pays you" not checked counts as a failure.
     #[serde(default)]
     pub reissued: bool,
-    /// Sealed bid auction, the early ticket (the independent review, H4): it must expire exactly at this block (the deadline), not never.
+    /// Sealed bid auction, the early ticket (set 1, H4): it must expire exactly at this block (the deadline), not never.
     #[serde(default)]
     pub expected_expiry: Option<u32>,
 }
@@ -221,8 +224,26 @@ pub fn check(i: &Inputs) -> Vec<Check> {
     }
     out.push(pays);
     out.push(c("proof", NotChecked, "the zero-knowledge proof (press \"Check the proof too\" to run it)"));
-    out.push(c("anchor", NotChecked, "that its chain state (anchor) is real"));
+    out.push(match &i.anchor {
+        Some(AnchorSeen::Found { height, servers }) => c("anchor", Pass, format!(
+            "its chain state (anchor) is the note tree of block {height}, as {}",
+            if *servers >= 2 { "both chain servers say".to_string() } else { "one chain server says (checked with 1 of 2 servers)".to_string() }
+        )),
+        Some(AnchorSeen::Absent { from, to }) => c("anchor", Fail, format!(
+            "its chain state (anchor) is not the note tree of any block from {from}, where your payment was mined, to {to}: the network would refuse this ticket"
+        )),
+        None => c("anchor", NotChecked, "that its chain state (anchor) is real (the chain servers have not answered for every block yet)"),
+    });
     out
+}
+
+/// Level 4, as the page found it: the block whose note tree root is the ticket's anchor (and how many chain servers said so), or that no
+/// block from the payment's block to `to` has it, every block answered by both servers. Anything less is not given (not checked).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "seen", rename_all = "snake_case")]
+pub enum AnchorSeen {
+    Found { height: u32, servers: u32 },
+    Absent { from: u32, to: u32 },
 }
 
 /// Level 2: recompute the refund output's note commitment from the opening values and the refund address the contributor
@@ -287,7 +308,7 @@ pub fn recover_outputs(raw: &[u8], ovk: &[u8; 32]) -> Result<Vec<(String, u64)>,
         .collect())
 }
 
-/// The mentor's second review: a payment transaction as the recount checks it, the outputs its outgoing viewing key opens (none without a
+/// Set 3: a payment transaction as the recount checks it, the outputs its outgoing viewing key opens (none without a
 /// key) and its shape, which needs no key (what it spends in the transparent pool, how many Ironwood actions, what leaves that pool).
 pub fn payout_fact(raw: &[u8], ovk: Option<&[u8; 32]>) -> Result<(Vec<(String, u64)>, ll_core::recount::TxShape), String> {
     let tx = Transaction::read(raw, BranchId::Nu7).map_err(|e| format!("the transaction could not be read ({e})"))?;

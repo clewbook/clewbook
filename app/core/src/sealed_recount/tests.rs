@@ -213,7 +213,7 @@ fn honest_open(pricing: &str) -> Case {
     honest_with(pricing, true)
 }
 
-/// The shape of an honest payment from one deposit to one person: two actions, only the fee leaving the pool (the mentor's second review).
+/// The shape of an honest payment from one deposit to one person: two actions, only the fee leaving the pool (set 3).
 fn plain_shape() -> TxShape {
     TxShape { actions: 2, value_balance: FEE as i64, ..Default::default() }
 }
@@ -931,7 +931,7 @@ fn h3_a_rejected_payment_must_be_sent_back_and_its_reject_must_name_its_memo() {
     let r = c.run();
     assert!(r.all_pass(), "{:?} {}", failing(&r), details(&r, "S7"));
     assert!(details(&r, "S7").contains("was rejected or repeated a deposit's memo, and was sent back by rej-return"), "{}", details(&r, "S7"));
-    // the cheat of the review: a false reject that keeps the deposit. S7 fails
+    // a cheat from BLIND_BIDS section 2: a false reject that keeps the deposit. S7 fails
     let mut c = honest_open("uniform");
     let rej = open_reject(&c, &x);
     before_close(&mut c, rej);
@@ -1087,7 +1087,7 @@ fn l2_without_the_block_times_a_void_close_cannot_be_concluded() {
 }
 
 #[test]
-fn second_review_c1_a_deposit_taken_back_must_have_paid_its_refund_address() {
+fn set2_c1_a_deposit_taken_back_must_have_paid_its_refund_address() {
     // D takes its deposit back before the deadline with its early ticket (block 150); with the early key the recount opens that ticket
     let withdraw = |c: &mut Case, to: Option<[u8; 43]>| {
         let d = c.n(3);
@@ -1160,7 +1160,7 @@ fn host_receiver() -> [u8; 43] {
     orchard::keys::FullViewingKey::from(&sk).address_at(0u32, orchard::keys::Scope::External).to_raw_address_bytes()
 }
 
-/// The mentor's second review, the Blind bid hole: before 22 Oct 2026 a spend after the late ticket block counted as refunded whenever its id
+/// Set 3, the Blind bid hole: before 22 Oct 2026 a spend after the late ticket block counted as refunded whenever its id
 /// was the "late" id the host wrote on its own list, without checking who it paid. A host that never closes names its own spend of each deposit
 /// as the late ticket. A real late ticket spends the bid page's coin, which only the page can sign (after checking whom the ticket pays), so
 /// a spend without that coin is caught with no key at all.

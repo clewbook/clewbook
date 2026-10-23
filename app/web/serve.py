@@ -19,7 +19,7 @@ FILES = PAGES | {
     "robots.txt", "campaigns.json",
     "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css", "bid.css",
     "loadguard.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
-    "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js",
+    "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js", "nu7.js", "anchor.js",
 }
 PATTERNS = [re.compile(p) for p in (
     r"fonts/[A-Za-z0-9-]+\.(woff2|txt)",

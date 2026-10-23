@@ -1,6 +1,6 @@
 //! The submission endpoint: POST /v1/records with one listing record; GET /v1/records/<campaign id> (the request's state and a plain reason
 //! from the last pass, nothing else); GET /v1/health (200 with the time and block of the last good pass, 503 when there was none in the
-//! last three intervals). Every request counts toward the same per source limit.
+//! last three intervals plus the time limits of one pass's recounts). Every request counts toward the same per source limit.
 //!
 //! It only accepts and stores: the size (at most 4 KB, read no further), the shape and both signatures are checked, and the caps applied. It never
 //! fetches anything because of a request: the relays named in records are read by the periodic pass, at most once per record per pass, so the
@@ -64,6 +64,11 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
     let lock = Arc::new(Mutex::new(()));
     // the last good pass: when (unix seconds), at which block, and its summary
     let last: Arc<Mutex<Option<(u64, u32, String)>>> = Arc::new(Mutex::new(None));
+    // a pass may take as long as its recounts' time limits: a long pass is not a failed one
+    #[cfg(feature = "recount")]
+    let longest_recounts = cfg.recount.as_ref().map_or(0, |r| r.limits.wall.as_secs() * r.limits.per_pass as u64);
+    #[cfg(not(feature = "recount"))]
+    let longest_recounts = 0;
     {
         let (cfg, tip, last) = (cfg.clone(), tip.clone(), last.clone());
         // Telegram notices go out from a thread of their own, one at a time: a pass never waits for Telegram
@@ -133,7 +138,7 @@ pub fn serve(cfg: JobConfig, listen: &str, per_minute: u32, interval: Duration, 
             ("GET", "/v1/health") => {
                 let now = crate::host::now_secs();
                 match last.lock().unwrap_or_else(|p| p.into_inner()).clone() {
-                    Some((at, t, summary)) if now.saturating_sub(at) <= 3 * interval.as_secs() + 60 =>
+                    Some((at, t, summary)) if now.saturating_sub(at) <= 3 * interval.as_secs() + longest_recounts + 60 =>
                         json_value(200, serde_json::json!({ "message": "ok", "last_pass": at, "block": t, "summary": summary })),
                     Some((at, t, _)) => json_value(503, serde_json::json!({ "message": "no good pass recently", "last_pass": at, "block": t })),
                     None => json(503, "no good pass yet"),

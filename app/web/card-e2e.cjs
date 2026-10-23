@@ -32,7 +32,7 @@ const OWN = /^(http:\/\/127\.0\.0\.1|data:|blob:)/;
         const nc = await text(p, '#not-checked');
         check(`${name}: it lists what is not checked, each with its reason as text`, /the contributor's one time secret, which only a published challenge reveals/.test(nc) && /Check the proof too/.test(nc) && /Ticket anchors/.test(nc) && /Ledger anchoring/.test(nc) && nc.includes("once the campaign is closed, the host signs the list's fingerprint (the number of entries and the hash of the last one), but it is not anchored on any public ledger") && (rules.mode !== 'auction' || /bid amounts are not on the public list/.test(nc)), nc.slice(0, 160));
         const lv = await text(p, '#levels');
-        check(`${name}: the ticket levels L1 to L4 are listed, the proof only on request and L4 as not built`, /L1/.test(lv) && /L2/.test(lv) && /L3/.test(lv) && /On request/.test(lv) && /L4/.test(lv) && /Not built/.test(lv));
+        check(`${name}: the ticket levels L1 to L4 are listed, the proof only on request and L4 (the anchor) built`, /L1/.test(lv) && /L2/.test(lv) && /L3/.test(lv) && /On request/.test(lv) && /L4/.test(lv) && !/Not built/.test(lv));
         check(`${name}: an auction says that only R1 and R2 can run before it closes; a fundraiser does not`, (await p.isVisible('#auction-note')) === (rules.mode === 'auction'));
         await p.click('#checks .chk:first-child .cid'); await p.waitForTimeout(200);
         check(`${name}: tapping a check id shows its name and a sentence`, await p.isVisible('#checks .chk:first-child .tip') && /Rules/.test(await text(p, '#checks .chk:first-child .tip')));

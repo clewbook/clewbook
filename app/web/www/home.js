@@ -236,7 +236,7 @@ async function main() {
       for (const e of DEFAULT_ENDPOINTS[n] || []) {
         const t = await tipOf(e, 8000);
         if (t == null) continue;
-        const spb = await observedBlockSeconds([e], t);
+        const spb = await observedBlockSeconds([e], t, n);
         for (const s of shown.filter((x) => x.info && !x.closed && x.info.network === n)) {
           const left = s.el._parts.left;
           if (t > s.info.deadline_height) { left.replaceChildren('deadline passed'); left.classList.add('ended'); }

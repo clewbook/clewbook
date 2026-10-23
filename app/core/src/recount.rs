@@ -47,7 +47,7 @@ pub struct Challenge {
     /// Uniform auction: the winner says the excess did not arrive (unverified without `uivk`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub complaint: bool,
-    /// Blind bid auction with open payouts (the second review, H2): the rejected payment's memo, so a relay can check the secret opens it
+    /// Blind bid auction with open payouts (set 2, H2): the rejected payment's memo, so a relay can check the secret opens it
     /// (the reject names the memo by its hash) and refuse junk that would fill the challenge slots.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
@@ -449,7 +449,7 @@ pub struct PayoutFact {
     pub outputs: Vec<PaidOutput>,
     /// Why the transaction could not be read or opened.
     pub error: Option<String>,
-    /// What the transaction spends and how much leaves the shielded pool (the mentor's second review): read from the transaction alone.
+    /// What the transaction spends and how much leaves the shielded pool (set 3): read from the transaction alone.
     #[serde(default)]
     pub shape: Option<TxShape>,
 }

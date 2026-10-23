@@ -207,7 +207,7 @@ fn init_named_wallet(devtool: &Path, run_dir: &Path, network: &str, folder: &str
     Err(anyhow!("The network server did not answer, so the campaign's wallet could not be created. Please try again in a minute."))
 }
 
-fn parse_create(st: &State, body: &Value) -> Result<(String, Option<u64>, Option<u32>, u32, u64, Vec<String>, u32)> {
+fn parse_create(st: &State, body: &Value) -> Result<(String, Option<u64>, Option<u32>, u32, u64, Vec<String>, Option<u32>)> {
     let mode = body["mode"].as_str().unwrap_or("");
     let uint = |k: &str| body[k].as_u64();
     let (goal, items) = match mode {
@@ -229,10 +229,11 @@ fn parse_create(st: &State, body: &Value) -> Result<(String, Option<u64>, Option
         Some(m) if m >= MIN_FLOOR_ZAT => m,
         _ => bail!("The smallest contribution must be at least 0.0002 (twice the refund fee), or a refund would leave nothing."),
     };
+    // left out: the default for the chain's height, chosen when the campaign is made (tripled after NU7)
     let ticket_k = match body.get("ticket_k") {
-        None | Some(Value::Null) => ll_core::rules::DEFAULT_TICKET_K,
+        None | Some(Value::Null) => None,
         Some(v) => match v.as_u64() {
-            Some(k) if (ll_core::rules::MIN_TICKET_K as u64..=ll_core::rules::MAX_TICKET_K as u64).contains(&k) => k as u32,
+            Some(k) if (ll_core::rules::MIN_TICKET_K as u64..=ll_core::rules::MAX_TICKET_K as u64).contains(&k) => Some(k as u32),
             _ => bail!("The ticket window must be a whole number of blocks from {} to {}.", ll_core::rules::MIN_TICKET_K, ll_core::rules::MAX_TICKET_K),
         },
     };
@@ -263,13 +264,13 @@ fn parse_name(body: &Value) -> Result<Option<String>> {
     Ok(Some(name.to_string()))
 }
 
-/// The ticket window a set up request asks for, checked before anything is made (the second review, L5): the default when it is left
-/// out, else within the rules' limits (a number that does not fit is refused, never cut down to fit).
-fn ticket_k_of(body: &Value) -> Result<u32> {
-    use ll_core::rules::{DEFAULT_TICKET_K, MAX_TICKET_K, MIN_TICKET_K};
+/// The ticket window a set up request asks for, checked before anything is made (set 2, L5): none when it is left out (the default is
+/// chosen from the chain's height), else within the rules' limits (a number that does not fit is refused, never cut down to fit).
+fn ticket_k_of(body: &Value) -> Result<Option<u32>> {
+    use ll_core::rules::{MAX_TICKET_K, MIN_TICKET_K};
     match &body["ticket_k"] {
-        Value::Null => Ok(DEFAULT_TICKET_K),
-        v => v.as_u64().filter(|k| (MIN_TICKET_K as u64..=MAX_TICKET_K as u64).contains(k)).map(|k| k as u32)
+        Value::Null => Ok(None),
+        v => v.as_u64().filter(|k| (MIN_TICKET_K as u64..=MAX_TICKET_K as u64).contains(k)).map(|k| Some(k as u32))
             .ok_or_else(|| anyhow!("The ticket window must be {MIN_TICKET_K} to {MAX_TICKET_K} blocks.")),
     }
 }
@@ -285,19 +286,27 @@ fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
     let pricing = body["pricing"].as_str().filter(|p| ll_core::sealed::PRICING.contains(p)).ok_or_else(|| anyhow!("Please choose how winners pay."))?.to_string();
     let coin_sending: ll_core::sealed::CoinSending = serde_json::from_value(body["coin_sending"].clone()).map_err(|_| anyhow!("Please choose when the small payments go out: at once, every few bids, or every few minutes."))?;
     let deadline_in = body["deadline_in"].as_u64().filter(|d| (20..=2_000_000).contains(d)).ok_or_else(|| anyhow!("The deadline must be at least 20 blocks from now."))? as u32;
-    let ticket_k = ticket_k_of(body)?;
-    // before any wallet is made: enough blocks for deposits, and on the main network an auction that is over before the NU7 upgrade
-    ll_core::sealed::check_bid_window(deadline_in, ticket_k)?;
-    if st.cfg.network == "main" {
-        let tip = crate::libs::server_tip("main").map_err(|e| anyhow!("The chain height could not be read: {}", plain_error(&e)))?;
-        ll_core::sealed::check_main_fits(tip, now(), tip.saturating_add(deadline_in), ticket_k)?;
-    }
     let timing = match body["timing"].as_str() {
         None | Some("standard") => ll_core::sealed::Timing::Standard,
         Some("quick") if st.cfg.network != "main" => ll_core::sealed::Timing::Quick,
         Some("quick") => bail!("The quick test timing is for the test network only."),
         Some(_) => bail!("Please choose the standard or the quick test timing."),
     };
+    let asked_k = ticket_k_of(body)?;
+    // before any wallet is made: enough blocks for deposits, and on the main network an auction that is over before the NU7 upgrade
+    let tip = if st.cfg.network == "main" {
+        Some(crate::libs::server_tip("main").map_err(|e| anyhow!("The chain height could not be read: {}", plain_error(&e)))?)
+    } else {
+        None
+    };
+    // the default window follows the auction's first block (tripled after NU7): the main network's next block; the test network is past
+    // NU7 for good, and a private test chain has no NU7 height
+    let start = tip.map(|t| t + 1).unwrap_or_else(|| ll_core::rules::nu7_height(&st.cfg.network).unwrap_or(0));
+    let ticket_k = asked_k.unwrap_or_else(|| ll_core::sealed::default_ticket_k(&st.cfg.network, timing, start));
+    ll_core::sealed::check_bid_window(deadline_in, ticket_k)?;
+    if let Some(tip) = tip {
+        ll_core::sealed::check_main_fits(tip, now(), tip.saturating_add(deadline_in), ticket_k)?;
+    }
     let relays: Vec<String> = body["relays"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).filter(|v: &Vec<String>| !v.is_empty()).unwrap_or_else(|| st.cfg.relays.clone());
     let name = parse_name(body)?;
     let dir = st.cfg.runs_dir.join(format!("campaign-{}", now()));
@@ -316,7 +325,7 @@ fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
     };
     let identity = PathBuf::from(format!("{}.age", wallet.display()));
     let cfg = RunConfig { backend: "libs".into(), devtool: st.cfg.devtool.clone(), wallet, identity, min_confirmations: None };
-    crate::sealed_host::create_sealed(&dir, cfg, &st.cfg.network, deadline_in, &relays, ticket_k, name, args)
+    crate::sealed_host::create_sealed(&dir, cfg, &st.cfg.network, deadline_in, &relays, Some(ticket_k), name, args)
         .map_err(|e| anyhow!("The auction could not be created: {}", plain_error(&e)))?;
     let c = load_campaign(&dir)?;
     let id = c.id.clone();
@@ -368,7 +377,7 @@ fn create_campaign(st: &State, body: &Value) -> Result<Value> {
     // the real network: the host must have confirmed it, and the campaign must be over well before the NU7 upgrade (checked again with the chain height inside create)
     let confirmed = body["confirm_mainnet"].as_bool() == Some(true);
     crate::mainnet::require_confirmation(&st.cfg.network, confirmed)?;
-    crate::mainnet::nu7_guard(&st.cfg.network, None, crate::mainnet::blocks_needed(deadline_in, ticket_k), now(), st.cfg.nu7_mainnet_height)?;
+    crate::mainnet::nu7_guard(&st.cfg.network, None, crate::mainnet::blocks_needed(deadline_in, ticket_k.unwrap_or(ll_core::rules::DEFAULT_TICKET_K)), now(), st.cfg.nu7_mainnet_height)?;
     let dir = st.cfg.runs_dir.join(format!("campaign-{}", now()));
     crate::make_private_dir(&dir)?; // created closed (700) before the wallet tool writes the wallet and its key file into it
     let wallet = init_wallet(&st.cfg.devtool, &dir, &st.cfg.network)?;
@@ -602,7 +611,7 @@ fn status(st: &State, c: &Campaign) -> Value {
         w.push(warn("warn", format!("{late} payment(s) arrived after {after}; they are not counted and stay in the wallet (cb-host late lists them).")));
     }
     if rejects > 0 && rules.sealed.as_ref().is_some_and(|s| s.open_payouts) {
-        // a blind bid auction sends a rejected payment back on its own (the review, H3); it is not a donation
+        // a blind bid auction sends a rejected payment back on its own (set 1, H3); it is not a donation
         w.push(warn("warn", format!("{rejects} payment(s) were rejected; they go back on their own, minus the fee.")));
     } else if rejects > 0 {
         w.push(warn("warn", format!("{rejects} payment(s) were set aside because their message could not be opened. They count as donations; their senders can still prove they were valid.")));
@@ -1064,10 +1073,10 @@ mod restart_hint_tests {
     use super::*;
 
     #[test]
-    fn second_review_l5_the_ticket_window_is_checked_before_anything_is_made() {
+    fn set2_l5_the_ticket_window_is_checked_before_anything_is_made() {
         let (lo, hi) = (ll_core::rules::MIN_TICKET_K, ll_core::rules::MAX_TICKET_K);
-        assert_eq!(ticket_k_of(&json!({})).unwrap(), ll_core::rules::DEFAULT_TICKET_K);
-        assert_eq!(ticket_k_of(&json!({"ticket_k": lo})).unwrap(), lo);
+        assert_eq!(ticket_k_of(&json!({})).unwrap(), None, "left out: the default for the chain's height, chosen at creation");
+        assert_eq!(ticket_k_of(&json!({"ticket_k": lo})).unwrap(), Some(lo));
         for bad in [json!(0), json!(hi as u64 + 1), json!(4_294_967_306u64), json!(-1), json!("10")] {
             assert!(ticket_k_of(&json!({"ticket_k": bad})).is_err(), "{bad}");
         }
