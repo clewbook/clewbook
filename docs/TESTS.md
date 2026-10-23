@@ -81,7 +81,7 @@ The stress test was not a same-block burst: at most 5 contributions arrived per 
 - `app/regtest/check-ordinary.sh`: an ordinary auction on the private chain (the harness itself);
 - `app/regtest/check-sealed-intake.sh`: deposits, early tickets, signed refunds, the small payments for each way of sending them, the cutoff;
 - `app/regtest/check-sealed-close.sh`: uniform price, second price and pay your bid auctions closed, and an auction whose host never closed;
-- `app/regtest/check-sealed-review.sh`: the review fixes with five hosts, one honest (a false reject, a repeated memo and a late payment all sent back; every refund, change and return opened on the chain) and four cheating (keeps a reject, refunds to itself, keeps a winner's change, hands out early tickets that pay itself), each caught by the recount;
+- `app/regtest/check-sealed-fixes.sh`: the fixes in BLIND_BIDS section 2 with five hosts, one honest (a false reject, a repeated memo and a late payment all sent back; every refund, change and return opened on the chain) and four cheating (keeps a reject, refunds to itself, keeps a winner's change, hands out early tickets that pay itself), each caught by the recount;
 - `app/regtest/check-dashboard.sh` (with `app/web/sealed-dashboard-e2e.cjs`): 18 browser checks of the set up page and dashboard;
 - `app/regtest/check-pages.sh` (with `app/web/sealed-pages-e2e.cjs`): 10 browser checks of the campaign and recount pages, the recount scanning the private chain;
 - `app/regtest/check-e2e.sh` (with `app/web/sealed-e2e.cjs`): 32 browser checks, sixteen bid pages from bid to result;

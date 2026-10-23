@@ -4,7 +4,7 @@
 // file), SHOTS, CLAIM=1 to press the refund button. Run from the repository root with Chromium's libraries on LD_LIBRARY_PATH.
 const { chromium } = require('./../vectors/js/node_modules/playwright');
 const fs = require('fs');
-const LINK = process.env.LINK, BACKUP = process.env.BACKUP, SHOTS = process.env.SHOTS || 'runs/review-shots';
+const LINK = process.env.LINK, BACKUP = process.env.BACKUP, SHOTS = process.env.SHOTS || 'runs/restore-shots';
 fs.mkdirSync(SHOTS, { recursive: true });
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };

@@ -1,4 +1,4 @@
-# Listing mainnet campaigns: review (prototype, not enabled)
+# Listing mainnet campaigns: plan (prototype, not enabled)
 
 Mainnet stays refused by default. Nothing in this note is enabled on the server.
 

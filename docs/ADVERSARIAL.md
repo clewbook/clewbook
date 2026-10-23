@@ -17,15 +17,15 @@ with its test, are in [BLIND_BIDS.md](BLIND_BIDS.md) section 2 and are only summ
 
 | Attack | Status | What happens | Test or evidence |
 |---|---|---|---|
-| Spends a contribution that has a ticket, before the deadline | caught (after the fact) | R5 fails, naming the spending transaction. The spend itself is not stopped: the host holds the key | demo proof 3c34b9ff (R5, R6); `early_spend_by_non_ticket_fails_r5`; `app/review-e2e.sh conflict` (testnet, 13 Oct 2026) |
+| Spends a contribution that has a ticket, before the deadline | caught (after the fact) | R5 fails, naming the spending transaction. The spend itself is not stopped: the host holds the key | demo proof 3c34b9ff (R5, R6); `early_spend_by_non_ticket_fails_r5`; `app/scenarios-e2e.sh conflict` (testnet, 13 Oct 2026) |
 | Keeps a contribution it should refund, after the deadline | caught (after the fact) | R6 fails, naming the spending transaction | demo proof 3c34b9ff; `goal_missed_keeping_money_fails_r6_and_lying_about_the_outcome_fails_r7` |
 | Names its own spend a re-issued ticket, with no network upgrade or after the close | caught | R2 refuses the entry and the spend fails R5 or R6 | `a_spend_named_as_a_reissue_without_a_network_upgrade_is_caught`, `a_spend_named_as_a_reissue_after_the_close_is_caught` |
 | Names its own spend the one re-issue at a real network upgrade | flagged | The recount accepts one re-issue per upgrade; the contributor's page refuses a re-issued ticket that does not show it pays them | `a_reissued_ticket_must_show_that_it_pays_you` |
 | Hands a contributor a broken or junk ticket | caught | The contribute page's ticket checks fail and it says so | `app/web/junk-ticket.sh` (45 checks), `ticket-amount-e2e.cjs` |
 | Issues a ticket late, while offline | caught (R4b) | R4b fails, using the issue height the host writes | main network: Clewbook Pre-seed Raise, ticket 110 blocks after its payment ([EVIDENCE.md](EVIDENCE.md) 11c); demo proof 65f3dd51 |
-| Writes an earlier issue height than the real one | not prevented | R4b trusts the host's height; a relay run by someone else could stamp it (roadmap) | `app/review-e2e.sh backdate` (testnet) |
+| Writes an earlier issue height than the real one | not prevented | R4b trusts the host's height; a relay run by someone else could stamp it (roadmap) | `app/scenarios-e2e.sh backdate` (testnet) |
 | Closes before the deadline when the rules do not allow it | caught | R2 and R5 fail | demo proof 36a51782 |
-| Writes an earlier early close height to leave out a later payer | flagged | R3 fails if that payer was ticketed; otherwise listed under R2 as information | `app/review-e2e.sh earlybackdate` |
+| Writes an earlier early close height to leave out a later payer | flagged | R3 fails if that payer was ticketed; otherwise listed under R2 as information | `app/scenarios-e2e.sh earlybackdate` |
 | Declares the wrong outcome or the wrong winners | caught | R7 fails | `goal_missed_keeping_money_fails_r6_and_lying_about_the_outcome_fails_r7` |
 | Keeps a payment over the hard cap | caught | R6 fails | demo proof bc66ccca; `app/cap-e2e.sh` (15 checks) |
 | Cancels a campaign that did not opt in, after the deadline, or forges a cancel | caught | R2 (and R7) fail; the relay refuses the first | `a_cancel_on_a_campaign_without_the_field_fails_r2_and_r7`, `a_forged_cancel_not_signed_by_the_host_fails_r2`, `a_cancel_after_the_deadline_fails_r2` |
@@ -60,7 +60,7 @@ with its test, are in [BLIND_BIDS.md](BLIND_BIDS.md) section 2 and are only summ
 |---|---|---|---|
 | Copies someone's pending memo into their own payment | flagged | The copier pays and their money goes to the original contributor's refund address; the original becomes a donation, about one network fee lost | `a_message_copied_into_an_earlier_payment_takes_the_contributors_place_but_is_visible`, `app/replay-e2e.sh` |
 | Copies a locked bid into another memo, or bids above the deposit | caught | No bid | `b3_...`, `b4_...`, `m4_...` in `cargo test -p ll-core` |
-| Hand builds a payment code that would make an honest host's recount fail | caught (as a reject) | The host rejects it at once; the recount upholds the reject | `a_challenge_cannot_revive_a_reject_for_a_refund_the_host_cannot_pay`, `app/review-e2e.sh fuzz` |
+| Hand builds a payment code that would make an honest host's recount fail | caught (as a reject) | The host rejects it at once; the recount upholds the reject | `a_challenge_cannot_revive_a_reject_for_a_refund_the_host_cannot_pay`, `app/scenarios-e2e.sh fuzz` |
 | Underpays with a wallet that lowers the amount | flagged | The page warns; the payment does not count as the intended contribution | `challenge-e2e.cjs`, `contribute-e2e.cjs` |
 | Pays to the other network's address (a refund that could never arrive) | caught | The pages refuse it | `a_refund_address_for_the_other_network_is_named`, `bid-too-high-e2e.cjs` |
 | Fills the cap and takes the payments back just before the close | not prevented | Others wait; it costs only fees | [LIMITS.md](LIMITS.md) |

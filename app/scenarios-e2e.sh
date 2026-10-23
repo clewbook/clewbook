@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Review scenarios on the TEST network (play money only), one campaign each, with its own new wallets. From the repository root.
+# Scenarios on the TEST network (play money only), one campaign each, with its own new wallets. From the repository root.
 #   sweep      a fundraiser reaches its goal and the host sweeps; then the contributor broadcasts their ticket: the network must refuse it,
 #              and the recount must still pass (the contribution was kept)
 #   conflict   the host spends a ticketed contribution with another transaction (it clears its own wallet lock first, as a dishonest
@@ -19,15 +19,15 @@
 #   poisonfix  the fixed host on a campaign that already holds an unpayable payment (POISONED=<run folder>)
 #   backdate   a lying host (test-cheats build) writes an earlier issue height for one of two equally late tickets: the recount passes
 #              R4 for the backdated one and fails it for the honest late one
-# Env: BIN (default the review build app/target/review/release), CHEAT (the test-cheats ll-host), PAYER (default bidder), RUN.
+# Env: BIN (default app/target/review/release), CHEAT (the test-cheats ll-host), PAYER (default bidder), RUN.
 set -uo pipefail
-S=${1:?usage: review-e2e.sh sweep|conflict|twotickets|odd|badreceiver|selfrefund|backdate|fuzz|poisonfix|earlyok|earlygoal|earlyforged|earlyauction|earlybackdate}
+S=${1:?usage: scenarios-e2e.sh sweep|conflict|twotickets|odd|badreceiver|selfrefund|backdate|fuzz|poisonfix|earlyok|earlygoal|earlyforged|earlyauction|earlybackdate}
 ZD=./target/release/zcash-devtool
 BIN=${BIN:-./app/target/review/release}
 CHEAT=${CHEAT:-./app/target/review-cheat/release/ll-host}
 CRAFT=${CRAFT:-./app/target/review/release/examples/craft_memo}
 PAYER=${PAYER:-bidder}
-RUN=${RUN:-runs/review-$S-$(date -u +%Y%m%dT%H%M%SZ)}
+RUN=${RUN:-runs/scenarios-$S-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$RUN"
 say() { echo; echo "== [$(date -u +%H:%M:%SZ)] $*"; }
 note() { echo "   $*"; }
@@ -183,7 +183,7 @@ PY
 odd)
   say "1. Fundraiser, goal 5000000 zat (missed), smallest contribution 20000"
   create --goal-zat 5000000 --deadline-in 45 --ticket-k 10
-  OTHER=${OTHER_RULES:-$(ls -d runs/review-sweep-*/rules.json 2>/dev/null | tail -1)}
+  OTHER=${OTHER_RULES:-$(ls -d runs/review-sweep-*/rules.json runs/scenarios-sweep-*/rules.json 2>/dev/null | tail -1)}
   [ -f "$OTHER" ] || die "needs the rules of another campaign (OTHER_RULES=…/rules.json)"
   M1=$(memo c1); pay 300000 "$M1" > "$RUN/c1.txid" || die "pay"; note "valid contribution c1: $(cat "$RUN/c1.txid")"
   M2=$(memo c2); pay 15000 "$M2" > "$RUN/below.txid" || die "pay"; note "below the minimum (15000 zat, valid message): $(cat "$RUN/below.txid")"

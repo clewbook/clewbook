@@ -1,5 +1,5 @@
 //! TEST TOOL, for the test network only: prints a payment message (memo) for a campaign with any field chosen by hand, the way a payer
-//! with their own software could make one. Used by app/review-e2e.sh (scenarios odd, badreceiver, fuzz) to show what the host and the
+//! with their own software could make one. Used by app/scenarios-e2e.sh (scenarios odd, badreceiver, fuzz) to show what the host and the
 //! recount do with such payments (docs/THREAT_MODEL.md threat 25). The contribute page and cb-contrib never make these.
 //! Usage: craft_memo <rules.json> <seed file> <typecode, 3 = Orchard> <receiver: 86 hex characters> [amount zat]
 //! Optional environment: CRAFT_RULES_ID (64 hex), CRAFT_VERSION (a byte), CRAFT_ENC (64 hex encryption key), CRAFT_DROP (bytes cut

@@ -9,7 +9,7 @@
 # S4 fails. A's relay copy with the rejected payer's page state, and E's (before the take back) with its first payer's, are kept for the bid
 # page tests (app/web/bid-page-reject-e2e.cjs). Offline, throwaway keys, no money.
 # Usage: ZEBRAD=... BIN=<folder with cb-host (regtest and test-cheats build), ll-relay, ll-contrib, zcash-devtool (regtest build)>
-#        check-sealed-review.sh <run folder>
+#        check-sealed-fixes.sh <run folder>
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 R=${1:?run folder}
@@ -205,4 +205,4 @@ a5 = {"seed": open(f"{R}/b/a5.seed").read().strip(), "memo": open(f"{R}/b/a5.mem
 json.dump({"A": rid, "a3": {"seed": seed, "memo": memo, "tranche": 10000000, "bid": 4000000, "refund": refund}, "a5": a5}, open(f"{R}/fixture/fixture.json", "w"), indent=1)
 EOF
 ok "fixture for the bid page test in $R/fixture"
-echo "PASS: review fixes on the private chain (NU7)"
+echo "PASS: the fixes of BLIND_BIDS section 2 on the private chain (NU7)"

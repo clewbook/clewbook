@@ -1,5 +1,5 @@
 // The bid page when the host rejects a valid deposit (set 1, H3), in a real browser, with the real relay serving the public
-// list of auction A from the private chain check of the review fixes (app/regtest/check-sealed-review.sh writes it, with the rejected
+// list of auction A from the private chain check of the fixes (app/regtest/check-sealed-fixes.sh writes it, with the rejected
 // payer's page state, to <run>/fixture) and a stand in for the chain server (tip and block times only). It checks: the page finds the
 // reject by its memo hash and says so plainly, with the return the host sent on its own; no payment card invites a second payment; the
 // "publish proof" button sends the challenge to the relay, which takes it, and the page says so; the button is gone once every relay has it.
