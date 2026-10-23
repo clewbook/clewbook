@@ -4,6 +4,127 @@ This guide is for someone who wants to run their own campaign. Everything in it 
 
 Words used here: the **host** is whoever runs a campaign. A **relay** is a small web service that stores and serves the host's signed list and the sealed refund tickets. A **tunnel** is a program that makes a service on your machine reachable from the internet over https without opening a port. **Testnet** is the Zcash test network, where the coins have no value.
 
+## Host checklist (one page)
+
+Each line links to the part that explains it. Numbers are from the code; on the test network and after NU7 some differ (tables below).
+
+**Before you create**
+
+| Check | Where |
+|---|---|
+| Choose the network. Mainnet uses real ZEC and asks you to tick a box. | [Mainnet](#8-mainnet) |
+| Mainnet before NU7: the whole campaign must end before the upgrade. A blind bid auction must end, late tickets included, before block 3,542,253. | [MAINNET.md](MAINNET.md#how-long-a-blind-bid-auction-can-run-before-nu7) |
+| Pick a deadline that leaves at least 10 blocks for deposits after the ticket window. | [Timing](BLIND_BIDS.md#timing-for-hosts) |
+| Have a wallet of your own ready, with a `u1` address, for the money you keep. | [Addresses](#addresses) |
+| Blind bid: plan to fund the coin wallet, about 0.0002 ZEC per deposit. | [Coin wallet](#the-coin-wallet-blind-bid-auctions) |
+
+**While it runs**
+
+| Check | Where |
+|---|---|
+| Keep the host program and its computer running. A ticket must be issued within the ticket window. | [Tickets](#refund-tickets) |
+| Blind bid: keep the coin wallet funded. Every small payment must be mined by the coin cutoff. | [Coin wallet](#the-coin-wallet-blind-bid-auctions) |
+| Watch the dashboard warnings, or the operator bot's alerts. | [Operator bot](#7c-operator-bot-telegram-optional) |
+
+**At close**
+
+| Check | Where |
+|---|---|
+| Fundraiser or auction: close after the deadline and before the ticket window ends. | [Closing](#closing) |
+| Blind bid: close after the bids open and before the late ticket block. The dashboard shows "Close before block N". | [Closing](#closing) |
+| Wait until the dashboard shows every settlement and refund confirmed. Press Try again if it says unfinished. | [Closing](#closing) |
+
+**After close**
+
+| Check | Where |
+|---|---|
+| Blind bid: press "Send to my wallet" for the prices the auction collected. | [Closing](#closing) |
+| Blind bid: press "Send the coin wallet back to my wallet" for what is left in the coin wallet. | [Coin wallet](#the-coin-wallet-blind-bid-auctions) |
+| Run the recount from outside and check it passes. | [CHECKS.md](CHECKS.md) |
+
+## Tickets, timing and money
+
+### Refund tickets
+
+A refund ticket is a transaction the host signs in advance. It pays a contribution back to the refund address the person gave. The
+person's page checks it and keeps it. Using a ticket needs no help from the host: the page sends it to the network itself.
+
+| Ticket | Campaign | When it can be used | Who sends it |
+|---|---|---|---|
+| Refund ticket | Fundraiser, auction | Any time before the deadline ("Refund me"). After the deadline, if the host has not closed within the ticket window ("Claim my refund"). | The person's page |
+| Early ticket | Blind bid auction | Until 4 blocks before the deadline ("Take my money back"). It expires at the deadline. | The bid page |
+| Signed refund | Blind bid auction | At the close, for a bid that does not win. | The host |
+| Late ticket | Blind bid auction | After the late ticket block, if the host never finishes. | The bid page, or the late ticket watcher |
+
+The ticket window (K) is the number of blocks the host has to issue a ticket after a payment, and to close after the deadline.
+
+| Setting | Default before NU7 | Default after NU7 | Allowed |
+|---|---|---|---|
+| Ticket window K | 30 blocks | 90 blocks | 10 to 1,000 blocks |
+| Close grace (kept in the rules, decides nothing) | 10 blocks | 30 blocks | |
+| Reissue window (kept in the rules) | 20 blocks | 60 blocks | |
+| Settle window (uniform price auction) | 40 blocks, or K if larger | 120 blocks, or K if larger | up to 1,000 |
+| Confirmations before a ticket is issued: fundraiser, auction | mainnet 3, test network 1 | the same | up to 20 |
+| Confirmations before a ticket is issued: blind bid auction | 1 (`--min-confirmations` on the command line) | the same | up to 20 |
+
+A ticket is valid for one network version only. A ticket signed before a network upgrade stops working after it. See
+[MAINNET.md](MAINNET.md#25-second-blocks-after-nu7).
+
+### Blind bid timing
+
+The full table is in [BLIND_BIDS.md](BLIND_BIDS.md#timing-for-hosts). In short: deposits until 20 blocks before the deadline; the bids
+open with a drand round planned after the close; the host then has a settlement window; the late ticket block comes after that, with a
+60 minute safety margin. The bid page refuses an auction whose timing has no slack left. Such an auction cannot be fixed: make a new one.
+
+### The coin wallet (blind bid auctions)
+
+Each deposit needs a small payment from the host, the coin. It lets the bid page sign its late ticket. The coins are paid from a
+separate coin wallet, which you fund from your own money.
+
+| Fact | Value |
+|---|---|
+| One coin | 5,000 zatoshis (0.00005 ZEC) |
+| Network fee, one coin at a time | 15,000 zatoshis. Measured on the test network on 23 Oct 2026: 20,000 zatoshis per deposit in all. |
+| Network fee, coins sent together | 5,000 zatoshis per coin plus 10,000 per payment (the ZIP 317 fee rule; not measured) |
+| How much to fund | About 0.0002 ZEC per deposit you expect, plus a margin |
+| Coin cutoff | Every coin must be mined by 10 blocks before the deadline |
+| Coins go out at once, whatever you chose | From 20 blocks before the cutoff (60 for an auction made after NU7) |
+| The bid page warns that the cutoff is close | From 15 blocks before the cutoff (45 after NU7) |
+| Coin payment expiry | 40 blocks; 120 blocks after NU7 |
+
+If the coin wallet runs dry, coins stop going out and the dashboard says why. A deposit whose coin is not mined by the cutoff has no
+late ticket. Its bid page tells the person to take the money back with the early ticket while it still can. A deposit mined after the
+last deposit block is sent back by the host on its own.
+
+After the close, press **Send the coin wallet back to my wallet** (or `/send_coin_back` in the operator bot). What is left, minus the
+network fee, goes to your wallet.
+
+### Closing
+
+| Campaign | Close window | If the host misses it |
+|---|---|---|
+| Fundraiser | After the deadline, before deadline + K | Each person presses "Claim my refund" and gets the contribution back with the ticket. |
+| Auction (uniform price) | Close after the deadline; settle every winner within the settle window | After it, each person can claim their own refund. |
+| Blind bid auction | After the drand round is out, before the late ticket block + 1 ("Close before block N" on the dashboard) | Every bid page that signed a late ticket can take its deposit back after the late ticket block, and the late ticket watcher can send it for them. The recount says "did not finish". |
+
+At the close of a blind bid auction the host settles the winners, sends each losing deposit its signed refund, then publishes the viewing
+key. The prices the winners paid go to the auction's treasury wallet. Press **Send to my wallet** (or `/send_treasury`) to move them to
+your own wallet. The dashboard reminds you while money is still there.
+
+### Automatic late tickets
+
+A bid page that signs its late ticket gives each list server a copy. The server keeps it and never shows it (before the close it would
+show the deposit's size). The late ticket watcher runs next to the relay. After the late ticket block it waits 60 minutes, counted from
+that block's own time. The wait is a setting (`--wait-minutes`). Then, if the list shows no close and no settlement, it sends each copy.
+It skips any auction the host closed or settled. If the watcher is not running, or a copy did not reach a server, the person opens their
+bid page after the late ticket block and presses **Take my money back**. Install: [app/latewatch/INSTALL.md](../app/latewatch/INSTALL.md).
+
+### Addresses
+
+Some wallets reject the `zu1` form of an address (Vizor did on 22 Oct 2026). The dashboard shows every address it gives out in the
+standard `u1` form. Use a `u1` address for your own wallet too. The operator bot's payout addresses are set only through ssh on the
+server; they can never be changed from Telegram.
+
 ## 1. What you need first
 
 The README lists some of these. The ones it leaves out are marked with a star.
@@ -199,21 +320,42 @@ in the coin wallet ("Send the coin wallet back to my wallet"); the dashboard rem
 
 ## 7c. Operator bot (Telegram, optional)
 
-`app/opbot/opbot.py` lets the operator run a few commands from Telegram for the hosts on a server and the listing job: `/status`,
-`/queue`, `/approve`, `/hide`, `/close`, `/send_treasury`, `/send_coin_back`, `/help`. It polls Telegram (no webhook, no open port), answers
-only the user id and chat id in its configuration, ignores and logs everyone else, and allows at most 10 commands a minute. It acts only
-through the hosts' dashboard API on 127.0.0.1 and three listing commands, never through a shell, and reads no wallet. Closing and sending
-need a Confirm button that shows the exact amount and destination, and money goes only to the payout addresses in a root owned file on
-the server (`main=` and `test=`), never to an address typed in the chat. It also sends alerts: the bids are open with the last block to
-close, 6 hours and 1 hour before that, the coin wallet running low, and an auction marked "did not finish". Service file and sudo rule:
-`app/opbot/clewbook-opbot.service`, `app/opbot/clewbook-opbot.sudoers`; the install steps, with their rollbacks, in `app/opbot/INSTALL.md`.
-Checked end to end on the test network with `app/opbot/opbot-e2e.py`.
+`app/opbot/opbot.py` runs a few commands from Telegram for the hosts on one server. It uses the Python standard library only. It asks
+Telegram for new messages (no open port) and acts only through each host's dashboard on 127.0.0.1.
+
+| It can | It cannot |
+|---|---|
+| `/status`: each campaign, its phase, deposits, coin wallet and treasury | Create a campaign |
+| `/close <id>`: close a campaign | Change a payout address (only through ssh on the server) |
+| `/send_treasury <id>`: move a closed auction's prices to the saved payout address | Send money to an address typed in the chat |
+| `/send_coin_back <id>`: move what is left in the coin wallet to the saved payout address | Read a wallet or a key (it has no access to the campaign folders) |
+| `/queue`, `/approve`, `/hide`: the listing job's queue (only if you run one) | Answer anyone but the one user and chat in its settings |
+| Alerts: the bids are open, 6 hours and 1 hour before the last block to close, the coin wallet running low, "did not finish" | Take more than 10 commands a minute |
+
+Every money or close command first shows a Confirm button with the exact amount and address. Cancel sends nothing, and a used button does
+not work again. Money goes only to the payout address saved for that network (`main=` or `test=`). Without one, the bot says so.
+
+**Set it up with your own bot**
+
+1. In Telegram, open BotFather, send `/newbot`, and follow it. It gives you a token. Keep the token private.
+2. Send your new bot any message. Then open `https://api.telegram.org/bot<token>/getUpdates` in a browser. The number after
+   `"chat":{"id":` is your chat id.
+3. On the server, write a root owned file, mode 600, with two lines: `token=<token>` and `chat_id=<chat id>`. In a group chat, add
+   `user_id=<your user id>`.
+4. Write a second root owned file, mode 600, with your payout addresses: `main=u1...` and, if you like, `test=utest1...`.
+5. Install the service: `app/opbot/INSTALL.md`, one command a step, each with its rollback. Give `--hosts` your dashboards, for example
+   `--hosts main=http://127.0.0.1:8780`. `--listing` is required; if you run no listing job, give `/bin/false` and the listing commands
+   answer with an error.
+6. Send `/help` to the bot.
+
+Tested end to end on the test network: `app/opbot/opbot-e2e.py`.
 
 ## 7d. Late ticket watcher (optional, next to a relay)
 
-A relay keeps the copies of signed late tickets that bid pages give it, and never serves them. `app/latewatch/latewatch.py` (Python
-standard library, no key, no wallet) reads them from the relay's folder. 60 minutes after an auction's late ticket block (`--wait-minutes`), if its list
-shows no close and no settlement, it sends each to the chain servers. Install steps, each with its rollback: `app/latewatch/INSTALL.md`.
+A relay keeps the copies of signed late tickets that bid pages give it, and never serves them. `app/latewatch/latewatch.py` reads them
+from the relay's folder. It holds no key and no wallet. 60 minutes after an auction's late ticket block (a setting, `--wait-minutes`), if
+the list shows no close and no settlement, it sends each copy to the chain servers. Install steps, each with its rollback:
+`app/latewatch/INSTALL.md`. More: [Automatic late tickets](#automatic-late-tickets).
 
 ## 8. Mainnet
 

@@ -19,11 +19,42 @@ test timing is refused. The bid page trusts the host's small payment after 2 con
 PROTECTED. The project runs its main network blind bid host on its own server; each auction's wallets are made there. The first auction
 and its transactions are in docs/EVIDENCE.md section 14.
 
+## How long a blind bid auction can run before NU7
+
+A blind bid auction on mainnet must be over, late tickets included, before block **3,542,253** (NU7 at 3,543,405, less 1,152 blocks).
+"Over" means its late ticket block, plus the ticket window K, plus 100 blocks for the late tickets to be sent and mined.
+
+The dashboard's Create button checks this before it makes any wallet, and refuses a deadline that is too far with one line naming the
+block the auction would end at. `cb-host create-sealed --confirm-mainnet` refuses it when it checks the rules. The rules check refuses it
+again everywhere (host, relay, bid page, recount).
+
+To check by hand before you try: with the chain at block T and a deadline D blocks from now, the late ticket block is about
+T + (80 × D + 9,000) ÷ 60 (block times of 60 to 80 seconds, 30 minutes before the round, 60 minutes to settle, 60 minutes of margin). So
+the auction fits when
+
+T + (80 × D + 9,000) ÷ 60 + K + 100 < 3,542,253
+
+| Chain at | Ticket window K | Longest deadline |
+|---|---|---|
+| 3,527,300 (23 Oct 2026) | 30 | about 11,000 blocks, about 9.5 days |
+
+Each day the chain moves about 1,152 blocks, and the longest deadline shrinks by about 860 blocks.
+
 ## 25 second blocks after NU7
 
-NU7 brings blocks every 25 s instead of 75 s (ZIP 218). Windows counted in blocks would last a third as long, so a campaign made at or
-after NU7 on its network (main from block 3,543,405; test since block 4,465,026) gets three times the blocks. A campaign's rules are
-signed when it is made, so one made before NU7 keeps its own numbers.
+NU7 is at block 3,543,405 (ZIP 259, still "Proposed"), expected about 6 November 2026. Blocks then come every 25 seconds instead of 75
+(ZIP 218). Windows counted in blocks would last a third as long, so a campaign made at or after NU7 on its network (main from block
+3,543,405; test since block 4,465,026) gets three times the blocks. A campaign's rules are signed when it is made, so one made before NU7
+keeps its own numbers.
+
+**A campaign made before NU7 and still open after it**
+
+| What | What happens |
+|---|---|
+| Its windows | They keep their block numbers, so they pass three times faster. A ticket window of 30 blocks lasts about 12 minutes instead of 37. |
+| Its tickets | Each ticket is signed for the network version before NU7. The network refuses it after the upgrade. The host must issue every ticket again after NU7. |
+| This build | It cannot sign mainnet tickets after NU7: its libraries do not have the mainnet NU7 settings yet. A host needs an updated build first. |
+| So | The host program refuses to make a mainnet campaign that could still be open at NU7. A blind bid auction must end before block 3,542,253 (above). |
 
 | What | Made before NU7 | Made after NU7 | Test |
 |---|---|---|---|

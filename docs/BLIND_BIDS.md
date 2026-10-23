@@ -57,6 +57,51 @@ A host sells 1 item. The deposit sizes (tranches) are 0.0002 and 0.0004. The pri
    It opens every bid itself, works out the winners and the price, and checks every payment the host made: the price to the
    treasury, and each refund, change and return to the refund address in the memo of the person it belongs to.
 
+## Timing for hosts
+
+Every number here is in the auction's signed rules, or in `app/core/src/sealed.rs`. The host program plans the timing when it makes the
+auction, from the chain's height and time then.
+
+| Moment | Rule (standard timing) |
+|---|---|
+| Last block for a deposit | 20 blocks before the deadline (the coin cutoff, then 10 blocks to mine the coin). A payment after it goes back on its own. |
+| Bid window | From the start to the last block for a deposit. It must hold at least 10 blocks: the deadline must be at least K + 10 blocks away (K is the ticket window; at least 10). |
+| Coin cutoff | 10 blocks before the deadline. Every small payment from the host must be mined by then. |
+| Take back with the early ticket | Until 4 blocks before the deadline. The early ticket expires at the deadline. |
+| Bids open | At a drand round (one every 3 seconds). It is planned so that, even if every block is slow, the deadline comes at least 30 minutes before it. |
+| Settlement window | After the round, the host has at least 60 minutes on mainnet (30 minutes on the test network) to settle every winner and refund the others, even if every block is fast. |
+| Safety margin | 60 more minutes before the late ticket block, so a run of fast blocks soon after the plan does not leave the auction without slack. |
+| Late ticket block | Late tickets work from the next block on. The host must close before it. |
+| Relays | From 5 minutes before the round, the list takes no new deposit, reject or small payment. |
+
+"Slow" and "fast" are the planning range of block times:
+
+| Auction | Range |
+|---|---|
+| Mainnet, made before NU7 | 60 to 80 seconds |
+| Mainnet, made at or after NU7 (block 3,543,405) | 20 to 80 seconds |
+| Test network | 20 to 80 seconds |
+| Quick test timing (test network only) | 20 to 40 seconds, 10 minutes before the round, 10 minutes of margin |
+
+What this gives, from the same formula the host program uses:
+
+| Auction | Late ticket block |
+|---|---|
+| Mainnet before NU7, 1 day (1,152 blocks) | deadline + 534 blocks, about 11 hours |
+| Mainnet before NU7, 3 days (3,456 blocks) | deadline + 1,302 blocks, about 27 hours |
+| Mainnet after NU7, 1 day (3,456 blocks) | deadline + 10,818 blocks, about 75 hours |
+| Test network, 1 day (3,456 blocks) | deadline + 10,728 blocks, about 75 hours |
+| Test network, quick timing, 120 blocks | deadline + 271 blocks (an auction of 23 Oct 2026) |
+
+The wide range after NU7 makes the wait long: the bids must not open before the close if blocks are slow, and late tickets must not work
+before the settlement if blocks are fast.
+
+**Why the bid page refuses an auction with no slack.** Before anyone bids, the page checks the plan against the chain as it is now. It
+refuses if the bids could open before bidding closes, or if late tickets could work before the host can settle. It also refuses a round
+more than 10 minutes, or a late ticket block more than 10 blocks, later than the plan gives. Then it says "This auction's timing is
+wrong. Do not bid." **Such an auction cannot be fixed.** The round and the late ticket block are part of the signed rules and of
+the auction's id. Make a new auction.
+
 ## 2. What this design prevents
 
 Each row is a cheat and the test that tries it and shows it caught. "Core", "ticket check", "relay" and "module" are Rust or browser

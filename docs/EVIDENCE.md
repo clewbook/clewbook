@@ -290,6 +290,20 @@ The bid page reached PROTECTED for this deposit with both chain servers agreeing
 outside on 23 Oct 2026, before the close: "Not yet possible", R1 and R2 pass, S1 to S8 wait for the viewing key, no "cannot be fully
 checked" warning. The close, the settlement and the full recount will be added when they happen.
 
+## 15. Test network checks of 23 Oct 2026
+
+Throwaway test network campaigns on a host and relay on one computer (no money of value). Ids in full in the test logs.
+
+| Check | Result | Transactions |
+|---|---|---|
+| A fundraiser made with the new defaults (`ad704c18…`, start block 4,530,720) | Ticket window 90, close grace 30, reissue window 60 | none |
+| "Payment seen, waiting for the network" on the contribute page (`app/web/pending-e2e.cjs`) | Seen while the payment waited in the mempool; a second page with another code did not take it; "Contribution received" came with the ticket, 24 s after mining. 16 of 16 checks | payment `0e844a3c189a89fbd44ec94e374e07fb22814714d795d3359c464873ad7d8395` |
+| The same on the bid page, a deposit sent with a stand in Noir | Seen while in the mempool; moved on once mined | deposit `b61f39e86ad9dc4c852d31fcce67fb3954063c9c53db9b7b08d9a2b8a5fb8a53` |
+| The ticket anchor check (`app/web/anchor-e2e.cjs`) | A real ticket's anchor found at block 4,471,000 by both servers; a fake anchor absent from blocks 4,470,997 to 4,471,009; a server that does not answer or disagrees leaves it not checked. 14 of 14 checks | ticket `efb0d7ddd2a138a2a54adb9f0371fbe57130367b89df40842e80082849506784` |
+| The coin wallet's cost (quick auction `4ff5cf1f…`) | Funded with 30,000 zatoshis; 10,000 left after one coin: 20,000 per deposit | funding `b10599357a7779c813957f14f893b146ff8a7dc8112babb2a722f48e060c6160` |
+| A late ticket kept by the relay (`app/latewatch/latewatch-e2e.cjs`) | The bid page reached PROTECTED and gave the relay its signed late ticket; the relay keeps it in its folder byte for byte and does not serve it | deposit `63300cc954844b35fc7e6495a9db30c053c77e7fd7292fd6aeb4342dfe1b5348` |
+| The late ticket watcher, host never closing (same run, 12 of 12 checks) | Late ticket block 4,531,005, mined at 02:30:51 UTC. The watcher sent nothing before 03:31:40 UTC, 60 minutes 49 seconds later (its wait is 60 minutes, checked every minute); then it sent the page's copy. Mined in block 4,531,166: the deposit went back to its refund address | late ticket `fe1d29b398450afda15f43555c1323fae28e4fc6fec24393b9023ddd43ffbc8b` |
+
 ## Pending
 
 * A ticket held since 2026-10-06 00:15 UTC (testnet campaign id `c73081f362e81b82af4087a47c24fee636dc23d1e991eb0998c7c5b0e3a0c7eb`, ticket `027b2bcac3c765de9f3eab4346c56575f1ad96ded644919e3e16d51a824febae`) is to be broadcast later to measure how long a ticket really stays valid. No result yet.

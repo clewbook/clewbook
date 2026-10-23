@@ -1,12 +1,14 @@
 // The late ticket watcher on the test network, with real money of no value: a quick blind bid auction on a throwaway host whose coin wallet
 // the test funds; a deposit paid from the test wallet through the bid page (a stand in Noir extension that pays with the test wallet), kept
 // open until PROTECTED; the page's copy of its signed late ticket on the relay (write only, in the relay's folder); the host never closes;
-// the watcher sends nothing before the late ticket block and sends the copy after it; the late ticket is mined and is the page's own.
+// the watcher sends nothing before the late ticket block, nor until WAIT_MINUTES (default 60) after that block's time, and sends the copy
+// then; the late ticket is mined and is the page's own.
 // Env: HOST (the throwaway host's dashboard), RELAY, RELAY_DIR (its folder), PAYER (test wallet folder), ZD (zcash-devtool), PAGES_PORT.
 const { chromium } = require('../vectors/js/node_modules/playwright');
 const { spawn, spawnSync, execFile } = require('child_process');
 const fs = require('fs'), path = require('path'), http = require('http');
 const { HOST, RELAY, RELAY_DIR, PAYER } = process.env, ZD = process.env.ZD, PORT = Number(process.env.PAGES_PORT || 8800);
+const WAIT = Number(process.env.WAIT_MINUTES || 60);
 const SERVER = 'https://zjs.zec.rocks/testnet', WWW = path.join(__dirname, '..', 'web', 'www'), WORK = process.env.WORK || 'runs/latewatch-e2e';
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra !== '' ? '  ' + extra : ''}`); if (!ok) failed++; };
@@ -119,7 +121,7 @@ const api = async (p, body) => (await fetch(`${HOST}/api/${p}`, body ? { method:
   server.close();
   // 3. the watcher, every minute; the host never closes
   const stateFile = path.join(WORK, `watch-${id.slice(0, 8)}.json`);
-  const watcher = spawn('python3', [path.join(__dirname, 'latewatch.py'), '--relay-dir', RELAY_DIR, '--server', `test=${SERVER},https://zcash-testnet.chainsafe.dev`, '--state', stateFile, '--every', '60'], { stdio: ['ignore', fs.openSync(path.join(WORK, `watch-${id.slice(0, 8)}.log`), 'a'), 'pipe'] });
+  const watcher = spawn('python3', [path.join(__dirname, 'latewatch.py'), '--relay-dir', RELAY_DIR, '--server', `test=${SERVER},https://zcash-testnet.chainsafe.dev`, '--state', stateFile, '--wait-minutes', String(WAIT), '--every', '60'], { stdio: ['ignore', fs.openSync(path.join(WORK, `watch-${id.slice(0, 8)}.log`), 'a'), 'pipe'] });
   const readState = () => { try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { return {}; } };
   let beforeOk = true, sentAt = null;
   for (let i = 0; i < 400; i++) { // up to about 6.5 hours
@@ -131,6 +133,11 @@ const api = async (p, body) => (await fetch(`${HOST}/api/${p}`, body ? { method:
   }
   check('before the late ticket block the watcher sends nothing', beforeOk);
   check('after the late ticket block, with no close on the list, the watcher sends the copy', sentAt != null && sentAt > claimAfter, `at tip ${sentAt}`);
+  // the time of the late ticket block (its tree state, field 4), and when the watcher first tried
+  const blockTime = varintField(await grpc('GetTreeState', Buffer.concat([Buffer.from([0x08]), Buffer.from((() => { const v = []; let n = claimAfter; while (n > 127) { v.push((n % 128) | 128); n = Math.floor(n / 128); } v.push(n); return v; })())])), 4);
+  const firstTry = (fs.readFileSync(path.join(WORK, `watch-${id.slice(0, 8)}.log`), 'utf8').match(/^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) auction /m) || [])[1];
+  const triedAt = firstTry ? Date.parse(firstTry.replace(' ', 'T')) / 1000 : null; // the watcher logs local time; this runs on the same computer
+  check(`the watcher waited ${WAIT} minutes after the late ticket block's time before sending`, blockTime && triedAt && triedAt >= blockTime + WAIT * 60, `block time ${blockTime}, first send ${triedAt}`);
   let mined = 0;
   for (let i = 0; i < 40 && !mined; i++) { await sleep(30000); mined = (await minedAt(st2.late.txid)) || 0; }
   check('the late ticket is mined after the late ticket block: the deposit is back at its refund address', mined > claimAfter, `${st2.late.txid} in block ${mined}`);

@@ -134,6 +134,14 @@ Every patch and every place we depart from stock Zcash tooling: [docs/PATCHES.md
 
 All limits: [docs/LIMITS.md](docs/LIMITS.md). Who can do what, and what stops them: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). Every attack tried, and whether it is caught, flagged or not prevented: [docs/ADVERSARIAL.md](docs/ADVERSARIAL.md). Mainnet and the upgrade: [docs/MAINNET.md](docs/MAINNET.md).
 
+## Hosting a campaign
+
+| Read | For |
+|---|---|
+| [docs/HOSTING.md](docs/HOSTING.md) | The host checklist, refund tickets, the coin wallet, closing, automatic late tickets, addresses, the operator bot |
+| [docs/BLIND_BIDS.md](docs/BLIND_BIDS.md#timing-for-hosts) | Blind bid timing: bid window, drand round, settlement window, late ticket block, the 60 minute margin |
+| [docs/MAINNET.md](docs/MAINNET.md) | How long a blind bid auction can run before NU7, and what NU7 changes |
+
 ## Run it yourself
 
 **What you need:**
