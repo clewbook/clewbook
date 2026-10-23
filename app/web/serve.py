@@ -14,12 +14,12 @@ BIND = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
 DEV = os.environ.get("SERVE_DEV") == "1"
 
 # The public pages and everything they load. Nothing else is served (no host pages, no developer files, no local state).
-PAGES = {"index.html", "recount.html", "campaign.html", "card.html", "badge.html", "contribute.html", "host.html", "bid.html", "about.html"}
+PAGES = {"index.html", "recount.html", "campaign.html", "card.html", "badge.html", "contribute.html", "host.html", "bid.html", "about.html", "go.html"}
 FILES = PAGES | {
     "robots.txt", "campaigns.json",
     "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css", "bid.css",
     "loadguard.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
-    "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js", "nu7.js", "anchor.js",
+    "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js", "nu7.js", "anchor.js", "go.js",
 }
 PATTERNS = [re.compile(p) for p in (
     r"fonts/[A-Za-z0-9-]+\.(woff2|txt)",
@@ -27,6 +27,8 @@ PATTERNS = [re.compile(p) for p in (
     r"pkg/ll_web(_bg)?\.(js|wasm)",
     r"proof/ll_proofcheck(_bg)?\.(js|wasm)",
 )]
+# a short campaign link, /c/<the first characters of the campaign id>: sent on to go.html, which finds the campaign in the listing
+SHORT = re.compile(r"c/([0-9A-Za-z]{1,64})/?")
 DEV_FILES = {"components.html", "recount-bundle.html", "current.json"}
 DEV_PATTERNS = [re.compile(r"bundles/[a-z0-9-]+\.json")]
 
@@ -107,12 +109,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def short(self):
+        m = SHORT.fullmatch(self.rel())
+        if not m:
+            return False
+        self.send_response(302)
+        self.send_header("Location", "/go.html?p=" + m.group(1).lower())
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def do_GET(self):
+        if self.short():
+            return
         if not allowed(self.rel()):
             return self.send_error(404)
         return super().do_GET()
 
     def do_HEAD(self):
+        if self.short():
+            return
         if not allowed(self.rel()):
             return self.send_error(404)
         return super().do_HEAD()

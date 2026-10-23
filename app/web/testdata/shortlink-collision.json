@@ -1,0 +1,11 @@
+{
+ "note": "Two rule sets (an auction without any viewing key, renamed) whose campaign ids share their first 8 characters, for app/web/shortlink-e2e.cjs. Not real campaigns.",
+ "older": {
+  "id": "9ecc97f10c01b9c394ad4c9b10ded3ca7d438b27032e5342894f46ed32e4f695",
+  "rules": "{\"close_grace\":10,\"deadline_height\":3514984,\"items\":1000,\"ledger_pubkey\":\"c7c3e3b9ae76a8270c8da4dcb2c1485e6f658cf32b70a9e0fc8793856da8ed22\",\"min_contribution_zat\":20000,\"mode\":\"auction\",\"name\":\"Shortlink test A 169708\",\"network\":\"main\",\"pay_to\":\"u1j04gexw4rjgvns787z0vvwmdt3j6v0zlrrgq3x2xxf90fmwtst8nuk5tth5uz4dmzsqp036t5yj0ykgmx9uhvenzp6prhasrzu0qptxvzr82dnevj0k3gx2xqdr9hxtw73d4dnu3wrp5kw0vv7muxpqmwf2lc4v24zhwvgmfzshk4960\",\"payload_pubkey\":\"88261abe62718599e7b9ead528508f3003234abf01bf71ce9b87c94c9312ba10\",\"refund_fee_zat\":10000,\"reissue_window\":20,\"start_height\":3510985,\"ticket_k\":15,\"ufvk_hash\":\"b3471ffe307852a7df9e865501523d6e4fc18b388531eaed01b133027ebf5c9a\",\"v\":1}"
+ },
+ "newer": {
+  "id": "9ecc97f1365477b00660e1a48e38a94ff24b7fa669c4ca82102c442d7fe65051",
+  "rules": "{\"close_grace\":10,\"deadline_height\":3514984,\"items\":1000,\"ledger_pubkey\":\"c7c3e3b9ae76a8270c8da4dcb2c1485e6f658cf32b70a9e0fc8793856da8ed22\",\"min_contribution_zat\":20000,\"mode\":\"auction\",\"name\":\"Shortlink test B 5634\",\"network\":\"main\",\"pay_to\":\"u1j04gexw4rjgvns787z0vvwmdt3j6v0zlrrgq3x2xxf90fmwtst8nuk5tth5uz4dmzsqp036t5yj0ykgmx9uhvenzp6prhasrzu0qptxvzr82dnevj0k3gx2xqdr9hxtw73d4dnu3wrp5kw0vv7muxpqmwf2lc4v24zhwvgmfzshk4960\",\"payload_pubkey\":\"88261abe62718599e7b9ead528508f3003234abf01bf71ce9b87c94c9312ba10\",\"refund_fee_zat\":10000,\"reissue_window\":20,\"start_height\":3511285,\"ticket_k\":15,\"ufvk_hash\":\"b3471ffe307852a7df9e865501523d6e4fc18b388531eaed01b133027ebf5c9a\",\"v\":1}"
+ }
+}

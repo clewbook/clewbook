@@ -11,7 +11,7 @@
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { setup, setNetwork, markReady } from './ui.js';
-import { milestones } from './public.js';
+import { milestones, DEFAULT_RELAY, copyLinkButton } from './public.js';
 import { afterNu7, firstMeasured } from './nu7.js';
 import { findAnchor } from './anchor.js';
 
@@ -19,7 +19,7 @@ const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
 const cfg = {
   id: (params.get('c') || '').toLowerCase(),
-  relays: params.getAll('relay').map((u) => u.replace(/\/$/, '')),
+  relays: ((r) => (r.length ? r : [DEFAULT_RELAY]))(params.getAll('relay').map((u) => u.replace(/\/$/, ''))), // none named: the project's relay
   server: (params.get('server') || '').replace(/\/$/, ''),
   // a second chain server for a private test chain (its tests only; on the test and main networks the page picks its own two)
   server2: (params.get('server2') || '').replace(/\/$/, ''),
@@ -886,6 +886,7 @@ async function main() {
   const ms = milestones(), on = (h) => (ms ? ms.onward(h) : h); // opened from the demo's Tested milestones page: keep the way back
   $('#flow-back').href = on(`campaign.html#${tail}${cfg.server ? `&server=${cfg.server}` : ''}`);
   $('#nav-recount').href = on(`recount.html#${tail}`);
+  copyLinkButton($('#copy-link'), cfg.id); // the short link when the listing names the auction, else the full one
   await init();
   $('#form').addEventListener('submit', onCreate);
   $('#bid').addEventListener('input', syncBid);

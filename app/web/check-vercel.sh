@@ -54,6 +54,8 @@ H=$(h /demo/fonts/$(ls "$DIR/demo/fonts" | head -1)); echo "$H" | grep -qi '^cac
 R=$(find "$DIR/demo/relays/a" -name ledger | head -1 | sed "s|$DIR||"); H=$(h "$R"); echo "$H" | grep -qi '^access-control-allow-origin: \*'; check "the example relay files can be read from other pages (CORS)" $? "$H"
 # the bare address leads to the main site; everything that answered before still answers (at its old path, or through a redirect to its place under /demo)
 H=$(h /); echo "$H" | head -1 | grep -qE ' 30[78] '; R1=$?; echo "$H" | grep -qi '^location: https://app.clewbook.xyz/$'; check "the bare address redirects to https://app.clewbook.xyz/ (and nothing else does)" $((R1 + $?)) "$H"
+# a short campaign link on this address goes to the same short link on the main site, where the listing and the campaigns are
+H=$(h /c/5f40200a); echo "$H" | head -1 | grep -qE ' 30[78] '; R1=$?; echo "$H" | grep -qi '^location: https://app.clewbook.xyz/c/5f40200a$'; check "a short campaign link /c/<id> goes on to https://app.clewbook.xyz/c/<id>" $((R1 + $?)) "$H"
 OTHER=$(for p in /index.html /recount.html /ui.css /pkg/ll_web.js /relays/a /demo/ /demo/proofs /demo/proofs/; do c=$(curl -s -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:$PORT$p"); echo "$c"; done | grep -c 'app.clewbook.xyz' || true); [ "$OTHER" = 0 ]; check "no other path redirects to the main site" $? "$OTHER"
 for p in /demo/ /demo/proofs /demo/proofs/ /demo/recount.html /demo/campaign.html /demo/card.html /demo/contribute.html /demo/badge.html /robots.txt; do c=$(curl -s -L -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT$p"); [ "$c" = 200 ]; check "answers: $p" $? "$c"; done
 if [ -f app/web/vercel-old-paths.txt ]; then

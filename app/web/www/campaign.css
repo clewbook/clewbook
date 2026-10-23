@@ -1,2 +1,7 @@
 /* Campaign page: drawn by the shared campaign view (ui.css, CAMPAIGN FRAME AND VIEW; public.js campaignView), the same one the contribute page
    shows when a campaign is closed (design round 12). Nothing of its own is left here. */
+
+/* the full campaign id, under "more" beside the status line (short links show only the first 8 characters) */
+.cid-more { margin: 4px 0 0; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
+.cid-more summary { cursor: pointer; width: max-content; }
+.cid-more code { font: 400 12px var(--cb-font-mono, monospace); word-break: break-all; color: var(--cb-ink-2); }

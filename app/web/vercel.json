@@ -116,6 +116,11 @@
       "permanent": false
     },
     {
+      "source": "/c/:id",
+      "destination": "https://app.clewbook.xyz/c/:id",
+      "permanent": false
+    },
+    {
       "source": "/index.html",
       "destination": "/demo/",
       "permanent": false

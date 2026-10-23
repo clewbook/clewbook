@@ -5,7 +5,7 @@ import { setup, markReady } from './ui.js';
 
 const $ = (s) => document.querySelector(s);
 const p = new URLSearchParams(location.hash.slice(1));
-const id = (p.get('c') || '').toLowerCase(), relays = p.getAll('relay').map((u) => u.replace(/\/$/, ''));
+const id = (p.get('c') || '').toLowerCase(), named = p.getAll('relay').map((u) => u.replace(/\/$/, '')), relays = named.length ? named : ['https://relay.clewbook.xyz']; // none named: the project's relay
 
 async function main() {
   setup('Recount badge', { netbar: false, themeControl: false }); // a badge shown inside other sites: it follows the theme, without its own control

@@ -59,12 +59,17 @@ export function fillHostedBy(line, id) {
   });
 }
 
+/** The project's relay: the one a link means when it names none (short links name none). */
+export const DEFAULT_RELAY = 'https://relay.clewbook.xyz';
+
 export function linkParams() {
   const p = new URLSearchParams(location.hash.slice(1));
   const clean = (u) => u.replace(/\/$/, '');
+  const relays = p.getAll('relay').map(clean), id = (p.get('c') || '').toLowerCase();
   return {
-    id: (p.get('c') || '').toLowerCase(),
-    relays: p.getAll('relay').map(clean),
+    id,
+    // a link that names a campaign but no relay means the project's relay; one with no campaign at all stays empty (the recount page's own mode)
+    relays: relays.length || !id ? relays : [DEFAULT_RELAY],
     endpoints: p.getAll('endpoint').map(clean),
     server: clean(p.get('server') || ''),
   };
@@ -214,6 +219,27 @@ export function milestones() {
 export function backToMilestones(a, ms) { a.href = ms.href; a.textContent = '← Tested milestones'; }
 
 /** Contribute / recount / campaign links that keep the same relays and endpoints. */
+/** A campaign's short link, <this site>/c/<first 8 characters of its id>, when the listing (campaigns.json) names it and no other listed
+ *  campaign begins with the same 8 characters; else null (the full link is the one to share then: an unlisted campaign has no short link). */
+export async function shortLink(id) {
+  try {
+    const list = (await (await fetch(new URL('campaigns.json', pageDir()).href, { cache: 'no-store' })).json()).campaigns || [];
+    const same = list.filter((c) => typeof c.id === 'string' && c.id.startsWith(id.slice(0, 8)));
+    if (same.length === 1 && same[0].id === id) return new URL(`c/${id.slice(0, 8)}`, pageDir()).href;
+  } catch { /* no listing: the full link */ }
+  return null;
+}
+
+/** The Copy link button of the campaign and bid pages: copies the short link, or the full link when there is none, and says which. */
+export function copyLinkButton(btn, id) {
+  btn.addEventListener('click', async () => {
+    const link = (await shortLink(id)) || location.href;
+    try { await navigator.clipboard.writeText(link); btn.textContent = 'Link copied'; } catch { btn.textContent = 'Not copied'; }
+    btn.title = link;
+    setTimeout(() => { btn.textContent = 'Copy link'; }, 2500);
+  });
+}
+
 export function sibling(page, { id, relays, endpoints, server }) {
   const base = pageDir();
   const q = [`c=${id}`, ...relays.map((r) => `relay=${r}`), ...endpoints.map((e) => `endpoint=${e}`), ...(server ? [`server=${server}`] : [])];

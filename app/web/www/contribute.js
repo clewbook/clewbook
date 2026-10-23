@@ -10,13 +10,13 @@ import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { findAnchor } from './anchor.js';
-import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones } from './public.js';
+import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones, DEFAULT_RELAY } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
 const cfg = {
   id: (params.get('c') || '').toLowerCase(),
-  relays: params.getAll('relay').map((u) => u.replace(/\/$/, '')),
+  relays: ((r) => (r.length ? r : [DEFAULT_RELAY]))(params.getAll('relay').map((u) => u.replace(/\/$/, ''))), // none named: the project's relay
   // The chain server is never guessed: if the link names none, it comes from the campaign's own (checked) rules once they are read, and if the
   // rules name no known network the page refuses to go on (see applyNetwork). It is empty until then.
   server: (params.get('server') || '').replace(/\/$/, ''),

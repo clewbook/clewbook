@@ -2,7 +2,7 @@
 // links to contribute and to the recount. Reading only; it keeps no secrets. Nothing here is checked: the recount is the independent check.
 // Design round 12: the page is drawn by the shared campaign view (public.js), the same one the contribute page shows when a campaign is closed.
 import init, * as W from './pkg/ll_web.js';
-import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine, milestones, backToMilestones } from './public.js';
+import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine, milestones, backToMilestones, copyLinkButton } from './public.js';
 import { setNetwork, setup, setCampaignLabel, markReady, statusBadgeHTML } from './ui.js';
 
 const $ = (s) => document.querySelector(s);
@@ -60,6 +60,15 @@ async function main() {
   const links = { contribute: on(sibling('contribute', { ...base, endpoints: [] })), recount: on(sibling('recount', base)), card: on(sibling('card', base)) };
   campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links, didNotFinish }); // round 13: no "Not checked by a recount" here (the recount page lists it)
   $('#nav-card').href = links.card; $('#nav-recount').href = links.recount;
+  // the link to share: the short one when the listing names this campaign (else the full one); the full id stays under "more"
+  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'coutline'; copy.id = 'copy-link'; copy.textContent = 'Copy link';
+  $('#links').append(copy);
+  copyLinkButton(copy, cfg.id);
+  const more = document.createElement('details'); more.className = 'cid-more'; more.id = 'id-more';
+  const sum = document.createElement('summary'); sum.textContent = 'more';
+  const full = document.createElement('code'); full.id = 'full-id'; full.textContent = cfg.id;
+  more.append(sum, 'Campaign id ', full);
+  $('#status-line').after(more);
 }
 
 main().catch((e) => { $('#banners').append(banner('bad', `Something went wrong: ${e.message || e}`)); });

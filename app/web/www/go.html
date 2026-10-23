@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign link</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="start.css">
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/app-icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
+</head>
+<body>
+<header class="bar">
+  <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
+  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="recount.html">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+</header>
+<div class="aurora" aria-hidden="true"><div></div></div>
+<main class="page aboutpage">
+<article class="about" id="go">
+  <span class="heyebrow"><span class="dot"></span>CAMPAIGN LINK</span>
+  <h1 id="go-title">Opening the campaign…</h1>
+  <p id="go-line" role="status"></p>
+  <ol class="go-list" id="go-list" hidden></ol>
+</article>
+</main>
+<footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
+<script src="loadguard.js"></script>
+<script type="module" src="go.js"></script>
+</body>
+</html>
