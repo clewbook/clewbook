@@ -19,6 +19,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   try {
     for (const [w, theme] of [[1280, 'light'], [1280, 'dark'], [390, 'light'], [390, 'dark']]) {
       const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, colorScheme: theme });
+      await ctx.clock.setFixedTime(new Date('2026-10-24T12:00:00Z')); // the NEW tags show until their dates (host.js): a day when they show
       const p = await ctx.newPage();
       p.on('pageerror', (e) => errors.push(String(e)));
       await p.route('**/*', (r) => (r.request().url().startsWith(BASE) ? r.continue() : r.abort()));

@@ -37,7 +37,7 @@
         <legend class="sr">Type of campaign</legend>
         <label class="choice"><input type="radio" name="mode" value="raise" checked><span><b>Fundraiser</b><small>If the goal is not reached by the deadline, everyone is refunded.</small></span></label>
         <label class="choice"><input type="radio" name="mode" value="auction"><span><b>Auction</b><small>The highest bids win, everyone else is refunded.</small></span></label>
-        <label class="choice" id="sealed-choice" hidden><input type="radio" name="mode" value="sealed_auction"><span><b>Blind bid auction</b><small>Each bid stays locked until a drand round after the deadline, so nobody, you included, can read a bid before bidding closes. Each person pays a deposit of one of the sizes you set; the highest bids win. Bids and refund addresses become public after the close. Test network only for now.</small></span></label>
+        <label class="choice" id="sealed-choice" hidden><input type="radio" name="mode" value="sealed_auction"><span><b>Blind bid auction</b><small>Each bid stays locked until a drand round after the deadline, so nobody, you included, can read a bid before bidding closes. Each person pays a deposit of one of the sizes you set; the highest bids win. Bids and refund addresses become public after the close. Works on mainnet too; there it must end before NU7 for now.</small></span></label>
       </fieldset>
       <label for="campaign-name">Name (optional)</label>
       <input id="campaign-name" autocomplete="off" maxlength="60" placeholder="For example: Community radio mast">

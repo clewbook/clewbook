@@ -1,8 +1,7 @@
 // Set-up page: sends the same request the dashboard always sent (mode, goal or items, deadline, smallest contribution, relays) and then
 // goes to the dashboard. Function only: the look is in ui.css and setup.css. Every refusal is a calm notice, never a raw error.
 import { setup, setNetwork, decorateAmounts, amountHTML, etaText, markReady } from './ui.js';
-import { measureBlocks } from './blocktime.js';
-import { NU7_HEIGHT, afterNu7 } from './nu7.js';
+import { measureBlocks, NU7_HEIGHT, afterNu7 } from './blocktime.js';
 
 const $ = (s) => document.querySelector(s);
 let config = null, measured = { tip: null, secondsPerBlock: null, spanBlocks: 0 };

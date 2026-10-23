@@ -75,6 +75,20 @@ const server = http.createServer((req, res) => {
   check('the bid page warns COIN_WARN_BLOCKS (15, as ll_core::sealed) times the scale before the coin cutoff', /const COIN_WARN_BLOCKS = 15;/.test(bid) && num('COIN_WARN_BLOCKS') === 15 && /tip >= cutoff - COIN_WARN_BLOCKS \* coinScale\(\)/.test(bid) && !/cutoff - 15\)/.test(bid));
   check('the scale is 3 only for the standard timing and an auction made after NU7', /coinScale = \(\) => \(\(rules\.sealed\.timing \|\| 'standard'\) === 'standard' && afterNu7\(rules\.network, rules\.start_height\) \? 3 : 1\)/.test(bid));
 
+  // 4. the host program's dashboard serves a fixed list of files (app/host/src/dashboard.rs, static_file): every module its two pages load,
+  // and what those import, must be on it, or the page with the Close button does not load
+  const rs = fs.readFileSync(path.join(ROOT, 'host/src/dashboard.rs'), 'utf8');
+  const served = new Set((rs.match(/"\/(dashboard|setup|ui|brand|blocktime|loadguard)\.js"/g) || []).map((x) => x.slice(2, -1)));
+  const seen = new Set(), todo = ['dashboard.js', 'setup.js'];
+  while (todo.length) { const f = todo.pop(); if (seen.has(f)) continue; seen.add(f); for (const m of fs.readFileSync(path.join(WWW, f), 'utf8').matchAll(/from '\.\/([a-z0-9-]+\.js)'/g)) todo.push(m[1]); }
+  const missing = [...seen].filter((f) => !served.has(f));
+  check('every module the host dashboard and set up pages load is on the host program\'s list of files it serves', served.size >= 5 && missing.length === 0, `loads ${[...seen].join(', ')}; not served: ${missing.join(', ') || 'none'}`);
+  // 5. the set up page's blind bid choice says it works on mainnet, with the NU7 note
+  config = { ...base, network: 'main', ticker: 'ZEC' };
+  const sp = await open('setup.html');
+  const sealedText = ((await sp.textContent('#sealed-choice small')) || '').trim();
+  check('the set up page\'s blind bid choice says it works on mainnet, with the NU7 note, in one line', /Works on mainnet too; there it must end before NU7 for now\.$/.test(sealedText) && !/Test network only for now/.test(sealedText), sealedText.slice(-80));
+  await sp.close();
   check('no page error', errors.length === 0, errors.join(' | '));
   await browser.close();
   server.close();
