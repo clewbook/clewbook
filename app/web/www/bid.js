@@ -14,6 +14,7 @@ import { setup, setNetwork, markReady } from './ui.js';
 import { milestones, DEFAULT_RELAY, copyLinkButton } from './public.js';
 import { afterNu7, firstMeasured } from './nu7.js';
 import { findAnchor } from './anchor.js';
+import { showResult } from './result.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -138,6 +139,7 @@ async function checkPlan() {
   } catch { /* tried again on the next refresh */ }
 }
 
+let resultKey = '';
 let spb = null; // seconds per block, measured once over the last 200 blocks, after NU7 only once it has come (for "~6 days")
 async function readTip() {
   const [msg] = await grpcWeb(cfg.server, 'GetLatestBlock', new Uint8Array());
@@ -470,7 +472,7 @@ function status() {
   if (state.earlySent && state.refundMined) return S('g', 'REFUNDED', 'Your money is back', 'It came back by the host\'s signed refund.', `Your early ticket was not mined before the deadline, so the deposit stayed in the auction; the refund was mined in block ${fmtB(state.refundMined)}.`);
   if (state.lateSent) return S('t', 'SENDING BACK', 'Your deposit is on its way back', 'It goes to your refund address, minus the fee.', 'You sent your late ticket.', { pulse: 1 });
   if (!state.ticket && state.pendingSeen) return S('m', 'PAYMENT SEEN', 'Payment seen, waiting for the network', 'Sent with Noir. This page updates by itself.', `Your payment is waiting to be mined. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
-  if (!state.ticket) return S('m', 'WAITING', 'Waiting for your payment', state.noirTxid || state.noirSent ? 'Sent with Noir. This page updates by itself.' : `Pay ${coin(state.tranche)} from your wallet. This page updates by itself.`, `Usually a minute or two after you send it. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
+  if (!state.ticket) return S('m', 'WAITING', 'Waiting for your payment', state.noirTxid || state.noirSent ? 'Sent with Noir. This page updates by itself.' : 'Your payment only counts if it carried the message. If it did not, it is a donation.', `This page cannot see payments into the auction: its viewing key stays private until after the close. Your ticket shows here once the host lists your payment, usually a minute or two after it is mined. You can leave and come back with the same link. The host lists your ticket within ${rules.ticket_k} blocks of your payment; a payment mined after block ${fmtB(lastDeposit())} does not count and is sent back, minus the fee.`, { back: 1, pulse: 1 });
   const c = closeEntry();
   if (c) {
     const won = (c.close.winners || []).includes(state.ticket.nf), st = mySettle();
@@ -544,6 +546,7 @@ function noirAddress(res) {
 }
 function renderNoir() {
   $('#noir-pay').hidden = !(noir && state && state.payTo && !state.paidZat && !state.ticket && !state.noirTxid && !state.noirSent);
+  $('#noir-row').hidden = $('#noir-pay').hidden;
 }
 function noirSay(text, bad) {
   const m = $('#noir-msg');
@@ -682,6 +685,17 @@ function pickTranche(b, quiet) {
   if (!quiet) syncBid();
 }
 
+// which wallets keep the message (the memo) on a payment. Only zcash-devtool was tried with Clewbook; the others are read from their source
+// code (25 Oct 2026): Zashi (now Zodl) takes a pasted memo and the memo of a code scanned inside the app (iOS ignores a tapped link); Zingo
+// caps a memo at 511 bytes and splits a longer one, and the message of an auction with the long tag is 512; YWallet says it no longer
+// supports Zcash since the Ironwood upgrade.
+function wallets(memo) {
+  const long = new TextEncoder().encode(memo || '').length > 511;
+  return `Tested with zcash-devtool; others read from source only, not tested. Zashi keeps a pasted message, and the code when scanned from inside the app (on iPhone a tapped link is not used). ${long
+    ? 'Zingo splits a message over 511 bytes and this one is longer, so do not use Zingo here.'
+    : 'Zingo keeps a pasted message and the code\'s.'} YWallet says it no longer supports Zcash since the Ironwood upgrade.`;
+}
+
 function renderPay() {
   $('#pay-card').hidden = false;
   $('#pay-amount').textContent = coin(state.tranche);
@@ -694,6 +708,10 @@ function renderPay() {
   $('#backup-card').classList.toggle('saved', saved);
   $('#bk-tag').textContent = saved ? '✓ STEP 1 · SAVED' : '△ STEP 1 · IMPORTANT';
   $('#saved').checked = saved;
+  // the message comes first: the address and the amount show once the person says the message is in their wallet's memo (Noir attaches it itself)
+  $('#attached').checked = !!state.memoAttached;
+  $('#pay-lock').hidden = !state.memoAttached; $('#pay-locked').hidden = !!state.memoAttached;
+  $('#wallets-text').textContent = wallets(state.memo);
   $('#pay-by').textContent = `Pay by block ${fmtB(lastDeposit())}. Late payments are sent back.`;
 }
 
@@ -859,6 +877,8 @@ async function refresh() {
     if (!rules.sealed) { location.replace(`contribute.html${location.hash}`); return; }
     applyNetwork();
     if (refused) return;
+    // the one line result at the top, once the auction has settled (result.js); drawn again when the list grows
+    if (resultKey !== `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`) { resultKey = `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`; showResult($('#my-result'), { c: campaign, entries, id: cfg.id, W, servers: [cfg.server, cfg.server2].filter(Boolean) }).catch(() => {}); }
     await readTip();
     if (planProblem === undefined) await checkPlan();
     if (state && !state.ticket) await detectTicket();
@@ -897,6 +917,7 @@ async function main() {
   $('#backup').addEventListener('click', () => { downloadBackup(); backedUp(); });
   $('#backup2').addEventListener('click', () => { downloadBackup(); backedUp(); });
   $('#saved').addEventListener('change', (e) => { if (state) { state.backupSaved = e.target.checked; save(); render(); } });
+  $('#attached').addEventListener('change', (e) => { if (state) { state.memoAttached = e.target.checked; save(); render(); } });
   $('#restore-toggle').addEventListener('click', () => { const b = $('#restore-box'); b.hidden = !b.hidden; $('#restore-toggle').setAttribute('aria-expanded', String(!b.hidden)); });
   $('#restore').addEventListener('change', onRestore);
   $('#pay-back').addEventListener('click', () => { editing = true; render(); window.scrollTo(0, 0); });

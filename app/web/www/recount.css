@@ -77,6 +77,9 @@
 .page .rcid { min-height: 44px; margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; border: 0; border-radius: 8px; background: transparent; font: 600 15px var(--cb-font-body); color: var(--cb-ink); }
 .page .rcid:hover { background: transparent; color: var(--cb-ink); transform: none; }
 .rcid-k { font: 500 11px var(--cb-font-body); letter-spacing: .12em; color: var(--cb-ink-4); }
+/* the campaign's name, from its rules, before the short id */
+.rcname { margin-left: auto; min-width: 0; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px var(--cb-font-body); color: var(--cb-ink); }
+.rcname + .rcid { margin-left: 0; }
 .rcid .rid { font: 600 15px var(--cb-font-body); white-space: nowrap; }
 .rcid-ic { position: relative; width: 14px; height: 14px; display: inline-block; opacity: .8; }
 .rcid-ic i { position: absolute; left: 0; top: 0; width: 9px; height: 9px; border: 1.5px solid var(--cb-accent-text); border-radius: 2px; }
@@ -171,7 +174,10 @@
 .trows dd .amt .u { font: inherit; color: inherit; }
 .trows dd.missed, .trows dd.missed .amt { color: var(--cb-fail); }
 /* a long value (an auction's winners, the close) may wrap; the amounts never do */
-#totals dd, #tl-closed { white-space: normal; text-align: right; overflow-wrap: anywhere; }
+#totals dd, #sealed-facts dd, #tl-closed { white-space: normal; text-align: right; overflow-wrap: anywhere; }
+#totals .na-tx, #totals .na-tx .amt { color: var(--cb-wait); }
+#totals .na-tx { display: block; font-weight: 400; font-size: 13px; color: var(--cb-wait); } /* a payment not in the auction: flagged, in the amber of LIMITED */
+#totals .na-tx + .na-tx { margin-top: 6px; }
 .rnotice { margin-top: 16px; border: 1px solid var(--cb-border-hover); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
 .rn-k { font: 600 11px var(--cb-font-body); letter-spacing: .16em; color: var(--cb-wait); }
 .rn-grid { display: grid; grid-template-columns: minmax(96px, auto) minmax(0, 1fr); gap: 8px 16px; font: 400 13px/1.55 var(--cb-font-body); }

@@ -333,8 +333,16 @@ fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
     Ok(json!({ "ok": true, "id": id }))
 }
 
+/// The payments of a sealed bid auction that are not in it (ll_core::sealed_recount::not_in_auction), without those the host still lists or
+/// rejects on its next pass (a blind bid memo on a payment of at least the smallest size, not spent).
+fn not_in_auction(rules: &ll_core::rules::Rules, entries: &[ll_core::ledger::Entry], notes: &[ChainNote]) -> Vec<ll_core::sealed_recount::NotInAuction> {
+    let pending = |n: &ChainNote| n.spent_by.is_none() && n.value_zat >= rules.min_contribution_zat && n.memo_text.as_deref().is_some_and(ll_core::bid::is_bid_memo);
+    let left: Vec<ChainNote> = notes.iter().filter(|n| !pending(n)).cloned().collect();
+    ll_core::sealed_recount::not_in_auction(rules, entries, &left)
+}
+
 /// What the dashboard shows of a sealed bid auction: its timing, its coins and coin wallet, its deposits and its close steps.
-fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], check: Option<&Value>) -> Value {
+fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], notes: &[ChainNote], check: Option<&Value>) -> Value {
     let rules = &c.run.rules;
     let Some(s) = rules.sealed.as_ref() else { return Value::Null };
     let cutoff = s.cutoff_height(rules.deadline_height);
@@ -350,6 +358,8 @@ fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], check: Option
     let count = |kind: &str, done: bool| ob.as_ref().map_or(0, |o| o.items.iter().filter(|b| b.kind == kind && (!done || b.status == "confirmed")).count());
     let close = close_entry(entries);
     json!({
+        // payments in the bidding window that are not bids and that no entry names: they stay in the auction wallet (the recount flags them)
+        "not_in_auction": not_in_auction(rules, entries, notes),
         "pricing": s.pricing, "tranches_zat": s.tranches_zat, "items": rules.items, "reserve_zat": rules.reserve_zat, "coin_sending": s.coin_sending, "timing": s.timing,
         "round": s.drand_round, "round_time": ll_core::sealed::round_time(s.drand_round), "claim_after": s.claim_after, "cutoff": cutoff,
         // not counted yet (the first check after a start is still running) is null, never 0: 0 would read as if nobody bid
@@ -605,6 +615,12 @@ fn status(st: &State, c: &Campaign) -> Value {
             w.push(warn("info", format!("{} payment(s) did not count and go back on their own, minus the fee: {back} sent{}.", back + waiting, if waiting > 0 { format!(", {waiting} on the way") } else { String::new() })));
         }
     }
+    if rules.is_sealed() {
+        let n = not_in_auction(rules, &entries, &notes).len();
+        if n > 0 {
+            w.push(warn("warn", format!("{n} payment(s) came in without a bid message the auction can read. They are not bids and stay in the auction wallet: see Payments not in the auction.")));
+        }
+    }
     let late = crate::late_payments(rules, &entries, &notes).iter().filter(|n| !(rules.is_sealed() && ll_core::sealed_recount::is_late_deposit(rules, n))).count();
     if late > 0 {
         let after = if ll_core::recount::contribution_end(rules, &entries) < rules.deadline_height { "the early close" } else { "the deadline" };
@@ -672,7 +688,7 @@ fn status(st: &State, c: &Campaign) -> Value {
         "close_unfinished": crate::close_unfinished(&c.run),
         "close_log": *lock(&c.last_close),
         "listing": listing_state(&c.run.dir),
-        "sealed": sealed_status(c, &entries, pass.sealed_check.as_ref()),
+        "sealed": sealed_status(c, &entries, &notes, pass.sealed_check.as_ref()),
     })
 }
 

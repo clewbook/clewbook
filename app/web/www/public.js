@@ -516,6 +516,9 @@ export function campaignView(box, v) {
     const td = (cls) => { const d = el('td', cls); d.setAttribute('role', 'cell'); tr.append(d); return d; };
     if (r.summary) { tr.className = 'sum'; const d = td('sum'); d.colSpan = auction ? 5 : 6; d.innerHTML = r.summary; body.append(tr); continue; }
     const k = td('k'); k.append(el('span', 'ek', r.kind));
+    // a row of one of this browser's own bids (v.mine: their nullifiers, result.js myBids)
+    const nf = (e.contribution && e.contribution.nf) || (e.settle && e.settle.nf) || (e.coin && e.coin.nf) || null;
+    if (v.mine && nf && v.mine.has(nf)) { k.append(el('span', 'yours', 'Yours')); tr.classList.add('mine'); }
     if (r.ref) { const s = el('span', 'ref', `${r.ref.slice(0, 8)}…${r.ref.slice(-5)}`); s.title = r.ref; k.append(s); }
     const res = td(`res${r.result === 'Won' ? ' won' : r.result === 'Lost' ? ' lost' : ''}`); res.textContent = r.result;
     if (!auction) { const a = td('am r'); if (r.amount != null) a.innerHTML = r.amount; else { a.textContent = DASH; a.classList.add('none'); } }

@@ -193,11 +193,22 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 30000 });
     check('the payment card shows the version 3 memo and the deposit', (await text(p, '#memo')) === pay.memo && /0\.1/.test(await text(p, '#pay-amount')), (await text(p, '#pay-amount')));
     check('step 2 shows the payment, not the status card, until the page sees the payment', await p.$eval('#status-card', (e) => e.hidden));
+    // the message first: one warning line, the message before the address, the address and amount only once "I attached the message" is ticked
+    check('the pay step warns in one line that a payment without the memo is a donation', (await text(p, '#memo-warn')) === '△Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.', await text(p, '#memo-warn'));
+    check('the message comes before the address', await p.evaluate(() => !!(document.querySelector('#memo').compareDocumentPosition(document.querySelector('#pay-to')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    check('the address, the amount, the code and "Open in my wallet" stay locked until the box is ticked', await p.$eval('#pay-lock', (e) => e.hidden) && !(await p.isVisible('#pay-to')) && !(await p.isVisible('#open-wallet')) && await p.isVisible('#pay-locked') && !(await p.isChecked('#attached')));
+    const wl = await p.$eval('#wallets-text', (e) => e.textContent);
+    check('the wallet line says: tested with zcash-devtool; others read from source only, not tested', /^Tested with zcash-devtool; others read from source only, not tested\. Zashi/.test(wl) && /YWallet/.test(wl) && /Zingo/.test(wl) && !/[A-Za-z] - [A-Za-z]|\u2014/.test(wl), wl);
+    await p.check('#attached');
+    check('ticking "I attached the message" shows the address, the amount and the button', await p.isVisible('#pay-to') && await p.isVisible('#pay-amt') && await p.isVisible('#open-wallet') && !(await p.isVisible('#pay-locked')));
+    await shot(p, '2-pay-open');
+    check('the tick is kept with the bid', await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).memoAttached === true, FX.N));
     await shot(p, '2-pay');
     await p.click('#to-status');
     await waitTitle(p, /^Waiting for your payment$/, 15000);
     await shot(p, '3-waitpay');
-    check('it waits for the deposit\'s ticket', (await text(p, '#st-title')) === 'Waiting for your payment' && /^Pay 0\.1 \S+ from your wallet\. This page updates by itself\.$/.test(await text(p, '#st-text')), await text(p, '#st-text'));
+    check('it waits for the deposit\'s ticket and says only a payment with the message counts', (await text(p, '#st-title')) === 'Waiting for your payment' && (await text(p, '#st-text')) === 'Your payment only counts if it carried the message. If it did not, it is a donation.', await text(p, '#st-text'));
+    check('it does not claim to see the payment: the auction\'s key is private until after the close', /^This page cannot see payments into the auction: its viewing key stays private until after the close\./.test(await p.textContent('#st-more')), (await p.textContent('#st-more')).slice(0, 120));
     await ctx.close();
 
     // Pay with Noir, with the stand in extension: without it nothing changes; with it the network is checked by the address prefix, exactly

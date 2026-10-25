@@ -59,6 +59,11 @@ function showTotals(r, ticker, final) {
   fact(dl, 'Kept by the campaign', z(t.kept_zat));
   fact(dl, 'Still pending', z(t.pending_zat));
   fact(dl, 'Donations (no valid message, or set aside)', `${z(t.donations_zat)} in ${t.donations} payment(s)`);
+  const unclaimed = (r.sealed && r.sealed.not_in_auction) || [];
+  if (unclaimed.length) { // a blind bid auction: each payment no entry names, with its transaction id (flagged in the checks too)
+    fact(dl, 'Payments not in the auction', '');
+    dl.lastChild.replaceChildren(...unclaimed.map((p) => Object.assign(document.createElement('span'), { className: 'na-tx', textContent: `${z(p.value_zat)}, ${p.reason}, block ${p.height.toLocaleString('en-US')}, transaction ${p.txid}` })));
+  }
   if (r.auction) {
     const a = r.auction;
     fact(dl, 'Clearing price (every winner pays this)', `${z(a.price_zat)} (reserve ${z(a.reserve_zat)})`);
@@ -104,7 +109,7 @@ function showSealed(r, rules, ticker) {
     const what = d.withdrawn ? 'taken back before the deadline'
       : d.bid_zat != null && !d.no_bid ? `bid ${z(d.bid_zat)}${d.winner ? `, WINS, pays ${z(d.price_zat)}` : ''}`
         : d.no_bid ? `no bid: ${d.no_bid}` : 'not opened yet';
-    li.textContent = `Deposit ${d.nf.slice(0, 10)}… of ${z(d.tranche_zat)} (paid ${z(d.value_zat)}, block ${d.height}): ${what}`;
+    li.append(Object.assign(document.createElement('span'), { textContent: `Deposit ${d.nf.slice(0, 10)}… of ${z(d.tranche_zat)} (paid ${z(d.value_zat)}, block ${d.height}): ${what}` }));
     if (d.winner) li.className = 'done';
     return li;
   }));
@@ -115,15 +120,20 @@ function showSealed(r, rules, ticker) {
 /** The checks as one table (round 11, "Table and filters"): every row a button that opens the check's description and the evidence the engine wrote.
  *  FAIL rows start open, PASS and WAIT rows closed; every run starts from these defaults. The filters show all, the failed or the passed rows. */
 let filter = 'all';
-function showRules(r) {
+function showRules(r, ticker) {
   const box = $('#rules');
   box.replaceChildren();
   const nFail = r.rules.filter((x) => !x.waiting && !x.pass).length, nPass = r.rules.filter((x) => !x.waiting && x.pass).length;
   $('#f-all').textContent = `All ${r.rules.length}`; $('#f-bad').textContent = `Problems ${nFail}`; $('#f-ok').textContent = `Matched ${nPass}`;
-  for (const x of r.rules) {
+  // a blind bid auction whose bids have opened: the payments no entry names (not listed, rejected or returned), flagged, never a failure
+  const na = (r.sealed && r.sealed.not_in_auction) || [];
+  const flagged = r.sealed && r.sealed.opened ? [{ id: '⚑', title: 'Payments not in the auction', flag: na.length > 0, pass: true,
+    desc: 'Payments into the auction address in the bidding window that no entry on the list names. Each counts as a donation and stays in the auction wallet. Flagged, not failed.',
+    details: na.length ? na.map((p) => `Transaction ${p.txid}, block ${p.height.toLocaleString('en-US')}, ${coin(p.value_zat)} ${ticker}: ${p.reason}.`) : ['None.'] }] : [];
+  for (const x of [...r.rules, ...flagged]) {
     // a check that cannot run yet (an auction before its close) shows WAIT, in the neutral look
-    const st = x.waiting ? 'wait' : x.pass ? 'pass' : 'fail';
-    const word = x.waiting ? '◷ WAIT' : x.pass ? '✓ PASS' : '✕ FAIL';
+    const st = x.flag ? 'flag' : x.waiting ? 'wait' : x.pass ? 'pass' : 'fail';
+    const word = x.flag ? '⚑ FLAGGED' : x.waiting ? '◷ WAIT' : x.pass ? (x.desc ? '✓ NONE' : '✓ PASS') : '✕ FAIL';
     const row = document.createElement('div'); row.className = `rrow ${st}`; row.dataset.id = x.id; row.dataset.st = st;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'rr-btn';
     const panelId = `rr-${x.id}`;
@@ -134,19 +144,19 @@ function showRules(r) {
     const m = name.match(/^(.*?)( \(.*\))$/); // a bracketed qualifier goes under the name on a phone
     if (m) nm.append(Object.assign(document.createElement('span'), { textContent: m[1] }), Object.assign(document.createElement('span'), { className: 'rr-sub', textContent: m[2] }));
     else nm.textContent = name;
-    const pill = Object.assign(document.createElement('span'), { className: `spill ${st === 'wait' ? 'nc' : st}`, textContent: word }); // a check that waits looks neutral, as before
+    const pill = Object.assign(document.createElement('span'), { className: `spill ${st === 'wait' ? 'nc' : st === 'flag' ? 'limited' : st}`, textContent: word }); // a check that waits looks neutral, as before
     const chev = Object.assign(document.createElement('span'), { className: 'rr-chev', textContent: '▾' }); chev.setAttribute('aria-hidden', 'true');
     b.append(id, nm, pill, chev);
     b.setAttribute('aria-label', `${x.id} ${name}: ${word.slice(2)}`);
     const panel = document.createElement('div'); panel.className = 'rr-panel'; panel.id = panelId;
-    panel.append(Object.assign(document.createElement('p'), { className: 'rr-desc', textContent: CHECKS[x.id] ? CHECKS[x.id][1] : x.title }));
+    panel.append(Object.assign(document.createElement('p'), { className: 'rr-desc', textContent: x.desc || (CHECKS[x.id] ? CHECKS[x.id][1] : x.title) }));
     if (x.details.length) {
       const ev = document.createElement('div'); ev.className = 'rr-ev';
       for (const t of x.details) ev.append(Object.assign(document.createElement('p'), { textContent: t }));
       panel.append(ev);
     }
     const setOpen = (o) => { b.setAttribute('aria-expanded', String(o)); panel.hidden = !o; row.classList.toggle('open', o); };
-    setOpen(st === 'fail');
+    setOpen(st === 'fail' || st === 'flag');
     b.addEventListener('click', () => setOpen(b.getAttribute('aria-expanded') !== 'true'));
     row.append(b, panel);
     box.append(row);
@@ -157,7 +167,7 @@ function showRules(r) {
 function applyFilter(f) {
   filter = f;
   for (const c of document.querySelectorAll('.rchip')) c.setAttribute('aria-pressed', String(c.dataset.f === f));
-  for (const row of document.querySelectorAll('#rules .rrow')) row.hidden = (f === 'bad' && row.dataset.st !== 'fail') || (f === 'ok' && row.dataset.st !== 'pass');
+  for (const row of document.querySelectorAll('#rules .rrow')) row.hidden = (f === 'bad' && row.dataset.st !== 'fail' && row.dataset.st !== 'flag') || (f === 'ok' && row.dataset.st !== 'pass');
 }
 
 /** The coverage line and what a recount does not check. "Not checked" lists what this run could not see, each with its reason as text. */
@@ -214,9 +224,10 @@ async function recount() {
   if (j.kind === 'none') return verdict('cannot', 'Cannot conclude', 'No relay could give an intact, signed list. A relay that drops or damages entries could make anyone look guilty, so no verdict is given. Ask the host for its own copy or try other relays.');
   if (j.kind === 'disagree') return verdict('cannot', 'RELAYS DISAGREE, CANNOT CONCLUDE', 'The relays do not show the same list. This says nothing about the host: a relay can be behind, down or dishonest. Ask the host for its own copy, or try other relays, and run this again.');
   const c = JSON.parse(W.campaign_summary(j.rules, cfg.id));
-  // the short id always in the bold line; the name, when the rules carry one, in a smaller line above it (nothing new is asked for)
+  // the name from the checked rules (so a campaign that is not listed has it too), then the short id with its copy button; on both tabs
   setCampaignLabel(cfg.id, '');
   $('#campaign-id').title = '';
+  $('#rc-name').textContent = c.name || ''; $('#rc-name').hidden = !c.name; if (c.name) $('#rc-name').title = c.name;
   const rules = JSON.parse(j.rules);
   copyStep(j);
   setNetwork(c.network);
@@ -292,7 +303,7 @@ async function recount() {
     const after = closedAt - rules.deadline_height;
     $('#tl-closed').textContent = `block ${nf(closedAt)} (${after > 0 ? `${nf(after)} block${after === 1 ? '' : 's'} after the deadline` : `${nf(-after)} block${after === -1 ? '' : 's'} before the deadline`})${after <= 0 && rules.early_close ? '. Closed early, which this campaign\'s rules allow once the goal is met: payments after this block do not count, and contributions could be taken back only until it' : ''}`;
   }
-  showRules(r);
+  showRules(r, c.ticker);
   // past the deadline and never closed: say so, as a rule of the campaign (the recount does not check that any refund was claimed)
   const openNote = $('#open-note');
   const pastDeadline = out.end > rules.deadline_height, isClosed = j.entries.some((e) => e.kind === 'close');

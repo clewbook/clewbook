@@ -206,3 +206,10 @@ main.bb { position: relative; z-index: 1; flex: 1; width: 100%; padding: 0 var(-
 /* Copy link: the short link when the listing names the auction, else the full one */
 .bb .bb-copylink { margin-left: auto; padding: 6px 12px; border: 1px solid var(--cb-border-strong); border-radius: 999px; background: transparent; color: var(--cb-ink-2); font: 600 13px var(--cb-font-body); cursor: pointer; white-space: nowrap; }
 .bb .bb-copylink:hover { border-color: var(--cb-border-hover); color: var(--cb-ink); }
+/* the pay step: the memo warning, the message first, and the address and amount once "I attached the message" is ticked */
+.bb .bb-memowarn { margin: 0; font-weight: 600; color: var(--cb-ink); }
+.bb .bb-memofirst .bb-attached { border-top: 1px solid var(--cb-border); padding-top: 8px; }
+.bb .bb-wallets { font: 400 13px/1.5 var(--cb-font-body); }
+.bb .bb-locked { margin: 0; font: 400 14px/1.5 var(--cb-font-body); color: var(--cb-ink-3); }
+.bb .bb-paylock { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.bb .bb-paylock[hidden], .bb .bb-actrow[hidden] { display: none; }

@@ -10,6 +10,7 @@ import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords
 import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { findAnchor } from './anchor.js';
+import { myBids, showResult } from './result.js';
 import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones, DEFAULT_RELAY } from './public.js';
 
 const $ = (s) => document.querySelector(s);
@@ -1020,7 +1021,7 @@ function renderAllInner() {
     if (cc.dataset.key !== key) {
       cc.dataset.key = key;
       const tail = `c=${cfg.id}${cfg.relays.map((r) => `&relay=${r}`).join('')}`;
-      campaignView(cc, { c: campaign, id: cfg.id, entries: view.entries, ok: view.ok, relays: cfg.relays, single: view.kind === 'single', tip, secPerBlock, links: { recount: `recount.html#${tail}`, card: `card.html#${tail}` } }); // round 13: no "Not checked by a recount" fold on the closed page
+      campaignView(cc, { c: campaign, id: cfg.id, entries: view.entries, ok: view.ok, relays: cfg.relays, single: view.kind === 'single', tip, secPerBlock, mine: new Set(myBids(cfg.id).map((b) => b.nf)), links: { recount: `recount.html#${tail}`, card: `card.html#${tail}` } }); // round 13: no "Not checked by a recount" fold on the closed page
     }
   } else cc.dataset.key = '';
   $('#cname').hidden = closedView() || !campaign;
@@ -1149,6 +1150,7 @@ async function refresh() {
     await measureBlockTime();
     await readHostSeen();
     memoryStep();
+    updateResult().catch(() => {});
     const mine = state; // the person may leave this payment code (back, start over) while the network is being asked
     if (mine) {
       try {
@@ -1381,6 +1383,16 @@ function cancelProofCheck() {
   $('#proof-progress').textContent = 'Stopped. The proof stays "not checked".';
   $('#proof-cancel').hidden = true;
   renderTicketChecks();
+}
+
+// An auction's result for this browser's own bids, one line at the top once it has settled (result.js); drawn again when the list grows.
+let resultKey = '';
+async function updateResult() {
+  if (!campaign || !(campaign.mode === 'auction' || campaign.sealed)) return;
+  const key = `${view.entries.length}:${state ? (state.ticket ? state.ticket.nf : 'code') : 'none'}`;
+  if (key === resultKey) return;
+  resultKey = key;
+  await showResult($('#my-result'), { c: campaign, entries: view.entries, id: cfg.id, W, servers: [...new Set([cfg.server, SECOND_SERVER[campaign.network]].filter(Boolean))] });
 }
 
 // Level 4: the ticket's anchor is the note tree of a real block, asked of both chain servers (anchor.js). Kept once sure (found, or absent from

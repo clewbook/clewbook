@@ -136,6 +136,51 @@ pub struct SealedReport {
     /// void cannot be checked). Never a pass and never a failure of the host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cannot_conclude: Option<String>,
+    /// Payments into the auction address inside the bidding window that no list entry names (not listed, rejected or returned): no
+    /// memo, an unreadable memo or a wrong size. They count as donations and stay in the auction wallet. Flagged, never a failure.
+    pub not_in_auction: Vec<NotInAuction>,
+}
+
+/// Why a payment into the auction address is not a deposit at all: "no memo", "unreadable memo" (not a blind bid memo of this format) or
+/// "wrong size" (below the smallest deposit size). None for a payment shaped like a deposit.
+pub fn unclaimed_reason(s: &crate::sealed::Sealed, n: &ChainNote) -> Option<&'static str> {
+    let memo = n.memo_text.as_deref().unwrap_or_default();
+    if memo.trim().is_empty() {
+        Some("no memo")
+    } else if BidMemo::parse(memo).is_err() {
+        Some("unreadable memo")
+    } else if s.tranche_of(n.value_zat).is_none() {
+        Some("wrong size")
+    } else {
+        None
+    }
+}
+
+/// The payments into the auction address inside the bidding window that are not deposits and that no entry names (not listed, rejected or
+/// returned), in chain order, as the recount flags them. The host program shows the same list on its dashboard while the auction runs.
+pub fn not_in_auction(rules: &Rules, ledger: &[Entry], notes: &[ChainNote]) -> Vec<NotInAuction> {
+    let Some(s) = rules.sealed.as_ref() else { return vec![] };
+    let named: BTreeSet<&str> = ledger.iter().filter_map(Entry::nf).collect();
+    let mut out: Vec<&ChainNote> = notes
+        .iter()
+        .filter(|n| !n.is_change && n.height.is_some_and(|h| h >= rules.start_height && h <= s.last_deposit(rules.deadline_height)))
+        .filter(|n| !n.nf.as_deref().is_some_and(|nf| named.contains(nf)))
+        .collect();
+    out.sort_by(|x, y| x.height.cmp(&y.height).then(x.tx_index.cmp(&y.tx_index)).then(x.txid.cmp(&y.txid)).then(x.action.cmp(&y.action)));
+    out.into_iter()
+        .filter_map(|n| unclaimed_reason(s, n).map(|r| NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: r.into() }))
+        .collect()
+}
+
+/// One payment of `SealedReport::not_in_auction`.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct NotInAuction {
+    pub txid: String,
+    pub action: u32,
+    pub height: u32,
+    pub value_zat: u64,
+    /// "no memo", "unreadable memo" or "wrong size".
+    pub reason: String,
 }
 
 /// The winners and what each pays, from the valid bids in chain order (`(nf, bid)`). Ties go to the earlier deposit. With fewer valid bids
@@ -304,6 +349,9 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
     // with open payouts, every rejected or repeated payment goes back (set 1, H3 and M5); checked in S7
     let mut refused: Vec<(&ChainNote, BidMemo)> = vec![];
     let mut totals = Totals::default();
+    // payments that are neither a deposit nor named by any entry (listed, rejected or returned): flagged in the report
+    let named: BTreeSet<&str> = ledger.iter().filter_map(Entry::nf).collect();
+    let mut not_in_auction: Vec<NotInAuction> = vec![];
     for n in order {
         let nf = n.nf.clone().unwrap_or_default();
         let memo_text = n.memo_text.as_deref().unwrap_or_default();
@@ -315,6 +363,10 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
             }
         }
         let (Some(memo), Some(tranche)) = (parsed, tranche) else {
+            if let (false, Some(reason)) = (named.contains(nf.as_str()), unclaimed_reason(s, n)) {
+                warnings.push(format!("{}:{} ({}) was paid into the auction in the bidding window with {reason}: it is not a bid, no entry names it, and it stays in the auction wallet", n.txid, n.action, rules.amount(n.value_zat)));
+                not_in_auction.push(NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: reason.into() });
+            }
             totals.donations += 1;
             totals.donations_zat += n.value_zat;
             continue;
@@ -520,7 +572,7 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
 
     // S5: the void rule, the bids, the outcome.
     let live: Vec<&Deposit> = deposits.iter().filter(|d| !withdrawn.contains(d.nf.as_str())).collect();
-    let mut report = SealedReport { pricing: s.pricing.clone(), items: rules.items.unwrap_or(0), round: s.drand_round, claim_after: s.claim_after, cutoff, ..Default::default() };
+    let mut report = SealedReport { pricing: s.pricing.clone(), items: rules.items.unwrap_or(0), round: s.drand_round, claim_after: s.claim_after, cutoff, not_in_auction, ..Default::default() };
     report.deposits = deposits
         .iter()
         .map(|d| OpenedBid { nf: d.nf.clone(), txid: d.note.txid.clone(), action: d.note.action, height: d.note.height.unwrap_or(0), value_zat: d.note.value_zat, tranche_zat: d.tranche, withdrawn: withdrawn.contains(d.nf.as_str()), ..Default::default() })

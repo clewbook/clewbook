@@ -24,6 +24,18 @@ card shows whether the deposit is PROTECTED. Taking a deposit back asks twice ("
 the close the host sends the treasury to its own wallet from the dashboard ("Send to my wallet"). Tests: bid page
 `bid-too-high-e2e.cjs` (the warning and the network check), `blind-cards-e2e.cjs` (the deposit cards), `bid-page-e2e.cjs` (the take back); core `a_refund_address_for_the_other_network_is_named`.
 
+**The memo comes first.** The Pay step opens with one line: "Send with the memo the page gives you. A payment without it counts as a
+donation and cannot be returned." The message is copied before the address, and the address, the amount and the payment code show only
+after the person ticks "I attached the message". After paying, the page says "Your payment only counts if it carried the message. If it
+did not, it is a donation." It does not say it can see the payment: the auction's viewing key stays private until after the close. Test:
+`bid-page-e2e.cjs`.
+
+**Wallets and the memo: tested with zcash-devtool; others read from source only, not tested.** From each wallet's source code on
+25 Oct 2026: Zashi keeps a pasted memo and the memo of a payment code scanned inside the app (on iPhone a tapped payment link is not
+used); Zingo caps a memo at 511 bytes and splits a longer one, and the memo of an auction with the long tag is 512 bytes, so the bid
+page says not to use Zingo for it; YWallet says it no longer supports Zcash since the Ironwood upgrade. The bid page says the same under
+"Which wallets keep the message?".
+
 ### A small example
 
 A host sells 1 item. The deposit sizes (tranches) are 0.0002 and 0.0004. The price is the lowest winning bid.

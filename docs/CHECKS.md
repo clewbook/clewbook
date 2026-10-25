@@ -50,6 +50,13 @@ published (after every winner is settled), S1 to S8 wait; R1, R2 and "did not fi
 | S7 | Every other deposit went back by its signed refund, or by its late ticket after the late ticket block. Each of these payments spends only that deposit (a late ticket also exactly the page's own coin, which only the page can sign) and lets only the fee leave the pool; once the host publishes its key, each is opened and must pay the person's refund address. An auction made before these checks existed is said to be not fully checkable. |
 | S8 | The viewing key was published only after every settlement was mined. |
 
+**Payments not in the auction.** A payment into the auction address inside the bidding window that carries no memo, a memo that is not
+a bid memo, or less than the smallest deposit is not a bid, and no entry on the list names it (not listed, rejected or returned). The
+recount lists each one with its transaction id, block, amount and reason, in the checks (flagged, not failed) and in Totals. It counts as
+a donation and stays in the auction wallet: without a readable memo there is no refund address, so neither the host nor the page can send
+it back on its own. The host dashboard lists the same payments and the operator bot sends one alert for each. Test:
+`payments_in_the_window_that_no_entry_names_are_flagged_not_failed` in `app/core/src/sealed_recount/tests.rs`.
+
 **Did not finish.** The report and the campaign page say "The host did not finish" when there is no close by the late ticket block, a winner
 took the deposit back by the late ticket, a deposit was not refunded by then, or the viewing key is missing soon after.
 
@@ -68,3 +75,17 @@ Stated on the recount page and, for the first four, on the capability card:
 - Each ticket's chain anchor: the recount does not check it; the contributor's own page does (L4).
 - Ledger anchoring: the host signs a final fingerprint of the list at the close and relays serve it, but the fingerprint is not anchored on a public ledger.
 - On the recount page, when it applies: agreement between servers (only one chain server answered) and between relays (only one gave a usable list). The result is then marked "limited", and when relays or servers disagree it says "cannot conclude" instead of passing.
+
+## The viewing key outside Clewbook
+
+The campaign page shows a campaign's viewing key under "more": an open auction publishes it at its close, a blind bid auction after
+every settlement, a fundraiser in its rules from the start. It lets anyone see the payments into the campaign, not spend them.
+
+| Tool | Result |
+|---|---|
+| `zcash-devtool`, the command line wallet of the Electric Coin Company, in Clewbook's copy (changes listed in [PATCHES.md](PATCHES.md)) | Works. On 25 Oct 2026, `wallet init-fvk --fvk <key> --birthday 3527100` and `wallet sync` on Apparition 69_'s published key listed the payments into the auction, its settlement, and the balance left in the auction's wallet. |
+| The unmodified `zcash-devtool` | Not tested. |
+| Phone and desktop wallets | Not tested. The key is a unified full viewing key with an Ironwood part, written `uvf1…`; a wallet that reads only `uview1…` keys may refuse it. |
+
+What the key shows: each payment's amount, block and transaction, and what the campaign's wallet spent. What it does not check: the
+rules, the public list, the tickets or the result. The recount does that.

@@ -212,6 +212,9 @@ function render(s) {
       ['Taken back before the deadline', z.withdrawn == null ? 'counting…' : String(z.withdrawn)],
       ['Small payments sent', String(z.coins_sent)],
       ...(z.late_returns ? [['Too late to bid or without tickets, sent back', `${z.late_returns} (${z.late_returns_confirmed} confirmed)`]] : []),
+      // payments without a bid message the auction can read: not bids, they stay in the auction wallet (the public recount flags them)
+      ['Payments not in the auction', String((z.not_in_auction || []).length)],
+      ...(z.not_in_auction || []).map((p) => [`Not in the auction (${p.reason})`, `${coin(p.value_zat)} ${ticker}, block ${p.height}, transaction ${p.txid}`]),
       ['Entries in the public list', String(s.counts.ledger_entries)],
       ...(z.closed ? [
         ['Result', z.outcome === 'void' ? 'void: every deposit goes back' : `${z.winners} winner(s)${z.price_zat != null ? `, price ${coin(z.price_zat)} ${ticker}` : ''}`],

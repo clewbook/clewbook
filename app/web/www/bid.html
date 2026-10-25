@@ -29,6 +29,7 @@
   <!-- the auction: status pill, name, kind -->
   <div class="bb-line" id="status-line" hidden><span class="bb-pill" id="status-chip"><i></i><span id="pill-t"></span></span><b class="bb-name" id="cname"></b><span class="bb-kind" id="ckind"></span><button type="button" class="bb-copylink" id="copy-link">Copy link</button></div>
   <div id="banners" aria-live="polite"></div>
+  <div id="my-result" class="my-result" role="status" hidden></div>
 
   <!-- 1. the bid: deposit size, bid, refund address -->
   <section class="bb-grid" id="form-card" hidden>
@@ -74,15 +75,24 @@
         <div class="bb-row bb-bkrow"><button type="button" class="bb-secondary" id="backup">↓ Download backup file</button><label class="bb-check"><input type="checkbox" id="saved">Saved</label></div>
       </div>
       <h1 class="bb-payh">Pay exactly <span id="pay-amount"></span> once, from a shielded address.</h1>
-      <div class="bb-payrow">
-        <div class="bb-qrc"><div class="bb-qr" id="qr" role="img" aria-label="Payment code"></div></div>
-        <div class="bb-copy"><span class="bb-k">OR COPY INTO YOUR WALLET</span>
-          <div class="bb-cp"><span class="bb-n">1</span><span class="bb-cpv"><span class="bb-cpk">Address</span><span class="bb-val" id="pay-to"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-to" aria-label="Copy address">Copy</button></div>
-          <div class="bb-cp"><span class="bb-n">2</span><span class="bb-cpv"><span class="bb-cpk">Amount</span><span class="bb-val" id="pay-amt"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-amt" aria-label="Copy amount">Copy</button></div>
-          <div class="bb-cp"><span class="bb-n">3</span><span class="bb-cpv"><span class="bb-cpk">Message</span><span class="bb-val" id="memo"></span></span><button type="button" class="bb-cpbtn" data-copy="memo" aria-label="Copy message">Copy</button></div>
-        </div>
+      <p class="bb-note bb-memowarn" id="memo-warn"><b aria-hidden="true">△</b><span>Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.</span></p>
+      <div class="bb-copy bb-memofirst"><span class="bb-k">FIRST, PUT THIS MESSAGE IN YOUR WALLET'S MEMO</span>
+        <div class="bb-cp"><span class="bb-n">1</span><span class="bb-cpv"><span class="bb-cpk">Message</span><span class="bb-val" id="memo"></span></span><button type="button" class="bb-cpbtn" data-copy="memo" aria-label="Copy message">Copy</button></div>
+        <label class="bb-check bb-attached"><input type="checkbox" id="attached">I attached the message</label>
+        <details class="bb-inmore bb-wallets" id="wallets"><summary>Which wallets keep the message?</summary><span id="wallets-text"></span></details>
       </div>
-      <div class="bb-acts bb-actrow"><a class="bb-primary" id="open-wallet" href="#">Open in my wallet</a><button type="button" class="bb-secondary bb-tall" id="noir-pay" hidden>Pay with Noir</button></div>
+      <p class="bb-locked" id="pay-locked">Tick the box to see the address and the amount.</p>
+      <div class="bb-paylock" id="pay-lock" hidden>
+        <div class="bb-payrow">
+          <div class="bb-qrc"><div class="bb-qr" id="qr" role="img" aria-label="Payment code"></div></div>
+          <div class="bb-copy"><span class="bb-k">THEN COPY INTO YOUR WALLET</span>
+            <div class="bb-cp"><span class="bb-n">2</span><span class="bb-cpv"><span class="bb-cpk">Address</span><span class="bb-val" id="pay-to"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-to" aria-label="Copy address">Copy</button></div>
+            <div class="bb-cp"><span class="bb-n">3</span><span class="bb-cpv"><span class="bb-cpk">Amount</span><span class="bb-val" id="pay-amt"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-amt" aria-label="Copy amount">Copy</button></div>
+          </div>
+        </div>
+        <div class="bb-acts bb-actrow"><a class="bb-primary" id="open-wallet" href="#">Open in my wallet</a></div>
+      </div>
+      <div class="bb-acts bb-actrow" id="noir-row" hidden><button type="button" class="bb-secondary bb-tall" id="noir-pay" hidden>Pay with Noir</button></div>
       <p class="noir-msg" id="noir-msg" role="status" hidden></p>
       <button type="button" class="bb-link bb-strong" id="to-status">I've paid. Show my status →</button>
     </div>

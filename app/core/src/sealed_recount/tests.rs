@@ -676,6 +676,30 @@ fn tickets_late_or_a_replayed_memo() {
 }
 
 #[test]
+fn payments_in_the_window_that_no_entry_names_are_flagged_not_failed() {
+    let mut c = honest("uniform");
+    let no_memo = ChainNote { memo_text: None, ..c.sx.note(11, 50_000, 150, &c.deps[0].memo) };
+    let unreadable = ChainNote { memo_text: Some("LL3:not a bid".into()), ..c.sx.note(12, SMALL, 151, &c.deps[0].memo) };
+    let small = c.sx.note(13, 5_000, 152, &c.sx.memo(13, SMALL, 1_000_000));
+    let named = ChainNote { memo_text: None, ..c.sx.note(14, 50_000, 153, &c.deps[0].memo) };
+    let mut reject = Entry::new(&c.sx.id, "reject");
+    reject.contribution = Some(Contribution { txid: named.txid.clone(), action: 0, nf: nf(&named), height: 153, value_zat: None, amount_commit: None });
+    reject.reason = Some("unreadable".into());
+    let at = c.entries.iter().position(|e| e.kind == "close").unwrap();
+    c.entries.insert(at, reject);
+    c.notes.extend([no_memo.clone(), unreadable.clone(), small.clone(), named]);
+    let r = c.run();
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    let s = r.sealed.as_ref().unwrap();
+    let got: Vec<_> = s.not_in_auction.iter().map(|x| (x.txid.as_str(), x.height, x.value_zat, x.reason.as_str())).collect();
+    assert_eq!(got, vec![(no_memo.txid.as_str(), 150, 50_000, "no memo"), (unreadable.txid.as_str(), 151, SMALL, "unreadable memo"), (small.txid.as_str(), 152, 5_000, "wrong size")]);
+    assert_eq!(r.warnings.iter().filter(|w| w.contains("no entry names it")).count(), 3);
+    assert_eq!(r.totals.donations, 4);
+    // an honest auction has none
+    assert!(honest("uniform").run().sealed.unwrap().not_in_auction.is_empty());
+}
+
+#[test]
 fn a_deposit_after_the_coin_cutoff_owes_no_coin_and_does_not_bid() {
     // D pays in block 195, after the cutoff (190): no coin, its bid (the highest) does not count, it is refunded
     let mut c = honest("uniform");

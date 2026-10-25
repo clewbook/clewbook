@@ -290,6 +290,12 @@ The bid page reached PROTECTED for this deposit with both chain servers agreeing
 outside on 23 Oct 2026, before the close: "Not yet possible", R1 and R2 pass, S1 to S8 wait for the viewing key, no "cannot be fully
 checked" warning. The close, the settlement and the full recount will be added when they happen.
 
+**Unclaimed payment, no memo, 0.0005 ZEC, left in the auction wallet.** Transaction
+[`572d7613937e0c33dc28f971c5ec1f426277c49f6f5a7af318d604b7f7e2f381`](https://mainnet.zcashexplorer.app/transactions/572d7613937e0c33dc28f971c5ec1f426277c49f6f5a7af318d604b7f7e2f381),
+block 3,527,753, inside the bidding window, paid 0.0005 ZEC to the auction address with an empty memo. With no memo it is not a bid, it has
+no refund address, and no entry on the public list names it. On 25 Oct 2026 the auction wallet, read with the published viewing key, still
+held it unspent. The recount counts it as a donation and lists it under "Payments not in the auction" (flagged, not failed).
+
 ## 15. Test network checks of 23 Oct 2026
 
 Throwaway test network campaigns on a host and relay on one computer (no money of value). Ids in full in the test logs.

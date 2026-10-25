@@ -5,3 +5,8 @@
 .cid-more { margin: 4px 0 0; font: 400 13px var(--cb-font-body); color: var(--cb-ink-3); }
 .cid-more summary { cursor: pointer; width: max-content; }
 .cid-more code { font: 400 12px var(--cb-font-mono, monospace); word-break: break-all; color: var(--cb-ink-2); }
+
+/* the viewing key under "more": shortened, Copy for the whole key, one line on what it does */
+.cid-more .cid-row, .cid-more .vk-row { margin-top: 6px; }
+.cid-more .vk-copy { margin-left: 6px; padding: 2px 10px; border: 1px solid var(--cb-border-strong); border-radius: 999px; background: transparent; color: var(--cb-ink-2); font: 600 12px var(--cb-font-body); cursor: pointer; }
+.cid-more .vk-what { margin: 4px 0 0; color: var(--cb-ink-3); }
