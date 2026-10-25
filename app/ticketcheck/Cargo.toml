@@ -12,10 +12,10 @@ ll-core = { workspace = true, default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 zcash_protocol.workspace = true
-zcash_primitives = { version = "=0.31.0-pre.0", default-features = false, features = ["std"] }
+zcash_primitives = { version = "=0.31.0", default-features = false, features = ["std"] }
 orchard.workspace = true
 # Sealed bid auctions: the late ticket's coin input (checked and signed by the bid page)
-zcash_transparent = { version = "=0.11.0-pre.0", features = ["transparent-inputs"] }
+zcash_transparent = { version = "=0.11.0", features = ["transparent-inputs"] }
 secp256k1 = "0.33"
 sapling = { package = "sapling-crypto", version = "0.9" }
 

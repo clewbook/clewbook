@@ -231,7 +231,7 @@ async function main() {
     $('#mainnet-banner').hidden = false; $('#confirm-row').hidden = false; $('#create-btn').disabled = true;
     $('#nu7-note').textContent = config.nu7_mainnet_height
       ? `The NU7 network upgrade activates at block ${config.nu7_mainnet_height.toLocaleString('en-US')}. A campaign that could still be running then is refused: refund tickets signed before the upgrade stop working after it.`
-      : 'The NU7 network upgrade is announced for 5 November 2026 and its block height is not published yet (expected 20 October). Until it is given, a campaign must be over a week before that date, and a longer one is refused.';
+      : 'The NU7 network upgrade is at block 3,543,405, expected about 5 November 2026. This host was started without that height, so a campaign must be over a week before that date, and a longer one is refused.';
     $('#confirm-mainnet').addEventListener('change', () => { $('#create-btn').disabled = !$('#confirm-mainnet').checked; });
   }
   $('#net-note').textContent = config.network === 'main' ? 'Main network: real money.' : 'Test network: no real money.';

@@ -136,8 +136,12 @@ transaction that spent it.
 A challenge (a tiny payment with a code in its memo that the payer reads back) is not offered. It only shows that the payer can read
 payments to the address they gave, which anyone giving their own address can. It says nothing about who paid.
 
-This build cannot sign main network transactions after NU7 (block 3,543,405, about 6 November 2026): its libraries do not have the main
-network NU7 settings yet. Send a main network payment back before then, or after a host update.
+A return is built and signed when you press the button, for the network version of the next block. The libraries choose that version
+from their own settings, not from the chain. Host programs built before the move to `zcash_protocol 0.11.0` (21 Oct 2026) do not know
+the main network NU7 height (block 3,543,405, about 5 November 2026) and keep signing for the version before it: on the main network a
+return pressed after NU7 would be refused and the payment would stay locked until an update. This build knows it and signs for NU7
+from that block on (test `libraries_pick_the_branch_the_networks_report`). Refund tickets are different: they are signed in advance,
+so a ticket signed before NU7 stops working after it, whatever the build.
 
 ### Automatic late tickets
 

@@ -325,6 +325,20 @@ or log afterwards.
 | The payment, no memo (0.0005 TAZ) | `7b29493c8d36fdc150aebfb1cf90795f60b12c0d22daf0db14314aafb603a825` | 4,539,958 |
 | Sent back to the payer's `utest1` address (0.0004 TAZ, one Ironwood output, as the payer's wallet shows it) | `84ede467877877d949a859a90db19e7213769096ff75cc114117533e2c096e17` | 4,539,961 |
 
+## 17. The host on zcash_protocol 0.11.0, test network, 25 Oct 2026
+
+The host program moved from the prerelease libraries (`zcash_protocol 0.11.0-pre.0` and its group) to the releases of 21 Oct 2026,
+which know the main network NU7 height (block 3,543,405). Test `libraries_pick_the_branch_the_networks_report`: on the main network a
+transaction built for block 3,543,404 is signed for the version before NU7 (37a5165b), one built for 3,543,405 or later for NU7
+(77190ad9). On the test network, a throwaway quick auction (`2eb4d15bee834f420becaf842f0d245881d87e4f78d409d94fb607d58178a9d8`) on the new
+program, two sends it built and signed itself:
+
+| Step | Transaction | Block |
+|---|---|---|
+| A payment with no memo (0.0005 TAZ) | `d8678b524a56ab31f52c01e6d4a47bcfca4db6db5c3536e02f5f3f101ce36dd4` | 4,540,344 |
+| "Send it back" to the payer (0.0004 TAZ, one Ironwood output) | `7061fb9989170a72fa4173b4268932b6a3bfcb9726867b9dede34239545f8eac` | 4,540,349 |
+| The coin wallet sent back (0.0002 TAZ) | `298ce121447e8b350416649116e7d94612bf01b172b8a4f1c989c622acbe8ca8` | 4,540,350 |
+
 ## Pending
 
 * A ticket held since 2026-10-06 00:15 UTC (testnet campaign id `c73081f362e81b82af4087a47c24fee636dc23d1e991eb0998c7c5b0e3a0c7eb`, ticket `027b2bcac3c765de9f3eab4346c56575f1ad96ded644919e3e16d51a824febae`) is to be broadcast later to measure how long a ticket really stays valid. No result yet.

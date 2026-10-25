@@ -1,21 +1,21 @@
 // The real network (mainnet) guards, with no money and no wallet: `ll-host serve --network main` on an empty folder. The set-up page shows a loud
 // MAINNET banner and will not create anything until the box is ticked; the host refuses without the confirmation; it refuses a campaign that could
-// still be running when the NU7 upgrade activates (announced for 5 November 2026, height not yet published); nothing is created by any refusal.
+// still be running when the NU7 upgrade activates (block 3,543,405, about 5 November 2026; this host is started without --nu7-mainnet-height, so it checks against the date); nothing is created by any refusal.
 const { chromium } = require('./../vectors/js/node_modules/playwright');
 const fs = require('fs');
-const BASE = 'http://127.0.0.1:8780', SHOTS = process.env.SHOTS || 'runs/design-shots', RUNS = process.env.RUNS || 'runs/mainnet-guard/runs';
+const BASE = process.env.BASE || 'http://127.0.0.1:8780', SHOTS = process.env.SHOTS || 'runs/design-shots', RUNS = process.env.RUNS || 'runs/mainnet-guard/runs';
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); if (!ok) failed++; };
 const text = async (p, sel) => ((await p.textContent(sel)) || '').replace(/\s+/g, ' ').trim();
 const post = (body) => fetch(`${BASE}/api/campaigns`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dashboard': '1' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, j: await r.json() }));
 (async () => {
   const cfg = await (await fetch(`${BASE}/api/config`)).json();
-  check('the host program reports the main network, real ZEC, and no NU7 height yet', cfg.network === 'main' && cfg.ticker === 'ZEC' && cfg.nu7_mainnet_height === null, JSON.stringify(cfg).slice(0, 160));
+  check('the host program reports the main network, real ZEC, and no NU7 height given', cfg.network === 'main' && cfg.ticker === 'ZEC' && cfg.nu7_mainnet_height === null, JSON.stringify(cfg).slice(0, 160));
   const base = { mode: 'raise', goal_zat: 100000, deadline_in: 500, min_contribution_zat: 20000, relays: [] };
   let r = await post(base);
   check('creating without the confirmation is refused, in plain words', r.status === 400 && /MAINNET/.test(r.j.error) && /real ZEC/.test(r.j.error), r.j.error);
   r = await post({ ...base, confirm_mainnet: true, deadline_in: 60000 });
-  check('a campaign that could still be running at the NU7 upgrade is refused even when confirmed', r.status === 400 && /NU7/.test(r.j.error) && /5 November 2026/.test(r.j.error) && /not published yet/.test(r.j.error), r.j.error);
+  check('a campaign that could still be running at the NU7 upgrade is refused even when confirmed', r.status === 400 && /NU7/.test(r.j.error) && /5 November 2026/.test(r.j.error) && /3,543,405/.test(r.j.error) && !/not published/.test(r.j.error), r.j.error);
   r = await post({ ...base, confirm_mainnet: 'yes', deadline_in: 500 });
   check('only a real true counts as the confirmation', r.status === 400 && /MAINNET/.test(r.j.error), r.j.error);
   const made = fs.existsSync(RUNS) ? fs.readdirSync(RUNS).filter((n) => n.startsWith('campaign-')) : [];

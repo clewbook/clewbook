@@ -237,7 +237,7 @@ Optional. When a new request enters the queue (testnet, waiting for approval, or
 
 ## Mainnet
 
-Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, not published yet); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. What mainnet would need is in `app/listing/MAINNET-PLAN.md`.
+Off. `--network main` refuses to start without both `--confirm-mainnet-listing` and `--nu7-mainnet-height` (the published NU7 activation height, block 3,543,405 since 21 Oct 2026); these two switches are the only way to turn it on. Until then mainnet requests are accepted and wait in the queue (see "Each pass" above). Approving a host is allowed meanwhile; its mainnet campaigns still wait. Once mainnet listing is on, each waiting record is decided like any other on the next pass. What mainnet would need is in `app/listing/MAINNET-PLAN.md`.
 
 **Status lookup.** `GET /v1/records/<campaign id>` answers with the request's state from the last pass and a plain reason, nothing else: `Waiting` (received, or waiting for approval, or waiting for its first recount), `Listed`, `Not listed` (with the reason: refused, expired, hidden or revoked), or `Waiting for mainnet listing to open`; `Not found` when there is no request for that campaign. It counts toward the same per source limit as submissions. The dashboard's **Check status** button calls it.
 

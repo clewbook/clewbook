@@ -16,11 +16,11 @@ ll-ticketcheck = { path = "../ticketcheck" }
 serde.workspace = true
 serde_json.workspace = true
 zcash_protocol = { workspace = true, features = ["local-consensus"] }
-zcash_primitives = { version = "=0.31.0-pre.0", default-features = false, features = ["std"] }
+zcash_primitives = { version = "=0.31.0", default-features = false, features = ["std"] }
 orchard.workspace = true
 crypto_box.workspace = true
-zcash_client_backend = { version = "=0.25.0-pre.0", default-features = false, features = ["orchard"] }
-zcash_keys = { version = "=0.17.0-pre.0", default-features = false, features = ["orchard"] }
+zcash_client_backend = { version = "=0.25.0", default-features = false, features = ["orchard"] }
+zcash_keys = { version = "=0.17.0", default-features = false, features = ["orchard"] }
 zcash_note_encryption = "0.5.1"
 prost = "0.14"
 zip32 = "0.3"

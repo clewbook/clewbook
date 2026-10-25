@@ -14,7 +14,7 @@ use zcash_primitives::transaction::{
     TransactionData,
     builder::{BundlePadding, DeferredPcztBuilder},
     fees::zip317,
-    sighash::{SignableInput, signature_hash},
+    sighash::{PrecomputedSighashData, SignableInput},
     txid::{TxIdDigester, to_txid},
 };
 use zcash_protocol::{memo::MemoBytes, value::ZatBalance};
@@ -202,8 +202,7 @@ impl LibsBackend {
             t.vin[0].sequence = SEQUENCE_NON_FINAL; // the libraries write the final number otherwise, which switches the lock time off
         }
         let unauthed: TransactionData<zcash_primitives::transaction::Unauthorized> = TransactionData::from_parts_v6(branch, lock_time, BlockHeight::from_u32(0), Some(t.clone()), None, None, Some(iw.clone()));
-        let parts = unauthed.digest(TxIdDigester);
-        let sighash = signature_hash(&unauthed, &SignableInput::Shielded, &parts);
+        let sighash = PrecomputedSighashData::new_zip244(unauthed).map_err(|_| anyhow!("not a version 6 transaction"))?.signature_hash(&SignableInput::Shielded);
         let pk = self.ironwood_pk(branch)?;
         let iw = iw.create_proof(pk, &mut r).map_err(|e| anyhow!("prove: {e:?}"))?.apply_signatures(&mut r, *sighash.as_ref(), &[ask]).map_err(|e| anyhow!("sign: {e:?}"))?;
         #[allow(deprecated)]
@@ -353,5 +352,5 @@ fn out_script(o: &TxOut) -> Vec<u8> {
 pub fn pczt_txid(pczt: &Pczt) -> Result<String> {
     let effects = pczt.clone().into_effects().map_err(|e| anyhow!("{e:?}"))?;
     let digests = effects.digest(TxIdDigester);
-    Ok(to_txid(effects.version(), effects.consensus_branch_id(), &digests).to_string())
+    Ok(to_txid(effects.version(), effects.consensus_branch_id(), &digests).ok_or_else(|| anyhow!("a transaction version without a version 6 id"))?.to_string())
 }

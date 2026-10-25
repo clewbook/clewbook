@@ -1,11 +1,12 @@
 //! Guards for a campaign on the real network (mainnet). Nothing here moves money; it only refuses to start or close a campaign unless the host
 //! has confirmed it handles real ZEC, and refuses a campaign that could still be running when the NU7 network upgrade activates (the pre-signed
-//! refund tickets are valid for one consensus branch only, and this build's libraries do not know the mainnet NU7 parameters).
+//! refund tickets are valid for one consensus branch only). This build's libraries (zcash_protocol 0.11.0) know the mainnet NU7 height and
+//! sign for NU7 from it on; a ticket signed before it still stops working after it.
 
 use anyhow::{bail, Result};
 
-/// 2026-11-05 00:00 UTC: the date announced for the mainnet NU7 upgrade. The activation HEIGHT is to be decided on 2026-10-20; until it is given with
-/// --nu7-mainnet-height, a campaign must be over a week before this date.
+/// 2026-11-05 00:00 UTC: about when the mainnet NU7 height (3,543,405, ZIP 259, set 21 Oct 2026) is expected. A host started without
+/// --nu7-mainnet-height checks against this date instead: a campaign must be over a week before it.
 pub const NU7_TARGET_UNIX: u64 = 1_793_836_800;
 const SAFETY_SECS: u64 = 7 * 86_400;
 /// Mainnet blocks are about 75 seconds before NU7 (this is the pre-upgrade length, used only for the date-based guard, with a 25% allowance).
@@ -34,7 +35,7 @@ pub fn nu7_guard(network: &str, tip: Option<u32>, blocks_needed: u32, now_unix: 
     match (activation_height, tip) {
         (Some(h), Some(t)) => {
             if t >= h {
-                bail!("The mainnet NU7 upgrade is already active (block {h}). This build's libraries do not know the mainnet NU7 parameters, so it cannot make valid refund tickets yet.");
+                bail!("The mainnet NU7 upgrade is already active (block {h}). This program does not make new mainnet campaigns after the upgrade yet.");
             }
             if t.saturating_add(blocks_needed) >= h {
                 bail!("This campaign could still be running when the NU7 upgrade activates at block {h} (it needs ≈ {blocks_needed} blocks and the chain is at block {t}). Refund tickets signed before the upgrade stop working after it. Choose a shorter deadline.");
@@ -45,7 +46,7 @@ pub fn nu7_guard(network: &str, tip: Option<u32>, blocks_needed: u32, now_unix: 
         (None, _) => {
             let end = now_unix + (blocks_needed as u64) * PRE_NU7_BLOCK_SECS * 5 / 4;
             if end + SAFETY_SECS >= NU7_TARGET_UNIX {
-                bail!("The mainnet NU7 upgrade is announced for 5 November 2026 and its block height is not published yet (it is expected on 20 October). A campaign must be over a week before that, and this one could still be running then. Choose a shorter deadline, or give the published height with --nu7-mainnet-height.");
+                bail!("The mainnet NU7 upgrade is at block 3,543,405 (ZIP 259), expected about 5 November 2026. This host was started without --nu7-mainnet-height, so a campaign must be over a week before that date, and this one could still be running then. Choose a shorter deadline, or give the published height with --nu7-mainnet-height.");
             }
             Ok(())
         }
@@ -70,7 +71,7 @@ mod tests {
         assert!(nu7_guard("main", None, blocks_needed(500, 30), OCT_8, None).is_ok());
         // 60,000 blocks is about 52 days: crosses the target date
         let e = nu7_guard("main", None, blocks_needed(60_000, 30), OCT_8, None).unwrap_err().to_string();
-        assert!(e.contains("5 November 2026") && e.contains("not published yet"), "{e}");
+        assert!(e.contains("5 November 2026") && e.contains("3,543,405") && !e.contains("not published"), "{e}");
         // late October: even a short campaign is too late
         assert!(nu7_guard("main", None, blocks_needed(500, 30), NU7_TARGET_UNIX - 3 * 86_400, None).is_err());
     }

@@ -393,7 +393,7 @@ impl WalletBackend for LibsBackend {
     fn account(&mut self) -> Result<AccountInfo> {
         let db = self.db()?;
         let account = db.get_account(Self::account_id(&db)?)?.context("no account")?;
-        let ufvk = account.ufvk().context("account has no UFVK")?.encode(&self.params);
+        let ufvk = account.ufvk().context("account has no UFVK")?.encode(&self.params).map_err(|e| anyhow!("{e:?}"))?;
         let (ua, _) = db
             .get_last_generated_address_matching(account.id(), zcash_keys::keys::UnifiedAddressRequest::AllAvailableKeys)?
             .map(|a| (a.encode(&self.params), ()))
@@ -646,14 +646,27 @@ mod expiry_tests {
 
 #[cfg(test)]
 mod branch_tests {
-    use zcash_protocol::consensus::{BlockHeight, BranchId, Network};
+    use zcash_protocol::consensus::{BlockHeight, BranchId, Network, NetworkUpgrade, Parameters};
 
-    /// Mainnet is on NU6.3 (branch 37a5165b, as the public mainnet server reports) and the libraries do
-    /// not yet know a mainnet NU7 height, so they must build for NU6.3 there; testnet is on NU7.
+    /// The libraries pick the branch a transaction is signed for from their own network settings, at the height it is built for (the next
+    /// block), never from the chain. With zcash_protocol 0.11.0 they know the mainnet NU7 height of ZIP 259 (3,543,405): a send built for
+    /// that block or later is signed for NU7 (77190ad9), one built for an earlier block still for NU6.3 (37a5165b). Testnet is on NU7
+    /// since 4,465,026. The heights are the pages' and the core's own (blocktime.js, ll_core::sealed::NU7_MAIN_HEIGHT).
     #[test]
     fn libraries_pick_the_branch_the_networks_report() {
-        assert_eq!(u32::from(BranchId::for_height(&Network::MainNetwork, BlockHeight::from_u32(3_900_000))), 0x37a5_165b);
-        assert_eq!(u32::from(BranchId::for_height(&Network::TestNetwork, BlockHeight::from_u32(4_468_000))), 0x7719_0ad9);
+        let at = |net: &Network, h: u32| u32::from(BranchId::for_height(net, BlockHeight::from_u32(h)));
+        let nu7 = ll_core::sealed::NU7_MAIN_HEIGHT;
+        assert_eq!(nu7, 3_543_405);
+        assert_eq!(at(&Network::MainNetwork, nu7 - 1), 0x37a5_165b, "a mainnet send before NU7 keeps the old branch");
+        assert_eq!(at(&Network::MainNetwork, 3_527_753), 0x37a5_165b, "today's mainnet blocks");
+        for h in [nu7, nu7 + 1, 3_900_000] {
+            assert_eq!(at(&Network::MainNetwork, h), 0x7719_0ad9, "mainnet at block {h} is NU7");
+            assert_ne!(at(&Network::MainNetwork, h), 0x37a5_165b);
+        }
+        assert_eq!(Network::MainNetwork.activation_height(NetworkUpgrade::Nu7), Some(BlockHeight::from_u32(nu7)));
+        assert_eq!(at(&Network::TestNetwork, 4_465_025), 0x37a5_165b);
+        assert_eq!(at(&Network::TestNetwork, 4_465_026), 0x7719_0ad9);
+        assert_eq!(at(&Network::TestNetwork, 4_539_961), 0x7719_0ad9, "the block of the test network return of 25 Oct");
     }
 }
 

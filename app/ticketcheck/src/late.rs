@@ -6,8 +6,7 @@
 use orchard::{bundle::Authorized as IwAuthorized, keys::OutgoingViewingKey};
 use zcash_primitives::transaction::{
     Authorization, Authorized, Transaction, TransactionData,
-    sighash::{SignableInput, signature_hash},
-    txid::TxIdDigester,
+    sighash::{PrecomputedSighashData, SignableInput},
 };
 use zcash_protocol::{consensus::BranchId, value::Zatoshis};
 use zcash_transparent::{
@@ -145,8 +144,8 @@ pub fn check(raw: &[u8], branch: BranchId, ovk: &[u8; 32], e: &LateExpect) -> Re
     // the shielded signature hash, with the coin's amount and script (they are not in the transaction itself)
     let ctx = CoinContext { value: Zatoshis::from_u64(e.coin_value_zat).map_err(|_| "coin value")?, script: coin_script(&e.page_key)? };
     let data: TransactionData<Sighashing> = tx.clone().into_data().map_bundles(|t| t.map(|b| b.map_authorization(WithCoin(ctx))), |s| s, |o| o);
-    let parts = data.digest(TxIdDigester);
-    let sighash: [u8; 32] = *signature_hash(&data, &SignableInput::Shielded, &parts).as_ref();
+    let pre = PrecomputedSighashData::new_zip244(data).map_err(|_| "not a version 5 or later transaction")?;
+    let sighash: [u8; 32] = *pre.signature_hash(&SignableInput::Shielded).as_ref();
     for a in iw.actions() {
         a.rk().verify(&sighash, a.authorization()).map_err(|_| "a spend signature does not verify")?;
     }
@@ -190,15 +189,15 @@ pub fn sign(raw: &[u8], branch: BranchId, e: &LateExpect, page_secret: &[u8; 32]
         unsigned.vin[0].sequence = sequence;
     }
     let data: TransactionData<Sighashing> = tx.clone().into_data().map_bundles(|t| t.map(|b| b.map_authorization(WithCoin(CoinContext { value, script }))), |s| s, |o| o);
-    let parts = data.digest(TxIdDigester);
+    let pre = PrecomputedSighashData::new_zip244(data).map_err(|_| "not a version 5 or later transaction")?;
     // the host's signatures commit to the coin's script: if they do not verify, this is not the coin of this page's key
-    let shielded: [u8; 32] = *signature_hash(&data, &SignableInput::Shielded, &parts).as_ref();
+    let shielded: [u8; 32] = *pre.signature_hash(&SignableInput::Shielded).as_ref();
     let iw = tx.ironwood_bundle().ok_or("no Ironwood part")?;
     iw.binding_validating_key().verify(&shielded, iw.authorization().binding_signature()).map_err(|_| "this late ticket is not for this page's coin".to_string())?;
     let mut keys = TransparentSigningSet::new();
     keys.add_key(sk);
     let signed = unsigned
-        .apply_signatures(|input| *signature_hash(&data, &SignableInput::Transparent(input), &parts).as_ref(), &keys)
+        .apply_signatures(|input| *pre.signature_hash(&SignableInput::Transparent(input)).as_ref(), &keys)
         .map_err(|err| format!("signing: {err:?}"))?;
     let done: TransactionData<Authorized> = tx.into_data().map_bundles(|_| Some(signed), |s| s, |o| o);
     let tx = done.freeze().map_err(|err| err.to_string())?;

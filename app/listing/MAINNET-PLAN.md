@@ -6,7 +6,7 @@ Mainnet stays refused by default. Nothing in this note is enabled on the server.
 
 - **Explicit flags.** The job refuses to start with `--network main` unless `--confirm-mainnet-listing` and `--nu7-mainnet-height <height>` are also given.
 - **NU7 cutoff.** A new mainnet campaign is refused unless its whole life ends before the NU7 activation height: deadline, ticket window, close grace, re-issue window and 50 blocks of margin. This is the same formula as the host's own guard (`app/host/src/mainnet.rs`). Test: `mainnet_needs_its_own_allowance_and_a_close_before_nu7`.
-  - The height is not published yet; it is expected on 20 October.
+  - The height is block 3,543,405 (ZIP 259, set 21 Oct 2026; Zebra 7.0.0, 22 Oct 2026), expected about 5 November.
   - The host's fallback without a height ("over a week before 5 November", so before 29 October) is not copied. Without the height, mainnet cannot be enabled.
 - **Minimum recount pass.** A new campaign is listed only after a recount over its current ledger passes every check that can run.
   - A mainnet fundraiser always gets the full recount: R1 to R8 and R4b.
