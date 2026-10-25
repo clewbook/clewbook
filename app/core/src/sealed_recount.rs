@@ -168,7 +168,7 @@ pub fn not_in_auction(rules: &Rules, ledger: &[Entry], notes: &[ChainNote]) -> V
         .collect();
     out.sort_by(|x, y| x.height.cmp(&y.height).then(x.tx_index.cmp(&y.tx_index)).then(x.txid.cmp(&y.txid)).then(x.action.cmp(&y.action)));
     out.into_iter()
-        .filter_map(|n| unclaimed_reason(s, n).map(|r| NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: r.into() }))
+        .filter_map(|n| unclaimed_reason(s, n).map(|r| NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: r.into(), spent_txid: n.spent_by.as_ref().map(|x| x.txid.clone()) }))
         .collect()
 }
 
@@ -181,6 +181,9 @@ pub struct NotInAuction {
     pub value_zat: u64,
     /// "no memo", "unreadable memo" or "wrong size".
     pub reason: String,
+    /// The transaction that spent it, once spent (the host sent it back by hand, from its dashboard); none while it stays in the wallet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spent_txid: Option<String>,
 }
 
 /// The winners and what each pays, from the valid bids in chain order (`(nf, bid)`). Ties go to the earlier deposit. With fewer valid bids
@@ -364,8 +367,10 @@ pub fn recount_sealed(rules: &Rules, published_rules_id: &str, ledger: &[Entry],
         }
         let (Some(memo), Some(tranche)) = (parsed, tranche) else {
             if let (false, Some(reason)) = (named.contains(nf.as_str()), unclaimed_reason(s, n)) {
-                warnings.push(format!("{}:{} ({}) was paid into the auction in the bidding window with {reason}: it is not a bid, no entry names it, and it stays in the auction wallet", n.txid, n.action, rules.amount(n.value_zat)));
-                not_in_auction.push(NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: reason.into() });
+                let spent_txid = n.spent_by.as_ref().map(|x| x.txid.clone());
+                let where_now = spent_txid.as_ref().map_or("it stays in the auction wallet".to_string(), |t| format!("it was spent by transaction {t}"));
+                warnings.push(format!("{}:{} ({}) was paid into the auction in the bidding window with {reason}: it is not a bid, no entry names it, and {where_now}", n.txid, n.action, rules.amount(n.value_zat)));
+                not_in_auction.push(NotInAuction { txid: n.txid.clone(), action: n.action, height: n.height.unwrap_or_default(), value_zat: n.value_zat, reason: reason.into(), spent_txid });
             }
             totals.donations += 1;
             totals.donations_zat += n.value_zat;

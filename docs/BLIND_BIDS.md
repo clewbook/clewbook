@@ -28,7 +28,11 @@ the close the host sends the treasury to its own wallet from the dashboard ("Sen
 donation and cannot be returned." The message is copied before the address, and the address, the amount and the payment code show only
 after the person ticks "I attached the message". After paying, the page says "Your payment only counts if it carried the message. If it
 did not, it is a donation." It does not say it can see the payment: the auction's viewing key stays private until after the close. Test:
-`bid-page-e2e.cjs`.
+`bid-page-e2e.cjs`. Once the auction has settled, a bid made in that browser whose deposit is not on the list (no ticket opens with its key,
+no reject or return names its memo) gets one line at the top of the bid and campaign pages: "This browser made a bid for this auction,
+but no deposit with its message is on the list. If you paid without the memo, it counts as a donation." Under "more" it points to the
+recount page, which lists the payments that had no message with their transaction ids. When a list server does not give the tickets,
+nothing is said. Test: `result-e2e.cjs`.
 
 **Wallets and the memo: tested with zcash-devtool; others read from source only, not tested.** From each wallet's source code on
 25 Oct 2026: Zashi keeps a pasted memo and the memo of a payment code scanned inside the app (on iPhone a tapped payment link is not

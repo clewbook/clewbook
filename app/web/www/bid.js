@@ -878,7 +878,7 @@ async function refresh() {
     applyNetwork();
     if (refused) return;
     // the one line result at the top, once the auction has settled (result.js); drawn again when the list grows
-    if (resultKey !== `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`) { resultKey = `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`; showResult($('#my-result'), { c: campaign, entries, id: cfg.id, W, servers: [cfg.server, cfg.server2].filter(Boolean) }).catch(() => {}); }
+    if (resultKey !== `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`) { resultKey = `${entries.length}:${state && state.ticket ? state.ticket.nf : ''}`; showResult($('#my-result'), { c: campaign, entries, id: cfg.id, W, servers: [cfg.server, cfg.server2].filter(Boolean), relays: cfg.relays, recount: $('#nav-recount').href }).catch(() => {}); }
     await readTip();
     if (planProblem === undefined) await checkPlan();
     if (state && !state.ticket) await detectTicket();

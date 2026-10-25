@@ -50,6 +50,32 @@ export function auctionResult(c, entries, bids) {
   return { rows, won: won.length, paidZat: won.reduce((t, r) => t + r.paidZat, 0), backZat: rows.reduce((t, r) => t + r.backZat, 0), items: c.items || 1, void: close.close.outcome === 'void', ticker: c.ticker || '' };
 }
 
+/** A blind bid this browser made (`ll:sealed:<id>`, with its memo and seed) for an auction that has settled, whose deposit is nowhere on
+ *  the list: no ticket on the list opens with this bid's seed, and no reject or return names its memo. The page never sees the payment
+ *  itself (the auction's key is private until after the close), so this says only what the list shows. False whenever a list server does
+ *  not give a ticket: then nothing is said rather than something wrong. */
+export async function unlistedBid({ c, entries, id, W, relays }) {
+  if (!c || !c.sealed || !W || !relays || !relays.length) return false;
+  const close = entries.find((e) => e.kind === 'close');
+  if (!close || !close.close) return false;
+  const winners = close.close.outcome === 'void' ? [] : close.close.winners || [];
+  if (!winners.every((nf) => entries.some((e) => e.kind === 'settle' && e.settle && e.settle.nf === nf))) return false;
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(`ll:sealed:${id}`)); } catch { return false; }
+  if (!s || !s.memo || !s.seed || (s.ticket && s.ticket.nf)) return false;
+  const h = W.memo_hash(s.memo);
+  if (entries.some((e) => (e.kind === 'reject' || e.kind === 'late_return') && e.blob_hash === h)) return false;
+  for (const e of entries.filter((x) => x.kind === 'issue' && x.contribution)) {
+    let blob = null;
+    for (const r of relays) {
+      try { const res = await fetch(`${r}/v1/campaigns/${id}/tickets/${e.contribution.nf}`, { cache: 'no-store' }); if (res.ok) { blob = new Uint8Array(await res.arrayBuffer()); break; } } catch { /* the next list server */ }
+    }
+    if (!blob) return false;
+    if (W.blob_is_mine(s.seed, blob)) return false;
+  }
+  return true;
+}
+
 /** Whether every transaction that brings money back is mined: true, false (at least one is not yet), or null (no server answered). */
 export async function backArrived(W, servers, txids) {
   const ids = txids.filter(Boolean);
@@ -84,11 +110,24 @@ export function resultLine(r, arrived) {
 
 /** Draws the line and its "more" into `box` (hidden when there is nothing final to say). Returns the nullifiers of this browser's bids,
  *  for the public list's "Yours" mark. */
-export async function showResult(box, { c, entries, id, W, servers }) {
+export async function showResult(box, { c, entries, id, W, servers, relays, recount }) {
   const bids = myBids(id);
   const r = auctionResult(c, entries, bids);
   box.hidden = !r;
-  if (!r) return new Set(bids.map((b) => b.nf));
+  if (!r) {
+    // a bid made in this browser with no deposit on the settled list: one line, and where to compare with the wallet
+    if (await unlistedBid({ c, entries, id, W, relays }).catch(() => false)) {
+      const line = Object.assign(document.createElement('p'), { className: 'my-result-line', id: 'my-result-line', textContent: 'This browser made a bid for this auction, but no deposit with its message is on the list. If you paid without the memo, it counts as a donation.' });
+      const more = document.createElement('details'); more.className = 'my-result-more';
+      const sum = Object.assign(document.createElement('summary'), { textContent: 'more' });
+      const note = Object.assign(document.createElement('p'), { textContent: 'The recount page lists the payments that had no message, with their transaction ids, so you can compare them with your wallet. ' });
+      if (recount) note.append(Object.assign(document.createElement('a'), { href: recount, textContent: 'Open the recount' }));
+      more.append(sum, note);
+      box.replaceChildren(line, more);
+      box.hidden = false;
+    }
+    return new Set(bids.map((b) => b.nf));
+  }
   const arrived = W ? await backArrived(W, servers || [], r.rows.map((x) => x.txid)).catch(() => null) : null;
   const line = document.createElement('p'); line.className = 'my-result-line'; line.id = 'my-result-line'; line.textContent = resultLine(r, arrived);
   const more = document.createElement('details'); more.className = 'my-result-more';

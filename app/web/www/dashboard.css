@@ -96,3 +96,16 @@ select { min-height: 44px; border: 1px solid var(--cb-border); border-radius: 99
 #warning-list .notice .note-x { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); width: 30px; height: 30px; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 8px; background: transparent; color: var(--cb-ink-2); font: 400 20px/30px var(--cb-font-body); text-align: center; cursor: pointer; box-shadow: none; }
 #warning-list .notice .note-x:hover { background: color-mix(in srgb, currentColor 12%, transparent); color: var(--cb-ink); }
 #warning-list .notice .note-x:focus-visible { outline: 2px solid var(--cb-focus); outline-offset: 1px; }
+/* "Send it back" for a payment not in a blind bid auction: the form, the evidence lines (ok, warn, bad) and the evidence line to copy */
+.sb-form { margin-top: 14px; padding-top: 4px; border-top: 1px solid var(--cb-border); }
+.sb-form .do { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.sb-what, .sb-sum { font-weight: 600; overflow-wrap: anywhere; margin-top: 12px; }
+.sb-evidence { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.sb-evidence li { padding: 8px 12px; border-left: 3px solid var(--nc); border-radius: 6px; overflow-wrap: anywhere; font-size: 14px; }
+.sb-evidence li.ok { border-left-color: var(--pass); background: var(--pass-bg); }
+.sb-evidence li.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+.sb-evidence li.bad { border-left-color: var(--fail); background: var(--fail-bg); font-weight: 600; }
+.sb-error { color: var(--fail); font-weight: 600; margin-top: 10px; overflow-wrap: anywhere; }
+.sb-ok { color: var(--pass); font-weight: 600; margin-top: 12px; overflow-wrap: anywhere; }
+.sb-line { font: 400 13px/1.5 var(--cb-font-mono, monospace); padding: 10px 12px; border: 1px solid var(--cb-border); border-radius: 10px; overflow-wrap: anywhere; }
+#nia-list li .sb-open { margin-left: auto; }

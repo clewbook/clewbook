@@ -695,8 +695,18 @@ fn payments_in_the_window_that_no_entry_names_are_flagged_not_failed() {
     assert_eq!(got, vec![(no_memo.txid.as_str(), 150, 50_000, "no memo"), (unreadable.txid.as_str(), 151, SMALL, "unreadable memo"), (small.txid.as_str(), 152, 5_000, "wrong size")]);
     assert_eq!(r.warnings.iter().filter(|w| w.contains("no entry names it")).count(), 3);
     assert_eq!(r.totals.donations, 4);
+    assert!(s.not_in_auction.iter().all(|x| x.spent_txid.is_none()));
+    assert_eq!(not_in_auction(&c.sx.rules, &c.entries, &c.notes).len(), 3, "the host's list is the recount's");
     // an honest auction has none
     assert!(honest("uniform").run().sealed.unwrap().not_in_auction.is_empty());
+    // the host sends one back by hand (its dashboard): still flagged, never failed, and the recount names the transaction that spent it
+    let i = c.notes.iter().position(|n| n.txid == no_memo.txid).unwrap();
+    c.notes[i] = spent(no_memo.clone(), &hex::encode([0x5b; 32]), 160);
+    let r = c.run();
+    assert!(r.all_pass(), "{:?}", failing(&r));
+    let s = r.sealed.as_ref().unwrap();
+    assert_eq!(s.not_in_auction[0].spent_txid.as_deref(), Some(hex::encode([0x5b; 32]).as_str()));
+    assert!(r.warnings.iter().any(|w| w.contains(&format!("it was spent by transaction {}", hex::encode([0x5b; 32])))));
 }
 
 #[test]

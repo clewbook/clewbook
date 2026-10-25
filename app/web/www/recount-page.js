@@ -62,7 +62,7 @@ function showTotals(r, ticker, final) {
   const unclaimed = (r.sealed && r.sealed.not_in_auction) || [];
   if (unclaimed.length) { // a blind bid auction: each payment no entry names, with its transaction id (flagged in the checks too)
     fact(dl, 'Payments not in the auction', '');
-    dl.lastChild.replaceChildren(...unclaimed.map((p) => Object.assign(document.createElement('span'), { className: 'na-tx', textContent: `${z(p.value_zat)}, ${p.reason}, block ${p.height.toLocaleString('en-US')}, transaction ${p.txid}` })));
+    dl.lastChild.replaceChildren(...unclaimed.map((p) => Object.assign(document.createElement('span'), { className: 'na-tx', textContent: `${z(p.value_zat)}, ${p.reason}, block ${p.height.toLocaleString('en-US')}, transaction ${p.txid}${p.spent_txid ? `, spent by transaction ${p.spent_txid}` : ''}` })));
   }
   if (r.auction) {
     const a = r.auction;
@@ -128,8 +128,8 @@ function showRules(r, ticker) {
   // a blind bid auction whose bids have opened: the payments no entry names (not listed, rejected or returned), flagged, never a failure
   const na = (r.sealed && r.sealed.not_in_auction) || [];
   const flagged = r.sealed && r.sealed.opened ? [{ id: '⚑', title: 'Payments not in the auction', flag: na.length > 0, pass: true,
-    desc: 'Payments into the auction address in the bidding window that no entry on the list names. Each counts as a donation and stays in the auction wallet. Flagged, not failed.',
-    details: na.length ? na.map((p) => `Transaction ${p.txid}, block ${p.height.toLocaleString('en-US')}, ${coin(p.value_zat)} ${ticker}: ${p.reason}.`) : ['None.'] }] : [];
+    desc: 'Payments into the auction address in the bidding window that no entry on the list names. Each counts as a donation and stays in the auction wallet unless the host sends it back by hand. Flagged, not failed.',
+    details: na.length ? na.map((p) => `Transaction ${p.txid}, block ${p.height.toLocaleString('en-US')}, ${coin(p.value_zat)} ${ticker}: ${p.reason}. ${p.spent_txid ? `Spent by transaction ${p.spent_txid}.` : 'Still in the auction wallet.'}`) : ['None.'] }] : [];
   for (const x of [...r.rules, ...flagged]) {
     // a check that cannot run yet (an auction before its close) shows WAIT, in the neutral look
     const st = x.flag ? 'flag' : x.waiting ? 'wait' : x.pass ? 'pass' : 'fail';

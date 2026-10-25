@@ -51,6 +51,38 @@
       <p class="muted t-sm" id="broadcasts-note">The host follows every refund, sweep and settlement it sends. If a public server drops one, the same transaction is sent again.</p>
       <ul id="broadcast-list" class="progress"></ul>
     </section>
+    <section class="dcard" id="nia-section" hidden>
+      <h2>Payments not in the auction</h2>
+      <p class="muted t-sm">Paid without a bid message the auction can read. They are not bids and stay in the auction wallet unless you send one back.</p>
+      <ul id="nia-list" class="progress"></ul>
+      <form id="sb-form" class="sb-form" hidden autocomplete="off">
+        <p id="sb-what" class="sb-what"></p>
+        <label for="sb-to">Payer's address (required)</label>
+        <textarea id="sb-to" rows="2" spellcheck="false"></textarea>
+        <label for="sb-file">Bid backup file (optional)</label>
+        <input type="file" id="sb-file" accept=".json,application/json">
+        <label for="sb-key">Payer's wallet key (optional)</label>
+        <input type="password" id="sb-key" spellcheck="false">
+        <p class="muted t-sm">It shows every payment that account sent, so it is optional. A proof for one transaction does not exist on Ironwood. It is not stored.</p>
+        <label for="sb-notes">Notes (optional): how it was checked</label>
+        <input type="text" id="sb-notes" maxlength="300">
+        <div class="do"><button type="button" id="sb-check">Check</button><button type="button" id="sb-cancel" class="secondary">Cancel</button></div>
+        <ul id="sb-evidence" class="sb-evidence"></ul>
+        <div id="sb-confirm" hidden>
+          <p id="sb-sum" class="sb-sum"></p>
+          <label for="sb-code">Type the first 8 characters of the transaction id</label>
+          <input type="text" id="sb-code" maxlength="8" spellcheck="false">
+          <div class="do"><button type="button" id="sb-send">Send it back</button></div>
+        </div>
+        <p id="sb-error" class="sb-error" role="alert" hidden></p>
+        <div id="sb-done" hidden>
+          <p class="sb-ok" id="sb-sent"></p>
+          <p class="muted t-sm">For docs/EVIDENCE.md (a copy is in the campaign folder, sendback-evidence.txt). It cannot go on the public list: the relay takes no entries after the close.</p>
+          <p class="sb-line" id="sb-line"></p>
+          <div class="do"><button type="button" id="sb-copy" class="secondary">Copy the evidence line</button></div>
+        </div>
+      </form>
+    </section>
     <p class="dnote">Self check is the host checking itself. The public recount is the independent check.</p>
   </div>
   </div>

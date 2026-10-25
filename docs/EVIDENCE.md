@@ -310,6 +310,21 @@ Throwaway test network campaigns on a host and relay on one computer (no money o
 | A late ticket kept by the relay (`app/latewatch/latewatch-e2e.cjs`) | The bid page reached PROTECTED and gave the relay its signed late ticket; the relay keeps it in its folder byte for byte and does not serve it | deposit `63300cc954844b35fc7e6495a9db30c053c77e7fd7292fd6aeb4342dfe1b5348` |
 | The late ticket watcher, host never closing (same run, 12 of 12 checks) | Late ticket block 4,531,005, mined at 02:30:51 UTC. The watcher sent nothing before 03:31:40 UTC, 60 minutes 49 seconds later (its wait is 60 minutes, checked every minute); then it sent the page's copy. Mined in block 4,531,166: the deposit went back to its refund address | late ticket `fe1d29b398450afda15f43555c1323fae28e4fc6fec24393b9023ddd43ffbc8b` |
 
+## 16. "Send it back" on the test network, 25 Oct 2026
+
+A throwaway quick blind bid auction on a host and relay on one computer (campaign `a6f2431c37bb9dfb948590b5393f121ebeb4904e8d11d70df281e9e17912839d`,
+test coins only). A test wallet paid 0.0005 TAZ with no memo; the dashboard listed it under "Payments not in the auction". The form was
+driven in a browser (`runs/sendback-test/ui.cjs`, not in the repository; 19 of 19 checks): nothing given gave one "not given" line each
+and the plain warning, with the send still allowed; the `zutest1` form of the payer's address was refused; a backup file with another
+refund address gave the warning; the right file opened with the auction's key; a wrong wallet key gave "does not match" and the payer's
+own full viewing key from `zcash-devtool` gave "this key shows the transaction"; a wrong code sent nothing. The key was found in no file
+or log afterwards.
+
+| Step | Transaction | Block |
+|---|---|---|
+| The payment, no memo (0.0005 TAZ) | `7b29493c8d36fdc150aebfb1cf90795f60b12c0d22daf0db14314aafb603a825` | 4,539,958 |
+| Sent back to the payer's `utest1` address (0.0004 TAZ, one Ironwood output, as the payer's wallet shows it) | `84ede467877877d949a859a90db19e7213769096ff75cc114117533e2c096e17` | 4,539,961 |
+
 ## Pending
 
 * A ticket held since 2026-10-06 00:15 UTC (testnet campaign id `c73081f362e81b82af4087a47c24fee636dc23d1e991eb0998c7c5b0e3a0c7eb`, ticket `027b2bcac3c765de9f3eab4346c56575f1ad96ded644919e3e16d51a824febae`) is to be broadcast later to measure how long a ticket really stays valid. No result yet.

@@ -128,6 +128,90 @@ function dismissNote(w) {
   if (current) render(current);
 }
 
+// ---------- "Send it back" for a payment not in a blind bid auction ----------
+// The list is drawn again on every refresh; the form is not, so what the host typed stays. The wallet key is only sent with Check and Send,
+// never kept in this page's storage, and its field is emptied after a send or a cancel.
+let sbPay = null, sbBackup = null;
+function renderNotInAuction(s) {
+  const list = (s.sealed && s.sealed.not_in_auction) || [];
+  $('#nia-section').hidden = !list.length;
+  const short = (t) => `${t.slice(0, 8)}…${t.slice(-6)}`;
+  $('#nia-list').replaceChildren(...list.map((p) => {
+    const li = document.createElement('li');
+    const going = (s.broadcasts || []).find((b) => b.kind === 'sendback' && b.label.includes(p.txid.slice(0, 8)));
+    li.className = p.spent_txid || (going && going.status === 'confirmed') ? 'done' : going ? 'bc-sent' : 'todo';
+    const what = Object.assign(document.createElement('span'), { className: 'what', textContent: `${coin(p.value_zat)} ${s.ticker}, ${p.reason}, block ${p.height}, transaction ${short(p.txid)}` });
+    what.title = p.txid;
+    li.append(Object.assign(document.createElement('span'), { className: 'dot' }), what);
+    if (p.spent_txid || going) li.append(Object.assign(document.createElement('span'), { className: 'muted t-sm', textContent: p.spent_txid ? `Spent by transaction ${short(p.spent_txid)}` : `Being sent back: ${short(going.txid)}` }));
+    else {
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'secondary sb-open', textContent: 'Send it back' });
+      b.addEventListener('click', () => openSendBack(p, s.ticker));
+      li.append(b);
+    }
+    return li;
+  }));
+}
+function sbReset(all) {
+  $('#sb-evidence').replaceChildren(); $('#sb-confirm').hidden = true; say($('#sb-error'), '');
+  if (all) { for (const id of ['#sb-to', '#sb-key', '#sb-notes', '#sb-code', '#sb-file']) $(id).value = ''; sbBackup = null; $('#sb-done').hidden = true; }
+}
+function openSendBack(p, ticker) {
+  sbPay = { ...p, ticker };
+  sbReset(true);
+  $('#sb-what').textContent = `Send back ${coin(p.value_zat)} ${ticker} from transaction ${p.txid} (block ${p.height}, ${p.reason}).`;
+  $('#sb-to').placeholder = current && current.network === 'main' ? 'u1…' : 'utest1…';
+  $('#sb-form').hidden = false;
+  $('#sb-to').focus();
+}
+function sbBody() {
+  return { txid: sbPay.txid, action: sbPay.action, address: $('#sb-to').value, backup: sbBackup, wallet_key: $('#sb-key').value.trim() || null, notes: $('#sb-notes').value.trim() || null };
+}
+function setupSendBack() {
+  // any change asks for a new Check before anything can be sent
+  for (const id of ['#sb-to', '#sb-key', '#sb-notes']) $(id).addEventListener('input', () => sbReset(false));
+  $('#sb-file').addEventListener('change', async (e) => {
+    sbReset(false); sbBackup = null;
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (j.kind !== 'sealed-bid-backup' || !j.state) throw new Error();
+      // only what the check needs; never the file's seed or keys
+      sbBackup = { campaign: j.campaign, memo: j.state.memo, tranche: j.state.tranche, refund: j.state.refund, startHeight: j.state.startHeight };
+    } catch { say($('#sb-error'), 'That file is not a bid backup file.'); e.target.value = ''; }
+  });
+  $('#sb-cancel').addEventListener('click', () => { sbReset(true); $('#sb-form').hidden = true; sbPay = null; });
+  $('#sb-check').addEventListener('click', async () => {
+    if (!sbPay) return;
+    sbReset(false);
+    const btn = $('#sb-check'); btn.disabled = true;
+    try {
+      const r = await api(`campaigns/${selected}/sendback-check`, sbBody());
+      $('#sb-evidence').replaceChildren(...r.lines.map((l) => Object.assign(document.createElement('li'), { className: l.tone, textContent: l.text })));
+      $('#sb-sum').textContent = `Sends ${coin(r.back_zat)} ${sbPay.ticker} to ${r.address}. The fee is ${coin(r.fee_zat)} ${sbPay.ticker}. Only this payment is spent, nothing else from the wallet.`;
+      $('#sb-code').value = '';
+      $('#sb-confirm').hidden = false;
+    } catch (e) { say($('#sb-error'), e.message); }
+    btn.disabled = false;
+  });
+  $('#sb-send').addEventListener('click', async () => {
+    if (!sbPay) return;
+    const btn = $('#sb-send'); btn.disabled = true; say($('#sb-error'), '');
+    try {
+      const r = await api(`campaigns/${selected}/sendback`, { ...sbBody(), confirm: $('#sb-code').value });
+      $('#sb-key').value = '';
+      $('#sb-confirm').hidden = true;
+      $('#sb-sent').textContent = `Sent. Transaction ${r.txid}`;
+      $('#sb-line').textContent = r.evidence;
+      $('#sb-done').hidden = false;
+      refresh();
+    } catch (e) { say($('#sb-error'), e.message); }
+    btn.disabled = false;
+  });
+  $('#sb-copy').addEventListener('click', () => navigator.clipboard.writeText($('#sb-line').textContent).catch(() => {}));
+}
+
 function render(s) {
   current = s;
   const ticker = s.ticker;
@@ -214,7 +298,6 @@ function render(s) {
       ...(z.late_returns ? [['Too late to bid or without tickets, sent back', `${z.late_returns} (${z.late_returns_confirmed} confirmed)`]] : []),
       // payments without a bid message the auction can read: not bids, they stay in the auction wallet (the public recount flags them)
       ['Payments not in the auction', String((z.not_in_auction || []).length)],
-      ...(z.not_in_auction || []).map((p) => [`Not in the auction (${p.reason})`, `${coin(p.value_zat)} ${ticker}, block ${p.height}, transaction ${p.txid}`]),
       ['Entries in the public list', String(s.counts.ledger_entries)],
       ...(z.closed ? [
         ['Result', z.outcome === 'void' ? 'void: every deposit goes back' : `${z.winners} winner(s)${z.price_zat != null ? `, price ${coin(z.price_zat)} ${ticker}` : ''}`],
@@ -224,6 +307,7 @@ function render(s) {
       ] : []),
     ]);
   }
+  renderNotInAuction(s);
   const rl = $('#relay-list');
   rl.replaceChildren(...s.relays.map((r) => { const li = document.createElement('li'); li.textContent = `${r.url}: ${r.status}`; if (!/up to date|not checked yet/.test(r.status)) li.className = 'bad'; return li; }));
   if (s.self_check) {
@@ -518,6 +602,7 @@ async function main() {
   const measure = async () => { const m = await measureBlocks(config ? config.network : 'test'); if (m.secondsPerBlock) { measured = m; } measuredAt = Date.now(); };
   measure().then(refresh);
   $('#campaign-select').addEventListener('change', (e) => { selected = e.target.value; $('#listing-confirm').hidden = true; say($('#listing-check-error'), ''); refresh(); });
+  setupSendBack();
   $('#treasury-btn').addEventListener('click', async () => {
     const btn = $('#treasury-btn'), out = $('#treasury-result');
     btn.disabled = true; say(out, 'Sending…');

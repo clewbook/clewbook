@@ -62,7 +62,7 @@ async function main() {
   // this browser's own bids: their rows marked Yours, and once the auction has settled, the one line result above the page
   const mine = new Set(myBids(cfg.id).map((b) => b.nf));
   campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links, didNotFinish, mine });
-  showResult($('#my-result'), { c, entries: j.entries, id: cfg.id, W, servers: [cfg.server, ...endpoints].filter(Boolean) }).catch(() => {}); // round 13: no "Not checked by a recount" here (the recount page lists it)
+  showResult($('#my-result'), { c, entries: j.entries, id: cfg.id, W, servers: [cfg.server, ...endpoints].filter(Boolean), relays: cfg.relays, recount: links.recount }).catch(() => {}); // round 13: no "Not checked by a recount" here (the recount page lists it)
   $('#nav-card').href = links.card; $('#nav-recount').href = links.recount;
   // the link to share: the short one when the listing names this campaign (else the full one); the full id stays under "more"
   const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'coutline'; copy.id = 'copy-link'; copy.textContent = 'Copy link';

@@ -380,7 +380,7 @@ class Bot:
                 if bal < COIN_LOW_ZAT:
                     self.alert_once(f"coinlow:{cid}:{bal // 10_000}", f"{name} ({cid}): the coin wallet is low, {zec(bal, t)} left (each bid's small payment costs about 0.00015 {t}). Fund it at {z.get('coin_address', '?')}")
             # a payment without a bid message the auction can read: not a bid, it stays in the auction wallet (once per payment)
-            for p in z.get("not_in_auction") or []:
+            for p in [p for p in z.get("not_in_auction") or [] if not p.get("spent_txid")]:
                 self.alert_once(f"nia:{cid}:{p['txid']}:{p.get('action', 0)}", f"{name} ({cid}): a payment of {zec(p['value_zat'], t)} came in that is not a bid ({p['reason']}; block {p['height']:,}, transaction {p['txid']}). It stays in the auction wallet.")
             if z.get("did_not_finish"):
                 self.alert_once(f"dnf:{cid}", f"{name} ({cid}, {s['network']}net) is marked \"did not finish\": the host did not close before the late tickets became valid.")

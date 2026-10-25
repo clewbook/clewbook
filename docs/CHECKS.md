@@ -54,7 +54,8 @@ published (after every winner is settled), S1 to S8 wait; R1, R2 and "did not fi
 a bid memo, or less than the smallest deposit is not a bid, and no entry on the list names it (not listed, rejected or returned). The
 recount lists each one with its transaction id, block, amount and reason, in the checks (flagged, not failed) and in Totals. It counts as
 a donation and stays in the auction wallet: without a readable memo there is no refund address, so neither the host nor the page can send
-it back on its own. The host dashboard lists the same payments and the operator bot sends one alert for each. Test:
+it back on its own. The host dashboard lists the same payments and the operator bot sends one alert for each. The host can send one back
+by hand from the dashboard (see [HOSTING.md](HOSTING.md)); the recount then names the transaction that spent it, and still flags it. Test:
 `payments_in_the_window_that_no_entry_names_are_flagged_not_failed` in `app/core/src/sealed_recount/tests.rs`.
 
 **Did not finish.** The report and the campaign page say "The host did not finish" when there is no close by the late ticket block, a winner

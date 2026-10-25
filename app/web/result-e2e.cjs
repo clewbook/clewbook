@@ -20,9 +20,13 @@ const OPEN_LOSE_TICKET = '2ef58e352f4acdc2298caf62979c086381fa790a41ba482599250f
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra !== '' ? '  ' + extra : ''}`); if (!ok) failed++; };
 
+// relay.noTickets: the stand in relay gives no ticket file (a list server that does not answer for it)
+const relay = { noTickets: false };
 const relayAnswer = (u) => {
   const m = /\/v1\/campaigns\/([0-9a-f]{64})(\/[a-z]+)?/.exec(u); if (!m) return null;
   const dir = path.join(RELAY_COPY, 'campaigns', m[1]); if (!fs.existsSync(dir)) return null;
+  const t = /\/tickets\/([0-9a-f]{64})$/.exec(u);
+  if (t) return relay.noTickets || !fs.existsSync(path.join(dir, 'tickets', t[1])) ? null : fs.readFileSync(path.join(dir, 'tickets', t[1]));
   if (!m[2]) return fs.readFileSync(path.join(dir, 'rules.json'), 'utf8');
   if (m[2] === '/ledger') return `[${fs.readdirSync(path.join(dir, 'ledger')).sort((a, b) => parseInt(a) - parseInt(b)).map((f) => fs.readFileSync(path.join(dir, 'ledger', f), 'utf8')).join(',')}]`;
   return m[2] === '/challenges' ? '[]' : null;
@@ -42,7 +46,7 @@ const frames = (msg, status = 0) => { const t = Buffer.from(`grpc-status:${statu
       const u = route.request().url();
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, x-grpc-web', 'access-control-allow-methods': 'GET, POST' };
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-      if (u.startsWith(RELAY)) { const b = relayAnswer(u); return b == null ? route.fulfill({ status: 404, headers: cors, body: '{}' }) : route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: b }); }
+      if (u.startsWith(RELAY)) { const b = relayAnswer(u); return b == null ? route.fulfill({ status: 404, headers: cors, body: '{}' }) : route.fulfill({ status: 200, headers: { ...cors, 'content-type': Buffer.isBuffer(b) ? 'application/octet-stream' : 'application/json' }, body: b }); }
       const g = { ...cors, 'content-type': 'application/grpc-web+proto' };
       if (/\/GetLatestBlock$/.test(u)) return route.fulfill({ status: 200, headers: g, body: frames([0x08, ...varint(3529612)]) });
       if (/\/GetTransaction$/.test(u)) {
@@ -123,6 +127,31 @@ const frames = (msg, status = 0) => { const t = Buffer.from(`grpc-status:${statu
       }
       await ctx.close();
     }
+    // a bid made in this browser whose deposit is not on the settled list (paid without the memo, or never paid): one line and where to
+    // compare, never a claim that the page saw a payment; nothing when a list server does not give the tickets
+    const orphan = { seed: '7'.repeat(64), memo: 'LL3:a message that no deposit on the list carries', tranche: 50000, refund: 'u1example', bid: 30000 };
+    const ORPHAN_LINE = 'This browser made a bid for this auction, but no deposit with its message is on the list. If you paid without the memo, it counts as a donation.';
+    for (const pg of ['campaign', 'bid']) {
+      ({ ctx, p } = await fresh([APP_SETTLE]));
+      await hold(ctx, `ll:sealed:${APP}`, orphan);
+      await p.goto(`${BASE}/${pg}.html#c=${APP}&relay=${RELAY}`);
+      await p.waitForSelector('#my-result:not([hidden])', { timeout: 30000 }).catch(() => {});
+      const l = await text(p, '#my-result-line');
+      check(`${pg} page: a bid in this browser with no deposit on the settled list gets the one line`, l === ORPHAN_LINE, l);
+      const more = await text(p, '#my-result .my-result-more');
+      const href = await p.$eval('#my-result .my-result-more a', (a) => a.getAttribute('href')).catch(() => '');
+      check(`${pg} page: its "more" points to the recount's list of payments that had no message`, /The recount page lists the payments that had no message, with their transaction ids, so you can compare them with your wallet\./.test(more) && /recount\.html/.test(href) && href.includes(APP), `${more} | ${href}`);
+      check(`${pg} page: it never says the page saw a payment, and uses no dash as punctuation`, !/(saw|seen|received|arrived)/i.test(l + more) && !/[A-Za-z] - [A-Za-z]|\u2014/.test(l + more));
+      await ctx.close();
+    }
+    relay.noTickets = true;
+    ({ ctx, p } = await fresh([APP_SETTLE]));
+    await hold(ctx, `ll:sealed:${APP}`, orphan);
+    await p.goto(`${BASE}/campaign.html#c=${APP}&relay=${RELAY}`);
+    await p.waitForTimeout(6000);
+    check('when the list server gives no ticket, nothing is said', (await p.$eval('#my-result', (e) => e.hidden)) && (await text(p, '#my-result-line')) === '');
+    relay.noTickets = false;
+    await ctx.close();
     // the viewing key under "more" on the campaign page: shortened, Copy gives the whole key, one line; "Not published yet" before
     const REVEALED = JSON.parse(relayAnswer(`${RELAY}/v1/campaigns/${APP}/ledger`)).find((e) => e.kind === 'reveal').reveal.ufvk;
     ({ ctx, p } = await fresh([APP_SETTLE]));

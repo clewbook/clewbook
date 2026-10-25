@@ -333,14 +333,6 @@ fn create_sealed_campaign(st: &State, body: &Value) -> Result<Value> {
     Ok(json!({ "ok": true, "id": id }))
 }
 
-/// The payments of a sealed bid auction that are not in it (ll_core::sealed_recount::not_in_auction), without those the host still lists or
-/// rejects on its next pass (a blind bid memo on a payment of at least the smallest size, not spent).
-fn not_in_auction(rules: &ll_core::rules::Rules, entries: &[ll_core::ledger::Entry], notes: &[ChainNote]) -> Vec<ll_core::sealed_recount::NotInAuction> {
-    let pending = |n: &ChainNote| n.spent_by.is_none() && n.value_zat >= rules.min_contribution_zat && n.memo_text.as_deref().is_some_and(ll_core::bid::is_bid_memo);
-    let left: Vec<ChainNote> = notes.iter().filter(|n| !pending(n)).cloned().collect();
-    ll_core::sealed_recount::not_in_auction(rules, entries, &left)
-}
-
 /// What the dashboard shows of a sealed bid auction: its timing, its coins and coin wallet, its deposits and its close steps.
 fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], notes: &[ChainNote], check: Option<&Value>) -> Value {
     let rules = &c.run.rules;
@@ -359,7 +351,7 @@ fn sealed_status(c: &Campaign, entries: &[ll_core::ledger::Entry], notes: &[Chai
     let close = close_entry(entries);
     json!({
         // payments in the bidding window that are not bids and that no entry names: they stay in the auction wallet (the recount flags them)
-        "not_in_auction": not_in_auction(rules, entries, notes),
+        "not_in_auction": crate::sendback::not_in_auction(rules, entries, notes),
         "pricing": s.pricing, "tranches_zat": s.tranches_zat, "items": rules.items, "reserve_zat": rules.reserve_zat, "coin_sending": s.coin_sending, "timing": s.timing,
         "round": s.drand_round, "round_time": ll_core::sealed::round_time(s.drand_round), "claim_after": s.claim_after, "cutoff": cutoff,
         // not counted yet (the first check after a start is still running) is null, never 0: 0 would read as if nobody bid
@@ -616,9 +608,9 @@ fn status(st: &State, c: &Campaign) -> Value {
         }
     }
     if rules.is_sealed() {
-        let n = not_in_auction(rules, &entries, &notes).len();
+        let n = crate::sendback::not_in_auction(rules, &entries, &notes).iter().filter(|p| p.spent_txid.is_none()).count();
         if n > 0 {
-            w.push(warn("warn", format!("{n} payment(s) came in without a bid message the auction can read. They are not bids and stay in the auction wallet: see Payments not in the auction.")));
+            w.push(warn("warn", format!("{n} payment(s) came in without a bid message the auction can read. They are not bids and stay in the auction wallet unless you send them back: see Payments not in the auction.")));
         }
     }
     let late = crate::late_payments(rules, &entries, &notes).iter().filter(|n| !(rules.is_sealed() && ll_core::sealed_recount::is_late_deposit(rules, n))).count();
@@ -1030,6 +1022,22 @@ fn handle(st: &State, port: u16, mut req: tiny_http::Request) {
                     crate::sealed_host::send_coins_back(&c.run, waiting, body["address"].as_str().unwrap_or_default())
                 })() {
                     Ok(txid) => json_response(200, json!({ "ok": true, "txid": txid })),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            // "Send it back" for a payment not in a blind bid auction: check (nothing sent), then send. Under the campaign's lock, so the
+            // watcher never spends at the same time. The wallet key in the body is used for the check and dropped, never logged or kept.
+            (tiny_http::Method::Post, ["campaigns", id, "sendback-check"]) => match find(st, id) {
+                Some(c) => match { let mut g = lock(&c.backend); crate::sendback::check(&c.run, g.as_mut(), &body) } {
+                    Ok(v) => json_response(200, v),
+                    Err(e) => fail(400, e),
+                },
+                None => fail(404, anyhow!("No such campaign.")),
+            },
+            (tiny_http::Method::Post, ["campaigns", id, "sendback"]) => match find(st, id) {
+                Some(c) => match { let mut g = lock(&c.backend); crate::sendback::send(&c.run, g.as_mut(), &body) } {
+                    Ok(v) => json_response(200, v),
                     Err(e) => fail(400, e),
                 },
                 None => fail(404, anyhow!("No such campaign.")),

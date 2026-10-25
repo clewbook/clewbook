@@ -111,6 +111,34 @@ At the close of a blind bid auction the host settles the winners, sends each los
 key. The prices the winners paid go to the auction's treasury wallet. Press **Send to my wallet** (or `/send_treasury`) to move them to
 your own wallet. The dashboard reminds you while money is still there.
 
+### Payments not in the auction (blind bid auctions)
+
+A payment with no memo, a memo that is not a bid, or less than the smallest deposit is not a bid. It has no refund address the host
+can read, so it stays in the auction wallet. The dashboard lists each one under **Payments not in the auction**, and the operator bot
+alerts once for each. Only the dashboard can send one back; Telegram cannot.
+
+**Send it back** asks for the payer's `u1` address (the `zu1` form is refused). Everything else is optional evidence:
+
+| Evidence | What the dashboard shows |
+|---|---|
+| Bid backup file | Whether its message opens with this auction's key, the deposit size, the block it was made at, and whether its refund address is the address given (a clear warning if not). The page reads only those fields, never the file's seed. |
+| Payer's wallet key | "This key shows the transaction" or "does not match". A full viewing key or an outgoing viewing key. It shows every payment that account sent (a full viewing key also every payment received), so it is optional. A proof for one transaction does not exist on Ironwood. The key is used for the check and dropped, never stored. |
+| Notes | How the host checked, in one line. |
+
+None of it proves who paid. Each missing piece is named ("not given"). With none of them the dashboard says "Nothing here shows who
+paid. Anyone can see this transaction id." and still allows the send. The last step shows the amount, the fee (0.0004 ZEC comes back
+from 0.0005) and the address, and asks for the first 8 characters of the payment's transaction id. The return spends only that payment
+and pays only that address; anything else is refused before it is sent. The dashboard then gives an evidence line for
+[EVIDENCE.md](EVIDENCE.md) that lists which proofs were given, and keeps a copy in the campaign folder (`sendback-evidence.txt`). The
+return cannot go on the public list: the relay takes no entries after the close. The recount still lists the payment, with the
+transaction that spent it.
+
+A challenge (a tiny payment with a code in its memo that the payer reads back) is not offered. It only shows that the payer can read
+payments to the address they gave, which anyone giving their own address can. It says nothing about who paid.
+
+This build cannot sign main network transactions after NU7 (block 3,543,405, about 6 November 2026): its libraries do not have the main
+network NU7 settings yet. Send a main network payment back before then, or after a host update.
+
 ### Automatic late tickets
 
 A bid page that signs its late ticket gives each list server a copy. The server keeps it and never shows it (before the close it would
