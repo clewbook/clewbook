@@ -1,5 +1,7 @@
 # Evidence log
 
+This record was last updated on 26 October 2026. Later events (including any return of the payment without a message in Apparition 69_, and the close of Skull of Icul) are not recorded here.
+
 Every row says what is claimed, what shows it, on which network, and how a reader
 can check it for themselves. Where something was observed once and cannot be re-run by a reader, the row says so.
 Transaction ids are shown in full where they were recorded; a few early experiment ids were only recorded in part
@@ -162,7 +164,7 @@ Campaign `d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d`, goa
 
 The first two contributions were taken back with their own tickets before the deadline (counted as taken back early). The host closed
 at block 3,530,767, after the deadline: the goal was missed, so nothing was kept and there was no sweep; the close sent the third
-contribution's ticket, mined in block 3,530,770. Every contribution is back. Who paid is not visible on the chain.
+contribution's ticket, mined in block 3,530,770. Every contribution is back. Who paid is not visible on the chain. All contributions came from the project's own wallets.
 
 ### 11b. $Snarks Presale (demo, no token) (closed, soft cap missed)
 
@@ -181,7 +183,7 @@ Noir browser wallet. Its refund ticket `ac8e74ef…600a` was then used and mined
 
 The host closed at block 3,530,765, after the deadline: the soft cap was missed, so nothing was kept and there was no sweep. Three
 contributions were taken back with their own tickets before the deadline; the close sent the fourth one's ticket, mined in block
-3,530,768. Every contribution is back. Who paid is not visible on the chain, except the browser wallet payment above.
+3,530,768. Every contribution is back. Who paid is not visible on the chain, except the browser wallet payment above. All contributions came from the project's own wallets.
 
 ### 11c. Clewbook Pre-seed Raise (closed, goal missed)
 
