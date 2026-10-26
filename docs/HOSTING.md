@@ -183,6 +183,30 @@ ZIG=/path/to/zig app/web/build.sh        # the browser module: app/web/www/pkg a
 
 All three are needed. The wallet tool is required because the dashboard creates each campaign's wallet by running it. The browser module is required because the pages do not work without it. It is not stored in the repository, so you build it yourself.
 
+### Updating a running host (how we updated our own)
+
+Update only when no campaign on that host is open or waiting for a refund, settlement or close: check its dashboard first. On 26 Oct
+2026 we moved our own laptop host (the systemd service for the main network dashboard) to the build on the zcash 0.11.0 libraries
+like this. Nothing in the old install was replaced, so going back is one step.
+
+1. Put the new program and its pages in a folder of their own, for example `host-new/` with `cb-host` and `www/`, and check it
+   (`bash check.sh` in the staged package prints `PACKAGE OK`).
+2. Back up: copy the old `cb-host` and the unit (`systemctl cat <service>`) into a folder such as `host-before-update/`.
+3. Add a systemd drop in, `/etc/systemd/system/<service>.service.d/update.conf`, that replaces only the command line:
+
+   ```
+   [Service]
+   ExecStart=
+   ExecStart=<path to host-new>/cb-host serve <the same options as before> --www <path to host-new>/www --nu7-mainnet-height 3543405
+   ```
+
+   (`--nu7-mainnet-height` only for a main network host.) Then `sudo systemctl daemon-reload` and `sudo systemctl restart <service>`.
+4. Check: `systemctl is-active <service>`, the program it runs (`readlink /proc/$(systemctl show -p MainPID --value <service>)/exe`),
+   `/api/config` (on the main network it shows `"nu7_mainnet_height":3543405`), and that the dashboard lists the same campaigns.
+
+Rollback: `sudo rm` the drop in, `sudo systemctl daemon-reload`, `sudo systemctl restart <service>`; the service runs the old program
+from its old place again. A host with a campaign still open waits until that campaign is closed and settled.
+
 ## 3. A full local trial on testnet
 
 This runs everything on one computer and moves no real money. Open three terminals in the repository root.

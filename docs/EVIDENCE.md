@@ -145,36 +145,43 @@ Unit tests for the outbox: `cargo test -p ll-host` (resend with identical bytes,
 ## 11. The project's mainnet campaigns (live network, small amounts)
 
 The four mainnet campaigns hosted by the project, all listed on the app.clewbook.xyz home page. Every payment, ticket and close below is on the
-public list on relay.clewbook.xyz. "Ticket used" was checked on 2026-10-22 by asking a public lightwalletd server for each id; a
+public list on relay.clewbook.xyz. "Ticket used" was checked on 2026-10-22, and on 2026-10-26 after the closes, by asking a public lightwalletd server for each id; a
 ticket that was never sent is not on the chain. The recount results are from the recount page on the same day. Refund addresses are
 never published, so none appear here.
 
-### 11a. Clewbook Live Fundraiser (open)
+### 11a. Clewbook Live Fundraiser (closed, goal missed)
 
 Campaign `d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d`, goal 0.002 ZEC, deadline block 3,530,676.
-[Recount](https://app.clewbook.xyz/recount.html#c=d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d&relay=https://relay.clewbook.xyz): all checks pass; raised 0.0012 ZEC, taken back early 0.0012.
+[Recount](https://app.clewbook.xyz/recount.html#c=d6f76ddddf1fbac9e040b45af0c16facbeb7920ff67bb45bbfc9c5318786718d&relay=https://relay.clewbook.xyz): on 26 Oct 2026 at block 3,530,789 (command line recount `cb-recount`, the same checks as the page), all 9 checks pass (R1 to R8 and R4b); raised 0.0014 ZEC in 3 contributions, taken back early 0.0012, refunded at the close 0.0002, kept 0.
 
 | Payment | Block | ZEC | Refund ticket | Ticket issued at | Ticket used |
 |---|---|---|---|---|---|
 | [`abb17258e55d65ddfcb6ae13e39853690810374e54e8b9d95579a6e795f665f3`](https://mainnet.zcashexplorer.app/transactions/abb17258e55d65ddfcb6ae13e39853690810374e54e8b9d95579a6e795f665f3) | 3,519,125 | 0.001 | [`3bcb645de5e5b292e497c27c6cb1f6fa506c96d52b4587fc803f1e8c37847925`](https://mainnet.zcashexplorer.app/transactions/3bcb645de5e5b292e497c27c6cb1f6fa506c96d52b4587fc803f1e8c37847925) | 3,519,127 | mined in block 3,519,131 |
 | [`2a886f3916b941b9cb845b53e388ad009ce25e99ea2cd33bc897fb1852caa5ee`](https://mainnet.zcashexplorer.app/transactions/2a886f3916b941b9cb845b53e388ad009ce25e99ea2cd33bc897fb1852caa5ee) | 3,522,465 | 0.0002 | [`eefbc7ad2eaacb1c955d91d09a8cb3a8cf475fc00cc1ef0702ecec9e7385afe8`](https://mainnet.zcashexplorer.app/transactions/eefbc7ad2eaacb1c955d91d09a8cb3a8cf475fc00cc1ef0702ecec9e7385afe8) | 3,522,467 | mined in block 3,522,477 |
+| [`b043460cef14e455f8c5e512a1c5293de39feaf38a5351ac7e9fbb6408a51edb`](https://mainnet.zcashexplorer.app/transactions/b043460cef14e455f8c5e512a1c5293de39feaf38a5351ac7e9fbb6408a51edb) | 3,526,999 | 0.0002 | [`5380178f20a05fe1e00ab6435b93128db9a09a60dc3ac81887c3ce0708f8f47d`](https://mainnet.zcashexplorer.app/transactions/5380178f20a05fe1e00ab6435b93128db9a09a60dc3ac81887c3ce0708f8f47d) | 3,527,001 | sent at the close, mined in block 3,530,770 |
 
-Both contributors took their money back with their own tickets before the deadline (an early withdrawal, counted as taken back).
+The first two contributions were taken back with their own tickets before the deadline (counted as taken back early). The host closed
+at block 3,530,767, after the deadline: the goal was missed, so nothing was kept and there was no sweep; the close sent the third
+contribution's ticket, mined in block 3,530,770. Every contribution is back. Who paid is not visible on the chain.
 
-### 11b. $Snarks Presale (demo, no token) (open)
+### 11b. $Snarks Presale (demo, no token) (closed, soft cap missed)
 
 Campaign `fb3f327485c0506c7766412528898fae4986409dcbddaee7b9774f12d1d9ab6c`, soft cap 0.1 ZEC, hard cap 0.5 ZEC, deadline block 3,530,715.
-[Recount](https://app.clewbook.xyz/recount.html#c=fb3f327485c0506c7766412528898fae4986409dcbddaee7b9774f12d1d9ab6c&relay=https://relay.clewbook.xyz): all checks pass; raised 0.0053 ZEC, taken back early 0.0042, still pending 0.0011.
+[Recount](https://app.clewbook.xyz/recount.html#c=fb3f327485c0506c7766412528898fae4986409dcbddaee7b9774f12d1d9ab6c&relay=https://relay.clewbook.xyz): on 26 Oct 2026 at block 3,530,789 (command line recount `cb-recount`, the same checks as the page), all 9 checks pass (R1 to R8 and R4b); raised 0.0053 ZEC in 4 contributions, taken back early 0.0042, refunded at the close 0.0011, kept 0.
 
 | Payment | Block | ZEC | Refund ticket | Ticket issued at | Ticket used |
 |---|---|---|---|---|---|
 | [`704b0cc97c787952b42db9cff91e9d0b6bb2144b1938f8499a71231f9aeec56f`](https://mainnet.zcashexplorer.app/transactions/704b0cc97c787952b42db9cff91e9d0b6bb2144b1938f8499a71231f9aeec56f) | 3,520,311 | 0.002 | [`535a9658bad545c6a07828e762f5808bf731853a733f36fe4b187a159c34d761`](https://mainnet.zcashexplorer.app/transactions/535a9658bad545c6a07828e762f5808bf731853a733f36fe4b187a159c34d761) | 3,520,313 | mined in block 3,520,577 |
 | [`b745ef6615681a852f304d7e749ca0358aab54bab87b6c49a278612ead3cda78`](https://mainnet.zcashexplorer.app/transactions/b745ef6615681a852f304d7e749ca0358aab54bab87b6c49a278612ead3cda78) | 3,521,336 | 0.0011 | [`acc8fcb8248d8686972b39ef28f9ff0f407a031379459cfa7c404f41789508a2`](https://mainnet.zcashexplorer.app/transactions/acc8fcb8248d8686972b39ef28f9ff0f407a031379459cfa7c404f41789508a2) | 3,521,341 | mined in block 3,521,892 |
-| [`e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5`](https://mainnet.zcashexplorer.app/transactions/e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5) | 3,521,899 | 0.0011 | `8a393daae7844261c76f90b1bac41cdf1c137822fae843588c5196543bcf13b8` | 3,521,901 | not sent: the contribution is still in the campaign |
+| [`e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5`](https://mainnet.zcashexplorer.app/transactions/e533294dfbb6f4ed649f55fb319d703b04686957cbdc99c00327ed03bb747dc5) | 3,521,899 | 0.0011 | [`8a393daae7844261c76f90b1bac41cdf1c137822fae843588c5196543bcf13b8`](https://mainnet.zcashexplorer.app/transactions/8a393daae7844261c76f90b1bac41cdf1c137822fae843588c5196543bcf13b8) | 3,521,901 | sent at the close, mined in block 3,530,768 |
 | [`942c0f1bb681b68295ab0bbb9fef7feb3a9f6b4024afc956594bd41312ce64d9`](https://mainnet.zcashexplorer.app/transactions/942c0f1bb681b68295ab0bbb9fef7feb3a9f6b4024afc956594bd41312ce64d9) | 3,522,449 | 0.0011 | [`ac8e74ef22e9ef183cdbe1d206223264547fdb785a881e332d8d1d132113600a`](https://mainnet.zcashexplorer.app/transactions/ac8e74ef22e9ef183cdbe1d206223264547fdb785a881e332d8d1d132113600a) | 3,522,451 | mined in block 3,522,453 |
 
 **The browser wallet payment and its refund.** The last payment above (`942c0f1b…64d9`, 0.0011 ZEC, 18 Oct 2026) was paid from the
 Noir browser wallet. Its refund ticket `ac8e74ef…600a` was then used and mined in block 3,522,453, 4 blocks after the payment.
+
+The host closed at block 3,530,765, after the deadline: the soft cap was missed, so nothing was kept and there was no sweep. Three
+contributions were taken back with their own tickets before the deadline; the close sent the fourth one's ticket, mined in block
+3,530,768. Every contribution is back. Who paid is not visible on the chain, except the browser wallet payment above.
 
 ### 11c. Clewbook Pre-seed Raise (closed, goal missed)
 
@@ -283,18 +290,25 @@ The late ticket block is 60 blocks after the plan without its margin (the margin
 | First deposit (0.0005 ZEC) | [`47c20e16488bc50a5009f324e9f7a73f98f9f1cc6c35577c5bbcf39344dc17c2`](https://mainnet.zcashexplorer.app/transactions/47c20e16488bc50a5009f324e9f7a73f98f9f1cc6c35577c5bbcf39344dc17c2) | 3,527,157 |
 | Its coin from the host (0.00005 ZEC) | [`0ab8e39c0751ea0327f775d74baa8dfca20499099861ce01294b3dc7267ae4d0`](https://mainnet.zcashexplorer.app/transactions/0ab8e39c0751ea0327f775d74baa8dfca20499099861ce01294b3dc7267ae4d0) | 3,527,158 |
 | Its early ticket (signed in advance, not sent) | `0e85c9a36428d98881c695af9c7e771088afe14c7836064c8843f3536b0515a7` | not on the chain |
-| Its signed refund (sent at the close if the bid loses) | `8bc48ae0a2a4ec927e56dc6732755c60f7cfc666626e72dab4195db110a9cd13` | not on the chain yet |
+| Its signed refund (sent at the close if the bid loses) | `8bc48ae0a2a4ec927e56dc6732755c60f7cfc666626e72dab4195db110a9cd13` | never sent: this deposit won |
+| The settlement (0.00035 ZEC to the treasury, 0.00005 ZEC change back to the winner, 0.0001 ZEC fee) | [`40cdc44a10a501ce627517d2447e15267db5c3d4de04c53c059e0c8a3f333a47`](https://mainnet.zcashexplorer.app/transactions/40cdc44a10a501ce627517d2447e15267db5c3d4de04c53c059e0c8a3f333a47) | 3,529,604 |
 | Its late ticket (works after block 3,530,358) | `8217cf3d85b32edc8ddd9ee593f7008a29c9d53955675e89fc22444b5f7640b3` | not on the chain |
 
 The bid page reached PROTECTED for this deposit with both chain servers agreeing (no "Checked with 1 of 2 servers" line). Recount from
 outside on 23 Oct 2026, before the close: "Not yet possible", R1 and R2 pass, S1 to S8 wait for the viewing key, no "cannot be fully
-checked" warning. The close, the settlement and the full recount will be added when they happen.
+checked" warning.
+
+The host closed the auction at block 3,529,603 and the bids opened with drand round 33363080. One bid, one winner, paying the one
+price 0.00035 ZEC; the settlement above was mined in block 3,529,604 and the viewing key was published after it. The only bid was the
+project's own. Recount on 26 Oct 2026 at block 3,530,792 (recount page): 10 of 10 checks pass (R1, R2, S1 to S8), marked limited
+because one chain server and one relay answered; one payment flagged, below.
 
 **Unclaimed payment, no memo, 0.0005 ZEC, left in the auction wallet.** Transaction
 [`572d7613937e0c33dc28f971c5ec1f426277c49f6f5a7af318d604b7f7e2f381`](https://mainnet.zcashexplorer.app/transactions/572d7613937e0c33dc28f971c5ec1f426277c49f6f5a7af318d604b7f7e2f381),
 block 3,527,753, inside the bidding window, paid 0.0005 ZEC to the auction address with an empty memo. With no memo it is not a bid, it has
 no refund address, and no entry on the public list names it. On 25 Oct 2026 the auction wallet, read with the published viewing key, still
-held it unspent. The recount counts it as a donation and lists it under "Payments not in the auction" (flagged, not failed).
+held it unspent. The recount counts it as a donation and lists it under "Payments not in the auction" (flagged, not failed). On 26 Oct 2026 it was
+still unspent and unclaimed; the host accepts a claim until 3 Nov 2026.
 
 ## 15. Test network checks of 23 Oct 2026
 
