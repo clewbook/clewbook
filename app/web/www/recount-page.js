@@ -263,7 +263,9 @@ async function recount() {
   const endpoints = cfg.endpoints.length ? cfg.endpoints : DEFAULT_ENDPOINTS[c.network] || [];
   if (!endpoints.length) return verdict('cannot', 'Cannot conclude', 'No public servers are configured for this network.');
   verdict('working', 'Working…', 'Scanning the chain from up to three public servers. This can take a minute.');
-  const out = await crossCheck(endpoints, { network: c.network, ufvk, start: rules.start_height, rules, rules_id: cfg.id, ledger: j.entries, challenges: j.challenges, treasury_ufvk: rules.treasury_ufvk }, { onStatus: progress });
+  const until = cfg.upto && cfg.upto > rules.start_height ? cfg.upto : null;
+  const out = await crossCheck(endpoints, { network: c.network, ufvk, start: rules.start_height, rules, rules_id: cfg.id, ledger: j.entries, challenges: j.challenges, treasury_ufvk: rules.treasury_ufvk, until }, { onStatus: progress });
+  progress(`Read the chain from block ${rules.start_height.toLocaleString('en-US')} to ${out.end.toLocaleString('en-US')}.`);
 
   const good = out.sources.filter((s) => s.ok);
   const sl = $('#sources');
@@ -325,6 +327,15 @@ async function recount() {
   $('#rf-time').textContent = `${new Date().toISOString().slice(0, 19).replace('T', ' ')} UTC`;
   mountHash($('#rf-hash'), await sha256hex(reportEnvelope(cfg.id, out.end, r)), 8);
   for (const w of r.warnings) warn('warn', w);
+  // a link that names a block: say so, and offer the check up to today
+  if (until && out.end === until) {
+    const n = banner('info', `Checked up to block ${until.toLocaleString('en-US')}, as this link asks. Later blocks were not read. `);
+    const full = document.createElement('a'); full.textContent = 'Check up to today (slower)';
+    const p = new URLSearchParams(location.hash.slice(1)); p.delete('upto'); full.href = `#${p.toString()}`;
+    full.addEventListener('click', () => setTimeout(() => location.reload(), 0));
+    n.insertBefore(full, n.querySelector('.rnote-x'));
+    $('#banners').prepend(n);
+  }
 
   const partial = good.length < 2;
   const n = good.length, groups = new Set(good.map((s) => groupOf(s.endpoint)));

@@ -142,7 +142,7 @@ Evidence is in `docs/EVIDENCE.md` (numbered sections) and the test table in [TES
 - The relay accepts campaign registrations from anyone, so a public relay needs size limits.
 - Amounts in a fundraiser, block times and the funding source of a payment can still help someone who already knows a person's payment. [PRIVACY.md](PRIVACY.md) lists what is hidden and what is not.
 - Tested on Ubuntu under WSL only. A clean machine build has not been tried by anyone but the author.
-- Dependencies are pinned to NU7 prerelease versions, which may change before release.
+- The app uses the published Zcash library releases of 21 Oct 2026; the patched zcash-devtool in `src/` is still pinned to the NU7 prerelease versions.
 
 ## Where to start reading the code
 

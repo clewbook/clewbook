@@ -72,6 +72,8 @@ export function linkParams() {
     relays: relays.length || !id ? relays : [DEFAULT_RELAY],
     endpoints: p.getAll('endpoint').map(clean),
     server: clean(p.get('server') || ''),
+    // upto=<block>: the recount reads the chain only up to this block (a finished example checked at a fixed block, so it is quick)
+    upto: /^[1-9][0-9]{0,9}$/.test(p.get('upto') || '') ? Number(p.get('upto')) : null,
   };
 }
 

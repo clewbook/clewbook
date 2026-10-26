@@ -143,7 +143,7 @@ The record carries **no label**: a record with a `label` field is refused (`list
 | user | `clewbook-listing` (system user, no login shell, no sudo) |
 | data folder | `/var/lib/clewbook-listing` (the only folder it may write) |
 | hand kept list | `/etc/clewbook-listing/hand-campaigns.json` (owned by the operator's account, read only for the job) |
-| listens on | `127.0.0.1:8795`, published as `https://listing.clewbook.xyz` through the server's tunnel |
+| listens on | `127.0.0.1:8795`, published through the server's tunnel: requests to https://listing.clewbook.xyz/v1/records, health at https://listing.clewbook.xyz/v1/health |
 | command | `cb-listing --dir /var/lib/clewbook-listing serve --hand-list /etc/clewbook-listing/hand-campaigns.json --listen 127.0.0.1:8795` |
 
 **Sandbox:**

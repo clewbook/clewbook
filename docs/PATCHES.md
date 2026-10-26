@@ -48,16 +48,20 @@ The host's default wallet backend uses the Zcash libraries directly (`app/host/s
 | **Changes** | (1) `ibe::decrypt` returns an error instead of panicking when a ciphertext has the wrong length or fails its check (upstream panics; a panic inside the browser module stops the whole page, and a person who bids could cause it with a bad lock). (2) The helper `xor` no longer panics (its callers check lengths first). (3) Added `decrypt_exact`, which opens exactly 16 bytes and keeps trailing zero bytes (upstream's `decrypt` drops them, which would lose about one bid in 256 without the marker byte). (4) Added `verify_round` and `ibe::verify_signature`, which check a drand round's signature against the network's public key. Nothing else is changed. |
 | **Tests** | Upstream's tests pass on the copy; `app/core/src/bid.rs` tests open a bid locked to a real quicknet round with its published signature and check that altered, garbage and wrong round inputs are "no bid", never a panic. |
 
-## 2. Library versions: published prereleases, no patched crates except the tlock copy (1b)
+## 2. Library versions: published releases for the app, prereleases for the wallet tool, no patched crates except the tlock copy (1b)
 
 - Every library comes from crates.io. There is **no `[patch]` section and no git or local path dependency** in either workspace
   (`Cargo.toml`, `app/Cargo.toml`). A build from an empty cache downloads everything from crates.io (checked on 14 October 2026).
-- The Zcash libraries are the **NU7 prerelease versions**, pinned exactly (for example `zcash_primitives = "=0.31.0-pre.0"`,
-  `zcash_client_backend = "=0.25.0-pre.0"`, `pczt = "=0.10.0-pre.0"`), because NU7 and its Ironwood pool are only in those versions. A few
-  of them are used with their `unstable` feature, which turns on interfaces their authors may still change (for example the coin locking
-  above).
-- These versions know the test network's NU7 activation (height 4,465,026). They do not know a main network activation height yet, so
-  before the main network's NU7 they need an update. [MAINNET.md](MAINNET.md) explains what the host program does until then.
+- **The app** (`app/`: host, relay, recount, pages, listing) uses the **published releases of 21 Oct 2026**, pinned exactly (for example
+  `zcash_protocol = "=0.11.0"`, `zcash_primitives = "=0.31.0"`, `zcash_client_backend = "=0.25.0"`, `pczt = "=0.10.0"`). They know NU7 on
+  both networks: the test network from block 4,465,026 and the main network from block 3,543,405 (ZIP 259). The host moved to them in
+  commit d7839b8; test `libraries_pick_the_branch_the_networks_report`. A few are used with their `unstable` feature, which turns on
+  interfaces their authors may still change (for example the coin locking above).
+- **The patched zcash-devtool** in `src/` (the root workspace) is still on the **NU7 prerelease versions** (for example
+  `zcash_primitives = "=0.31.0-pre.0"`), which know the test network's NU7 but no main network NU7 height. With its default wallet
+  backend (`libs`) the host program signs every transaction itself; the wallet tool creates the wallets, and signs only for a campaign
+  made with `--backend devtool`. Moving the tool to the releases is a later step.
+- The pages' browser module was built with the prerelease versions and has not been rebuilt on the releases yet.
 
 ## 3. Where Clewbook departs from stock Zcash tooling
 

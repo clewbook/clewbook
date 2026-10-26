@@ -141,8 +141,8 @@ export async function crossCheck(endpoints, input, { onStatus = () => {}, timeou
     batchUrls.forEach((u, i) => { if (heights[i] != null) { used.push(u); tips.set(u, heights[i]); } });
   }
   if (!used.length) throw new Error('None of the public servers answered in time. Nothing was concluded.');
-  // the same range from all of them: end at the lowest of their heights
-  const end = Math.min(...used.map((u) => tips.get(u)));
+  // the same range from all of them: end at the lowest of their heights, or earlier when the link names a block (input.until)
+  const end = Math.min(...used.map((u) => tips.get(u)), input.until || Infinity);
   const sources = await Promise.all(used.map(async (u) => {
     try {
       const rc = new Recount(input.network, input.ufvk);
@@ -155,7 +155,7 @@ export async function crossCheck(endpoints, input, { onStatus = () => {}, timeou
         const list = await servers.call('GetBlockRange', block_range_request(h, to), timeoutMs);
         for (const b of list) { rc.scan_block(b); if (trc) trc.scan_block(b); }
         blocks += list.length;
-        onStatus(`${hostOf(u)}: scanned blocks up to ${to} of ${end}`);
+        onStatus(`Reading the chain: block ${to.toLocaleString('en-US')} of ${end.toLocaleString('en-US')} (${Math.floor(((to - input.start + 1) / (end - input.start + 1)) * 100)}%) from ${hostOf(u)}`);
       }
       const txids = rc.txids_needing_memos();
       for (const txid of txids) { const [raw] = await servers.call('GetTransaction', tx_filter_request(txid), timeoutMs); rc.add_raw_transaction(raw); }

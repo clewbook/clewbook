@@ -44,9 +44,13 @@ const TEST_SITE = 'https://app-test.clewbook.xyz/', TEST_RELAY = 'https://relay-
 function actions(id, onTest) {
   const box = el('div', 'pacts');
   const mark = `&from=proofs&mt=${TYPE_CODE[type]}&mr=${res}`;
-  for (const [name, page, cls] of [['↻ Recount', 'recount', 'prc'], ['Campaign', 'campaign', 'plk'], ['Capability card', 'card', 'plk']]) { const a = el('a', cls, name); a.href = `${onTest ? `${TEST_SITE}${page}.html#c=${id}&relay=${TEST_RELAY}` : `${base}${page}.html#${q(id)}`}${mark}`; box.append(a); }
+  for (const [name, page, cls] of [['↻ Recount', 'recount', 'prc'], ['Campaign', 'campaign', 'plk'], ['Capability card', 'card', 'plk']]) { const a = el('a', cls, name); a.href = `${onTest ? `${TEST_SITE}${page}.html#c=${id}&relay=${TEST_RELAY}` : `${base}${page}.html#${q(id)}`}${page === 'recount' && UPTO[id] ? `&upto=${UPTO[id]}` : ''}${mark}`; box.append(a); }
   return box;
 }
+// finished campaigns checked at a fixed block, so their recount reads only a few hundred blocks (seconds, not minutes); each block is after
+// the campaign's last event on the chain, and the result there is the same as up to today (checked on 26 Oct 2026). The page links to the
+// check up to today.
+const UPTO = { '48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e152133615f': 4477500, '3c34b9ff18656a9fad2e81ea91e803320917eced570ba5f69dde1a10dbba4004': 4498800 };
 const expect = (text, r) => el('span', `pexp ${r}`, text);
 
 function render() {
