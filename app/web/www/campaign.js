@@ -2,8 +2,8 @@
 // links to contribute and to the recount. Reading only; it keeps no secrets. Nothing here is checked: the recount is the independent check.
 // Design round 12: the page is drawn by the shared campaign view (public.js), the same one the contribute page shows when a campaign is closed.
 import init, * as W from './pkg/ll_web.js';
-import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine, milestones, backToMilestones, copyLinkButton } from './public.js';
-import { setNetwork, setup, setCampaignLabel, markReady, statusBadgeHTML } from './ui.js';
+import { linkParams, readAllRelays, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOINTS, campaignView, metaLine, milestones, backToMilestones, copyLinkButton, statusChips, fillHostedBy } from './public.js';
+import { setNetwork, setup, setCampaignLabel, markReady } from './ui.js';
 import { myBids, showResult } from './result.js';
 
 const $ = (s) => document.querySelector(s);
@@ -18,7 +18,7 @@ function banner(kind, text) {
 
 async function main() {
   setup('Campaign');
-  { const ms = milestones(); if (ms) backToMilestones($('.ctop .cback'), ms); } // opened from the demo's Tested milestones page
+  { const ms = milestones(); if (ms) backToMilestones($('#back-link'), ms); } // opened from the demo's Tested milestones page
   $('#campaign-id').textContent = cfg.id ? `${cfg.id.slice(0, 8)}…` : '';
   $('#short-id').textContent = /^[0-9a-f]{64}$/.test(cfg.id) ? `${cfg.id.slice(0, 8)}…` : '';
   if (!/^[0-9a-f]{64}$/.test(cfg.id) || cfg.relays.length === 0) {
@@ -48,8 +48,14 @@ async function main() {
   const outcome = closeE && closeE.close ? closeE.close.outcome : null;
   // the header: status pill (every closed outcome in the same neutral style) and the line beside it
   const phase = closed ? 'closed' : left == null ? 'unknown' : left > 0 ? 'open' : 'ended';
-  $('#status-chip').innerHTML = statusBadgeHTML({ phase, outcome, soft: !!c.cap });
+  statusChips($('#status-chip'), { phase, outcome, soft: !!c.cap, network: c.network });
   $('#status-text').textContent = metaLine(c, { id: cfg.id, withId: true, closed });
+  // the name: the campaign's own (plain text), else its type and short id, the id not in capitals (as the prototype sets it)
+  const h1 = $('#display-name');
+  if (c.name) h1.textContent = c.name;
+  else h1.replaceChildren(`${c.sealed ? 'Blind bid auction' : c.mode === 'auction' ? 'Auction' : 'Fundraiser'} `, Object.assign(document.createElement('span'), { textContent: `${cfg.id.slice(0, 8)}…`, style: 'text-transform: none;' }));
+  fillHostedBy($('#hosted-by'), cfg.id);
+  idPanel(c, j.entries);
   const SEALED_TITLE = { uniform: 'BLIND BID AUCTION · ONE PRICE FOR EVERY WINNER', second: 'BLIND BID AUCTION · HIGHEST LOSING BID', pay_your_bid: 'BLIND BID AUCTION · EACH WINNER PAYS THEIR BID' };
   // a sealed bid auction: whether its host did not finish needs only the list and the chain height
   let didNotFinish = false;
@@ -61,19 +67,31 @@ async function main() {
   const links = { contribute: on(sibling('contribute', { ...base, endpoints: [] })), recount: on(sibling('recount', base)), card: on(sibling('card', base)) };
   // this browser's own bids: their rows marked Yours, and once the auction has settled, the one line result above the page
   const mine = new Set(myBids(cfg.id).map((b) => b.nf));
+  try { const st = JSON.parse(localStorage.getItem(`ll:${cfg.id}`)); if (st && st.ticket && st.ticket.nf) mine.add(st.ticket.nf); } catch { /* nothing saved here */ } // this browser's own contribution is marked too
   campaignView($('#view'), { c, id: cfg.id, entries: j.entries, ok: j.ok, relays: cfg.relays, single: j.kind === 'single', tip, secPerBlock, links, didNotFinish, mine });
-  showResult($('#my-result'), { c, entries: j.entries, id: cfg.id, W, servers: [cfg.server, ...endpoints].filter(Boolean), relays: cfg.relays, recount: links.recount }).catch(() => {}); // round 13: no "Not checked by a recount" here (the recount page lists it)
+  // the result line (result.js) can be put away, as the prototype's note: [x]
+  showResult($('#my-result'), { c, entries: j.entries, id: cfg.id, W, servers: [cfg.server, ...endpoints].filter(Boolean), relays: cfg.relays, recount: links.recount }).then(() => { const box = $('#my-result'); if (box.hidden || box.querySelector('.note-x')) return; const x = document.createElement('button'); x.type = 'button'; x.className = 'note-x'; x.setAttribute('aria-label', 'Dismiss this note'); x.textContent = '[x]'; x.addEventListener('click', () => { box.hidden = true; }); box.append(x); }).catch(() => {}); // round 13: no "Not checked by a recount" here (the recount page lists it)
   $('#nav-card').href = links.card; $('#nav-recount').href = links.recount;
-  // the link to share: the short one when the listing names this campaign (else the full one); the full id stays under "more"
-  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'coutline'; copy.id = 'copy-link'; copy.textContent = 'Copy link';
+  // the link to share: the short one when the listing names this campaign (else the full one)
+  const t = document.getElementById('t-cv-btn-link'), copy = t.content.firstElementChild.cloneNode(true);
+  copy.id = 'copy-link'; copy.classList.add('coutline'); copy.textContent = 'Copy link';
   $('#links').append(copy);
   copyLinkButton(copy, cfg.id);
-  const more = document.createElement('details'); more.className = 'cid-more'; more.id = 'id-more';
-  const sum = document.createElement('summary'); sum.textContent = 'more';
-  const full = document.createElement('code'); full.id = 'full-id'; full.textContent = cfg.id;
-  const idRow = document.createElement('div'); idRow.className = 'cid-row'; idRow.append('Campaign id ', full);
-  more.append(sum, idRow, viewingKeyRow(c, j.entries));
-  $('#status-line').after(more);
+}
+
+/** A small copy icon (the prototype's ⧉) that copies `text`, and says Copied for a moment. */
+function copyIcon(text, label, id) {
+  const b = document.createElement('button'); b.type = 'button'; b.id = id; b.textContent = '⧉'; b.title = label; b.setAttribute('aria-label', label);
+  b.style.cssText = 'margin: 0 0 0 6px; padding: 0; min-height: 0; border: 0; background: none; color: var(--mut); font: inherit; cursor: pointer;';
+  b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); b.textContent = '✓'; } catch { b.textContent = '✕'; } setTimeout(() => { b.textContent = '⧉'; }, 1500); });
+  return b;
+}
+/** The id panel beside the name: the campaign id (short, with copy), the viewing key (published or not, with copy), the network. */
+function idPanel(c, entries) {
+  const full = Object.assign(document.createElement('code'), { id: 'full-id', className: 'sr', textContent: cfg.id });
+  $('#cid-short').replaceChildren(`${cfg.id.slice(0, 8)}…`, copyIcon(cfg.id, 'Copy the full campaign id', 'copy-id'), full);
+  $('#vk-value').replaceChildren(viewingKeyRow(c, entries));
+  $('#net-value').textContent = c.network === 'main' ? 'Mainnet' : c.network === 'test' ? 'Testnet' : 'Unknown';
 }
 
 /** The "Viewing key" row under "more": the key that lets anyone see the payments into the campaign (a blind bid auction publishes it after
@@ -83,14 +101,11 @@ function viewingKeyRow(c, entries) {
   const reveal = entries.find((e) => e.kind === 'reveal' && e.reveal && e.reveal.ufvk);
   const close = entries.find((e) => e.kind === 'close' && e.close && e.close.ufvk);
   const key = c.sealed ? reveal && reveal.reveal.ufvk : auction ? close && close.close.ufvk : c.campaign_ufvk;
-  const row = document.createElement('div'); row.className = 'vk-row'; row.id = 'vk-row';
-  row.append('Viewing key ');
+  const row = document.createElement('span'); row.className = 'vk-row'; row.id = 'vk-row';
   if (!key) { row.append(Object.assign(document.createElement('span'), { id: 'vk-none', textContent: 'Not published yet' })); return row; }
-  const code = Object.assign(document.createElement('code'), { id: 'vk-short', textContent: `${key.slice(0, 12)}…${key.slice(-6)}`, title: key });
-  const copy = Object.assign(document.createElement('button'), { type: 'button', className: 'vk-copy', id: 'vk-copy', textContent: 'Copy' });
-  copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(key); copy.textContent = 'Copied'; } catch { copy.textContent = 'Not copied'; } setTimeout(() => { copy.textContent = 'Copy'; }, 2500); });
-  const what = Object.assign(document.createElement('p'), { className: 'vk-what', textContent: `Lets anyone see the payments into this ${auction ? 'auction' : 'fundraiser'}, not spend them.` });
-  row.append(code, ' ', copy, what);
+  const code = Object.assign(document.createElement('code'), { id: 'vk-short', className: 'sr', textContent: `${key.slice(0, 12)}…${key.slice(-6)}` });
+  const word = Object.assign(document.createElement('span'), { textContent: 'published', title: `Lets anyone see the payments into this ${auction ? 'auction' : 'fundraiser'}, not spend them.` });
+  row.append(word, copyIcon(key, 'Copy the viewing key', 'vk-copy'), code);
   return row;
 }
 

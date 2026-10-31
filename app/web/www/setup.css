@@ -1,39 +1,110 @@
-/* Set-up page (design round 2): a back pill, an eyebrow, the form on the left; on the right the terms preview in a card, the key note and
-   the two buttons, which stay in view while the form scrolls. The shared look is in ui.css. */
-.su-head { display: flex; flex-direction: column; gap: 10px; max-width: 760px; padding-top: 22px; }
-.su-k { font-weight: 500; font-size: 13px; letter-spacing: .02em; }
-.su-head .t-h1 { font-size: clamp(30px, 5vw, 44px); letter-spacing: -.03em; }
-.su-head .t-lead { font-size: 15px; line-height: 1.6; color: var(--cb-ink-2); }
-.su-head #net-note { font-size: 13px; }
-
-.setup-cols { max-width: none; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
-@media (min-width: 900px) { .setup-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-#setup-form .sect > .hd h2 { font: 700 20px var(--cb-font-display); }
-#setup-form label:not(.choice) { font: 600 12px/1.3 var(--cb-font-body); letter-spacing: .12em; color: var(--cb-ink-3); }
-
-.choices { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
-.choice { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid var(--cb-border-strong); border-radius: 16px; background: var(--cb-surface); padding: 16px 18px; margin: 0; cursor: pointer; font: 400 14px/1.55 var(--cb-font-body); letter-spacing: 0; text-transform: none; color: var(--cb-ink); transition: border-color .2s; }
-.choice:has(input:checked) { border: 2px solid var(--cb-accent-text); padding: 15px 17px; }
-.choice input { width: 20px; min-height: 20px; margin: 2px 0 0; accent-color: var(--cb-accent-text); }
-.choice input.tiny { display: inline-block; width: calc(5ch + 26px); min-height: 34px; margin: 0 4px; padding: 4px 12px; border-radius: 10px; font: 600 15px var(--cb-font-body); text-align: center; vertical-align: baseline; } /* room for 4 digits */
-.choice b { display: block; font: 700 16px var(--cb-font-display); color: var(--cb-ink); }
-.choice small { display: block; color: var(--cb-ink-2); font-size: 14px; line-height: 1.55; margin-top: 4px; }
-.choice.confirm { margin: 14px 0; }
-.choice.confirm b { font-size: 15px; }
-#terms dd { font-family: var(--cb-font-body); }
-
-.su-side { display: flex; flex-direction: column; gap: 16px; }
-@media (min-width: 900px) { .su-side { position: sticky; top: 90px; } }
-.su-sum { background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: 18px; padding: 18px 22px; }
-.su-sum h2 { font: 700 16px var(--cb-font-display); padding-bottom: 10px; }
-.su-sum .kv { font-size: 14px; }
-.su-key .notice { margin: 0; border-radius: 16px; }
-.su-key .notice .k { font: 600 12px var(--cb-font-body); letter-spacing: .12em; text-transform: uppercase; }
-.su-key .notice h3 { font: 700 15px var(--cb-font-display); }
-.su-btns { margin-top: 4px; }
-#setup-form .su-btns .btn { margin: 0; min-height: 52px; }
-#setup-form .su-btns #create-btn { flex: 1 1 220px; }
-#setup-form .su-btns #cancel-btn { flex: 0 0 auto; padding: 0 26px; }
-
-.mainnet { border-width: 2px; border-left-width: 6px; }
-.mainnet .k { font-size: .875rem; }
+/* The set up page of the host program, in the Halide design (new pages handoff): the host nav row with this computer and the network, the back
+   button, the title block, the network line and the notices; the form on the left in three sections with choice cards and plain fields; on the
+   right, sticky, the live summary, the campaign key note, the real money box (main network only) and the two buttons.
+   The page's safety rules are its script's (setup.js): nothing here may show a box the script hides, so [hidden] always wins on this page. */
+.su-page [hidden], .su-page[hidden] { display: none !important; }
+body:has(.su-page) footer.sitefoot, body:has(.su-page) .theme-btn { display: none; }
+.su-page.hk-page { padding: 48px 0 90px; gap: 34px; }
+/* the top */
+.su-toprow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--line2); }
+.su-nav { display: flex; gap: 4px; }
+.su-nav a { min-height: 40px; padding: 0 14px; border: 1px solid transparent; color: var(--mut); font: 600 13px var(--fb); letter-spacing: .08em; text-transform: uppercase; display: inline-flex; align-items: center; text-decoration: none; }
+.su-nav a[aria-current="page"] { border-color: var(--ink); color: var(--ink); }
+.su-nav a:hover { color: var(--ink); }
+.su-where { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 500 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--mut); }
+.su-net { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; font: 600 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+.su-net::before { content: ""; width: 8px; height: 8px; flex: 0 0 auto; background: currentColor; }
+.su-net.test { border: 1px dashed var(--warn); color: var(--warn); }
+.su-net.main { border: 1px solid var(--fail); color: var(--fail); }
+.su-back, a.su-back { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1px solid var(--line2); color: var(--ink); font: 600 13px var(--fb); letter-spacing: .08em; text-transform: uppercase; display: inline-flex; align-items: center; text-decoration: none; }
+.su-back:hover { border-color: var(--ink); color: var(--ink); }
+.su-head { max-width: none; padding: 0; }
+.su-h1 { font-size: 72px; }
+.su-lead { color: var(--mut); max-width: 62ch; }
+.su-netline { margin: 0; font: 500 13px var(--fm); color: var(--warn); }
+html[data-net="main"] .su-netline { color: var(--fail); }
+/* the status lines and notices */
+.su-status { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--fail); border-left-width: 4px; font: 400 14px/1.55 var(--fm); color: var(--ink); }
+#banner.su-status::before { content: "✕"; color: var(--fail); font-weight: 700; }
+#su-errbar.su-status { display: block; }
+#su-errbar.su-status::before { content: "✕ "; color: var(--fail); font-weight: 700; }
+#mainnet-banner, #mainnet-banner.notice { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; margin: 0; border: 1px solid var(--fail); border-radius: 0; background: none; }
+#mainnet-banner .k { font: 500 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--fail); margin: 0; }
+#mainnet-banner h3 { margin: 0; font: 700 17px/1.3 var(--fb); color: var(--fail); }
+#mainnet-banner p { margin: 0; font: 400 15px/1.6 var(--fb); color: var(--ink); }
+/* the form */
+.setup-cols, .cols.setup-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr); gap: 32px 40px; align-items: start; max-width: none; }
+.setup-cols > div:first-child { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
+#setup-form .sect { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; border: 0; background: none; }
+#setup-form .sect + .sect { padding-top: 22px; border-top: 1px solid var(--line2); gap: 18px; }
+#setup-form .sect > .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; margin: 0; padding: 0; border: 0; }
+#setup-form .sect > .hd h2, .su-sum h2 { margin: 0; font: 500 24px/1.05 var(--fd); letter-spacing: -.02em; text-transform: uppercase; color: var(--ink); }
+#setup-form .sect > .hd .t-label { font: 500 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--mut); }
+#setup-form label:not(.choice), #setup-form legend { font: 600 12px var(--fm); letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0; padding: 0; }
+#setup-form #goal-row, #setup-form #items-row, #setup-form #sealed-row, #setup-form #minimum-row, #setup-form #cap-row, #setup-form #reserve-row { display: flex; flex-direction: column; gap: 8px; }
+#setup-form input:not([type=radio]):not([type=checkbox]):not(.tiny), #setup-form textarea { width: 100%; box-sizing: border-box; min-height: 48px; padding: 0 14px; border: 1px solid var(--line2); border-radius: 0; background: var(--bg); color: var(--ink); font: 400 15px var(--fm); box-shadow: none; margin: 0; }
+#setup-form textarea { padding: 12px 14px; line-height: 1.5; }
+#setup-form input:focus-visible, #setup-form textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#setup-form [aria-invalid="true"] { border-color: var(--fail); box-shadow: inset 0 0 0 1px var(--fail); }
+.su-ferr { margin: 0; font: 500 13px/1.5 var(--fm); color: var(--fail); }
+.su-ferr::before { content: "✕ "; font-weight: 700; }
+#setup-form .hint { margin: 0; font: 400 13px/1.55 var(--fm); color: var(--mut); }
+#setup-form .hint:empty { display: none; }
+#setup-form .warnline { margin: 0; font: 500 13px/1.5 var(--fm); color: var(--warn); }
+/* the choice cards: a radio's square box with a square dot, a checkbox's box with a tick; the chosen card in ink on the second background */
+.choices, #setup-form .choices { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.choice, #setup-form .choice { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border: 1px solid var(--line2); border-radius: 0; background: transparent; color: var(--ink); text-align: left; margin: 0; cursor: pointer; text-transform: none; letter-spacing: normal; font: inherit; transition: border-color .18s, background .18s; }
+.choice:hover { border-color: var(--ink); }
+.choice:has(input:checked), #setup-form .choice:has(input:checked) { border: 1px solid var(--ink); padding: 16px 18px; background: var(--bg2); }
+.choice > input[type=radio], .choice > input[type=checkbox] { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 16px; height: 16px; min-height: 0; margin: 3px 0 0; border: 1px solid var(--ink); border-radius: 0; background: transparent; display: grid; place-items: center; cursor: pointer; }
+.choice > input[type=radio]::before { content: ""; width: 8px; height: 8px; background: transparent; }
+.choice > input[type=radio]:checked::before { background: var(--ink); }
+.choice > input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; font: 700 13px var(--fm); color: var(--aink); }
+.choice > input[type=checkbox]:checked { background: var(--ink); }
+.choice > input[type=checkbox]:checked::before { content: "✓"; color: var(--aink); font: 700 13px/1 var(--fm); }
+.choice > input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.choice > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.choice b { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 15px var(--fb); color: var(--ink); }
+.choice small { display: block; font: 400 13px/1.55 var(--fm); color: var(--mut); margin: 0; }
+.choice input.tiny, #setup-form .choice input.tiny { display: inline-block; width: 64px; min-height: 36px; margin: 0 4px; padding: 0 10px; border: 1px solid var(--line2); border-radius: 0; background: var(--bg); color: var(--ink); font: 500 14px var(--fm); }
+.choice.confirm { margin: 0; }
+/* the side */
+.su-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; position: sticky; top: 96px; }
+.su-sum { background: none; border: 0; border-radius: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.su-sum h2 { padding: 0; }
+#terms.kv { display: grid; grid-template-columns: minmax(120px, 200px) minmax(0, 1fr); margin: 0; font: 400 14px/1.5 var(--fm); }
+#terms.kv dt, #terms.kv dd { margin: 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 0; min-width: 0; }
+#terms.kv dt { color: var(--mut); padding-right: 16px; }
+#terms.kv dd { color: var(--ink); overflow-wrap: anywhere; font-family: var(--fm); }
+#terms .dim { color: var(--mut); }
+#terms .amt, #terms .amt .u { font: inherit; color: inherit; letter-spacing: inherit; }
+.su-key .notice { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 18px 20px; border: 0; border-top: 2px solid var(--ink); border-radius: 0; background: var(--bg2); }
+.su-key .notice .k { font: 500 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--acc2); margin: 0; }
+.su-key .notice h3 { margin: 0; font: 700 16px/1.3 var(--fb); color: var(--ink); }
+.su-key .notice p { margin: 0; font: 400 14px/1.6 var(--fm); color: var(--ink); }
+.su-create { display: flex; flex-direction: column; gap: 14px; }
+#setup-error.notice { margin: 0; padding: 14px 16px; border: 1px solid var(--fail); border-left-width: 4px; border-radius: 0; background: none; font: 400 14px/1.55 var(--fm); color: var(--ink); }
+#setup-error.notice .k { font: 600 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--fail); }
+.su-btns, #setup-form .su-btns { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; }
+#setup-form .su-btns .btn { margin: 0; min-height: 52px; padding: 0 26px; border-radius: 0; clip-path: var(--clip); font: 600 15px var(--fb); letter-spacing: .08em; text-transform: uppercase; box-shadow: none; display: inline-flex; align-items: center; justify-content: center; }
+#setup-form .su-btns #create-btn { flex: 1 1 220px; border: 0; background: var(--acc); color: var(--aink); }
+#setup-form .su-btns #create-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+#setup-form .su-btns #cancel-btn { flex: 0 0 auto; border: 1px solid var(--line2); background: none; color: var(--ink); }
+#setup-form .su-create .hint { margin: 0; }
+@media (max-width: 899px) { .setup-cols, .cols.setup-cols { grid-template-columns: minmax(0, 1fr); } .su-side { position: static; } }
+@media (max-width: 639px) { .su-page.hk-page { padding: 28px 0 90px; gap: 28px; } .su-h1 { font-size: 40px; } #setup-form .sect > .hd h2, .su-sum h2 { font-size: 20px; } #terms.kv { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); } }
+/* review fixes against the prototype */
+.su-sum { position: relative; background: var(--bg2); padding: 24px; }
+.su-sum .ecm { position: absolute; width: 10px; height: 10px; }
+.su-sum .ecm.tl { left: -1px; top: -1px; border-left: 1px solid var(--ink); border-top: 1px solid var(--ink); }
+.su-sum .ecm.tr { right: -1px; top: -1px; border-right: 1px solid var(--ink); border-top: 1px solid var(--ink); }
+.su-sum .ecm.bl { left: -1px; bottom: -1px; border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.su-sum .ecm.br { right: -1px; bottom: -1px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+#mainnet-banner, #mainnet-banner.notice { border-left-width: 4px; }
+.su-key .notice { background: none; border: 1px solid var(--line2); border-left: 4px solid var(--acc2); }
+#setup-form legend { font: 600 14px var(--fb); letter-spacing: normal; text-transform: none; color: var(--ink); margin-bottom: 8px; }
+.su-net.main { border: 1px solid var(--ink); color: var(--ink); }
+.su-net.main::before { background: var(--fail); }
+@media (max-width: 639px) { .su-sum { padding: 18px; } }
+#setup-form input[aria-invalid="true"]:not([type=radio]):not([type=checkbox]):not(.tiny), #setup-form textarea[aria-invalid="true"] { border-color: var(--fail); box-shadow: inset 0 0 0 1px var(--fail); }
+@media (max-width: 639px) { #setup-form .su-btns { flex-direction: column; } #setup-form .su-btns .btn, #setup-form .su-btns #create-btn, #setup-form .su-btns #cancel-btn { flex: 0 0 auto; width: 100%; } }

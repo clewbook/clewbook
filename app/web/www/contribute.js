@@ -11,7 +11,7 @@ import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, stat
 import { NOT_CHECKED } from './capabilities.js';
 import { findAnchor } from './anchor.js';
 import { myBids, showResult } from './result.js';
-import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones, DEFAULT_RELAY } from './public.js';
+import { campaignView, metaLine, rulesCard, whoSeesWhat, hostLabel, milestones, DEFAULT_RELAY, statusChips, kvRow } from './public.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.hash.slice(1));
@@ -453,6 +453,16 @@ function owedRefund() {
 // ---------- rendering ----------
 const eta = (blocks) => etaText(blocks, secPerBlock);
 
+/** One row of the Halide key and value list (label, value, an optional small line under the value). */
+function tkRow(label, value, sub, cls) {
+  const row = document.createElement('div'); row.className = 'hk-kv';
+  const k = document.createElement('span'); k.textContent = label;
+  const r = document.createElement('span'); r.className = 'r';
+  const v = document.createElement('span'); v.className = `v ${cls || ''}`.trim(); v.textContent = value; r.append(v);
+  if (sub) { const s2 = document.createElement('span'); s2.className = 's'; s2.textContent = sub; r.append(s2); }
+  row.append(k, r);
+  return row;
+}
 function fact(label, value) {
   const dt = document.createElement('dt'), dd = document.createElement('dd');
   dt.textContent = label; dd.textContent = value;
@@ -476,7 +486,7 @@ function renderAbout() {
   document.title = `${raise ? 'Fundraiser' : 'Auction'} · ${document.title.split(' · ').pop()}`;
   // question 1 (round 11): the heading names the step; one helper line; the rules in a small box (the campaign page's own rows)
   $('#form-title').textContent = raise ? 'Contribute' : 'Bid';
-  $('#q-back-label').textContent = raise ? 'Contribute' : 'Bid';
+  $('#q-back-label').textContent = 'Edit amount';
   $('#form-intro').textContent = raise ? `If the ${gw} is missed, everyone is refunded.` : "The whole amount you send is your bid. If you don't win, you are refunded.";
   const qr = raise ? [[capped ? 'Soft cap missed' : 'Goal missed', 'all refunded'], ['Smallest', `${campaign.min} ${campaign.ticker}`], ['Refund fee', `${campaign.fee} ${campaign.ticker}`]]
     : [['How winners pay', campaign.pricing === 'uniform' ? 'one price: the lowest winning bid' : 'each pays their own bid'], ['Ties', 'earlier in the chain wins'], ['Bid amounts', 'public at the close'], ['Refund fee', `${campaign.fee} ${campaign.ticker}`]];
@@ -484,7 +494,8 @@ function renderAbout() {
   $('#addr-prefix').textContent = campaign.network === 'test' ? 'utest1' : 'u1';
   $('#cname').textContent = campaignName(); $('#cname').hidden = false;
   showHostedBy();
-  $('#amount-label').innerHTML = `${raise ? 'Amount' : 'Your bid'} (<span class="ticker">${campaign.ticker}</span>)`;
+  $('#amount-label').textContent = raise ? 'Amount' : 'Your bid';
+  $('#addr-net-rule').textContent = campaign.network === 'test' ? 'A mainnet address on this testnet campaign is refused.' : campaign.network === 'main' ? 'A testnet address on this mainnet campaign is refused.' : '';
   $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
   const closed = view.entries.some((e) => e.kind === 'close');
   let status = 'Checking…', left = '';
@@ -498,7 +509,7 @@ function renderAbout() {
     const closeE = view.entries.find((e) => e.kind === 'close');
     const rt = state && state.refundTrack;
     const refunding = !!closeE && closeE.close && (closeE.close.outcome === 'goal_missed' || closeE.close.outcome === 'cancelled') && !!state && !!state.refundSentAt && !(rt && (rt.status === 'confirmed' || rt.status === 'other'));
-    $('#status-chip').innerHTML = statusBadgeHTML({ phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding, soft: campaign.mode === 'raise' && campaign.cap_zat != null }); // a capped fundraiser says soft cap, as on the campaign page
+    statusChips($('#status-chip'), { network: campaign.network, phase: closed ? 'closed' : tip <= campaign.deadline_height ? 'open' : 'ended', outcome: closeE && closeE.close ? closeE.close.outcome : null, refunding, soft: campaign.mode === 'raise' && campaign.cap_zat != null }); // a capped fundraiser says soft cap, as on the campaign page
     // the same line as the campaign page (public.js metaLine); the short id once the page is the closed page
     $('#status-text').textContent = metaLine(campaign, { id: cfg.id, withId: closedView(), closed });
   }
@@ -539,7 +550,16 @@ function renderAbout() {
   const key = JSON.stringify(rows);
   if ($('#about-card').dataset.key !== key) { // redrawn only when a fact changes, so an opened ▾ stays open across the page's refresh
     $('#about-card').dataset.key = key;
-    $('#about-card').replaceChildren(rulesCard({ id: 'about-facts', rows, folds: false })); // round 13: the card ends at its Ticket window row
+    const dl = document.createElement('dl'); dl.id = 'about-facts'; dl.className = 'hk-kvs';
+    const order = ['Goal', 'Soft cap', 'Hard cap', 'Items', 'How winners pay', 'Reserve', 'Smallest contribution', 'Smallest bid', 'Refund fee', 'Deadline'];
+    const first = [{ k: 'Campaign', v: campaignName() }, ...order.map((k) => rows.find((r) => r.k === k)).filter(Boolean), { k: 'Network', v: campaign.network === 'main' ? 'Mainnet' : campaign.network === 'test' ? 'Testnet' : 'Unknown' }];
+    const rest = rows.filter((r) => !order.includes(r.k) && !['Type', 'Status', 'Block time', 'Network'].includes(r.k));
+    for (const r of [...first, ...rest]) {
+      let v = r.v;
+      if (r.link) { v = document.createElement('a'); v.href = r.link.href; v.textContent = r.link.text; if (r.link.id) v.id = r.link.id; }
+      const row = kvRow(r.k, v); if (r.sub) row.title = r.sub; dl.append(row);
+    }
+    $('#about-card').replaceChildren(dl); // the prototype's "Contributing to" rows
     decorateAmounts($('#about-card'));
   }
   for (const el of document.querySelectorAll('.ticker')) el.textContent = campaign.ticker;
@@ -608,6 +628,7 @@ function renderAuction() {
   const settle = view.entries.find((e) => e.kind === 'settle' && e.settle.nf === nf);
   card.hidden = false;
   $('#auction-proof').hidden = true;
+  { const won_ = close.close.winners.includes(nf); $('#auction-kick').className = `hk-kick ${won_ ? 'pass' : 'mut'}`; $('#auction-sq').className = `sq ${won_ ? 'pass' : 'mut'}`; }
   if (!won) {
     $('#auction-title').textContent = 'Auction result: you did not win';
     $('#auction-text').textContent = 'Your bid was not among the winning bids. Your contribution is refunded with your ticket (the campaign sends it; if it does not, the refund button appears here).';
@@ -670,8 +691,11 @@ function renderProgress() {
   $('#edit-amount').hidden = stage !== 'backup' || paymentSeen();
   $('#back-to-backup').hidden = stage !== 'pay';
   $('#tk-back').hidden = stage !== 'ticket';
-  $('#about').hidden = !(campaign && (stage === 'amount' || stage === 'addr'));
+  $('#about').hidden = !(campaign && ['amount', 'addr', 'backup', 'pay'].includes(stage));
+  $('#tk-aside').hidden = stage !== 'ticket'; // the ticket step's aside: your payment, the ticket details
   $('#cwrap').classList.toggle('qwide', !$('#about').hidden);
+  $('#hk-body').classList.toggle('solo', $('#about').hidden && $('#tk-aside').hidden);
+  paintHead(stage);
   $('#stand').hidden = !has || !!state.ticket;
   $('#pay-more').hidden = !has || !!state.ticket;
   $('#ticket-actions').hidden = !(has && state.ticket);
@@ -749,6 +773,7 @@ function renderProgress() {
   $('#refund-area').hidden = !mode;
   if (!mode) { $('#refund-confirm').hidden = true; $('#refund-btn').hidden = false; }
   $('#refund-k').textContent = mode === 'withdraw' ? 'CHANGED YOUR MIND?' : 'REFUND';
+  $('#refund-ck').textContent = mode === 'withdraw' ? 'Changed your mind?' : 'Refund';
   if (mode === 'withdraw') {
     $('#refund-explain').textContent = 'You can take your contribution back any time before the deadline.';
     $('#refund-btn').textContent = 'Refund me';
@@ -774,6 +799,14 @@ function renderProgress() {
       ? (owedRefund() ? 'The campaign has closed; if your refund does not appear, a button to send it yourself shows here.' : 'The campaign has closed.')
       : `The deadline has passed. If the campaign doesn't wrap up, a refund button will appear here after block ${campaign.deadline_height + campaign.ticket_k}.`;
   } else rr.hidden = true;
+  // the refund the page sent, as a card (prototype): its kicker and title by where it stands; the sentence is the one above
+  {
+    const rf = state.refundTrack || {}, closedNow = view.entries.some((e) => e.kind === 'close');
+    const back = !closedNow && rf.minedHeight != null && rf.minedHeight <= campaign.deadline_height;
+    const card = state.refundSentAt && !rr.hidden ? { sent: ['acc', 'Refund sent', 'On its way'], resent: ['acc', 'Refund sent again', 'On its way'], confirmed: ['mut', back ? 'Taken back' : 'Refunded', 'Your money is back'], other: ['mut', 'Already spent', 'Spent by another transaction'] }[rr.dataset.state] : null;
+    $('#rr-box').classList.toggle('hk-card', !!card);
+    if (card) { $('#rr-k').className = `hk-kick ${card[0]}`; $('#rr-sq').className = `sq ${card[0]}`; $('#rr-k').textContent = card[1]; $('#rr-h').textContent = card[2]; }
+  }
   // taken back, mined, and the campaign still takes payments: offer a new payment code (the old one is kept in the list of earlier codes)
   const rebid = !!(state.refundSentAt && state.refundTrack && state.refundTrack.status === 'confirmed' && tip != null && !view.entries.some((e) => e.kind === 'close') && tip <= campaign.deadline_height && !tooLateToStart());
   $('#rebid-row').hidden = !rebid;
@@ -803,7 +836,9 @@ function renderPay(p) {
   $('#memo').textContent = p.memo;
   $('#pay-amt').textContent = p.amount;
   // the rows show a short form; Copy copies the whole value (the full text is in the hidden lines above)
-  for (const [id, v, n] of [['#qc-addr', p.pay_to, 7], ['#qc-memo', p.memo, 6]]) { const el = $(id); el.textContent = v.length > 2 * n + 1 ? `${v.slice(0, n)}…${v.slice(-n)}` : v; el.title = v; }
+  // the prototype's copy rows: the address shortened in the middle (19 and 8 characters), the message whole on one line, cut by the row's width
+  { const a = p.pay_to, el = $('#qc-addr'); el.textContent = a.length > 28 ? `${a.slice(0, 19)}…${a.slice(-8)}` : a; el.title = a; }
+  { const el = $('#qc-memo'); el.textContent = p.memo; el.title = p.memo; }
   $('#qc-amount').innerHTML = amountHTML(state.amountZat, p.ticker);
   lastPay = p;
   renderNoir();
@@ -925,6 +960,30 @@ const closedEarlyAt = () => {
 const pastDeadline = () => { const b = blocksLeft(); return (b != null && b < 0) || closedEarlyAt() != null; };
 const tooLateToStart = () => { const b = blocksLeft(); return b != null && b >= 0 && b < CUTOFF_BLOCKS; };
 
+/** The head (prototype): the title by step, the eyebrow, and the five step bar (Amount, Refund address, Backup, Pay, Ticket). Presentation only. */
+function paintHead(stage) {
+  const raise = !campaign || campaign.mode === 'raise';
+  const seen = !!(state && !state.ticket && (state.txid || state.pendingTxid));
+  const title = { amount: raise ? 'Contribute' : 'Bid', addr: 'Add refund address', backup: 'Download backup file', pay: seen ? 'Payment seen' : 'Pay from your wallet' }[stage];
+  const h1 = $('#flow-h1');
+  if (title) { h1.textContent = title; h1.hidden = false; }
+  else if (stage === 'ticket' || stage === 'done') { h1.textContent = campaign ? campaignName() : ''; h1.hidden = false; }
+  else if (stage === 'closed') h1.hidden = true;
+  $('#contrib-lead').textContent = raise ? 'Contributing to' : 'Bidding on';
+  // the ticket step (prototype): the campaign's kind and terms, then "ticket"; the name is the title
+  const tk = (stage === 'ticket' || stage === 'done') && campaign;
+  if (tk) $('#contrib-lead').textContent = [raise ? 'Fundraiser' : 'Auction', raise && campaign.goal ? `goal ${campaign.goal} ${campaign.ticker}` : !raise ? (campaign.pricing === 'uniform' ? 'one price for every winner' : 'pay your bid') : '', 'ticket'].filter(Boolean).join(' · ');
+  $('#cname').classList.toggle('tk-off', !!tk);
+  $('#seen-card').hidden = !(state && !state.ticket && !state.txid && state.pendingTxid); // only while the payment waits in the mempool
+  const order = ['amount', 'addr', 'backup', 'pay', 'ticket'], at = order.indexOf(stage === 'done' ? 'ticket' : stage);
+  const bar = $('#hk-steps'); bar.hidden = at < 0;
+  for (const li of bar.children) {
+    const i = order.indexOf(li.dataset.k);
+    li.classList.toggle('now', i === at && !(stage === 'pay' && seen)); li.classList.toggle('done', i < at || (stage === 'pay' && seen && i === at));
+    if (i === at) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+  }
+}
+
 /** The stepper above the page (a visual aid only): Amount, Backup, Pay, Ticket, Done. */
 function renderStepper() {
   const el = $('#stepper');
@@ -956,7 +1015,7 @@ function renderTicketView(tcv) {
   $('#tk-entry').textContent = `#${e.seq}`;
   const nPass = ticketCheck ? ticketCheck.checks.filter((x) => x.status === 'pass').length : 0;
   const chip = rf.status === 'confirmed' ? ['refunded', 'Refunded'] : tcv === 'pass' ? ['pass', `✓ Held · ${nPass} checks`] : tcv === 'fail' ? ['fail', '✕ Did not pass a check'] : ['nc', 'Checking'];
-  $('#tk-chip').replaceChildren(Object.assign(document.createElement('span'), { className: `tkbadge ${chip[0]}`, textContent: chip[1] }));
+  $('#tk-chip').replaceChildren(Object.assign(document.createElement('span'), { className: `hk-kick tkbadge ${{ pass: 'pass', fail: 'fail' }[chip[0]] || 'mut'} ${chip[0]}`, textContent: chip[1] }));
   const back = c.value_zat != null ? c.value_zat - campaign.fee_zat : null; // what the ticket pays: the listed contribution minus the refund fee
   $('#tk-amount-box').hidden = back == null;
   if (back != null) $('#tk-amount').innerHTML = amountHTML(back, campaign.ticker);
@@ -977,14 +1036,18 @@ function renderTicketView(tcv) {
     ['Refund path', state.refundSentAt ? ['', 'Used', ''] : tcv === 'fail' ? ['warn', "Don't rely on it yet", ''] : mode === 'withdraw' ? ['teal', 'Available', `“Refund me” until block ${campaign.deadline_height}`] : mode ? ['teal', 'Available', '“Claim my refund”'] : ['', 'Not available now', '']],
     ['Refund', !state.refundSentAt ? ['', 'Not sent', ''] : rf.status === 'confirmed' ? ['ok', 'Confirmed', `Block ${rf.minedHeight}`] : rf.status === 'other' ? ['', 'Spent by another transaction', `Block ${rf.minedHeight}`] : ['warn', 'Sent, waiting to be mined', 'Resent automatically if slow']],
   ];
-  led.replaceChildren(...cells.map(([label, [cls, value, sub]]) => {
-    const d = document.createElement('div');
-    const l = document.createElement('p'); l.className = 'tl-l'; l.textContent = label;
-    const v = document.createElement('p'); v.className = `tl-v ${cls}`; v.textContent = value;
-    d.append(l, v);
-    if (sub) { const s2 = document.createElement('p'); s2.className = 'tl-s'; s2.textContent = sub; d.append(s2); }
-    return d;
-  }));
+  led.replaceChildren(...cells.map(([label, [cls, value, sub]]) => tkRow(label, value, sub, cls)));
+  // the aside (prototype): this browser's payment, from what is stored here only
+  const shortAddr = (a) => (a && a.length > 16 ? `${a.slice(0, 6)}…${a.slice(-5)}` : a || '');
+  const paid = state.paidZat != null ? state.paidZat : state.amountZat;
+  $('#tk-pay').replaceChildren(...[
+    paid != null ? ['Amount', `${coin(paid)} ${campaign.ticker}`] : null,
+    state.paidHeight != null ? ['Paid in block', state.paidHeight.toLocaleString('en-US')] : null,
+    ['Refund to', shortAddr(state.refund)],
+    ['Backup file', state.backupDownloaded ? 'saved' : 'not saved yet'],
+  ].filter(Boolean).map(([k, v]) => tkRow(k, v)));
+  $('#tk-secret').textContent = storageOk ? 'Your secret for this payment is only in this browser and in your backup file.' : 'Your secret for this payment is only in your backup file.';
+  $('#tk-checkrow').hidden = !!state.refundSentAt;
 }
 
 /** The one line about the deadline, only in the last blocks before it. */
@@ -1473,6 +1536,7 @@ function renderTicketChecks() {
   if (not.length) { const nb = document.createElement('div'); nb.className = 'tc-not'; nb.append(Object.assign(document.createElement('p'), { className: 'tc-not-k', textContent: 'Not checked:' }), lines(not, 'tc-nc')); parts.push(nb); }
   $('#tc-summary').replaceChildren(...parts);
   $('#tc-count').textContent = `${pass.length} ${pass.length === 1 ? 'check' : 'checks'}`;
+  $('#tk-check-n').textContent = `${pass.length} ${pass.length === 1 ? 'check' : 'checks'}, in your browser`;
   if (fail.length) {
     bad.hidden = false;
     const special = fail.find((x) => x.id === 'network_version') ? ' This ticket is for an older network version; the campaign must reissue it.'
@@ -1541,6 +1605,8 @@ function wire() {
   }); // at once, on every keystroke
   $('#refund').addEventListener('input', syncForm);
   $('#to-addr').addEventListener('click', () => { if (!$('#to-addr').disabled) goQuestion('addr'); });
+  for (const x of document.querySelectorAll('[data-dismiss]')) x.addEventListener('click', () => { const n = document.getElementById(x.dataset.dismiss); if (n) n.hidden = true; });
+  $('#show-status').addEventListener('click', () => { const p = $('#progress-card'); if (!p.hidden) p.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   $('#q-back').addEventListener('click', () => goQuestion('amount'));
   $('#finish').addEventListener('click', () => { if (!doneTrue()) return; showDone = true; renderAll(); window.scrollTo(0, 0); });
   $('#to-ticket').addEventListener('click', () => { showDone = false; renderAll(); window.scrollTo(0, 0); });
@@ -1557,15 +1623,17 @@ function wire() {
   $('#rebid').addEventListener('click', () => { leaveTo = 'over'; leavePayment(); });
   $('#restore').addEventListener('change', onRestore);
   // the folds row under the questions: each button opens its own panel under the row; several may be open
-  for (const b of document.querySelectorAll('.qf-btn')) b.addEventListener('click', () => { const o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); $(`#${b.getAttribute('aria-controls')}`).hidden = !o; });
+  for (const b of document.querySelectorAll('.qf-btn')) b.addEventListener('click', () => { const o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); $(`#${b.getAttribute('aria-controls')}`).hidden = !o; const l = b.firstElementChild; if (l) l.textContent = l.textContent.replace(/^[▸▾]/, o ? '▾' : '▸'); });
   $('#qf-who').append(whoSeesWhat());
   $('#qf-nc-list').append(...NOT_CHECKED.map(([what, why]) => Object.assign(document.createElement('li'), { textContent: `${what}: ${why}` })));
   for (const b of document.querySelectorAll('[data-copy]')) {
     let t = null;
     b.addEventListener('click', async () => {
       clearTimeout(t);
-      try { await navigator.clipboard.writeText($(`#${b.dataset.copy}`).textContent); b.textContent = '✓ Copied'; b.classList.add('copied'); t = setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1600); }
-      catch { const r = document.createRange(); r.selectNodeContents($(`#${b.dataset.copy}`)); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = 'Selected: press copy'; }
+      // the copy button is the prototype's icon: it shows ✓ for a moment, then its icon again (a text button its word again)
+      const was = b.dataset.was || (b.dataset.was = b.innerHTML), icon = /<svg/.test(was);
+      try { await navigator.clipboard.writeText($(`#${b.dataset.copy}`).textContent); b.textContent = icon ? '✓' : '✓ Copied'; b.classList.add('copied'); t = setTimeout(() => { b.innerHTML = was; b.classList.remove('copied'); }, 1600); }
+      catch { const r = document.createRange(); r.selectNodeContents($(`#${b.dataset.copy}`)); getSelection().removeAllRanges(); getSelection().addRange(r); if (!icon) b.textContent = 'Selected: press copy'; }
     });
   }
   $('#refund-btn').addEventListener('click', () => {
@@ -1577,8 +1645,11 @@ function wire() {
     p.append(refundMode() === 'withdraw'
       ? 'This takes your contribution back out of the campaign. It cannot be undone, and a small fee is kept.'
       : 'This claims your refund yourself. A small fee is kept.');
+    $('#refund-ch').textContent = $('#refund-btn').textContent;
     $('#refund-confirm').hidden = false; $('#refund-btn').hidden = true;
   });
+  // "Check this ticket" opens the ticket checks (they run in this browser as the page loads; this only shows them)
+  $('#tk-check').addEventListener('click', () => { const f = $('#tc-fold'); f.open = true; f.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   $('#refund-no').addEventListener('click', () => { $('#refund-confirm').hidden = true; $('#refund-btn').hidden = false; });
   $('#refund-yes').addEventListener('click', onRefundConfirmed);
   $('#noir-pay').addEventListener('click', onNoirPay);

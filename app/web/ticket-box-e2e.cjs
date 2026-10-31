@@ -17,7 +17,7 @@ const varint = (n) => { const o = []; while (n > 127) { o.push((n % 128) | 128);
 const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.length]), Buffer.from(bytes)]);
 const NAMED = 'f6737fbc462e75508d424f0612a1ce5ea3df24c5cc1b550074821ccdea5e237a'; // "Community radio mast (demo)", closed
 // round 11 (handoff "recount v2", copy deck section 2): the empty state's heading and supporting line, word for word
-const H1 = "Don't trust the host. Recount it.", SUB = "Check a campaign's books yourself, in your browser, against the Zcash chain.";
+const H1 = "Don't trust the host.", SUB = "Recount a campaign's books yourself, in your browser, against the Zcash chain.";
 const invented = (id, relays, refund) => ({ kind: 'contribution-backup', version: 1, campaign: id, relays, server: MOCK, seed: crypto.randomBytes(32).toString('hex'),
   refundAddress: refund, amountZat: 1000000, memo: 'LL1:invented', payment: null, ticket: null, savedAt: new Date().toISOString(), note: 'made up for a test' });
 

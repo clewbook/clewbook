@@ -27,18 +27,21 @@ export const LEVELS = [
 
 const NET = { test: { label: 'Test network', money: 'no real money', ticker: 'TAZ' }, main: { label: 'Main network', money: 'real money', ticker: 'ZEC' } };
 
-/** Which recount checks apply to this campaign, from its rules: R1 to R8 and R4b always, R9 to R12 for a uniform-price auction. */
+/** Which recount checks apply to this campaign, from its rules: a blind bid auction has its own set (R1, R2 and S1 to S8, then the flagged
+ *  payments not in the auction, as app/core/src/sealed_recount.rs and the recount page run them); otherwise R1 to R8 and R4b always, R9 to R12
+ *  for a uniform-price auction. */
 export function appliesTo(rules) {
+  if (rules.sealed) return { uniform: false, sealed: true, checks: ['R1', 'R2', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', '⚑'] };
   const uniform = rules.mode === 'auction' && rules.pricing === 'uniform';
-  return { uniform, checks: ['R1', 'R2', 'R3', 'R4', 'R4b', 'R5', 'R6', 'R7', 'R8', ...(uniform ? ['R9', 'R10', 'R11', 'R12'] : [])] };
+  return { uniform, sealed: false, checks: ['R1', 'R2', 'R3', 'R4', 'R4b', 'R5', 'R6', 'R7', 'R8', ...(uniform ? ['R9', 'R10', 'R11', 'R12'] : [])] };
 }
 
 /** The values the card prints, all taken from the rules. `secondsPerBlock` is a measurement or null. */
 export function cardModel(summary, rules, secondsPerBlock = null) {
   const net = NET[summary.network] || { label: summary.network, money: '', ticker: summary.ticker };
-  const { uniform, checks } = appliesTo(rules);
+  const { uniform, sealed, checks } = appliesTo(rules);
   const terms = [
-    ['Type', rules.mode === 'auction' ? (uniform ? 'Auction, one price for every winner' : 'Auction') : 'Fundraiser'],
+    ['Type', sealed ? 'Blind bid auction' : rules.mode === 'auction' ? (uniform ? 'Auction, one price for every winner' : 'Auction') : 'Fundraiser'],
     ['Network', summary.network === 'main' ? 'Mainnet' : summary.network === 'test' ? 'Testnet' : `${net.label}`],
     // a fundraiser with a hard cap says "soft cap" and "hard cap"; one without keeps the word "goal"
     ...(rules.mode !== 'raise' ? [['Items for sale', String(summary.items)]] : summary.cap_zat == null ? [['Goal', { amount: summary.goal_zat, ticker: net.ticker }]] : [
@@ -55,5 +58,5 @@ export function cardModel(summary, rules, secondsPerBlock = null) {
   ];
   const notChecked = [...NOT_CHECKED];
   if (rules.mode === 'auction') notChecked.splice(1, 0, ['Your amount (on the ticket check)', 'in an auction, bid amounts are not on the public list before the close, so the list cannot show the amount you meant to pay']);
-  return { net, terms, checks, uniform, notChecked, levels: LEVELS };
+  return { net, terms, checks, uniform, sealed, notChecked, levels: LEVELS };
 }

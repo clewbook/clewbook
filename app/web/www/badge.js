@@ -8,8 +8,8 @@ const p = new URLSearchParams(location.hash.slice(1));
 const id = (p.get('c') || '').toLowerCase(), named = p.getAll('relay').map((u) => u.replace(/\/$/, '')), relays = named.length ? named : ['https://relay.clewbook.xyz']; // none named: the project's relay
 
 async function main() {
-  setup('Recount badge', { netbar: false, themeControl: false }); // a badge shown inside other sites: it follows the theme, without its own control
-  if (!/^[0-9a-f]{64}$/.test(id)) { $('#badge-name').textContent = 'Campaign (incomplete link)'; return; }
+  setup('Recount badge', { themeControl: false }); // a badge shown inside other sites: it follows the theme, without its own control
+  if (!/^[0-9a-f]{64}$/.test(id)) { $('#badge-name').textContent = 'Campaign (incomplete link)'; for (const x of ['#badge-cta', '#badge-pill', '#badge-foot']) $(x).hidden = true; return; } // the design: the link, the pill and the footer line are hidden
   // the recount page that sits next to this badge, with the same campaign, relays and servers
   const q = [`c=${id}`, ...relays.map((r) => `relay=${r}`), ...p.getAll('endpoint').map((e) => `endpoint=${e}`), ...(p.get('server') ? [`server=${p.get('server')}`] : [])];
   $('#badge').href = `${new URL('.', location.href).href}recount.html#${q.join('&')}`;
@@ -24,6 +24,7 @@ async function main() {
       const s = JSON.parse(W.campaign_summary(text, id));
       kind = s.mode === 'auction' ? 'Auction' : s.mode === 'raise' ? 'Fundraiser' : 'Campaign';
       name = s.name || null;
+      $('#badge-net').hidden = s.network !== 'test'; // the design: the amber Testnet chip after the name on a test network campaign
       break;
     } catch { /* the badge still works without it */ }
   }

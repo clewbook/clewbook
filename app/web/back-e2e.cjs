@@ -54,7 +54,7 @@ const frame = (flag, bytes) => Buffer.concat([Buffer.from([flag, 0, 0, 0, bytes.
       await p.evaluate(() => window.scrollTo(0, 0));
       const box = await p.locator('#edit-amount').boundingBox();
       check(`${label}: on the backup step, a "← Refund address" button at the top that goes back is visible without scrolling, at least 44 px high and 120 px wide`, (await p.isVisible('#edit-amount')) && /^←\s*Refund address$/.test(await text(p, '#edit-amount')) && box.height >= 44 && box.width >= 120 && (await inView(p, '#edit-amount')), JSON.stringify(box));
-      check(`${label}: the backup step comes first, with its download button, before the code is shown`, (await p.isVisible('#backup')) && /Save your backup file first/.test(await text(p, '#pay-card')) && (await p.isHidden('#qr svg')));
+      check(`${label}: the backup step comes first, with its download button, before the code is shown`, (await p.isVisible('#backup')) && /Keep this file private/.test(await text(p, '#pay-card')) && (await p.isHidden('#qr svg')));
       await p.tap('#to-pay');
       check(`${label}: "Continue to pay" shows the warning and the code`, /^Pay exactly 0\.01 TAZ once, from a shielded address\.$/.test(await text(p, '#pay-warning')) && (await p.isVisible('#pay-warning')) && (await p.isVisible('#qr svg')));
       await p.tap('#back-to-backup');

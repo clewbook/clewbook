@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="contribute.css">
 <link rel="stylesheet" href="bid.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="img/app-icon-180.png">
@@ -14,121 +15,144 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./#campaigns" aria-current="page">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Hosting</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
 <div class="aurora" aria-hidden="true"><div></div></div>
-<main class="page bb">
-<div class="bb-wrap">
-  <!-- the top row: one back button (by step) and the steps -->
-  <div class="bb-top">
-    <a class="bb-back" id="flow-back" href="#">← Auction</a>
-    <button type="button" class="bb-back" id="pay-back" hidden>← Bid</button>
-    <a class="bb-back" id="home-back" href="./" hidden>← Back to home</a>
-    <ol class="bb-steps" id="steps" aria-label="Steps"><li data-n="1"><span>1</span> Bid</li><li data-n="2"><span>2</span> Pay</li><li data-n="3"><span>3</span> Status</li></ol>
+<main class="page bb app-main">
+<div class="bb-wrap hk-page">
+  <div class="hk-head">
+    <div class="hk-top bb-top">
+      <a class="hk-back bb-back" id="flow-back" href="#">← Auction</a>
+      <button type="button" class="hk-back bb-back" id="pay-back" hidden>← Bid</button>
+      <a class="hk-back bb-back" id="home-back" href="./#campaigns" hidden>← Back to home</a>
+      <span class="hk-chips" id="status-line" hidden><span class="cv-chip bb-pill" id="status-chip"><i></i><span id="pill-t"></span></span><span class="cv-chip" id="net-chip"></span><button type="button" class="hk-link bb-copylink" id="copy-link">Copy link</button></span>
+    </div>
+    <div class="hk-title">
+      <div class="hk-titlecol">
+        <span class="hk-eyebrow" id="bb-eyebrow"></span>
+        <h1 class="hk-h1" id="bb-h1"></h1>
+        <p class="hk-hint" id="bb-sub">Nobody can read it, not even the host, until bids open.</p>
+        <span class="sr"><b id="cname"></b> <span id="ckind"></span></span>
+      </div>
+    </div>
+    <ol class="hk-steps four" id="hk-steps" aria-label="Steps"><li class="hk-step" data-k="bid">01 <span class="lbl">Bid</span></li><li class="hk-step" data-k="backup">02 <span class="lbl">Backup</span></li><li class="hk-step" data-k="pay">03 <span class="lbl">Pay</span></li><li class="hk-step" data-k="status">04 <span class="lbl">Status</span></li></ol>
+    <ol class="bb-steps" id="steps" aria-hidden="true" hidden><li data-n="1"><span>1</span> Bid</li><li data-n="2"><span>2</span> Pay</li><li data-n="3"><span>3</span> Status</li></ol>
   </div>
-  <!-- the auction: status pill, name, kind -->
-  <div class="bb-line" id="status-line" hidden><span class="bb-pill" id="status-chip"><i></i><span id="pill-t"></span></span><b class="bb-name" id="cname"></b><span class="bb-kind" id="ckind"></span><button type="button" class="bb-copylink" id="copy-link">Copy link</button></div>
   <div id="banners" aria-live="polite"></div>
   <div id="my-result" class="my-result" role="status" hidden></div>
 
   <!-- 1. the bid: deposit size, bid, refund address -->
-  <section class="bb-grid" id="form-card" hidden>
-    <div class="bb-main">
-      <div class="bb-h"><h1>Your blind bid</h1><span>Nobody can read it, not even the host, until bids open.</span></div>
-      <p class="bb-editnote" id="edit-note" hidden><span>You are changing your bid. If you already paid, keep your payment.</span><button type="button" class="bb-link" id="edit-keep">Keep my payment →</button></p>
-      <form id="form" class="bb-form" novalidate>
-        <div class="bb-field"><span class="bb-k" id="dep-k">1 · DEPOSIT</span><div class="bb-deps" id="tranche" role="radiogroup" aria-labelledby="dep-k"></div></div>
-        <label class="bb-field" for="bid"><span class="bb-k">2 · YOUR BID</span>
-          <span class="bb-bidbox" id="bidbox"><input id="bid" inputmode="decimal" autocomplete="off" placeholder="0.003" aria-describedby="bid-hint"><span class="ticker"></span></span>
-          <span class="bb-help" id="bid-hint" role="note"></span><span class="bb-help bad" id="bid-error" role="alert" hidden></span></label>
-        <label class="bb-field" for="refund"><span class="bb-k">3 · REFUND ADDRESS</span>
-          <textarea id="refund" rows="2" autocomplete="off" spellcheck="false" placeholder="paste your shielded Zcash address" aria-describedby="refund-msg"></textarea>
-          <span class="bb-help" id="refund-msg"></span></label>
-        <div class="bb-note"><b aria-hidden="true">△</b><div><span id="public-note">Bids and refund addresses become public after the close.</span>
-          <details class="bb-inmore" id="public-more"><summary>more</summary><span>Before the close the host sees that a deposit arrived, when, its size and your refund address, never your bid. After the close anyone can check every bid and every payment.</span></details></div></div>
-        <p class="bb-help bad" id="form-error" role="alert" hidden></p>
-        <div class="bb-acts">
-          <button type="submit" id="create" class="bb-primary">Create my payment →</button>
-          <button type="button" class="bb-link" id="restore-toggle" aria-expanded="false" aria-controls="restore-box">I have a backup file</button>
-          <div class="bb-restore" id="restore-box" hidden><span>Opens your bid. The file stays in this browser.</span>
-            <label class="bb-secondary bb-file">Choose backup file<input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file"></label>
-            <p class="bb-help bad" id="restore-error" role="alert" hidden></p></div>
+  <section class="hk-body bb-grid" id="form-card" hidden>
+    <div class="hk-main">
+      <div class="bb-h sr"><h2>Your blind bid</h2></div>
+      <p class="hk-note warn bb-editnote" id="edit-note" hidden><span>You are changing your bid. If you already paid, keep your payment. <button type="button" class="hk-link" id="edit-keep">Keep my payment →</button></span></p>
+      <form id="form" class="hk-main" novalidate>
+        <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t" id="dep-k">Deposit size</span></span></div><div class="bb-deps" id="tranche" role="radiogroup" aria-labelledby="dep-k"></div></section>
+        <label class="hk-field" for="bid"><span class="k">Your bid</span>
+          <span class="hk-fieldbox bb-bidbox" id="bidbox"><input id="bid" inputmode="decimal" autocomplete="off" placeholder="0.003" aria-describedby="bid-hint"><span class="u ticker"></span></span>
+          <span class="hk-hint bb-help" id="bid-hint" role="note"></span><span class="hk-hint bb-help bad" id="bid-error" role="alert" hidden></span></label>
+        <label class="hk-field" for="refund"><span class="k">Refund address</span>
+          <span class="hk-fieldbox bb-refbox"><textarea id="refund" rows="1" autocomplete="off" spellcheck="false" placeholder="paste your shielded Zcash address" aria-describedby="refund-msg"></textarea></span>
+          <span class="hk-hint bb-help" id="refund-msg"></span></label>
+        <div class="hk-note warn" id="public-box"><span><span id="public-note">Bids and refund addresses become public after the close.</span>
+          <details class="bb-inmore" id="public-more"><summary>more</summary><span>Before the close the host sees that a deposit arrived, when, its size and your refund address, never your bid. After the close anyone can check every bid and every payment.</span></details></span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="public-box">[x]</button></div>
+        <p class="hk-hint bb-help bad" id="form-error" role="alert" hidden></p>
+        <div class="hk-btnrow">
+          <button type="submit" id="create" class="hk-btn"><span>Create my payment</span><span aria-hidden="true">→</span></button>
+          <button type="button" class="hk-link" id="restore-toggle" aria-expanded="false" aria-controls="restore-box">I have a backup file</button>
         </div>
+        <div class="bb-restore" id="restore-box" hidden><span class="hk-hint">Opens your bid. The file stays in this browser.</span>
+          <label class="hk-btn out bb-file">Choose backup file<input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file"></label>
+          <p class="hk-hint bb-help bad" id="restore-error" role="alert" hidden></p></div>
       </form>
     </div>
-    <aside class="bb-aside">
-      <b class="bb-at">About this auction</b>
-      <div id="facts"></div>
-      <details class="bb-fold"><summary><span>▸ How a blind bid works</span><span class="bb-sub">3 steps</span></summary>
-        <div class="bb-foldb"><span>1. You pay a fixed deposit. Your bid is locked inside it.</span><span>2. At the close, every bid opens at the same moment.</span><span>3. Anyone can recount who won. Your refund ticket covers the rest.</span></div></details>
-      <a class="bb-alink" id="recount-link" href="#">Recount this auction →</a>
+    <aside class="hk-aside">
+      <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">About this auction</span></span></div>
+      <div class="hk-kvs" id="facts"></div></section>
+      <div class="hk-folds"><details class="bb-fold"><summary><span>▸ How a blind bid works</span><span class="c">3 steps</span></summary>
+        <div class="bb-foldb"><span>1. You pay a fixed deposit. Your bid is locked inside it.</span><span>2. At the close, every bid opens at the same moment.</span><span>3. Anyone can recount who won. Your refund ticket covers the rest.</span></div></details></div>
+      <a class="hk-link" id="recount-link" href="#">Recount this auction →</a>
     </aside>
   </section>
 
-  <!-- 2. the backup and the payment -->
-  <section class="bb-grid" id="pay-card" hidden>
-    <div class="bb-main">
-      <div class="bb-backup" id="backup-card">
-        <div class="bb-row"><span class="bb-bktag" id="bk-tag">△ STEP 1 · IMPORTANT</span><span class="bb-only">◆ ONLY IN THIS BROWSER</span></div>
-        <b class="bb-bkt">Download your backup file</b>
-        <span class="bb-bkl">Lose this page without it and you lose your way back. Keep it private.</span>
-        <div class="bb-row bb-bkrow"><button type="button" class="bb-secondary" id="backup">↓ Download backup file</button><label class="bb-check"><input type="checkbox" id="saved">Saved</label></div>
+  <!-- 2. the backup and the payment (one screen: paying is never blocked by the backup) -->
+  <section class="hk-body bb-grid" id="pay-card" hidden>
+    <div class="hk-main">
+      <div class="hk-card bb-backup" id="backup-card"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+        <div class="bb-row"><span class="hk-kick" id="bk-tag">Important</span><span class="hk-kick a2 bb-only">Only in this browser</span></div>
+        <h2 class="hk-h2">Keep this file private</h2>
+        <p class="hk-p">It holds this page's keys: the only way back from another browser.</p>
+        <div class="hk-btnrow"><button type="button" class="hk-btn out" id="backup">↓ Download backup file</button><label class="hk-tick"><input type="checkbox" id="saved"><span class="box" aria-hidden="true">✓</span>Saved</label></div>
       </div>
-      <h1 class="bb-payh">Pay exactly <span id="pay-amount"></span> once, from a shielded address.</h1>
-      <p class="bb-note bb-memowarn" id="memo-warn"><b aria-hidden="true">△</b><span>Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.</span></p>
-      <div class="bb-copy bb-memofirst"><span class="bb-k">FIRST, PUT THIS MESSAGE IN YOUR WALLET'S MEMO</span>
-        <div class="bb-cp"><span class="bb-n">1</span><span class="bb-cpv"><span class="bb-cpk">Message</span><span class="bb-val" id="memo"></span></span><button type="button" class="bb-cpbtn" data-copy="memo" aria-label="Copy message">Copy</button></div>
-        <label class="bb-check bb-attached"><input type="checkbox" id="attached">I attached the message</label>
-        <details class="bb-inmore bb-wallets" id="wallets"><summary>Which wallets keep the message?</summary><span id="wallets-text"></span></details>
-      </div>
-      <p class="bb-locked" id="pay-locked">Tick the box to see the address and the amount.</p>
-      <div class="bb-paylock" id="pay-lock" hidden>
-        <div class="bb-payrow">
-          <div class="bb-qrc"><div class="bb-qr" id="qr" role="img" aria-label="Payment code"></div></div>
-          <div class="bb-copy"><span class="bb-k">THEN COPY INTO YOUR WALLET</span>
-            <div class="bb-cp"><span class="bb-n">2</span><span class="bb-cpv"><span class="bb-cpk">Address</span><span class="bb-val" id="pay-to"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-to" aria-label="Copy address">Copy</button></div>
-            <div class="bb-cp"><span class="bb-n">3</span><span class="bb-cpv"><span class="bb-cpk">Amount</span><span class="bb-val" id="pay-amt"></span></span><button type="button" class="bb-cpbtn" data-copy="pay-amt" aria-label="Copy amount">Copy</button></div>
+      <p class="hk-note bb-payh" id="pay-note"><span>Pay exactly <b id="pay-amount"></b> once, from a shielded address.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
+      <section class="hk-sec bb-memofirst">
+        <div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t">First, put this message in your wallet's memo</span></span></div>
+        <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Message</span><span class="v" id="memo"></span></span><button type="button" class="hk-cpbtn" data-copy="memo" aria-label="Copy message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+        <p class="hk-note warn" id="memo-warn"><span>Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.</span></p>
+        <label class="hk-tick"><input type="checkbox" id="attached"><span class="box" aria-hidden="true">✓</span>I attached the message</label>
+        <div class="hk-folds"><details class="bb-fold bb-wallets" id="wallets"><summary><span>▸ Which wallets keep the message?</span></summary><div class="bb-foldb"><span id="wallets-text"></span></div></details></div>
+      </section>
+      <p class="hk-small" id="pay-locked">Tick the box to see the address and the amount.</p>
+      <div class="hk-main bb-paylock" id="pay-lock" hidden>
+        <section class="hk-sec">
+          <div class="hk-sechd"><span class="l"><span class="n">2</span><span class="t">Scan to pay</span></span></div>
+          <div class="hk-scan"><div class="hk-qr" id="qr" role="img" aria-label="Payment code"></div>
+            <div class="hk-scancol"><p class="hk-p">Scan with your wallet. The address, amount and message fill in for you.</p>
+              <div class="hk-btnrow"><a class="hk-btn" id="open-wallet" href="#"><span>Open in my wallet</span><span aria-hidden="true">→</span></a></div></div></div>
+        </section>
+        <section class="hk-sec">
+          <div class="hk-sechd"><span class="l"><span class="n">3</span><span class="t">Can't scan? Copy by hand</span></span></div>
+          <div>
+            <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Address</span><span class="v" id="pay-to"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-to" aria-label="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+            <div class="hk-cprow"><span class="n">2</span><span class="m"><span class="k">Amount</span><span class="v" id="pay-amt"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-amt" aria-label="Copy amount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
           </div>
-        </div>
-        <div class="bb-acts bb-actrow"><a class="bb-primary" id="open-wallet" href="#">Open in my wallet</a></div>
+        </section>
       </div>
-      <div class="bb-acts bb-actrow" id="noir-row" hidden><button type="button" class="bb-secondary bb-tall" id="noir-pay" hidden>Pay with Noir</button></div>
-      <p class="noir-msg" id="noir-msg" role="status" hidden></p>
-      <button type="button" class="bb-link bb-strong" id="to-status">I've paid. Show my status →</button>
+      <div class="hk-btnrow" id="noir-row" hidden><button type="button" class="hk-btn out" id="noir-pay" hidden>Pay with Noir</button></div>
+      <p class="hk-hint noir-msg" id="noir-msg" role="status" hidden></p>
+      <div class="hk-btnrow"><button type="button" class="hk-link bb-strong" id="to-status">I've paid. Show my status →</button></div>
     </div>
-    <aside class="bb-aside">
-      <b class="bb-at">Your bid</b>
-      <div class="bb-mine"></div>
-      <details class="bb-fold"><summary><span>▸ Why a shielded address?</span></summary><div class="bb-foldb"><span>It keeps your wallet history off the public record.</span></div></details>
-      <span class="bb-payby" id="pay-by"></span>
+    <aside class="hk-aside">
+      <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Your bid</span></span></div>
+      <div class="hk-kvs bb-mine"></div></section>
+      <div class="hk-folds"><details class="bb-fold"><summary><span>▸ Why a shielded address?</span></summary><div class="bb-foldb"><span>It keeps your wallet history off the public record.</span></div></details></div>
+      <span class="hk-small bb-payby" id="pay-by"></span>
     </aside>
   </section>
 
   <!-- 3. one status card that changes -->
-  <section class="bb-grid" id="status-card" hidden>
-    <div class="bb-status" id="st-card" role="status" aria-live="polite" data-tone="m">
-      <span class="bb-tag"><i></i><span id="st-tag"></span></span>
-      <h1 id="st-title"></h1>
-      <div class="bb-num" id="st-numrow" hidden><b id="st-num"></b><span id="st-unit"></span></div>
-      <span class="bb-l1" id="st-text"></span>
-      <span class="bb-chain" id="st-chain" hidden>✓ Checked on the chain</span>
-      <div class="bb-cd" id="st-cd" hidden><div><b id="cd-h">00</b><span>HRS</span></div><div><b id="cd-m">00</b><span>MIN</span></div><div><b id="cd-s">00</b><span>SEC</span></div></div>
-      <div class="bb-take">
-        <button type="button" class="bb-primary bb-takebtn" id="take-back" hidden>Take my money back</button>
-        <button type="button" class="bb-primary bb-takebtn" id="send-late" hidden>Take my money back</button>
-        <div class="bb-ask" id="take-ask" role="alertdialog" aria-label="Confirm" hidden><span>Send <b id="take-amt"></b> back to <b id="take-to"></b>? Your bid leaves the auction. Your bid and refund address still become public after the close.</span>
-          <div class="bb-row"><button type="button" class="bb-red" id="take-yes">Yes, send it back</button><button type="button" class="bb-secondary" id="take-no">Not now</button></div></div>
+  <section class="hk-body bb-grid" id="status-card" hidden>
+    <div class="hk-main">
+      <div class="hk-card bb-status" id="st-card" role="status" aria-live="polite" data-tone="m"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq"></span>
+        <span class="hk-kick bb-tag"><span id="st-tag"></span></span>
+        <h2 class="hk-h2 big" id="st-title"></h2>
+        <div class="bb-num" id="st-numrow" hidden><b id="st-num"></b><span id="st-unit"></span></div>
+        <p class="hk-p bb-l1" id="st-text"></p>
+        <span class="hk-kick pass bb-chain" id="st-chain" hidden>Checked on the chain</span>
+        <div class="bb-cd" id="st-cd" hidden><div><span>Hours</span><b id="cd-h">00</b></div><div><span>Minutes</span><b id="cd-m">00</b></div><div><span>Seconds</span><b id="cd-s">00</b></div></div>
+        <div class="hk-btnrow bb-take">
+          <button type="button" class="hk-btn out bb-takebtn" id="take-back" hidden>Take my money back</button>
+          <button type="button" class="hk-btn out bb-takebtn" id="send-late" hidden>Take my money back</button>
+          <button type="button" class="hk-btn out" id="challenge" hidden>Publish proof that my payment was valid</button>
+          <button type="button" class="hk-btn out" id="st-back-pay" hidden>← Back to payment</button>
+          <a class="hk-btn out" id="st-recount" href="#" hidden>↻ Recount it yourself</a>
+          <button type="button" class="hk-link bb-morebtn" id="st-more-btn" aria-expanded="false" aria-controls="st-more">more</button>
+        </div>
+        <p class="hk-hint" id="st-work" role="status" hidden></p>
+        <p class="hk-hint" id="send-msg" role="status" hidden></p>
+        <p class="hk-hint bb-more" id="st-more" hidden></p>
       </div>
-      <button type="button" class="bb-secondary" id="challenge" hidden>Publish proof that my payment was valid</button>
-      <button type="button" class="bb-secondary" id="st-back-pay" hidden>← Back to payment</button>
-      <a class="bb-secondary" id="st-recount" href="#" hidden>↻ Recount it yourself</a>
-      <p class="bb-help" id="st-work" role="status" hidden></p>
-      <p class="bb-help" id="send-msg" role="status" hidden></p>
-      <div class="bb-more"><button type="button" class="bb-morebtn" id="st-more-btn" aria-expanded="false" aria-controls="st-more">more</button><span id="st-more" hidden></span></div>
+      <div class="hk-card bb-ask"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+        <span class="hk-kick">Take my money back</span>
+        <h2 class="hk-h2 big">Are you sure?</h2>
+        <div class="bb-askin" id="take-ask" role="alertdialog" aria-label="Confirm" hidden><p class="hk-p">Send <b id="take-amt"></b> back to <b id="take-to"></b>? Your bid leaves the auction. Your bid and refund address still become public after the close.</p>
+          <div class="hk-btnrow"><button type="button" class="hk-btn out bb-red" id="take-yes">Yes, send it back</button><button type="button" class="hk-btn out" id="take-no">Not now</button></div>
+        </div>
+      </div>
     </div>
-    <aside class="bb-side">
-      <div class="bb-aside"><b class="bb-at">Your bid</b><div class="bb-mine"></div></div>
-      <div class="bb-onlycard"><span class="bb-only">◆ ONLY IN THIS BROWSER</span><span>Your bid lives here. The backup file brings it back anywhere.</span><button type="button" class="bb-secondary" id="backup2">↓ Download backup file</button></div>
+    <aside class="hk-aside">
+      <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Your bid</span></span></div><div class="hk-kvs bb-mine"></div></section>
+      <div class="hk-card bb-onlycard"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq"></span><span class="hk-kick a2">Only in this browser</span><p class="hk-p bb-onlyp">Your bid lives here. The backup file brings it back anywhere.</p><div class="hk-btnrow"><button type="button" class="hk-btn out" id="backup2">↓ Download backup file</button></div></div>
     </aside>
   </section>
 </div>

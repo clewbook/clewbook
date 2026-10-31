@@ -6,6 +6,7 @@
 <title>New campaign</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="setup.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -15,17 +16,22 @@
 <body>
 <header class="bar">
   <a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="/">Dashboard</a><a href="/setup.html" aria-current="page">New campaign</a></nav>
 </header>
-<main class="page">
-  <div class="back-row"><a class="pill-back" href="/">← Dashboard</a></div>
-  <div class="su-head">
-  <p class="t-label su-k">Host · New campaign · Your computer</p>
-  <h1 class="t-h1">Set up a campaign</h1>
-  <p class="t-lead">Choose what you are running and when it ends. Every contributor gets a refund signed in advance.</p>
-  <p class="muted" id="net-note"></p>
+<main class="page su app-main">
+<div class="hk-page su-page">
+  <div class="su-toprow">
+    <nav class="su-nav" aria-label="Host program"><a href="/">Dashboard</a><a href="/setup.html" aria-current="page">New campaign</a></nav>
+    <span class="su-where"><span id="su-host">Your computer</span><span class="su-net" id="su-net" hidden></span></span>
   </div>
-  <div id="banner" class="notice bad" hidden></div>
+  <a class="su-back" href="/">← Dashboard</a>
+  <div class="su-head hk-titlecol">
+  <p class="hk-eyebrow su-k">Host · New campaign · Your computer</p>
+  <h1 class="hk-h1 su-h1">Set up a campaign</h1>
+  <p class="hk-p su-lead">Choose what you are running and when it ends. Every contributor gets a refund signed in advance.</p>
+  <p class="su-netline" id="net-note"></p>
+  </div>
+  <div id="banner" class="su-status" role="status" hidden></div>
+  <div id="su-errbar" class="su-status" role="status" hidden><b>Check this:</b> <span id="su-errbar-t"></span></div>
   <div id="mainnet-banner" class="notice bad mainnet" hidden><div class="k">MAINNET: real money</div><h3>This program is set to the real Zcash network</h3><p>Everything created here runs on Zcash Mainnet, and a mistake can lose real money. Contributors will pay real money into this campaign.</p><p id="nu7-note"></p></div>
 
   <form id="setup-form" novalidate>
@@ -37,7 +43,7 @@
         <legend class="sr">Type of campaign</legend>
         <label class="choice"><input type="radio" name="mode" value="raise" checked><span><b>Fundraiser</b><small>If the goal is not reached by the deadline, everyone is refunded.</small></span></label>
         <label class="choice"><input type="radio" name="mode" value="auction"><span><b>Auction</b><small>The highest bids win, everyone else is refunded.</small></span></label>
-        <label class="choice" id="sealed-choice" hidden><input type="radio" name="mode" value="sealed_auction"><span><b>Blind bid auction</b><small>Each bid stays locked until a drand round after the deadline, so nobody, you included, can read a bid before bidding closes. Each person pays a deposit of one of the sizes you set; the highest bids win. Bids and refund addresses become public after the close. Works on mainnet too; there it must end before NU7 for now.</small></span></label>
+        <label class="choice" id="sealed-choice" hidden><input type="radio" name="mode" value="sealed_auction"><span><b>Blind bid auction</b><small>Each bid stays locked until a drand round after the deadline, so nobody, you included, can read a bid before bidding closes. Each person pays a deposit of one of the sizes you set; the highest bids win. Bids and refund addresses become public after the close. Works on mainnet too; there it must end before the next Zcash network upgrade for now.</small></span></label>
       </fieldset>
       <label for="campaign-name">Name (optional)</label>
       <input id="campaign-name" autocomplete="off" maxlength="60" placeholder="For example: Community radio mast">
@@ -121,7 +127,7 @@
   </div>
 
   <div class="su-side">
-    <section class="su-sum">
+    <section class="su-sum"><span class="ecm tl" aria-hidden="true"></span><span class="ecm tr" aria-hidden="true"></span><span class="ecm bl" aria-hidden="true"></span><span class="ecm br" aria-hidden="true"></span>
       <h2>What you are about to publish</h2>
       <dl class="kv pl" id="terms"></dl>
     </section>
@@ -144,6 +150,7 @@
   </div>
   </div>
   </form>
+</div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

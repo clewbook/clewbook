@@ -19,7 +19,7 @@ FILES = PAGES | {
     "robots.txt", "campaigns.json",
     "ui.css", "start.css", "recount.css", "campaign.css", "card.css", "badge.css", "contribute.css", "bid.css",
     "loadguard.js", "recount.js", "recount-page.js", "campaign.js", "card.js", "badge.js", "contribute.js", "public.js",
-    "capabilities.js", "canon.js", "ui.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js", "nu7.js", "anchor.js", "go.js", "result.js",
+    "capabilities.js", "canon.js", "ui.js", "notfound.js", "brand.js", "blocktime.js", "proof-worker.js", "copies.js", "home.js", "host.js", "bid.js", "about.js", "nu7.js", "anchor.js", "go.js", "result.js",
 }
 PATTERNS = [re.compile(p) for p in (
     r"fonts/[A-Za-z0-9-]+\.(woff2|txt)",
@@ -52,10 +52,10 @@ def csp(rel):
 NOT_FOUND = b"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <script>(function(){var c='system';try{c=localStorage.getItem('cb-theme')||'system'}catch(e){}if(c!=='light'&&c!=='dark')c='system';var r=document.documentElement,m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');r.dataset.themeChoice=c;r.dataset.theme=(c==='dark'||(c==='system'&&m&&m.matches))?'dark':'light'})()</script>
 <title>Not here</title><link rel="stylesheet" href="/ui.css"><link rel="stylesheet" href="/start.css">
-<header class="bar"><a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span><nav class="nav" aria-label="Main"><a href="/">Campaigns</a><a href="/recount.html">Recount</a><a href="/host.html">Host</a></nav></header>
-<main class="page notfound"><p class="nf-k">404</p><h1 class="nf-h">That page isn't here</h1><p class="nf-l">The address may be mistyped, or the page may not exist yet.</p>
-<p class="btns nf-b"><a class="btn" href="/">Go to campaigns</a> <a class="btn neutral" href="/host.html">Host guide</a></p></main>
-<footer class="sitefoot"><span>Clewbook &middot; Private Markets. Public Accounting.</span></footer>"""
+<header class="bar"><a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span></header>
+<main class="page notfound app-main"><div class="nf"><span class="nf-big" aria-hidden="true">404</span><span class="nf-k">404</span><h1 class="nf-h">That page isn't here</h1><p class="nf-l">The address may be mistyped, or the page may not exist yet.</p>
+<p class="hk-btnrow nf-b"><a class="hk-btn" href="/">Go to campaigns</a><a class="hk-btn out" href="/host.html">Host guide</a></p></div></main>
+<footer class="sitefoot"></footer><script type="module" src="/notfound.js"></script>"""
 
 # Public lightwalletd servers that do not allow browser requests themselves. This local server forwards
 # a browser's gRPC-web call to them (same request, same answer, nothing stored), so the recount page can

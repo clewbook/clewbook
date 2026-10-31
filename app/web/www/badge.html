@@ -6,6 +6,7 @@
 <title>Recount badge</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="badge.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -14,13 +15,12 @@
 </head>
 <body class="badge-body">
 <a class="badge" id="badge" href="#" target="_top" rel="noopener">
-  <span class="t"><span class="brand">Powered by <span data-brand></span></span><span class="t-label">Recount badge</span></span>
-  <span class="m">
-    <span class="n" id="badge-name">Campaign</span>
-    <span class="s recount-cta">Recount this campaign →</span>
-    <span class="st"><span class="chip nc"><svg aria-hidden="true"><use href="#i-nc"/></svg>Not yet recounted</span></span>
-  </span>
-  <span class="f">Nothing is checked here. <u>Open the live recount</u></span>
+  <span class="ecm tl" aria-hidden="true"></span><span class="ecm tr" aria-hidden="true"></span><span class="ecm bl" aria-hidden="true"></span><span class="ecm br" aria-hidden="true"></span>
+  <span class="t"><span class="t-label">Recount badge</span><span class="brand">Powered by <span data-brand></span></span></span>
+  <span class="nrow"><span class="n" id="badge-name">Campaign</span><span class="bnet" id="badge-net" hidden>Testnet</span></span>
+  <span class="s recount-cta" id="badge-cta">Recount this campaign →</span>
+  <span class="st" id="badge-pill">Not yet recounted</span>
+  <span class="f" id="badge-foot">Nothing is checked here. <u>Open the live recount</u></span>
 </a>
 <script src="loadguard.js"></script>
 <script type="module" src="badge.js"></script>

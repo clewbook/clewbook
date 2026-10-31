@@ -5,7 +5,7 @@ import init, * as W from './pkg/ll_web.js';
 import { crossCheck } from './recount.js';
 import { sha256hex, reportEnvelope } from './canon.js';
 import { NOT_CHECKED } from './capabilities.js';
-import { setNetwork, setup, decorateAmounts, mountHash, setCampaignLabel, markReady, CHECKS } from './ui.js';
+import { setNetwork, showPageNet, setup, decorateAmounts, mountHash, setCampaignLabel, markReady, CHECKS } from './ui.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, forget, memoryWords, compareLists, describeComparison, hashesOf } from './copies.js';
 import { linkParams, readAllRelays, readRelay, judge, fromSavedCopy, hostOf, coin, sibling, groupOf, serverName, tipOf, DEFAULT_ENDPOINTS, milestones, backToMilestones } from './public.js';
 
@@ -20,7 +20,7 @@ function banner(kind, text) {
   if (kind === 'bad') { d.className = 'notice bad'; d.textContent = text; return d; }
   // a grey advisory note (round 11): its own ✕ removes it for this run only; "Run it again" or a reload brings it back
   d.className = 'rnote'; d.setAttribute('role', 'note'); d.dataset.kind = kind; d.textContent = text;
-  const x = document.createElement('button'); x.type = 'button'; x.className = 'rnote-x'; x.setAttribute('aria-label', 'Dismiss this note'); x.textContent = '✕';
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'rnote-x'; x.setAttribute('aria-label', 'Dismiss this note'); x.textContent = '[x]';
   x.addEventListener('click', () => d.remove());
   d.append(x);
   return d;
@@ -33,7 +33,7 @@ function fact(dl, label, value) {
 }
 function verdict(kind, title, text, limitedFail = false) {
   const v = $('#verdict');
-  v.className = `verdict ${kind}`; // pass | fail | cannot | partial | working
+  v.className = `verdict hk-card ${kind}`; // pass | fail | cannot | partial | working (hk-card: the Halide card look)
   $('#verdict-title').textContent = title;
   $('#verdict-text').textContent = text; // empty for a plain pass or fail: the heading and the tags say it (round 10); the empty line takes no room
   v.dataset.kind = kind;
@@ -44,6 +44,17 @@ function verdict(kind, title, text, limitedFail = false) {
     : kind === 'fail' ? [['fail', '✕ FAIL'], ...(limited ? [['limited', '△ LIMITED']] : [])]
     : kind === 'cannot' ? [['wait', /^Not yet possible/.test(title) ? '◷ WAIT' : '◷ CANNOT CONCLUDE']] : [['nc', 'WORKING']];
   $('#verdict-kicker').replaceChildren(...tags.map(([c, t]) => Object.assign(document.createElement('span'), { className: `spill vtag ${c}`, textContent: t })));
+  // the same words as chips in the top row (prototype), without their marks
+  $('#rv-chips').replaceChildren(...tags.map(([c, t]) => Object.assign(document.createElement('span'), { className: `cv-chip rv-chip ${c}`, textContent: t.replace(/^\S+ /, '') })));
+  netChip();
+}
+/** The campaign's network as the last chip of the top row (the logo carries no network chip, owner 31 Oct 2026): Mainnet in ink, Testnet amber. */
+function netChip() {
+  const net = document.documentElement.dataset.net, box = $('#rv-chips');
+  let el = box.querySelector('.rv-net');
+  if (net !== 'main' && net !== 'test') { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('span'); box.append(el); }
+  el.className = `cv-chip rv-chip rv-net ${net}`; el.textContent = net === 'main' ? 'Mainnet' : 'Testnet';
 }
 const progress = (t) => { $('#progress').textContent = t; };
 const warn = (kind, text) => $('#banners').append(banner(kind, text));
@@ -229,8 +240,11 @@ async function recount() {
   $('#campaign-id').title = '';
   $('#rc-name').textContent = c.name || ''; $('#rc-name').hidden = !c.name; if (c.name) $('#rc-name').title = c.name;
   const rules = JSON.parse(j.rules);
+  // the title (prototype): the campaign's name, else its kind and short id
+  if (c.name) $('#rv-h1').textContent = c.name;
+  else $('#rv-h1').replaceChildren(`${rules.sealed ? 'Blind bid auction' : c.mode === 'auction' ? 'Auction' : 'Fundraiser'} `, Object.assign(document.createElement('span'), { className: 'rv-id', textContent: `${cfg.id.slice(0, 8)}…` }));
   copyStep(j);
-  setNetwork(c.network);
+  setNetwork(c.network); netChip();
   const closeEntry = j.entries.find((e) => e.kind === 'close');
   // a sealed bid auction publishes its viewing key in a reveal entry, once every winner is settled
   const revealEntry = j.entries.find((e) => e.kind === 'reveal');
@@ -578,6 +592,7 @@ function wireFind() {
  *  any relay; the chain servers are the defaults of the network the file's rules name. Returns once a usable file was loaded. */
 async function uploadMode() {
   $('#frame').hidden = true; $('#empty').hidden = false;
+  showPageNet(); // no campaign: the page follows the network this browser shows
   $('#upload-card').hidden = false;
   // "Import ticket backup file" belongs to this state only (no campaign in the address); the home and campaign pages link to it here
   $('#ticket-box').hidden = false;

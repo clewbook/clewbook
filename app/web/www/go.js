@@ -10,9 +10,15 @@ import { setup, markReady } from './ui.js';
 const $ = (s) => document.querySelector(s);
 const prefix = (new URLSearchParams(location.search).get('p') || '').toLowerCase();
 
-function say(title, line) {
+// the design's states (presentation only): finding (the bar), not found (Go to campaigns), the listing unreadable (one red line and Try again),
+// more than one match (the rows)
+function say(title, line, state = '') {
   $('#go-title').textContent = title;
-  $('#go-line').textContent = line || '';
+  $('#go-line').textContent = line || ''; $('#go-line').hidden = !line;
+  $('#go-bar').hidden = state !== 'finding';
+  $('#go-err').hidden = state !== 'listerr';
+  $('#go-home').hidden = state !== 'notfound'; $('#go-again').hidden = state !== 'listerr';
+  $('#go-acts').hidden = $('#go-home').hidden && $('#go-again').hidden;
   document.title = title;
 }
 
@@ -44,37 +50,50 @@ async function details(item) {
       if (!res.ok) continue;
       const c = JSON.parse(W.campaign_summary(await res.text(), item.id));
       const kind = c.sealed ? 'Blind bid auction' : c.mode === 'auction' ? 'Auction' : 'Fundraiser';
-      return { ...item, title: c.name || `${kind} ${item.id.slice(0, 8)}…`, network: c.network, start: c.start_height, time: await blockTime(c.network, c.start_height) };
+      return { ...item, kind, title: c.name || `${kind} ${item.id.slice(0, 8)}…`, network: c.network, start: c.start_height, time: await blockTime(c.network, c.start_height) };
     } catch { /* the next relay */ }
   }
   return { ...item, title: null };
 }
 
 async function main() {
-  setup('Campaign link', { netbar: false });
+  setup('Campaign link');
   markReady();
-  if (!/^[0-9a-f]{8,64}$/.test(prefix)) { say('Campaign not found', ''); return; }
+  $('#go-again').addEventListener('click', () => location.reload());
+  say('Finding the campaign', '', 'finding');
+  if (!/^[0-9a-f]{8,64}$/.test(prefix)) { say('Campaign not found', '', 'notfound'); return; }
   let listed = [];
-  try { listed = (await (await fetch('campaigns.json', { cache: 'no-store' })).json()).campaigns || []; } catch { /* none */ }
+  try { listed = (await (await fetch('campaigns.json', { cache: 'no-store' })).json()).campaigns || []; } catch { say('Campaign link', '', 'listerr'); return; } // the listing could not be read: say so, not "not found"
   const hits = listed.filter((c) => typeof c.id === 'string' && /^[0-9a-f]{64}$/.test(c.id) && c.id.startsWith(prefix));
-  if (!hits.length) { say('Campaign not found', ''); return; }
+  if (!hits.length) { say('Campaign not found', '', 'notfound'); return; }
   if (hits.length === 1) { location.replace(linkOf(hits[0])); return; }
   // two or more campaigns begin with the same 8 characters: never pick one; show each, the oldest first
-  say('More than one campaign has this link', 'Check the full id with whoever sent you the link. The oldest is first.');
+  say('More than one campaign has this link', 'Check the full id with whoever sent you the link. The oldest is first.', 'finding');
   await init();
   const all = await Promise.all(hits.map(details));
   all.sort((a, b) => (a.time ?? Infinity) - (b.time ?? Infinity) || (a.start ?? Infinity) - (b.start ?? Infinity));
   const list = $('#go-list');
-  list.replaceChildren(...all.map((c) => {
+  $('#go-bar').hidden = true;
+  list.replaceChildren(...all.map((c, i) => {
     const li = document.createElement('li');
-    const a = document.createElement('a'); a.href = linkOf(c); a.textContent = c.title || 'Details could not be read';
+    // one row, a link to the campaign (prototype): number, title and type, the full id, when it was made, an arrow
+    const a = document.createElement('a'); a.className = 'go-row'; a.href = linkOf(c);
+    for (const k of ['tl', 'tr', 'bl', 'br']) a.append(Object.assign(document.createElement('span'), { className: `ecm ${k}` }));
+    const n = Object.assign(document.createElement('span'), { className: 'go-n', textContent: String(i + 1).padStart(2, '0') });
+    const mid = Object.assign(document.createElement('span'), { className: 'go-mid' });
+    const top = Object.assign(document.createElement('span'), { className: 'go-top' });
+    top.append(Object.assign(document.createElement('b'), { textContent: c.title || 'Details could not be read' }));
+    if (c.title && c.kind) top.append(Object.assign(document.createElement('span'), { className: 'go-type', textContent: c.kind }));
     const id = document.createElement('code'); id.textContent = c.id;
-    const made = document.createElement('span');
+    const made = document.createElement('span'); made.className = 'go-when';
     made.textContent = c.time ? `Made ${new Date(c.time * 1000).toUTCString().replace(/ GMT$/, ' UTC')}, block ${c.start.toLocaleString('en-US')}, ${c.network === 'main' ? 'mainnet' : 'testnet'}` : c.start != null ? `Made at block ${c.start.toLocaleString('en-US')}, ${c.network === 'main' ? 'mainnet' : 'testnet'}` : 'Date not known';
-    li.append(a, document.createElement('br'), id, document.createElement('br'), made);
+    mid.append(top, id, made);
+    a.append(n, mid, Object.assign(document.createElement('span'), { className: 'go-arrow', textContent: '→' }));
+    a.lastChild.setAttribute('aria-hidden', 'true');
+    li.append(a);
     return li;
   }));
   list.hidden = false;
 }
 
-main().catch(() => say('Campaign not found', 'The listing could not be read. Try again in a minute.'));
+main().catch(() => say('Campaign link', '', 'listerr'));

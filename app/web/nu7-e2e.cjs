@@ -87,7 +87,7 @@ const server = http.createServer((req, res) => {
   config = { ...base, network: 'main', ticker: 'ZEC' };
   const sp = await open('setup.html');
   const sealedText = ((await sp.textContent('#sealed-choice small')) || '').trim();
-  check('the set up page\'s blind bid choice says it works on mainnet, with the NU7 note, in one line', /Works on mainnet too; there it must end before NU7 for now\.$/.test(sealedText) && !/Test network only for now/.test(sealedText), sealedText.slice(-80));
+  check('the set up page\'s blind bid choice says it works on mainnet, with the NU7 note, in one line', /Works on mainnet too; there it must end before the next Zcash network upgrade for now\.$/.test(sealedText) && !/Test network only for now/.test(sealedText), sealedText.slice(-80));
   await sp.close();
   check('no page error', errors.length === 0, errors.join(' | '));
   await browser.close();

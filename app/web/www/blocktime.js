@@ -1,13 +1,13 @@
 // Seconds per block, measured from the block times of the last 100 blocks on a public server; no wasm needed, so the host's pages
 // (which are served by the host program, not by the page server) can use it. Returns null if no server answers: no guessed constant.
-// NU7 (ZIP 218): blocks every 25 s instead of 75 s from these heights on. The same table as ll_core::rules::nu7_height: a private test
-// chain has none. A campaign made from NU7 on has three times the blocks in each window; one made before keeps its own (its rules are signed).
+// The next Zcash network upgrade (ZIP 218): blocks every 25 s instead of 75 s from these heights on. The same table as ll_core::rules::nu7_height: a private test
+// chain has none. A campaign made from the next Zcash network upgrade on has three times the blocks in each window; one made before keeps its own (its rules are signed).
 export const NU7_HEIGHT = { main: 3543405, test: 4465026 };
 
-/** Whether a campaign starting at `startHeight` on `network` was made after NU7. */
+/** Whether a campaign starting at `startHeight` on `network` was made after the next Zcash network upgrade. */
 export const afterNu7 = (network, startHeight) => NU7_HEIGHT[network] != null && startHeight >= NU7_HEIGHT[network];
 
-/** The first block to measure the block time from, `span` blocks back from `tip`, but never before NU7 once the tip is past it: blocks of
+/** The first block to measure the block time from, `span` blocks back from `tip`, but never before the next Zcash network upgrade once the tip is past it: blocks of
  *  75 s and 25 s together would give a time that is neither. */
 export function firstMeasured(network, tip, span) {
   const a = NU7_HEIGHT[network];

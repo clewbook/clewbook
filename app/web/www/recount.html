@@ -6,6 +6,7 @@
 <title>Recount</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="recount.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -15,74 +16,86 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="#" aria-current="page">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./#campaigns">Campaigns</a><a href="#" aria-current="page">Recount</a><a href="host.html">Hosting</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
 <div class="aurora" aria-hidden="true"><div></div></div>
-<main class="page recount">
+<main class="page recount app-main">
   <!-- Part A: no campaign in the address. Both tabs show this same content -->
-  <div class="rempty" id="empty" hidden>
-    <div class="rhero">
-      <span class="reyebrow"><i aria-hidden="true"></i>RECOUNT</span>
-      <h1 class="rh1">Don't trust the host. Recount it.</h1>
-      <p class="rsub">Check a campaign's books yourself, in your browser, against the Zcash chain.</p>
-      <div class="rfacts"><span>9 checks for a fundraiser</span><span>13 for an auction</span><span>10 for a blind bid auction</span><span>No account, nothing to install</span></div>
+  <div class="rempty hk-page" id="empty" hidden>
+    <div class="hk-head rhero">
+      <div class="hk-titlecol">
+        <span class="hk-eyebrow reyebrow">Recount</span>
+        <h1 class="hk-h1 rh1">Don't trust the host.</h1>
+        <p class="hk-p rsub">Recount a campaign's books yourself, in your browser, against the Zcash chain.</p>
+      </div>
+      <div class="etabs" role="tablist" aria-label="Recount">
+        <button type="button" role="tab" id="etab-recount" aria-selected="true">Recount</button>
+        <button type="button" role="tab" id="etab-totals" aria-selected="false" tabindex="-1">Totals</button>
+      </div>
     </div>
     <form class="rfind" id="find" role="search" autocomplete="off" novalidate>
-      <label class="rfind-k" for="find-q">Recount a campaign</label>
-      <div class="rfind-row">
-        <input id="find-q" type="search" placeholder="Name, campaign id or link" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-list">
-        <button type="submit" class="rfind-go">Recount</button>
+      <label class="rfind-k sr" for="find-q">Search a campaign by name or ID</label>
+      <div class="rfind-row"><span class="rfind-ic" aria-hidden="true">⌕</span>
+        <input id="find-q" type="search" placeholder="Search a campaign by name or ID to recount it" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-list">
+        <button type="submit" class="rfind-go sr">Recount</button>
       </div>
       <ul class="rfind-list" id="find-list" role="listbox" aria-label="Listed campaigns" hidden></ul>
       <p class="warnline" id="find-error" role="alert" hidden></p>
     </form>
     <div class="ebody">
-      <div class="etabs" role="tablist" aria-label="Recount">
-        <button type="button" role="tab" id="etab-recount" aria-selected="true">RECOUNT</button>
-        <button type="button" role="tab" id="etab-totals" aria-selected="false" tabindex="-1">TOTALS</button>
-      </div>
       <div class="ecards">
         <section class="ecard" id="ticket-box" hidden>
-          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v8a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2z"/><line x1="14" y1="7" x2="14" y2="17" stroke-dasharray="2 2"/></svg></span><span class="ec-k">YOUR CONTRIBUTION OR BID</span></div>
+          <span class="ecm tl" aria-hidden="true"></span><span class="ecm tr" aria-hidden="true"></span><span class="ecm bl" aria-hidden="true"></span><span class="ecm br" aria-hidden="true"></span>
+          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v8a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2z"/><line x1="14" y1="7" x2="14" y2="17" stroke-dasharray="2 2"/></svg></span><span class="ec-k">Your contribution or bid</span></div>
           <h2 class="ec-h">Import ticket backup file</h2>
           <p class="ec-p">Opens your contribution or bid. The file is read in this browser and is not sent anywhere.</p>
-          <div class="ec-file"><label class="filebtn"><input type="file" id="ticket-file" accept="application/json,.json" aria-label="Import ticket backup file"><span aria-hidden="true">↑</span>Choose file</label><span class="fname" id="ticket-fname">No file chosen</span></div>
+          <div class="ec-file"><label class="filebtn hk-btn"><input type="file" id="ticket-file" accept="application/json,.json" aria-label="Import ticket backup file"><span>Choose file</span><span aria-hidden="true">→</span></label><span class="fname" id="ticket-fname">No file chosen</span></div>
           <p id="ticket-error" class="warnline" role="alert" hidden></p>
           <div id="ticket-result" class="tb-card" aria-live="polite" hidden></div>
         </section>
         <section class="ecard" id="upload-card" hidden>
-          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><line x1="10" y1="11" x2="15" y2="11"/><line x1="10" y1="15" x2="15" y2="15"/></svg></span><span class="ec-k">A CAMPAIGN'S LIST</span></div>
+          <span class="ecm tl" aria-hidden="true"></span><span class="ecm tr" aria-hidden="true"></span><span class="ecm bl" aria-hidden="true"></span><span class="ecm br" aria-hidden="true"></span>
+          <div class="ec-top"><span class="ec-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><line x1="10" y1="11" x2="15" y2="11"/><line x1="10" y1="15" x2="15" y2="15"/></svg></span><span class="ec-k">A campaign's list</span></div>
           <h2 class="ec-h">Check a saved copy</h2>
           <p class="ec-p">Saved a campaign's list before? Choose the file and your browser checks it against the Zcash chain. It never leaves your device. Get one from the host, or with "Keep a copy" after a recount.</p>
-          <div class="ec-file"><label class="filebtn"><input type="file" id="upload-file" accept="application/json,.json" aria-label="Check a saved copy"><span aria-hidden="true">↑</span>Choose file</label><span class="fname" id="upload-fname">No file chosen</span></div>
+          <div class="ec-file"><label class="filebtn hk-btn"><input type="file" id="upload-file" accept="application/json,.json" aria-label="Check a saved copy"><span>Choose file</span><span aria-hidden="true">→</span></label><span class="fname" id="upload-fname">No file chosen</span></div>
           <p id="upload-error" class="warnline" role="alert" hidden></p>
         </section>
       </div>
     </div>
-    <p class="elegend"><span>A recount ends as</span><span class="spill pass">PASS</span><span class="spill limited">LIMITED</span><span class="spill fail">FAIL</span></p>
+    <p class="elegend"><span>Each check ends as</span><span class="spill pass">PASS</span><span class="spill limited">LIMITED</span><span class="spill fail">FAIL</span></p>
+    <section class="hk-sec rdoes" aria-labelledby="rdoes-h">
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t" id="rdoes-h">What a recount does</span></span></div>
+      <ul class="rdoes-list"><li>Reads the host’s signed list from its relays.</li><li>Reads the blocks from public chain servers.</li><li>Checks one against the other, in this browser.</li></ul>
+    </section>
   </div>
 
   <!-- Parts B to D: a campaign's recount. The frame, then RECOUNT or TOTALS -->
-  <div class="rframe" id="frame" hidden>
-    <a class="rback" id="nav-campaign" href="#">← Campaign</a>
-    <div class="rtabrow">
-      <div class="rtabs" role="tablist" aria-label="Recount">
-        <button type="button" role="tab" id="tab-recount" aria-selected="true" aria-controls="panel-recount">RECOUNT</button>
-        <button type="button" role="tab" id="tab-totals" aria-selected="false" aria-controls="panel-totals" tabindex="-1">TOTALS</button>
+  <div class="rframe hk-page" id="frame" hidden>
+    <div class="hk-head">
+      <div class="hk-top"><a class="hk-back rback" id="nav-campaign" href="#">← Campaign</a><span class="hk-chips" id="rv-chips"></span></div>
+      <div class="hk-title"><div class="hk-titlecol">
+        <span class="hk-eyebrow rv-eyebrow">Recount · <button type="button" class="rcid" id="cid-copy" title="Copy campaign id"><span class="rcid-k">campaign</span> <b class="rid" id="campaign-id"></b> <span class="rcid-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></span><span class="rcid-ok" aria-hidden="true" hidden>✓</span></button></span>
+        <h1 class="hk-h1" id="rv-h1"></h1>
+        <span class="rcname sr" id="rc-name" hidden></span>
+      </div></div>
+      <div class="rtabrow">
+        <div class="rtabs" role="tablist" aria-label="Recount">
+          <button type="button" role="tab" id="tab-recount" aria-selected="true" aria-controls="panel-recount">Checks</button>
+          <button type="button" role="tab" id="tab-totals" aria-selected="false" aria-controls="panel-totals" tabindex="-1">Totals</button>
+        </div>
+        <button type="button" class="ragain tabagain hk-link" id="again-tab" hidden>↻ Run it again</button>
       </div>
-      <button type="button" class="ragain tabagain" id="again-tab" hidden>↻ Run it again</button>
-      <span class="rcname" id="rc-name" hidden></span>
-      <button type="button" class="rcid" id="cid-copy" title="Copy campaign id"><span class="rcid-k">CAMPAIGN</span><b class="rid" id="campaign-id"></b><span class="rcid-ic" aria-hidden="true"><i></i><i></i></span><span class="rcid-ok" aria-hidden="true" hidden>✓</span></button>
     </div>
 
-    <div class="rpanel" id="panel-recount" role="tabpanel" aria-labelledby="tab-recount">
-      <section id="verdict" class="verdict working" aria-live="polite">
-        <div class="vrow">
-          <div class="vmain"><span class="vtags" id="verdict-kicker"></span><h1 id="verdict-title">Working…</h1></div>
-          <button type="button" class="ragain" id="again" hidden>↻ Run it again</button>
-        </div>
-        <p id="verdict-text">Reading the public list.</p>
-        <p class="progress-line" id="progress"></p>
+    <div class="rpanel hk-body" id="panel-recount" role="tabpanel" aria-labelledby="tab-recount">
+     <div class="hk-main">
+      <section id="verdict" class="verdict working hk-card" aria-live="polite"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq"></span>
+        <span class="vtags hk-kick" id="verdict-kicker"></span>
+        <h2 class="hk-h2 big" id="verdict-title">Working…</h2>
+        <p class="hk-p" id="verdict-text">Reading the public list.</p>
+        <p class="hk-small progress-line" id="progress"></p>
+        <div class="hk-btnrow"><button type="button" class="ragain hk-btn out" id="again" hidden>↻ Run it again</button></div>
       </section>
 
       <div id="banners"></div>
@@ -96,14 +109,14 @@
         <p id="saved-using" class="notice info" hidden>Using the saved copy you loaded. <button type="button" class="secondary" id="saved-clear">Ask the relays again instead</button></p>
       </section>
 
-      <section class="rchecks" id="rules-card" hidden>
+      <section class="rchecks hk-sec" id="rules-card" hidden>
+        <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Checks</span></span><span class="rf-hint">Tap any row for details</span></div>
         <div class="rfilters">
           <div class="rf-chips" role="group" aria-label="Show checks">
             <button type="button" class="rchip" data-f="all" id="f-all" aria-pressed="true">All</button>
             <button type="button" class="rchip" data-f="bad" id="f-bad" aria-pressed="false">Problems</button>
             <button type="button" class="rchip" data-f="ok" id="f-ok" aria-pressed="false">Matched</button>
           </div>
-          <span class="rf-hint">Tap any row for details</span>
         </div>
         <div class="rtable">
           <div class="rt-head" aria-hidden="true"><span>ID</span><span>CHECK</span><span>STATUS</span><span></span></div>
@@ -111,9 +124,12 @@
         </div>
       </section>
 
-      <div id="summary" class="rsummary" hidden>
-        <p class="coverage" id="coverage-line"></p>
-        <details class="rfold ncfold"><summary>What a recount does not check · <span id="nc-count">0</span></summary>
+     </div>
+     <aside class="hk-aside">
+      <div id="summary" class="rsummary hk-sec" hidden>
+        <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Summary</span></span></div>
+        <div class="hk-kvs"><div class="hk-kv"><span>Coverage</span><span class="r"><span class="v coverage" id="coverage-line"></span></span></div></div>
+        <details class="rfold ncfold"><summary><span>What a recount does not check</span><span class="c" id="nc-count">0</span></summary>
           <div class="ncgrid" id="notchecked-line"></div>
           <p class="limits" id="limits-note">What this check cannot see: without a contributor revealing their one time secret, it can see that payments repeated an earlier payment's message and that a payment was set aside, but not what amount a message promised, so it cannot tell whether setting aside a payment for being too small was fair.</p>
         </details>
@@ -164,7 +180,7 @@
           </details>
         </section>
       </div>
-      <a class="rhome" href="./">Back to home page</a>
+     </aside>
     </div>
 
     <div class="rpanel totalspanel" id="panel-totals" role="tabpanel" aria-labelledby="tab-totals" hidden>

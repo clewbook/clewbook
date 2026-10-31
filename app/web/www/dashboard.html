@@ -6,6 +6,7 @@
 <title>Host dashboard</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="dashboard.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -17,42 +18,47 @@
   <a class="word" href="/" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
   <nav class="nav" aria-label="Main"><a href="/" aria-current="page">Dashboard</a><a href="/setup.html">New campaign</a></nav>
 </header>
-<main class="page dash">
-  <div class="dhead">
-    <div class="dh-l">
-      <h1 class="t-h1">Host</h1>
-      <div id="chooser">
+<main class="page dash app-main">
+<div class="hk-page dpage">
+  <div class="hk-head">
+    <div class="hk-top">
+      <div id="chooser" class="dchooser">
         <p id="no-campaigns" hidden>No campaign yet.</p>
         <label class="sr" for="campaign-select">Your campaigns</label>
         <select id="campaign-select" hidden></select>
       </div>
+      <span class="hk-chips" id="dh-chips"><span class="net-tag" id="net-tag" hidden></span><span id="dh-phase"></span></span>
     </div>
-    <p class="dh-where"><span id="dh-host">Your computer</span> <span class="net-tag" id="net-tag" hidden></span></p>
+    <div class="hk-title"><div class="hk-titlecol">
+      <span class="hk-eyebrow dh-where" id="dh-host">Your computer</span>
+      <h1 class="hk-h1" id="dh-h1">Host</h1>
+      <p class="hk-hint" id="dh-sub" hidden></p>
+    </div></div>
   </div>
-  <p class="muted" id="net-note"></p>
+  <p class="hk-small" id="net-note"></p>
+  <div class="hk-body dgrid">
+  <div class="hk-main dmain">
   <div id="banner" class="notice bad" hidden></div>
   <div id="treasury-reminder" class="notice warn" hidden></div>
-  <div id="mainnet-banner" class="notice mainnet" hidden><div class="k">ZCASH MAINNET</div><h3>This program is set to the real Zcash network</h3><p>Everything here runs on Zcash Mainnet. Closing a campaign moves real money and cannot be undone.</p></div>
+  <div id="mainnet-banner" class="notice mainnet" hidden><div class="k">Zcash mainnet</div><h3>This program is set to the real Zcash network</h3><p>Everything here runs on Zcash Mainnet. Closing a campaign moves real money and cannot be undone.</p></div>
   <section id="warnings-section" hidden>
     <h2 class="sr">Warnings</h2>
     <div id="warning-list" class="notices"></div>
   </section>
 
-  <div class="dgrid">
-  <div class="dmain">
   <div id="live" hidden>
     <div class="dtiles" id="dtiles"></div>
-    <section class="dcard">
-      <h2>Relays</h2>
+    <section class="dcard hk-sec">
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><h2 class="t">Relays</h2></span></div>
       <ol id="relay-list" class="runlog"></ol>
     </section>
-    <section class="dcard">
-      <h2>Transactions sent</h2>
+    <section class="dcard hk-sec">
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><h2 class="t">Transactions sent</h2></span></div>
       <p class="muted t-sm" id="broadcasts-note">The host follows every refund, sweep and settlement it sends. If a public server drops one, the same transaction is sent again.</p>
       <ul id="broadcast-list" class="progress"></ul>
     </section>
-    <section class="dcard" id="nia-section" hidden>
-      <h2>Payments not in the auction</h2>
+    <section class="dcard hk-sec" id="nia-section" hidden>
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><h2 class="t">Payments not in the auction</h2></span></div>
       <p class="muted t-sm">Paid without a bid message the auction can read. They are not bids and stay in the auction wallet unless you send one back.</p>
       <ul id="nia-list" class="progress"></ul>
       <form id="sb-form" class="sb-form" hidden autocomplete="off">
@@ -83,14 +89,19 @@
         </div>
       </form>
     </section>
+    <section class="dcard hk-sec dself">
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><h2 class="t">Self check</h2></span><span>your own data</span></div>
+      <p class="muted t-sm">The same checks anyone can run on your campaign, run on your own data.</p>
+      <div id="check-list" class="checks mt3"></div>
+    </section>
     <p class="dnote">Self check is the host checking itself. The public recount is the independent check.</p>
   </div>
   </div>
 
-  <aside class="dnext">
-    <section id="close-section" hidden>
-      <p class="dn-k">Next action</p>
-      <h2 class="dn-h" id="next-title">Close the campaign</h2>
+  <aside class="hk-aside dnext">
+    <section id="close-section" class="hk-card dn-card" hidden><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+      <p class="hk-kick dn-k">Next action</p>
+      <h2 class="hk-h2 dn-h" id="next-title">Close the campaign</h2>
       <p id="close-explain"></p>
       <button type="button" id="close-btn">Close the campaign</button>
       <p id="close-finish-error" class="muted" hidden></p>
@@ -135,30 +146,24 @@
     </section>
     <a class="btn dn-new" id="new-btn" href="/setup.html">+ Set up a new campaign</a>
     <a class="dn-how" href="https://app.clewbook.xyz/host.html">How hosting works</a>
-  </aside>
-  </div>
-
-  <div class="dmore" id="dmore" hidden>
-  <div class="cols dash-cols">
-  <div>
-    <section class="sect">
-      <div class="hd"><h2>Status</h2><span id="status-chip"></span></div>
-      <dl id="facts" class="kv pl"></dl>
-    </section>
-    <section class="sect" id="todo-section">
-      <div class="hd"><h2>What you still have to do</h2></div>
+    <div class="dmore hk-folds" id="dmore" hidden>
+      <section class="dfold-s" id="todo-section"><details class="dfold"><summary><span>▸ What you still have to do</span><span class="c"></span></summary>
       <ul id="todo-list" class="progress"></ul>
-    </section>
-    <section class="sect">
-      <div class="hd"><h2>Link for contributors</h2></div>
+      </details></section>
+      <section class="dfold-s"><details class="dfold"><summary><span>▸ Status</span><span class="c"><span id="status-chip"></span></span></summary>
+      <dl id="facts" class="kv pl"></dl>
+      </details></section>
+      <section class="dfold-s"><details class="dfold"><summary><span>▸ What has happened so far</span><span class="c"></span></summary>
+      <dl id="counts" class="kv pl"></dl>
+      </details></section>
+      <section class="dfold-s"><details class="dfold"><summary><span>▸ Link for contributors</span><span class="c"></span></summary>
       <pre id="contribute-link" class="copybox"></pre>
       <button type="button" class="secondary" id="copy-link">Copy link</button>
       <p class="mt3"><a id="recount-link" href="#">Open the recount for this campaign</a></p>
       <p class="mt3"><button type="button" class="secondary" id="export-btn">Download a public copy of the list</button> <span class="muted t-sm" id="export-note">A file anyone can load on the recount page when no relay answers. It holds no key and nothing private.</span></p>
       <p class="error" id="export-error" role="alert" hidden></p>
-    </section>
-    <section class="sect" id="listing-section" hidden>
-      <div class="hd"><h2>Listing on app.clewbook.xyz</h2></div>
+      </details></section>
+      <section class="dfold-s" id="listing-section" hidden><details class="dfold"><summary><span>▸ Listing on app.clewbook.xyz</span><span class="c"></span></summary>
       <p class="muted t-sm">Ask for this campaign to be shown on the Clewbook home page. Your link works for anyone either way.</p>
       <div id="listing-result" class="notice info" role="status" hidden>
         <div class="k" id="listing-result-k"></div>
@@ -184,31 +189,17 @@
         <div class="do"><button type="button" id="listing-yes">Send the request</button>
         <button type="button" id="listing-no" class="secondary">Not now</button></div>
       </div>
-    </section>
-  </div>
-
-  <div>
-    <section class="sect">
-      <div class="hd"><h2>What has happened so far</h2></div>
-      <dl id="counts" class="kv pl"></dl>
-    </section>
-
-    <section class="sect">
-      <div class="hd"><h2>Self check</h2><span class="t-label">your own data</span></div>
-      <p class="muted t-sm">The same checks anyone can run on your campaign, run on your own data.</p>
-      <div id="check-list" class="checks mt3"></div>
-    </section>
-
-    <section class="sect" id="final-section" hidden>
-      <div class="hd"><h2>Final public copy</h2></div>
+      </details></section>
+      <section class="dfold-s" id="final-section" hidden><details class="dfold"><summary><span>▸ Final public copy</span><span class="c"></span></summary>
       <p class="muted t-sm">Saved when the campaign was closed, with a signed fingerprint of the list. Anyone can use the fingerprint to check that a copy of the list is the one you fixed, with nothing cut off.</p>
       <pre id="final-line" class="copybox"></pre>
       <p class="muted t-sm">Keep the downloaded file safe, and post this line somewhere that lasts (your own site, a public page that is archived). The recount page compares a list with it.</p>
-    </section>
+      </details></section>
+    </div>
+  </aside>
+  </div>
 
-  </div>
-  </div>
-  </div>
+</div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

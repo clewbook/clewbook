@@ -68,7 +68,8 @@ function depositsText(s) {
 
 /** Design round 2: the tiles (status, raised, goal or items, self-check), from the same report the details below show. */
 function tiles(s) {
-  const t = (k, v, cls = '') => { const d = document.createElement('div'); d.className = `dtile ${cls}`; const a = document.createElement('span'); a.className = 'tk'; a.textContent = k; const b = document.createElement('span'); b.className = 'tv'; b.textContent = v; d.append(a, b); return d; };
+  // a value's words after the first " · " go under it in small type (prototype); the words are the same
+  const t = (k, v, cls = '') => { const d = document.createElement('div'); d.className = `dtile ${cls}`; const a = document.createElement('span'); a.className = 'tk'; a.textContent = k; const [main, ...rest] = String(v).split(' · '); const b = document.createElement('span'); b.className = 'tv'; b.textContent = main; d.append(a, b); if (rest.length) { const c = document.createElement('span'); c.className = 'ts'; c.textContent = rest.join(' · '); d.append(c); } return d; };
   const raised = s.counts.raised_zat;
   const res = s.self_check ? s.self_check.results : null;
   const fails = res ? res.filter((r) => !r.pass).length : 0;
@@ -228,7 +229,7 @@ function render(s) {
     d.className = `notice closable ${CLASS[w.level] || 'info'} warn-${w.level}`;
     const k = document.createElement('div'); k.className = 'k'; k.textContent = KICKER[w.level] || 'Note';
     const p = document.createElement('p'); p.textContent = w.text;
-    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'note-x', textContent: '×', title: w.level === 'bad' ? 'Close (it comes back when the page is loaded again)' : 'Close (it comes back if its message changes)' });
+    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'note-x', textContent: '[x]', title: w.level === 'bad' ? 'Close (it comes back when the page is loaded again)' : 'Close (it comes back if its message changes)' });
     x.setAttribute('aria-label', 'Hide note');
     x.addEventListener('click', () => dismissNote(w));
     d.append(k, p, x);
@@ -236,6 +237,12 @@ function render(s) {
   }));
   $('#live').hidden = false; $('#dmore').hidden = false;
   tiles(s);
+  // the head (prototype): the campaign's name and short id, its kind in one line, and its phase as a chip beside the network
+  $('#dh-h1').replaceChildren(...(s.name ? [`${s.name} (`, Object.assign(document.createElement('span'), { className: 'dh-id', textContent: `${s.short}…` }), ')'] : [Object.assign(document.createElement('span'), { className: 'dh-id', textContent: `${s.short}…` })]));
+  const kind = s.sealed ? `Blind bid auction · ${s.items} ${s.items === 1 ? 'item' : 'items'} · ${s.sealed.tranches_zat.map((t) => coin(t)).join(' · ')} ${s.ticker} deposits`
+    : s.mode === 'raise' ? `Fundraiser · ${s.cap_zat == null ? 'goal' : 'soft cap'} ${coin(s.goal_zat)} ${s.ticker}` : `Auction · ${s.items} ${s.items === 1 ? 'item' : 'items'}`;
+  $('#dh-sub').textContent = kind; $('#dh-sub').hidden = false;
+  $('#dh-phase').className = `dh-phase ph-${s.phase}`; $('#dh-phase').textContent = TILE_PHASE[s.phase];
   const left = s.blocks_left;
   const leftText = left > 0 ? etaText(left, measured.secondsPerBlock) : null;
   const leftPhrase = left > 0 ? (leftText ? `${leftText} left` : `${left} blocks left; the length of a block has not been measured yet`) : '';
@@ -385,6 +392,11 @@ function render(s) {
   $('#coins-send').hidden = !(cz || (s.sealed && s.phase === 'closed'));
   if (!cz) $('#coins-line').textContent = 'Send what is left in the coin wallet, after the network fee, to your wallet (the program reads the wallet again first):';
   else $('#coins-line').textContent = `The coin wallet holds ${coin(s.sealed.coin_balance_zat)} ${s.ticker}. ${s.phase === 'closed' ? 'The auction is closed, so it is no longer needed.' : 'Send it back only when no bid waits for its small payment; later bids before the coin cutoff would then get none.'} Send ${coin(cz)} ${s.ticker} (after the network fee) to your wallet:`;
+  // the closed and settled blind bid auction (prototype): the next action is to send the funds home; the sentence only when both wallets have a send
+  if (s.sealed && s.phase === 'closed' && s.sealed.revealed && !(s.close_unfinished || []).length && !$('#coins-send').hidden) {
+    $('#next-title').textContent = 'Send the funds home';
+    if (tz) explain.textContent = 'The auction is closed and settled. Send the treasury and the coin wallet back to your own wallet.';
+  }
   // cancel and refund everyone (a fundraiser that opted in, before its deadline): two steps, three on mainnet
   $('#cancel-box').hidden = !s.can_cancel;
   if (!s.can_cancel) $('#cancel-confirm').hidden = true;
@@ -592,7 +604,7 @@ async function exportCopy() {
 }
 
 async function main() {
-  setup('Host dashboard', { netbar: false, host: true }); markReady(); // a page on this computer: nothing to wait for; the network is a small tag here (design round 2)
+  setup('Host dashboard', { host: true }); markReady(); // a page on this computer: nothing to wait for; the network is a small tag here (design round 2)
   $('#dh-host').textContent = `Your computer · ${location.host}`;
   try { config = await api('config'); } catch { /* shown by refresh */ }
   if (config) setNetwork(config.network); // no bar on the dashboard (it has the small tag); this sets the page's network flag, so amounts follow it

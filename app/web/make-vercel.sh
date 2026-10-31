@@ -12,6 +12,8 @@ mkdir -p "$OUT"; PREFIX=/demo bash app/web/make-static.sh "$OUT/demo" >/dev/null
 find "$OUT" -mindepth 1 -maxdepth 1 -not -name demo -not -name .vercel -not -name .env.local -not -name .gitignore -exec rm -rf {} +
 for f in .vercel .env.local .gitignore; do [ -e "$KEEP/$f" ] && cp -a "$KEEP/$f" "$OUT/"; done; rm -rf "$KEEP"
 cp app/web/vercel.json "$OUT/vercel.json"
+# browsers ask for /favicon.ico at the root of the address: the demo's own icon, a plain file (no header or redirect changes)
+cp "$OUT/demo/img/favicon.ico" "$OUT/favicon.ico"
 # nothing that holds settings or secrets is uploaded: environment files (.env, .env.local, .env.production ...) are listed here, and check-vercel.sh fails without this file
 printf '.env\n.env.*\n*.env\n' > "$OUT/.vercelignore"
 printf 'User-agent: *\nAllow: /\n' > "$OUT/robots.txt"

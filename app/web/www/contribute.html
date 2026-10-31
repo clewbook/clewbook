@@ -6,6 +6,7 @@
 <title>Contribute</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="contribute.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -15,31 +16,41 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./#campaigns" aria-current="page">Campaigns</a><a id="nav-recount" href="#">Recount</a><a href="host.html">Hosting</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
 <div class="aurora" aria-hidden="true"><div></div></div>
-<main class="page cpage">
-  <div class="cwrap" id="cwrap">
-  <div class="cleft">
-  <p class="crumb sr" id="crumb">&nbsp;</p>
-  <p class="sr" id="page-title">&nbsp;</p>
-  <div class="sr"><p id="contrib-to" hidden>Contributing to</p><p id="contrib-name" hidden></p><span id="campaign-id"></span></div>
-  <!-- the top row: Back (one of these, by step) and the step pills -->
-  <div class="ctop">
-    <a class="cback" id="flow-back" href="#">← <span id="flow-back-label">Campaign</span></a>
-    <button type="button" class="cback" id="q-back" hidden>← <span id="q-back-label">Contribute</span></button>
-    <button type="button" class="cback" id="edit-amount" hidden>← Refund address</button>
-    <button type="button" class="cback" id="back-to-backup" hidden>← Backup</button>
-    <a class="cback" id="tk-back" href="./" hidden>← Back to home</a>
-    <ol class="stepper" id="stepper" aria-label="Steps" hidden>
+<main class="page cpage app-main">
+  <div class="hk-page" id="cwrap">
+  <div class="hk-head">
+    <div class="hk-top ctop">
+      <a class="hk-back cback" id="flow-back" href="#">← <span id="flow-back-label">Campaign</span></a>
+      <button type="button" class="hk-back cback" id="q-back" hidden>← <span id="q-back-label">Edit amount</span></button>
+      <button type="button" class="hk-back cback" id="edit-amount" hidden>← Refund address</button>
+      <button type="button" class="hk-back cback" id="back-to-backup" hidden>← Back to backup</button>
+      <a class="hk-back cback" id="tk-back" href="./#campaigns" hidden>← Back to home</a>
+      <span class="hk-chips" id="status-line" hidden><span class="hk-chips" id="status-chip"></span></span>
+    </div>
+    <div class="hk-title">
+      <div class="hk-titlecol">
+        <span class="hk-eyebrow" id="flow-eyebrow"><span id="contrib-lead">Contributing to</span> <b class="cname" id="cname" hidden></b></span>
+        <h1 class="hk-h1" id="flow-h1">Contribute</h1>
+        <p class="hostedby" id="hosted-by-c" hidden></p>
+        <span class="sr" id="status-text"></span>
+      </div>
+    </div>
+    <ol class="hk-steps" id="hk-steps" aria-label="Steps">
+      <li class="hk-step" data-k="amount">01 <span class="lbl">Amount</span></li><li class="hk-step" data-k="addr">02 <span class="lbl">Refund address</span></li><li class="hk-step" data-k="backup">03 <span class="lbl">Backup</span></li><li class="hk-step" data-k="pay">04 <span class="lbl">Pay</span></li><li class="hk-step" data-k="ticket">05 <span class="lbl">Ticket</span></li>
+    </ol>
+    <ol class="stepper" id="stepper" aria-hidden="true" hidden>
       <li data-step="amount">1 Contribute</li><li data-step="backup">2 Backup</li><li data-step="pay">3 Pay</li><li data-step="ticket">4 Ticket</li><li data-step="done">5 Done</li>
     </ol>
   </div>
-  <!-- the campaign: status pill and meta, then its name -->
-  <div class="chead" id="status-line" hidden><span id="status-chip"></span><span class="cmeta" id="status-text"></span></div>
-  <b class="cname" id="cname" hidden></b>
-  <p class="hostedby" id="hosted-by-c" hidden></p>
-  <span class="ministep" id="ministep" hidden></span>
+  <div class="hk-body" id="hk-body">
+  <div class="hk-main cleft">
+  <p class="crumb sr" id="crumb">&nbsp;</p>
+  <p class="sr" id="page-title">&nbsp;</p>
+  <div class="sr"><p id="contrib-to" hidden>Contributing to</p><p id="contrib-name" hidden></p><span id="campaign-id"></span></div>
+  <span class="ministep sr" id="ministep" hidden></span>
 
   <div id="banners" aria-live="polite"></div>
   <div id="my-result" class="my-result" role="status" hidden></div>
@@ -51,46 +62,41 @@
   <div class="cflow" id="cflow">
   <!-- 3.1 and 3.2: two questions, one at a time -->
   <section class="cscreen" id="form-card" hidden>
-    <div class="qprog"><span class="qlabel" id="q-label">QUESTION 1 OF 2</span><div class="qbar"><i id="q-bar"></i></div></div>
+    <div class="qprog" hidden><span class="qlabel" id="q-label">QUESTION 1 OF 2</span><div class="qbar"><i id="q-bar"></i></div></div>
     <form id="form" novalidate>
       <div class="qstep" id="q-amount">
-        <h1 class="ch1" id="form-title">Contribute</h1>
-        <p class="chelp" id="form-intro"></p>
-        <label for="amount" class="sr" id="amount-label">Amount (<span class="ticker">TAZ</span>)</label>
-        <div class="amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" aria-describedby="amount-hint"><span class="ticker tk" aria-hidden="true">TAZ</span></div>
+        <h1 class="sr" id="form-title">Contribute</h1>
+        <p class="sr" id="form-intro"></p>
+        <label class="hk-field" for="amount"><span class="k" id="amount-label">Amount</span>
+          <span class="hk-fieldbox amountbox"><input id="amount" inputmode="decimal" autocomplete="off" placeholder="0.001" aria-describedby="amount-hint"><span class="u ticker tk" aria-hidden="true">TAZ</span></span></label>
         <p class="cmsg bad amount-error" id="amount-error" aria-live="polite" hidden></p>
-        <p class="cmsg" id="amount-hint" role="status"></p>
+        <p class="hk-hint cmsg" id="amount-hint" role="status"></p>
         <p class="cmsg good" id="amount-ok" role="status" hidden></p>
-        <div class="qrules" id="q-rules"></div>
-        <div class="cbtnrow"><button type="button" class="cprimary" id="to-addr" disabled>Continue →</button><span class="cwhy" id="to-addr-why"></span></div>
+        <div class="qrules" id="q-rules" hidden></div>
+        <div class="hk-btnrow"><button type="button" class="hk-btn" id="to-addr" disabled><span>Next</span><span aria-hidden="true">→</span></button><span class="cwhy" id="to-addr-why"></span></div>
       </div>
       <div class="qstep" id="q-addr" hidden>
-        <h1 class="ch1">Where should a refund go?</h1>
-        <p class="chelp">Paste a shielded address from your wallet. It starts with <b id="addr-prefix">u1</b>.</p>
-        <label for="refund" class="sr">Refund address</label>
-        <textarea id="refund" rows="3" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea>
+        <h1 class="sr">Add refund address</h1>
+        <label class="hk-field" for="refund"><span class="k">Refund address</span>
+          <span class="hk-fieldbox"><textarea id="refund" rows="2" autocomplete="off" spellcheck="false" placeholder="Paste the full shielded address from your wallet"></textarea></span></label>
+        <p class="hk-hint" id="addr-hint">A shielded address of the same network. <span id="addr-net-rule"></span><span class="sr"> It starts with <b id="addr-prefix">u1</b>.</span></p>
         <p class="cmsg" id="refund-msg" role="status"></p>
+        <p class="hk-note" id="create-note"><span>Create makes a one time payment code and a sealed note in this browser. Nothing is sent anywhere.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="create-note">[x]</button></p>
         <p class="warnline" id="auction-account-note" hidden>For this auction, give a refund address from an account you would be happy to show later.</p>
         <p class="cmsg bad" id="form-error" role="alert" hidden></p>
         <p class="cmsg bad" id="create-error" role="alert" hidden></p>
-        <div class="cbtnrow"><button type="submit" id="create" class="cprimary create" disabled>Create my payment →</button><span class="cwhy" id="create-why"></span></div>
+        <div class="hk-btnrow"><button type="submit" id="create" class="hk-btn create" disabled><span>Create</span><span aria-hidden="true">→</span></button><span class="cwhy" id="create-why"></span></div>
       </div>
     </form>
     <!-- round 13: three small folds on one row (closed at first; each opens full width under the row, any number at once), then the recount link -->
-    <div class="qfolds" id="qfolds">
-      <div class="qf-row">
-        <button type="button" class="qf-btn" id="restore-fold" aria-expanded="false" aria-controls="qf-backup">I have a backup file</button>
-        <button type="button" class="qf-btn" id="who-fold" aria-expanded="false" aria-controls="qf-who">Who can see what</button>
-        <button type="button" class="qf-btn" id="nc-fold" aria-expanded="false" aria-controls="qf-nc">Not checked by a recount</button>
-      </div>
+    <div class="qfolds hk-folds" id="qfolds">
+      <button type="button" class="hk-fold qf-btn" id="restore-fold" aria-expanded="false" aria-controls="qf-backup"><span>▸ Restore from a backup file</span><span class="c"></span></button>
       <div class="qf-panel cfold-b" id="qf-backup" hidden>
         <p>Restore a contribution you started earlier, on this or another device.</p>
         <label class="filebtn"><input type="file" id="restore" accept="application/json,.json" aria-label="Choose backup file">Choose backup file</label>
         <p class="cmsg bad" id="restore-error" role="alert" hidden></p>
       </div>
-      <div class="qf-panel cfold-b" id="qf-who" hidden></div>
-      <div class="qf-panel cfold-b" id="qf-nc" hidden><ul class="cv-nc" id="qf-nc-list"></ul></div>
-      <p class="qf-recount"><a class="link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
+      <p class="qf-recount"><a class="hk-link link-arrow" id="recount-btn" href="#" hidden>Recount this campaign →</a></p>
     </div>
   </section>
 
@@ -98,38 +104,58 @@
   <section class="cscreen" id="pay-card" hidden>
     <p id="edit-locked" class="warnline" hidden>A payment for this code was seen, so its amount can no longer change.</p>
     <div class="pay-backup" id="pay-backup">
-      <span class="ceyebrow">◆ ONLY IN THIS BROWSER</span>
-      <h1 class="ch1">Save your backup file first</h1>
-      <div class="bklines"><b class="ok" aria-hidden="true">✓</b><span>It lets you get your refund even if you lose this page.</span><b class="wn" aria-hidden="true">△</b><span>Keep it private: anyone who has it can send your refund early, though only to your refund address.</span></div>
-      <div class="cbtnrow"><button type="button" class="coutline" id="backup">↓ Download backup file</button><button type="button" class="cprimary" id="to-pay">Continue to pay →</button></div>
-      <label class="savedbox"><input type="checkbox" id="backup-saved">Saved</label>
+      <div class="hk-card"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+        <span class="hk-chips"><span class="hk-kick">Important</span><span class="hk-kick mut">Only in this browser</span></span>
+        <h2 class="hk-h2">Keep this file private</h2>
+        <p class="hk-p">It holds this page's secret for this payment. You need it to get your money back from another browser.</p>
+        <div class="hk-btnrow"><button type="button" class="hk-btn out" id="backup">↓ Download backup file</button><label class="hk-tick savedbox"><input type="checkbox" id="backup-saved"><span class="box" aria-hidden="true">✓</span>Saved</label></div>
+      </div>
+      <div class="hk-btnrow"><button type="button" class="hk-btn" id="to-pay"><span>Continue</span><span aria-hidden="true">→</span></button></div>
+      <p class="hk-small">Going back before you save it asks you to confirm.</p>
     </div>
     <div id="leave-confirm" class="cconfirm" role="alert" hidden>
       <p id="leave-text"></p>
       <div class="cbtnrow"><button type="button" id="leave-yes" class="cdanger">Yes, leave this payment code</button><button type="button" id="leave-no" class="cquiet">Keep it</button></div>
     </div>
     <div class="pay-main" id="pay-main" hidden>
-      <h1 class="ch1 pay-h"><span id="pay-warning">Pay exactly <span id="pay-min" class="acc"></span> once, from a shielded address.</span></h1>
-      <p class="chelp">Scan with a shielded wallet, or copy lines 1 to 3 in order.</p>
-      <details class="cfold why" id="pay-why"><summary>▸ Why?</summary><p class="cfold-b">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details>
-      <div class="payrow">
-        <div class="qrcol"><div class="qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div></div><button type="button" class="cquiet qrtog" id="qr-toggle" hidden>Code hard to scan? Show a simpler code</button></div>
+      <p class="hk-note" id="pay-note"><span id="pay-warning">Pay exactly <b id="pay-min"></b> once, from a shielded address.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
+      <section class="hk-sec">
+        <div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t">Scan to pay</span></span></div>
+        <div class="hk-scan">
+          <div class="qrcol"><div class="hk-qr"><div id="qr" class="code" role="img" aria-label="Payment code"></div></div><button type="button" class="hk-link qrtog" id="qr-toggle" hidden>Code hard to scan? Show a simpler code</button></div>
+          <div class="hk-scancol cpwallet">
+            <p class="hk-p">Scan with your wallet. The address, amount and message fill in for you.</p>
+            <div class="hk-btnrow"><a class="hk-btn" id="paylink" href="#"><span>Open in my wallet</span><span aria-hidden="true">→</span></a><button type="button" class="hk-btn out noirpay" id="noir-pay" hidden>Pay with Noir</button></div>
+            <span class="wallet-note hk-small">(Connects with Vizor)</span>
+            <p class="noir-msg hk-small" id="noir-msg" role="status" hidden></p>
+          </div>
+        </div>
+      </section>
+      <section class="hk-sec">
+        <div class="hk-sechd"><span class="l"><span class="n">2</span><span class="t">Can't scan? Copy by hand</span></span></div>
         <div class="cprows" id="qr-contains">
-          <div class="cprow"><span class="cpn">1</span><span class="cpk">Address</span><b class="cpv" id="qc-addr"></b><button type="button" class="cpbtn" data-copy="pay-to">Copy</button></div>
-          <div class="cprow"><span class="cpn">2</span><span class="cpk">Amount</span><b class="cpv" id="qc-amount"></b><button type="button" class="cpbtn" data-copy="pay-amt">Copy</button></div>
-          <div class="cprow"><span class="cpn">3</span><span class="cpk">Message</span><b class="cpv" id="qc-memo"></b><button type="button" class="cpbtn" data-copy="memo">Copy</button></div>
-          <p class="cpnote">All three must match (paying more is fine), or the payment is not counted.</p>
-          <div class="cpwallet"><a id="paylink" href="#">Open in my wallet app ↗</a><span class="wallet-note">(Connects with Vizor)</span>
-            <button type="button" class="coutline noirpay" id="noir-pay" hidden>Pay with Noir</button><p class="noir-msg" id="noir-msg" role="status" hidden></p></div>
+          <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Address</span><b class="v" id="qc-addr"></b></span><button type="button" class="hk-cpbtn" data-copy="pay-to" aria-label="Copy Address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+          <div class="hk-cprow"><span class="n">2</span><span class="m"><span class="k">Amount</span><b class="v" id="qc-amount"></b></span><button type="button" class="hk-cpbtn" data-copy="pay-amt" aria-label="Copy Amount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+          <div class="hk-cprow"><span class="n">3</span><span class="m"><span class="k">Message</span><b class="v" id="qc-memo"></b></span><button type="button" class="hk-cpbtn" data-copy="memo" aria-label="Copy Message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+          <p class="hk-note warn" id="memo-note"><span>Put the message in your wallet's memo. A payment without it counts as a donation and cannot be returned.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="memo-note">[x]</button></p>
+          <label class="hk-tick" id="memo-tick-row"><input type="checkbox" id="memo-tick"><span class="box" aria-hidden="true">✓</span>I attached the message</label>
           <pre id="pay-to" class="sr"></pre><pre id="memo" class="sr"></pre><span id="pay-amt" class="sr"></span>
         </div>
-      </div>
+      </section>
+      <p class="hk-small">Pay with Noir shows only when the Noir extension is in this browser. The page never pays for you.</p>
+      <div><button type="button" class="hk-link" id="show-status">I've paid. Show my status →</button></div>
+      <div class="hk-folds"><details class="cfold why" id="pay-why"><summary class="hk-fold"><span>▸ Why a shielded address?</span><span class="c"></span></summary><p class="cfold-b hk-small">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details></div>
     </div>
   </section>
 
   <!-- the tracker (pay) and 3.5 ticket -->
   <section class="cscreen" id="progress-card" hidden>
-    <h1 class="ch1 ticket-h" id="ticket-h" hidden>You hold a refund ticket.</h1>
+    <h2 class="sr ticket-h" id="ticket-h" hidden>You hold a refund ticket.</h2>
+    <div class="hk-card" id="seen-card" hidden><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq acc"></span>
+      <span class="hk-kick acc">Payment seen</span>
+      <h2 class="hk-h2 big">Waiting for the network</h2>
+      <p class="hk-p">Your payment is in the mempool. This page updates by itself.</p>
+    </div>
     <div class="stand" id="stand">
       <ul class="progress tracker">
         <li id="s-backup"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what">Backup</b><span class="state"></span></li>
@@ -143,55 +169,63 @@
       <p id="progress-note" class="pnote"></p>
       <p id="format-note" class="warnline" hidden>This older payment code could have been copied by someone who saw it before your payment was mined.</p>
     </div>
-    <div id="ticket-view" class="tkcard" hidden>
-      <div class="tk-top"><span class="tk-kicker">◆ REFUND TICKET · <span id="tk-entry"></span></span><span id="tk-chip"></span></div>
-      <div id="tk-amount-box" class="tk-amt"><b id="tk-amount"></b></div>
-      <p class="tk-sub">Returns your money without the host, while unspent.</p>
+    <div id="ticket-view" class="tkcard tk2" hidden><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span>
+      <div class="tk-l"><span class="tk-k">Refund ticket</span><b id="tk-entry"></b></div>
+      <div class="tk-r"><span id="tk-chip"></span>
+        <div id="tk-amount-box" class="tk-amt"><b id="tk-amount"></b></div>
+        <p class="tk-sub">Returns your money without the host, while unspent.</p>
+        <div id="ticket-ledger" class="hk-kvs tledger" hidden></div></div>
     </div>
+    <div class="hk-btnrow tk-checkrow" id="tk-checkrow" hidden><button type="button" class="hk-btn" id="tk-check" aria-controls="tc-fold"><span>Check this ticket</span><span aria-hidden="true">→</span></button><span class="hk-small" id="tk-check-n"></span></div>
     <p id="over-note" class="notice info" hidden><strong>You paid more than the amount you chose.</strong> The whole payment counts as your contribution, and your refund is the payment minus the fee.</p>
     <p id="tc-bad" class="notice bad risk" hidden></p>
-    <div id="refund-area" class="ccard" hidden>
-      <span class="ck" id="refund-k">CHANGED YOUR MIND?</span>
-      <p id="refund-explain"></p>
-      <button type="button" id="refund-btn" class="cmuted">Refund me</button>
-      <div id="refund-confirm" class="cconfirm" role="alertdialog" aria-label="Confirm refund" hidden>
-        <p id="refund-confirm-text"></p>
-        <div class="cbtnrow"><button type="button" id="refund-yes" class="cdanger">Yes, send my refund</button><button type="button" id="refund-no" class="cquiet">Not now</button></div>
-      </div>
+    <section class="hk-sec" id="refund-area" hidden>
+      <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t" id="refund-k">CHANGED YOUR MIND?</span></span></div>
+      <p class="hk-p" id="refund-explain"></p>
+      <div class="hk-btnrow"><button type="button" id="refund-btn" class="hk-btn out tk-red">Refund me</button></div>
+    </section>
+    <div id="refund-confirm" class="hk-card" role="alertdialog" aria-label="Confirm refund" hidden><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+      <span class="hk-kick" id="refund-ck">Changed your mind?</span>
+      <h2 class="hk-h2 big" id="refund-ch">Refund me</h2>
+      <p class="hk-p" id="refund-confirm-text"></p>
+      <div class="hk-btnrow"><button type="button" id="refund-yes" class="hk-btn out tk-red">Yes, send my refund</button><button type="button" id="refund-no" class="hk-btn out">Not now</button></div>
     </div>
-    <p id="refund-result" class="notice" hidden></p>
-    <div id="rebid-row" hidden><p class="hint" id="rebid-text"></p><div class="cbtnrow"><button type="button" class="coutline" id="rebid">Bid again</button></div></div>
-    <section class="ccard" id="auction-card" hidden>
-      <h2 class="ch2" id="auction-title">Auction result</h2>
-      <p id="auction-text"></p>
-      <div id="auction-proof" hidden>
-        <h3 class="subhd">Optional: prove your excess arrived</h3>
-        <p class="muted">The money paid back to you above the price went to the refund address you gave. Only you can see it arrive. If you want to make a dispute provable, you can publish the <strong>incoming viewing key</strong> of the account that address belongs to. Anyone can then check, with that key, that the excess reached you.</p>
-        <p class="warnline">Publishing this key shows everything that account ever received, so publish only a dedicated account's key.</p>
-        <textarea id="proof-key" rows="3" placeholder="Incoming viewing key (starts with uivk…)" autocomplete="off"></textarea>
-        <div class="cbtnrow">
-          <button type="button" class="coutline" id="proof-publish">Publish the key so my excess can be checked</button>
-          <button type="button" class="coutline" id="proof-complain">Report that my excess did not arrive (no key)</button>
-        </div>
-        <p id="proof-status" class="muted" hidden></p>
+    <div id="rr-box" class="tk-res"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq" id="rr-sq"></span><span class="hk-kick" id="rr-k"></span><h2 class="hk-h2 big" id="rr-h"></h2>
+      <p id="refund-result" class="notice" hidden></p>
+      <div id="rebid-row" hidden><p class="hk-p" id="rebid-text"></p><div class="hk-btnrow"><button type="button" class="hk-btn tk-arrow" id="rebid">Bid again</button></div></div>
+    </div>
+    <section class="tk-auction" id="auction-card" hidden>
+      <div class="hk-card"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq" id="auction-sq"></span>
+        <span class="hk-kick" id="auction-kick">The campaign has closed</span>
+        <h2 class="hk-h2 big" id="auction-title">Auction result</h2>
+        <p class="hk-p" id="auction-text"></p>
       </div>
+      <section class="hk-sec" id="auction-proof" hidden>
+        <div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Optional: prove your excess arrived</span></span></div>
+        <p class="hk-p">The money paid back to you above the price went to the refund address you gave. Only you can see it arrive. If you want to make a dispute provable, you can publish the <strong>incoming viewing key</strong> of the account that address belongs to. Anyone can then check, with that key, that the excess reached you.</p>
+        <p class="hk-note warn" id="ap-warn"><span>Publishing this key shows everything that account ever received, so publish only a dedicated account's key.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="ap-warn">[x]</button></p>
+        <span class="hk-fieldbox"><textarea id="proof-key" rows="3" placeholder="Incoming viewing key (starts with uivk…)" autocomplete="off" aria-label="Incoming viewing key"></textarea></span>
+        <div class="hk-btnrow tk-col">
+          <button type="button" class="hk-btn out" id="proof-publish">Publish the key so my excess can be checked</button>
+          <button type="button" class="hk-btn out" id="proof-complain">Report that my excess did not arrive (no key)</button>
+        </div>
+        <p id="proof-status" class="hk-small" hidden></p>
+      </section>
     </section>
     <div class="tkfolds" id="tk-folds">
-      <details class="tkfold" id="tk-when"><summary><span>▸ When does it work?</span><span class="fold-n">4 conditions</span></summary><div id="ticket-ledger" class="tledger" hidden></div></details>
       <div id="ticket-checks" hidden>
         <details class="tkfold" id="tc-fold"><summary><span>▸ Ticket checks</span><span class="fold-n" id="tc-count"></span></summary>
           <div id="tc-summary" class="summary tc-lines"></div>
           <details id="tc-details" class="cfold"><summary>▸ What was checked, in detail</summary><div id="tc-list" class="checks devchecks"></div></details>
-          <p id="proof-row" class="proofrow" hidden><button type="button" class="coutline" id="proof-btn">Check the proof too</button> <button type="button" class="coutline" id="proof-cancel" hidden>Cancel</button> <span class="hint">Downloads a second module and runs in this browser.</span></p>
+          <p id="proof-row" class="hk-btnrow proofrow" hidden><button type="button" class="hk-btn out" id="proof-btn">Check the proof too</button><button type="button" class="hk-btn out" id="proof-cancel" hidden>Cancel</button><span class="hk-small">Downloads a second module and runs in this browser.</span></p>
           <p id="proof-progress" class="muted" hidden></p>
         </details>
       </div>
-      <details class="tkfold" id="tk-details"><summary><span>▸ Details</span><span class="fold-n">pays · block · kept where</span></summary><dl class="tk-dl" id="tk-facts"></dl></details>
     </div>
     <p id="unconfirmed" class="warnline" hidden>Not seen yet: if your wallet shows the payment failed, nothing was spent; if sent, this page keeps looking.</p>
     <div id="proof" class="rsect" hidden><p id="challenge-text"></p><div class="cbtnrow"><button type="button" class="coutline" id="challenge-btn">Publish proof that my payment was valid</button></div></div>
-    <p class="pnote" id="backup-nudge" hidden><strong>Your refund right is kept in this browser and in your backup file.</strong> Download the file now and keep it private. Anyone who has it can send your refund early (the money still goes only to your refund address) and can see your amount, your refund address and your payment. It cannot be used to send your money anywhere else. <span id="backup3-done" class="saved" hidden><span aria-hidden="true">✓</span> Saved, with your ticket</span></p>
-    <div class="cbtnrow" id="ticket-actions" hidden><button type="button" class="cprimary" id="finish">Finish →</button><button type="button" class="coutline" id="backup3">↓ Backup file</button></div>
+    <p class="hk-small tk-nudge" id="backup-nudge" hidden><strong>Your refund right is kept in this browser and in your backup file.</strong> Download the file now and keep it private. Anyone who has it can send your refund early (the money still goes only to your refund address) and can see your amount, your refund address and your payment. It cannot be used to send your money anywhere else. <span id="backup3-done" class="saved" hidden><span aria-hidden="true">✓</span> Saved, with your ticket</span></p>
+    <div class="hk-btnrow" id="ticket-actions" hidden><button type="button" class="hk-btn" id="finish"><span>Finish</span><span aria-hidden="true">→</span></button><button type="button" class="hk-btn out" id="backup3">↓ Backup file</button></div>
     <div class="paymore" id="pay-more">
       <p class="pnote" id="wait-note">This usually takes a minute or two; you can leave and come back with the same link.</p>
       <div id="leave-box" class="cbtnrow footrow"><button type="button" class="coutline" id="backup2">↓ Backup file</button><button type="button" class="coutline" id="start-over">Start over</button></div>
@@ -214,13 +248,54 @@
   <section class="cclosed" id="closed-card" hidden></section>
   </div>
   </div>
-  <!-- question 1 and 2 (round 12): the campaign's facts beside the form, in the Rules card of the campaign page; under the form on a phone -->
-  <div class="cright" id="about" hidden>
-    <div id="about-card"></div>
+  <!-- the aside (prototype): the campaign's facts under "Contributing to", then who can see what and what is not checked -->
+  <aside class="hk-aside cright" id="about" hidden>
+    <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Contributing to</span></span></div><div id="about-card"></div></section>
+    <div class="hk-folds">
+      <button type="button" class="hk-fold qf-btn" id="who-fold" aria-expanded="false" aria-controls="qf-who"><span>▸ Who can see what</span><span class="c"></span></button>
+      <div class="qf-panel cfold-b" id="qf-who" hidden></div>
+      <button type="button" class="hk-fold qf-btn" id="nc-fold" aria-expanded="false" aria-controls="qf-nc"><span>▸ What is not checked</span><span class="c"></span></button>
+      <div class="qf-panel cfold-b" id="qf-nc" hidden><ul class="cv-nc" id="qf-nc-list"></ul></div>
+    </div>
+  </aside>
+  <aside class="hk-aside" id="tk-aside" hidden>
+    <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Your payment</span></span></div><div class="hk-kvs" id="tk-pay"></div></section>
+    <div class="hk-folds"><details class="tkfold" id="tk-details"><summary><span>▸ Ticket details</span><span class="fold-n"></span></summary><dl class="tk-dl" id="tk-facts"></dl></details></div>
+    <p class="hk-small" id="tk-secret"></p>
+  </aside>
   </div>
   </div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
+<!-- campaign view parts: generated from the design prototype -->
+<template id="t-cv-page"><div class="cvp1"></div></template>
+<template id="t-cv-head"><div style="display: flex; flex-direction: column; gap: 18px;"><div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line2); padding-bottom: 8px;"><button type="button" class="scpw" style="flex: 0 0 auto; white-space: nowrap; cursor: pointer; border: 0px; background: none; color: var(--mut); padding: 0px; margin: 0px; text-align: left; font: 500 12px var(--fm); min-height: 44px; display: inline-flex; align-items: center; gap: 10px; letter-spacing: 0.18em; text-transform: uppercase;">← Campaigns</button><span style="display: flex; gap: 18px; flex-wrap: wrap; align-items: center;"><span style="display: inline-flex; align-items: center; gap: 8px; font: 600 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--pass); white-space: nowrap;"><span style="width: 8px; height: 8px; flex: 0 0 auto; background: var(--pass);"></span>Open</span><span style="display: inline-flex; align-items: center; gap: 8px; font: 600 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--warn); white-space: nowrap;"><span style="width: 8px; height: 8px; flex: 0 0 auto; background: var(--warn);"></span>Testnet</span></span></div><div class="cvh2"><div style="display: flex; flex-direction: column; gap: 12px; min-width: 0px;"><span style="font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);">Fundraiser · goal 0.5 TAZ · 47751309…</span><h1 class="cvh3">Fundraiser <span style="text-transform: none;">47751309…</span></h1></div><div style="min-width: 0px;"><div style="display: flex; flex-direction: column;"><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Campaign</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">47751309… ⧉</span></span></div><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Viewing key</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">Not published yet</span></span></div><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Network</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">Testnet</span></span></div></div></div></div></div></template>
+<template id="t-cv-grid"><div class="cvg4"></div></template>
+<template id="t-cv-main"><div style="display: flex; flex-direction: column; gap: 34px; min-width: 0px;"></div></template>
+<template id="t-cv-stats"><div class="cvs5"></div></template>
+<template id="t-cv-stat"><div style="border-top: 1px solid var(--line2); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0px;"><span style="font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);">Raised</span><b class="cvst6">0.04<span style="font: 500 13px var(--fm); letter-spacing: 0.1em; margin-left: 6px; color: var(--mut);">TAZ</span></b><span style="font: 400 13px var(--fm); color: var(--mut);">8% of the goal</span></div></template>
+<template id="t-cv-stat-plain"><div style="border-top: 1px solid var(--line2); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0px;"><span style="font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);">Time left</span><b class="cvsp7">2h 05m</b><span style="font: 400 13px var(--fm); color: var(--mut);">about 100 blocks</span></div></template>
+<template id="t-cv-meter"><div style="display: flex; flex-direction: column; gap: 8px;"><div style="position: relative; height: 14px;"><div style="position: absolute; left: 0px; right: 0px; top: 6px; height: 1px; background: var(--line2);"></div><div style="position: absolute; left: 0px; top: 5px; height: 3px; width: 8%; background: var(--ink);"></div><span style="position: absolute; left: 0%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 10%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 20%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 30%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 40%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 50%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 60%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 70%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 80%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 90%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: 100%; top: 2px; width: 1px; height: 10px; background: var(--line2);"></span><span style="position: absolute; left: calc(8% - 4px); top: 3px; width: 8px; height: 8px; background: var(--acc2);"></span></div><div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);"><span style="white-space: nowrap;">8% of goal</span><span style="white-space: nowrap;">deadline block 4,477,610</span></div></div></template>
+<template id="t-cv-actions"><div class="cva8"></div></template>
+<template id="t-cv-btn-primary"><button type="button" class="scpx scp1 cvb19"><span>Contribute</span><span aria-hidden="true">→</span></button></template>
+<template id="t-cv-btn-outline"><button type="button" class="scpy scp1 cvb210">↻ Recount</button></template>
+<template id="t-cv-btn-link"><button type="button" class="scpw cvb311">Copy link</button></template>
+<template id="t-cv-note"><div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 0px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font: 400 15px/1.5 var(--fb);"><span style="width: 8px; height: 8px; margin-top: 7px; flex: 0 0 auto; background: var(--pass);"></span><span style="min-width: 0px; overflow-wrap: break-word;">You won 1 item. You paid 0.0019 TAZ, 0.001 TAZ is coming back to your wallet.</span><button type="button" aria-label="Dismiss this note" class="scpz" style="margin-left: auto; flex: 0 0 auto; width: 32px; height: 32px; margin-top: -4px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; background: none; color: var(--mut); font: 500 13px var(--fm); cursor: pointer; transition: color 0.2s, border-color 0.2s;">[x]</button></div></template>
+<template id="t-cv-closed-line"><p style="margin: 0px; font: 400 13px/1.55 var(--fm); color: var(--mut);">■ Closed: auction settled. No new bids.</p></template>
+<template id="t-cv-section"><section style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px; min-width: 0px;"></section></template>
+<template id="t-cv-section-head"><div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; min-height: 48px; padding: 0px 16px; background: var(--bg2); border-top: 2px solid var(--ink); box-shadow: inset 0 -1px 0 var(--line2); font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);"><span style="display: flex; gap: 14px; align-items: center; white-space: nowrap;"><span style="color: var(--acc2); font-weight: 600;">01</span><span style="color: var(--ink); font-size: 14px; font-weight: 600;">Public list</span></span><span>40 entries · as published</span></div></template>
+<template id="t-cv-table"><div style="display: flex; flex-direction: column; min-width: 0px;"></div></template>
+<template id="t-cv-thead"><div class="cvth12"><span>Entry</span><span>Result</span><span>Action</span><span style="text-align: right;">Block</span><span style="text-align: right;">Amount</span></div></template>
+<template id="t-cv-row-yours"><div class="cvry13"><span style="display: flex; flex-direction: column; min-width: 0px;"><span style="font: 500 14px var(--fb); text-transform: uppercase; letter-spacing: 0.04em;">Contribution <b style="color: var(--acc2); font: 600 11px var(--fm); letter-spacing: 0.14em;">· YOURS</b></span><span style="color: var(--mut); font-size: 12px;">c81e04d2…7a19</span><span class="cvry14">Ticket issued · block 4,477,024</span></span><span class="cvry15">Ticket issued</span><span class="cvry16">–</span><span class="cvry17">4,477,024</span><span style="text-align: right; font-variant-numeric: tabular-nums;">0.001</span></div></template>
+<template id="t-cv-row"><div class="cvr18"><span style="display: flex; flex-direction: column; min-width: 0px;"><span style="font: 500 14px var(--fb); text-transform: uppercase; letter-spacing: 0.04em;">Contribution</span><span style="color: var(--mut); font-size: 12px;">b043460c…51edb</span><span class="cvr19">Ticket issued · block 4,477,051</span></span><span class="cvr20">Ticket issued</span><span class="cvr21">–</span><span class="cvr22">4,477,051</span><span style="text-align: right; font-variant-numeric: tabular-nums;">0.003</span></div></template>
+<template id="t-cv-more"><div style="padding: 10px 0px; border-bottom: 1px solid var(--line); font: 400 13px var(--fm); color: var(--mut);">36 more entries, as published</div></template>
+<template id="t-cv-kvs"><div style="display: flex; flex-direction: column;"></div></template>
+<template id="t-cv-kv"><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Type</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">Fundraiser</span></span></div></template>
+<template id="t-cv-aside"><aside class="cvas23"></aside></template>
+<template id="t-cv-yours"><div class="cvy24"><span aria-hidden="true" style="position: absolute; left: 0px; top: 0px; border-left: 1px solid var(--ink); border-top: 1px solid var(--ink); width: 14px; height: 14px;"></span><span aria-hidden="true" style="position: absolute; right: 0px; top: 0px; border-right: 1px solid var(--ink); border-top: 1px solid var(--ink); width: 14px; height: 14px;"></span><span aria-hidden="true" style="position: absolute; left: 0px; bottom: 0px; border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink); width: 14px; height: 14px;"></span><span aria-hidden="true" style="position: absolute; right: 0px; bottom: 0px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); width: 14px; height: 14px;"></span><span aria-hidden="true" style="position: absolute; right: 18px; top: 18px; width: 10px; height: 10px; background: var(--acc2);"></span><span style="font: 500 12px var(--fm); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mut);">Yours · in this browser</span><b style="font: var(--hw,300) 40px/1 var(--fd);">0.001<span style="font: 500 13px var(--fm); letter-spacing: 0.12em; margin-left: 8px; color: var(--mut);">TAZ</span></b><div style="display: flex; flex-direction: column;"><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Paid in block</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">4,477,024</span></span></div><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Refund ticket</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">#0 · held</span><span style="font: 400 12px var(--fm); color: var(--mut);">10 checks</span></span></div><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0px; border-bottom: 1px solid var(--line); min-width: 0px;"><span style="font: 400 14px var(--fb); color: var(--mut); flex: 1 1 0px; min-width: 0px;">Refund me until</span><span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; max-width: 65%;"><span style="font-variant-numeric: tabular-nums; overflow-wrap: break-word; font-family: &quot;Geist Mono&quot;, monospace; font-size: 14px; font-weight: 500; line-height: normal; font-style: normal; font-variant-numeric: tabular-nums;">block 4,477,610</span></span></div></div><button type="button" class="scpy scp1 cvy25">Your ticket →</button></div></template>
+<template id="t-cv-links"><div style="display: flex; flex-direction: column;"><button type="button" class="scp10 cvl26"><span>▸ Who can see what</span><span style="color: var(--mut);"></span></button><button type="button" class="scp10 cvl27"><span>Capability card →</span><span style="color: var(--mut);"></span></button><button type="button" class="scp10 cvl28"><span>Have a ticket backup file? Open it here</span><span style="color: var(--mut);"></span></button></div></template>
+<template id="t-cv-foot"><p style="margin: 0px; font: 400 13px/1.55 var(--fm); color: var(--mut);">2 relays answered and their lists match. Recount is the independent check.</p></template>
+<!-- /campaign view parts -->
 <script src="loadguard.js"></script>
 <script type="module" src="contribute.js"></script>
 </body>

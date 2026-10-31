@@ -140,7 +140,7 @@ async function checkPlan() {
 }
 
 let resultKey = '';
-let spb = null; // seconds per block, measured once over the last 200 blocks, after NU7 only once it has come (for "~6 days")
+let spb = null; // seconds per block, measured once over the last 200 blocks, after the next Zcash network upgrade only once it has come (for "~6 days")
 async function readTip() {
   const [msg] = await grpcWeb(cfg.server, 'GetLatestBlock', new Uint8Array());
   tip = readVarintField(msg, 1);
@@ -511,7 +511,7 @@ function status() {
   if (state.lateProblem) return S('r', 'PROBLEM', 'Your ticket does not check out', back, `${state.lateProblem} ${backMore}`, { action: early });
   if (tip >= cutoff) return S('a', 'ACTION NEEDED', 'The host\'s small payment did not arrive', back, `Without it, your refund ticket cannot be completed by the host. ${backMore}`, { action: early });
   // M3: the page checks and signs the late ticket only while it is open; it warns from the block by which the host must have sent its
-  // small payment (COIN_RUSH_BLOCKS before the cutoff) plus 5 blocks to mine it, well before the cutoff. An auction made after NU7 with the
+  // small payment (COIN_RUSH_BLOCKS before the cutoff) plus 5 blocks to mine it, well before the cutoff. An auction made after the next Zcash network upgrade with the
   // standard timing has three times both (ll_core::sealed::coin_scale): the same time with 25 second blocks
   const signs = `This page signs your late ticket only while it is open. You can take your money back until block ${fmtB(take)}.`;
   const coming = !!myCoinEntry();
@@ -599,9 +599,9 @@ let editing = false; // "← Bid" from the payment: the form again, filled in, t
 let moreOpen = false, moreKey = '', takeAsk = null, cdTimer = null;
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 function factRow(k, v, sub) {
-  const row = el('div', 'bb-fr'), r = el('span', 'r');
-  r.append(el('b', null, v));
-  if (sub) r.append(el('span', null, sub));
+  const row = el('div', 'hk-kv'), r = el('span', 'r');
+  r.append(el('span', 'v', v));
+  if (sub) r.append(el('span', 's', sub));
   row.append(el('span', null, k), r);
   return row;
 }
@@ -629,12 +629,28 @@ function render() {
     li.querySelector('span').textContent = n < step ? '✓' : String(n);
   }
   $('#flow-back').hidden = step !== 1; $('#pay-back').hidden = step !== 2; $('#home-back').hidden = step !== 3;
+  paintHead(step, closed);
   const mine = state ? [['Deposit', coin(state.tranche), 'public size'], ['Your bid', coin(state.bid), closeEntry() ? 'opened at the close' : 'locked until bids open'], ['Refund to', short(state.refund), 'public after the close']] : [];
   for (const box of document.querySelectorAll('.bb-mine')) box.replaceChildren(...mine.map(([k, v, sub]) => factRow(k, v, sub)));
   renderNoir();
   if (step === 1) return renderForm();
   if (step === 2) return renderPay();
   return renderStatus();
+}
+
+/** The head (prototype): the network chip, the eyebrow, the title by step and the four step bar (Bid, Backup, Pay, Status). The backup and the
+ *  payment stay on one screen as before (paying is never blocked by the backup); the bar says Backup until Saved is ticked. Presentation only. */
+function paintHead(step, closed) {
+  const net = campaign.network, nc = $('#net-chip');
+  nc.textContent = net === 'test' ? 'Testnet' : net === 'main' ? 'Mainnet' : 'Network unknown'; nc.dataset.net = net || ''; // the logo carries no network chip
+  const kind = `Blind bid auction · ${rules.items} ${rules.items === 1 ? 'item' : 'items'}`, name = $('#cname').textContent;
+  const k = step === 1 ? 'bid' : step === 3 ? 'status' : state && state.backupSaved ? 'pay' : 'backup';
+  $('#bb-eyebrow').textContent = `${kind} · ${step === 1 ? 'your bid' : name}`;
+  $('#bb-h1').textContent = { bid: name, backup: 'Download backup file', pay: 'Pay the deposit', status: 'Your status' }[k];
+  $('#bb-sub').hidden = k !== 'bid';
+  const order = ['bid', 'backup', 'pay', 'status'], at = order.indexOf(k);
+  for (const li of $('#hk-steps').children) { const i = order.indexOf(li.dataset.k); li.classList.toggle('now', i === at); li.classList.toggle('done', i < at); if (i === at) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); }
+  $('#status-chip').classList.toggle('closed', closed);
 }
 
 function renderForm() {
@@ -647,8 +663,8 @@ function renderForm() {
     factRow('Deposit sizes', `${s.tranches_zat.map(amount).join(' · ')} ${ticker()}`),
     tip > d ? factRow('Deadline', 'passed', `block ${fmtB(d)}`) : left ? factRow('Deadline', `≈${left}`, `block ${fmtB(d)}`) : factRow('Deadline', `block ${fmtB(d)}`),
     factRow('Bids open', 'drand round', fmtB(s.drand_round)),
-    factRow('Pricing', pl, psub),
-    factRow('Ties', 'Chain order'),
+    factRow('How winners pay', pl.toLowerCase(), psub),
+    factRow('Ties', 'chain order'),
   );
   const box = $('#tranche');
   if (!box.children.length) {
@@ -706,7 +722,7 @@ function renderPay() {
   $('#open-wallet').href = state.uri || `zcash:${state.payTo}?amount=${amount(state.tranche)}&memo=${btoa(String.fromCharCode(...new TextEncoder().encode(state.memo))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
   const saved = !!state.backupSaved;
   $('#backup-card').classList.toggle('saved', saved);
-  $('#bk-tag').textContent = saved ? '✓ STEP 1 · SAVED' : '△ STEP 1 · IMPORTANT';
+  $('#bk-tag').textContent = saved ? 'Saved' : 'Important'; $('#bk-tag').classList.toggle('pass', saved);
   $('#saved').checked = saved;
   // the message comes first: the address and the amount show once the person says the message is in their wallet's memo (Noir attaches it itself)
   $('#attached').checked = !!state.memoAttached;
@@ -735,7 +751,7 @@ function renderStatus() {
   if (ignoredServer) extra.push(`The link named the chain server ${ignoredServer}; this page uses ${cfg.server} instead.`);
   const more = [st.more, ...extra].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   $('#st-more').textContent = more; $('#st-more').hidden = !moreOpen || !more;
-  $('#st-more-btn').hidden = !more; $('#st-more-btn').textContent = moreOpen ? 'less' : 'more'; $('#st-more-btn').setAttribute('aria-expanded', String(moreOpen));
+  $('#st-more-btn').hidden = !more; $('#st-more-btn').textContent = moreOpen ? 'less ▴' : 'more ▾'; $('#st-more-btn').setAttribute('aria-expanded', String(moreOpen));
   say($('#st-work'), work);
   // the actions: the early ticket (before the deadline), the late ticket (a host that did not finish), the proof of a rejected payment;
   // taking money back always asks once more
@@ -802,7 +818,7 @@ function syncBid() {
   if (b.bad) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', 'bid-error'); } else { inp.removeAttribute('aria-invalid'); inp.setAttribute('aria-describedby', 'bid-hint'); }
   const r = $('#refund'), m = $('#refund-msg');
   m.textContent = !a.typed ? `A shielded address starting with ${prefix()}. Use one you use nowhere else.` : a.ok ? '✓ Shielded address. Use one you use nowhere else.' : a.bad;
-  m.className = `bb-help${a.bad ? ' bad' : a.ok ? ' ok' : ''}`; m.setAttribute('role', a.bad ? 'alert' : 'note');
+  m.className = `hk-hint bb-help${a.bad ? ' bad' : a.ok ? ' ok' : ''}`; m.setAttribute('role', a.bad ? 'alert' : 'note');
   r.classList.toggle('bad', !!a.bad); r.classList.toggle('ok', !!a.ok);
   if (a.bad) r.setAttribute('aria-invalid', 'true'); else r.removeAttribute('aria-invalid');
   $('#create').disabled = !windowOk || !b.ok || !a.ok;
@@ -924,6 +940,7 @@ async function main() {
   $('#edit-keep').addEventListener('click', () => { editing = false; delete $('#form').dataset.filled; render(); });
   $('#to-status').addEventListener('click', () => { state.showStatus = true; save(); render(); window.scrollTo(0, 0); });
   $('#st-back-pay').addEventListener('click', () => { state.showStatus = false; save(); render(); window.scrollTo(0, 0); });
+  for (const x of document.querySelectorAll('[data-dismiss]')) x.addEventListener('click', () => { $(`#${x.dataset.dismiss}`).hidden = true; });
   $('#st-more-btn').addEventListener('click', () => { moreOpen = !moreOpen; render(); });
   $('#take-back').addEventListener('click', () => { takeAsk = 'early'; render(); });
   $('#send-late').addEventListener('click', () => { takeAsk = 'late'; render(); });
@@ -938,8 +955,9 @@ async function main() {
     b.addEventListener('click', () => {
       const v = $(`#${b.dataset.copy}`);
       navigator.clipboard.writeText(v.dataset.full || v.textContent).catch(() => {});
-      b.textContent = '✓ Copied'; b.classList.add('done');
-      clearTimeout(b._t); b._t = setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1600);
+      if (!b.dataset.was) b.dataset.was = b.innerHTML; // the copy icon comes back after the tick
+      b.textContent = '✓'; b.classList.add('done');
+      clearTimeout(b._t); b._t = setTimeout(() => { b.innerHTML = b.dataset.was; b.classList.remove('done'); }, 1600);
     });
   }
   cdTimer = setInterval(tickCountdown, 1000);

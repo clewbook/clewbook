@@ -6,6 +6,7 @@
 <title>Campaign link</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="start.css">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/app-icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/app-icon-16.png">
@@ -15,16 +16,20 @@
 <body>
 <header class="bar">
   <a class="word" href="./" aria-label="clewbook home"><svg class="mark" viewBox="1 6 44 33" width="30" height="23" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round"/><circle cx="6" cy="12" r="3"/></svg><span>clewbook</span></a><span class="tagline">Private Markets. Public Accounting.</span>
-  <nav class="nav" aria-label="Main"><a href="./">Campaigns</a><a href="recount.html">Recount</a><a href="host.html">Host</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
+  <nav class="nav" aria-label="Main"><a href="./#campaigns">Campaigns</a><a href="recount.html">Recount</a><a href="host.html">Hosting</a><a class="demo-link" href="https://clewbook.xyz/demo/" title="Testnet demo, no real money" aria-label="Testnet demo, no real money">Testnet demo</a></nav>
 </header>
-<div class="aurora" aria-hidden="true"><div></div></div>
-<main class="page aboutpage">
-<article class="about" id="go">
-  <span class="heyebrow"><span class="dot"></span>CAMPAIGN LINK</span>
-  <h1 id="go-title">Opening the campaign…</h1>
-  <p id="go-line" role="status"></p>
-  <ol class="go-list" id="go-list" hidden></ol>
-</article>
+<main class="page gopage app-main">
+<div class="hk-page go" id="go">
+  <div class="go-head">
+    <span class="go-k"><span class="go-sq" aria-hidden="true"></span>Campaign link</span>
+    <h1 class="hk-h1" id="go-title">Finding the campaign</h1>
+    <div class="go-bar" id="go-bar" aria-hidden="true"><span></span></div>
+    <p class="hk-p go-line" id="go-line" role="status"></p>
+    <div class="go-err" id="go-err" role="status" hidden><span aria-hidden="true">✕</span><span id="go-err-t">The listing could not be read. Try again in a minute.</span></div>
+    <div class="hk-btnrow" id="go-acts" hidden><a class="hk-btn" id="go-home" href="./#campaigns" hidden>Go to campaigns</a><button type="button" class="hk-btn out" id="go-again" hidden>Try again</button></div>
+    <ol class="go-list" id="go-list" hidden></ol>
+  </div>
+</div>
 </main>
 <footer class="sitefoot"><span><span data-brand></span> · Private Markets. Public Accounting.</span></footer>
 <script src="loadguard.js"></script>

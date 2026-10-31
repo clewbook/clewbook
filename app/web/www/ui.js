@@ -11,13 +11,12 @@ const SPRITE = `<svg class="sprite" width="0" height="0" aria-hidden="true" focu
   <symbol id="i-fail" viewBox="0 0 12 12"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></symbol>
   <symbol id="i-nc" viewBox="0 0 12 12"><path d="M2.5 6h7"/></symbol></svg>`;
 
-export function setup(title, { netbar = true, themeControl = true, host = false } = {}) {
+export function setup(title, { themeControl = true, host = false } = {}) {
   document.documentElement.dataset.started = '1'; // the page's scripts loaded and ran (loadguard.js looks at this)
   if (themeControl) mountTheme(); else applyTheme(themeChoice());
   if (themeControl) mountChrome({ host });
   if (!document.getElementById('i-pass')) document.body.insertAdjacentHTML('afterbegin', SPRITE);
   for (const el of document.querySelectorAll('[data-brand]')) el.textContent = PRODUCT_NAME;
-  if (netbar && !document.getElementById('netbar')) document.body.insertAdjacentHTML('afterbegin', '<div id="netbar" class="netbar checking" role="status">Checking network…</div>');
   document.title = title ? `${title} · ${PRODUCT_NAME}` : PRODUCT_NAME;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') for (const o of document.querySelectorAll('.cid.open')) o.classList.remove('open'); });
   markApprox(document.body);
@@ -30,7 +29,7 @@ export function setup(title, { netbar = true, themeControl = true, host = false 
   document.addEventListener('click', (e) => { for (const o of document.querySelectorAll('.cid.open')) if (!o.contains(e.target)) o.classList.remove('open'); });
 }
 
-// ---------- the approximately sign: Chivo Mono's files have no ≈, so each one is drawn in the system's monospace font ----------
+// ---------- the approximately sign: the Geist files have no ≈, so each one is drawn in a monospace font that has it ----------
 const APPROX_SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'SELECT', 'TITLE']);
 function markApprox(root) {
   if (!root || root.nodeType !== 1 || !root.textContent.includes('≈')) return;
@@ -48,28 +47,35 @@ function markApprox(root) {
 
 // ---------- theme: System (follows the device), Light or Dark ----------
 // The small script in every page's head applies the saved choice before the page is drawn (no flash). With no saved choice, or "system" saved,
-// the page follows the device, also when it changes while the page is open, and the control shows System. The choice is kept in this browser
-// when it allows it. Only colours change (ui.css, :root[data-theme="dark"]).
+// the page follows the device, also when it changes while the page is open. The ◐ button in the header cycles System → Light → Dark (README §4);
+// the phone menu has the same three as a Theme row. The choice is kept in this browser when it allows it. Only colours change (ui.css).
 const THEME_KEY = 'cb-theme';
+const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 const darkQuery = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
 export function themeChoice() {
   try { const c = localStorage.getItem(THEME_KEY); return c === 'light' || c === 'dark' ? c : 'system'; } catch { return 'system'; }
 }
+const THEME_ICON = {
+  dark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>',
+  light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  system: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/></svg>',
+};
 export function applyTheme(choice) {
   const q = darkQuery();
   const dark = choice === 'dark' || (choice === 'system' && !!q && q.matches);
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
   root.dataset.theme = dark ? 'dark' : 'light';
-  // the Theme controls (footer, phone menu) show the choice: System, Light or Dark
   for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === choice));
+  const label = `Appearance: ${THEMES.find(([v]) => v === choice)[1]}. Click to change.`;
+  for (const b of document.querySelectorAll('.theme-btn')) { b.innerHTML = THEME_ICON[choice]; b.setAttribute('aria-label', label); b.title = label; b.dataset.choice = choice; }
 }
 function chooseTheme(c) {
   try { localStorage.setItem(THEME_KEY, c); } catch { /* storage blocked: the choice holds for this page only */ }
   applyTheme(c);
 }
 let themeWatching = false;
-/** The Theme control, always in the same place: the footer line at the bottom of the page (made when the page has none). */
+/** The ◐ appearance button in the header (made once). */
 export function mountTheme() {
   applyTheme(themeChoice());
   const q = darkQuery();
@@ -78,17 +84,15 @@ export function mountTheme() {
     const follow = () => { if (document.documentElement.dataset.themeChoice === 'system') applyTheme('system'); };
     if (q.addEventListener) q.addEventListener('change', follow); else if (q.addListener) q.addListener(follow);
   }
-  if (document.getElementById('theme-ctl')) return;
-  let foot = document.querySelector('footer.sitefoot');
-  if (!foot) { foot = document.createElement('footer'); foot.className = 'sitefoot'; document.body.append(foot); }
-  const label = document.createElement('span'); label.textContent = 'Theme'; label.setAttribute('aria-hidden', 'true');
-  const wrap = document.createElement('span'); wrap.className = 'theme-ctl'; wrap.id = 'theme-ctl'; wrap.append(label, themeSeg());
-  let ctl = foot.querySelector('.foot-ctl');
-  if (!ctl) { ctl = document.createElement('span'); ctl.className = 'foot-ctl'; foot.append(ctl); }
-  ctl.append(wrap);
+  const bar = document.querySelector('header.bar');
+  if (bar && !bar.querySelector('.theme-btn')) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'theme-btn'; b.id = 'theme-ctl';
+    b.addEventListener('click', () => { const order = THEMES.map(([v]) => v); chooseTheme(order[(order.indexOf(themeChoice()) + 1) % order.length]); });
+    bar.append(b);
+  }
   applyTheme(themeChoice());
 }
-/** System, Light and Dark as three pressed buttons in one pill; the one chosen is filled. */
+/** System, Light and Dark as three pressed buttons in one pill (the phone menu's Theme row). */
 function themeSeg() {
   const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Theme');
   for (const [v, t] of THEMES) {
@@ -98,51 +102,85 @@ function themeSeg() {
   }
   return seg;
 }
-const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
-// ---------- the frame: footer controls (replay intro) and the phone menu ----------
-// The header's last nav item is "Testnet demo": a neutral outlined link, or inside the demo the amber "you are here" item (the demo build writes that one).
-// Under 720 px the nav folds into the menu, where the demo is the first row; Replay intro and the Theme control follow a hairline there (owner rule M1),
-// and the phone footer shows only its line.
+// ---------- the frame: header (logo, network badge, nav, ◐, menu) and footer (README §4) ----------
+// Inside the testnet demo (clewbook.xyz/demo, or a page the demo build marked) the site links point back to the main site.
+const APP = 'https://app.clewbook.xyz/';
+const REPO = 'https://github.com/clewbook/clewbook';
+const isDemo = () => location.hostname === 'clewbook.xyz' || !!document.querySelector('.demo-link.cur') || document.documentElement.dataset.demo === '1';
+const MARK = '<svg viewBox="1 6 44 33" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="12" r="3"/></svg>';
+function footerHTML(host) {
+  const site = host || isDemo() ? APP : './';
+  const cols = [
+    ['Product', [['Campaigns', `${site}#campaigns`], ['Recount', host ? `${APP}recount.html` : 'recount.html'], ['Testnet demo', 'https://clewbook.xyz/demo/'], ['Tested milestones', 'https://clewbook.xyz/demo/proofs/']]],
+    ['Learn', [['Blind bid auctions', `${site}#blind`], ['Refund tickets', `${site}#tickets`], ['Who sees what', `${site}#who`], ['Fundraisers and presales', `${host || isDemo() ? APP : ''}host.html#fundraisers`], ['Auctions', `${host || isDemo() ? APP : ''}host.html#auctions`]]],
+    ['Hosting', [['Host with us', `${REPO}/issues/new?title=Host%20with%20us`], ['Host it yourself', `${REPO}/blob/main/docs/HOSTING.md`], ['Docs', `${REPO}/tree/main/docs`]]],
+    ['Project', [['GitHub', REPO], ['About', `${host || isDemo() ? APP : ''}about.html`]]],
+  ];
+  const esc2 = (t) => esc(t);
+  // the prototype's tilted ledger behind the columns (its sample rows are a picture, not data); row #006 lit, as the prototype first draws it
+  const plane = '<div class="fp"><div class="fp-hd"><span>ENTRY</span><span>AMOUNT</span><span>BLOCK</span><span>CHECK</span></div>'
+    + [['#001 payment', '0.0010 ZEC', '3,524,301'], ['#002 payment', '0.0250 ZEC', '3,524,302'], ['#003 ticket', 'issued', '3,524,302'], ['#004 payment', '0.5000 ZEC', '3,524,305'],
+      ['#005 ticket', 'issued', '3,524,306'], ['#006 payment', '0.0040 ZEC', '3,524,310'], ['#007 ticket', 'issued', '3,524,311'], ['#008 close', 'goal met', '3,524,355']]
+      .map(([e, a, b], i) => `<div class="fp-row${i === 5 ? ' on' : ''}"><span>${e}</span><span>${a}</span><span>${b}</span><span${i < 6 ? ' class="ok"' : ''}><span>${i < 6 ? '✓' : '·'}</span></span></div>`).join('') + '</div>';
+  return `<div class="foot-plane" aria-hidden="true">${plane}</div><div class="foot-in">`
+    + `<div class="foot-col foot-brand"><a class="foot-logo" href="${host ? APP : isDemo() ? APP : './#start'}" aria-label="clewbook home">${MARK}<span>clewbook</span></a><span class="foot-tag">Private markets. Public accounting. Refund tickets.</span></div>`
+    + cols.map(([k, links]) => `<nav class="foot-col" aria-label="${esc2(k)}"><span class="foot-k">${esc2(k)}</span>${links.map(([t, h]) => `<a href="${esc2(h)}"${/^https:\/\/(github|clewbook\.xyz)/.test(h) ? ' rel="noopener"' : ''}>${esc2(t)}</a>`).join('')}</nav>`).join('')
+    + '</div>';
+}
+// ---------- the tilted ledger (prototype: the home hero and the footer) ----------
+// The plane turns a little toward the pointer: rotateX(52 - y*10) rotateZ(-30 + x*10), x and y the pointer's place over `area` from -0.5 to 0.5
+// in steps of 0.05 (the prototype's planeMove). The row nearest the pointer is lit and the rows above it are checked; with no pointer over
+// `area`, one more row is checked every 750 ms (the prototype's tick), going on from the last lit row. Touch has no hover, so a phone gets the
+// tick only; a narrow window keeps the plane's own CSS tilt. With reduced motion nothing moves and the rows stay as drawn.
+export function ledgerPlane(area, plane, rows, { start = 0 } = {}) {
+  if (!area || !plane || !rows.length) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const narrow = () => innerWidth < 640, step = (v) => Math.round(Math.max(-0.5, Math.min(0.5, v)) * 20) / 20;
+  let tick = start, over = false;
+  const paint = (hl) => rows.forEach((r, i) => {
+    const m = r.children[3]; (m.firstElementChild || m).textContent = i < hl ? '✓' : '·'; m.style.color = i < hl ? 'var(--pass)' : 'var(--mut)';
+    r.style.color = i === hl - 1 ? 'var(--ink)' : 'var(--mut)'; r.style.background = i === hl - 1 ? 'rgba(var(--ov),.08)' : 'transparent';
+  });
+  area.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' || narrow()) { over = false; plane.style.transform = ''; return; }
+    over = true;
+    const b = area.getBoundingClientRect(), x = step((e.clientX - b.left) / b.width - 0.5), y = step((e.clientY - b.top) / b.height - 0.5);
+    plane.style.transform = `rotateX(${52 - y * 10}deg) rotateZ(${-30 + x * 10}deg)`;
+    let near = 0, best = Infinity;
+    rows.forEach((r, i) => { const q = r.getBoundingClientRect(), d = Math.hypot(q.left + q.width / 2 - e.clientX, q.top + q.height / 2 - e.clientY); if (d < best) { best = d; near = i; } });
+    tick = near + 1; paint(tick);
+  });
+  area.addEventListener('pointerleave', () => { over = false; plane.style.transform = ''; });
+  addEventListener('resize', () => { if (narrow()) plane.style.transform = ''; });
+  setInterval(() => { if (over || document.hidden || area.closest('[hidden]')) return; tick += 1; paint(tick % 10); }, 750);
+}
+
 function mountChrome({ host }) {
-  const foot = document.querySelector('footer.sitefoot');
-  const ctl = foot && foot.querySelector('.foot-ctl');
-  if (ctl && !host && !ctl.querySelector('#replay-intro')) {
-    const replay = document.createElement('a'); replay.className = 'foot-link'; replay.href = './#intro'; replay.textContent = 'Replay intro'; replay.id = 'replay-intro';
-    ctl.prepend(replay);
+  // the footer: one per page, the same everywhere
+  let foot = document.querySelector('footer.sitefoot');
+  if (!foot) { foot = document.createElement('footer'); foot.className = 'sitefoot'; document.body.append(foot); }
+  if (!foot.dataset.built) {
+    foot.dataset.built = '1'; foot.innerHTML = footerHTML(host);
+    const fp = foot.querySelector('.fp'); ledgerPlane(foot, fp, [...fp.querySelectorAll('.fp-row')], { start: 6 });
   }
-  // About (owner, 22 Oct 2026): in the footer line, so the phone footer shows it too, and in the phone menu
-  const line = foot && foot.querySelector(':scope > span');
-  if (line && !host && !line.querySelector('.foot-about')) line.append(' · ', Object.assign(document.createElement('a'), { className: 'foot-about', href: 'about.html', textContent: 'About' }));
   const bar = document.querySelector('header.bar'), nav = bar && bar.querySelector('nav.nav');
-  if (!bar || !nav || bar.querySelector('.menu-btn')) return;
+  if (!bar) return;
+  // the logo is the site home (the intro); a spacer pushes nav, ◐ and the menu button to the right
+  const word = bar.querySelector('.word');
+  if (word && !host && !isDemo()) word.setAttribute('href', './#start');
+  if (!bar.querySelector('.bar-gap')) { const g = document.createElement('span'); g.className = 'bar-gap'; (bar.querySelector('.tagline') || word || bar.firstChild).after(g); }
+  const theme = bar.querySelector('.theme-btn');
+  if (!nav || bar.querySelector('.menu-btn')) return;
+  if (theme) nav.after(theme);
   const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'menu-btn'; btn.setAttribute('aria-label', 'Menu'); btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰';
-  nav.before(btn);
-  if (!host) nav.append(buildSwitch());
+  bar.append(btn);
   let panel = null;
   const close = () => { if (!panel) return; panel.remove(); panel = null; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰'; };
   const open = () => {
     panel = document.createElement('div'); panel.className = 'menu-panel';
-    // first row: the network switch (on phones it is here, not in the header); then the testnet demo (a gold link), or inside the demo the place you are
-    if (!host) panel.append(buildSwitch());
-    const demo = nav.querySelector('.demo-link');
-    if (demo && demo.matches('[aria-current]')) {
-      const cur = document.createElement('span'); cur.className = 'demo-row cur'; cur.setAttribute('aria-current', 'page');
-      cur.append(Object.assign(document.createElement('i'), { className: 'demo-dot' }), 'Testnet demo · you are here');
-      cur.firstChild.setAttribute('aria-hidden', 'true');
-      panel.append(cur);
-    } else if (demo) {
-      const a = document.createElement('a'); a.className = 'demo-row'; a.href = demo.getAttribute('href'); a.title = demo.title; a.setAttribute('aria-label', demo.getAttribute('aria-label') || demo.title);
-      a.append('Testnet demo', Object.assign(document.createElement('span'), { textContent: 'no real money' }));
-      panel.append(a);
-    }
-    for (const a of nav.querySelectorAll('a:not(.demo-link):not(.ns-side)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
-    if (!host) { const ab = Object.assign(document.createElement('a'), { href: 'about.html', textContent: 'About' }); if (/\/about\.html$/.test(location.pathname)) ab.setAttribute('aria-current', 'page'); panel.append(ab); }
-    // owner rule M1: Replay intro and the Theme control, after a hairline (the phone footer no longer shows them)
-    const replay = document.getElementById('replay-intro');
-    if (replay || document.getElementById('theme-ctl')) panel.append(Object.assign(document.createElement('hr'), { className: 'menu-div' }));
-    if (replay) { const r = document.createElement('a'); r.className = 'replay'; r.href = replay.getAttribute('href'); r.textContent = 'Replay intro'; r.addEventListener('click', (e) => { e.preventDefault(); close(); replay.click(); }); panel.append(r); }
-    if (document.getElementById('theme-ctl')) { const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row); }
+    for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row);
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     applyTheme(themeChoice());
     panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
@@ -150,13 +188,15 @@ function mountChrome({ host }) {
   btn.addEventListener('click', (e) => { e.stopPropagation(); if (panel) close(); else open(); });
   document.addEventListener('click', (e) => { if (panel && !panel.contains(e.target) && e.target !== btn) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel) { close(); btn.focus(); } });
-  addEventListener('resize', () => { if (innerWidth >= 720) close(); });
+  addEventListener('resize', () => { if (innerWidth >= 1000) close(); });
 }
-// ---------- the network switch (owner, 22 Oct 2026): "Mainnet | Testnet", where the Testnet demo button was ----------
-// On a campaign's pages it shows that campaign's network (setNetwork), and each side opens that network's campaign list. On the home page
-// (useNetFilter) the sides are buttons that filter the list, and the page hears 'cb-net'. Pages with no network show neither side lit.
+
+// ---------- the network: html[data-net] on every page, and the network button on the Live campaigns page ----------
+// The button (owner, 31 Oct 2026) sits in the site header just left of the theme button, only while the Live campaigns list shows: MAIN or TEST
+// in short mono letters, and a click shows the other network; it filters the list and the page hears 'cb-net'. The logo carries no network chip
+// (owner, 31 Oct 2026): a page with money on it names its network in its own chip or label.
 const NET_KEY = 'cb-net';
-let switchMode = 'link', switchNet = null;
+let switchNet = null;
 /** The network the home page shows: ?net= in the address, else the last one chosen in this browser, else the main network. */
 export function chosenNet() {
   const q = new URLSearchParams(location.search).get('net');
@@ -164,64 +204,47 @@ export function chosenNet() {
   try { const v = localStorage.getItem(NET_KEY); if (v === 'main' || v === 'test') return v; } catch { /* the page works without it */ }
   return 'main';
 }
-function buildSwitch() {
-  const box = document.createElement('div'); box.className = 'netswitch'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Network');
-  for (const [net, label] of [['main', 'Mainnet'], ['test', 'Testnet']]) {
-    const el = document.createElement(switchMode === 'filter' ? 'button' : 'a');
-    el.className = `ns-side ns-${net}`; el.dataset.net = net; el.textContent = label;
-    if (switchMode === 'filter') { el.type = 'button'; el.addEventListener('click', () => chooseNet(net)); } else el.href = `./?net=${net}`;
-    box.append(el);
-  }
-  paintSwitch(box);
-  return box;
+const pageNet = () => (isDemo() ? 'test' : chosenNet());
+/** A page that can show no campaign (the recount with nothing to recount): html[data-net] follows the network this browser last chose. */
+export function showPageNet() { return setNetwork(pageNet()); }
+/** The 404 page (its own design): the approved footer and the logo, no nav and no other control. */
+export function mountNotFound() { mountChrome({ host: false }); }
+const NET_NAME = { main: 'Mainnet', test: 'Testnet' };
+function buildNetButton() {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'net-btn'; b.id = 'net-btn';
+  b.addEventListener('click', () => chooseNet(switchNet === 'main' ? 'test' : 'main'));
+  paintNetButton(b);
+  return b;
 }
-function paintSwitch(box) {
-  for (const el of box.querySelectorAll('.ns-side')) {
-    const on = el.dataset.net === switchNet;
-    el.classList.toggle('on', on);
-    if (switchMode === 'filter') el.setAttribute('aria-pressed', String(on));
-    else if (on) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
-    el.title = switchMode === 'filter' ? `Show ${el.textContent} campaigns` : on ? `This campaign is on ${el.textContent}` : `${el.textContent} campaigns`;
-  }
+function paintNetButton(b) {
+  const other = switchNet === 'main' ? 'test' : 'main', say = `Network: ${NET_NAME[switchNet]}. Click to switch to ${NET_NAME[other]}`;
+  b.textContent = switchNet === 'main' ? 'MAIN' : 'TEST'; b.dataset.net = switchNet;
+  b.title = say; b.setAttribute('aria-label', say); b.setAttribute('aria-pressed', String(switchNet === 'test')); // pressed: the test network is shown
 }
-/** The home page: the switch filters the list. Returns the network shown first. */
+/** The Live campaigns page: the network button in the header, left of the theme button. Returns the network shown first. */
 export function useNetFilter() {
-  switchMode = 'filter'; switchNet = chosenNet();
-  for (const b of document.querySelectorAll('.netswitch')) b.replaceWith(buildSwitch());
+  switchNet = chosenNet();
+  const bar = document.querySelector('header.bar'), theme = bar && bar.querySelector('.theme-btn');
+  if (bar && !bar.querySelector('.net-btn')) { const b = buildNetButton(); if (theme) theme.before(b); else bar.append(b); }
   return switchNet;
 }
 function chooseNet(net) {
   switchNet = net;
   try { localStorage.setItem(NET_KEY, net); } catch { /* the page works without it */ }
   const u = new URL(location.href); u.searchParams.set('net', net); history.replaceState(history.state, '', u);
-  for (const b of document.querySelectorAll('.netswitch')) paintSwitch(b);
+  for (const b of document.querySelectorAll('.net-btn')) paintNetButton(b);
   dispatchEvent(new CustomEvent('cb-net', { detail: net }));
 }
 
-/** The frame on a page that has no other script work (the demo's start pages): the Theme control and the phone menu, no Replay intro. */
-export function mountFrame() { mountTheme(); mountChrome({ host: true }); }
+/** The frame on a page that has no other script work (the demo's start pages): the ◐ button, the menu and the footer. */
+export function mountFrame() { mountTheme(); mountChrome({ host: false }); if (!document.getElementById('i-pass')) document.body.insertAdjacentHTML('afterbegin', SPRITE); }
 
-// ---------- the network bar: the same on every page of a campaign, so the real network and the test network cannot be mistaken for each other ----------
-// It starts neutral grey ("Checking network…", no amounts) and changes only when the campaign's checked rules name the network. Anything other than
-// 'test' or 'main' is "unknown", which no page treats as either.
-// The test network gets the striped TESTNET bar on every page of a campaign. The main network has no bar (the bar element stays, empty and hidden,
-// so the page keeps one place for it). An unknown network always says so.
-const NETBAR = {
-  test: ['test', 'TESTNET', 'TAZ has no value.'],
-  main: ['main', '', ''],
-  unknown: ['unknown', 'NETWORK UNKNOWN', 'This page cannot tell which network this is.'],
-};
+/** The page's network, from the campaign's checked rules: html[data-net] lets amounts and styles follow it; each page names the network in
+ *  its own chip or label (the logo carries no network chip, owner 31 Oct 2026). Anything other than 'test' or 'main' is "unknown", which no
+ *  page treats as either. */
 export function setNetwork(network) {
   const kind = network === 'test' || network === 'main' ? network : 'unknown';
-  const [cls, head, tail] = NETBAR[kind];
   document.documentElement.dataset.net = kind;
-  if (switchMode !== 'filter') { switchNet = kind === 'unknown' ? null : kind; for (const b of document.querySelectorAll('.netswitch')) paintSwitch(b); }
-  const bar = document.getElementById('netbar');
-  if (!bar) return kind;
-  bar.className = `netbar ${cls}`;
-  bar.replaceChildren();
-  bar.hidden = kind === 'main';
-  if (head) { const b = document.createElement('b'); b.textContent = head; bar.append(b, ` · ${tail}`); }
   return kind;
 }
 
@@ -342,6 +365,16 @@ export const CHECKS = {
   R10: ['Treasury total', 'The treasury received exactly the sum of the clearing prices.'],
   R11: ['Nothing diverted', 'Settlements returned no value to the campaign account and have no other outputs.'],
   R12: ['Excess paid back (optional proof)', 'For each winner who chose to publish a proof: the money owed back to them above the price arrived. This is about money, not the auctioned item.'],
+  // the blind bid auction's recount (app/core/src/sealed_recount.rs, S_TITLES); the flagged row is the recount page's own
+  S1: ['Every list entry is a real deposit', 'Every list entry is a real deposit.'],
+  S2: ['Every deposit got its tickets within K blocks (host reported block)', 'Every deposit got its tickets within K blocks (host reported block).'],
+  S3: ["Every deposit got its coin in time, from outside the campaign's funds", "Every deposit got its coin in time, from outside the campaign's funds."],
+  S4: ['No deposit left before the deadline except by its early ticket', 'No deposit left before the deadline except by its early ticket.'],
+  S5: ['The bids open with round R, and the outcome is what they give', 'The bids open with round R, and the outcome is what they give.'],
+  S6: ['Every winner was settled before the late tickets became valid', 'Every winner was settled before the late tickets became valid.'],
+  S7: ['Every other deposit went back to the person who paid it', 'Every other deposit went back to the person who paid it.'],
+  S8: ['The viewing key was published only after every settlement was mined', 'The viewing key was published only after every settlement was mined.'],
+  '⚑': ['Payments not in the auction', 'Payments into the auction address in the bidding window that no entry on the list names. Each counts as a donation and stays in the auction wallet unless the host sends it back by hand. Flagged, not failed.'],
 };
 let tipSeq = 0;
 export function cidEl(id, text) {

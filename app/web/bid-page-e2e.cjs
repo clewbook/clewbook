@@ -194,7 +194,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
     check('the payment card shows the version 3 memo and the deposit', (await text(p, '#memo')) === pay.memo && /0\.1/.test(await text(p, '#pay-amount')), (await text(p, '#pay-amount')));
     check('step 2 shows the payment, not the status card, until the page sees the payment', await p.$eval('#status-card', (e) => e.hidden));
     // the message first: one warning line, the message before the address, the address and amount only once "I attached the message" is ticked
-    check('the pay step warns in one line that a payment without the memo is a donation', (await text(p, '#memo-warn')) === '△Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.', await text(p, '#memo-warn'));
+    check('the pay step warns in one line that a payment without the memo is a donation', (await text(p, '#memo-warn')) === 'Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.', await text(p, '#memo-warn'));
     check('the message comes before the address', await p.evaluate(() => !!(document.querySelector('#memo').compareDocumentPosition(document.querySelector('#pay-to')) & Node.DOCUMENT_POSITION_FOLLOWING)));
     check('the address, the amount, the code and "Open in my wallet" stay locked until the box is ticked', await p.$eval('#pay-lock', (e) => e.hidden) && !(await p.isVisible('#pay-to')) && !(await p.isVisible('#open-wallet')) && await p.isVisible('#pay-locked') && !(await p.isChecked('#attached')));
     const wl = await p.$eval('#wallets-text', (e) => e.textContent);

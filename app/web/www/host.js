@@ -13,6 +13,6 @@ export function showNewTags(now = Date.now()) {
   }
 }
 
-setup('Host', { netbar: false });
+setup('Host');
 showNewTags();
 markReady();

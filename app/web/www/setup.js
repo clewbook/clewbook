@@ -154,10 +154,37 @@ function modeChanged() {
   renderTerms();
 }
 
+// a problem that is about one field (prototype "Field errors"): the page's own message in a red line under that field, the field marked, and
+// the banner sentence at the top; any other problem keeps the notice by the Create button. Presentation only: nothing here decides what is sent.
+function fieldOf(msg) {
+  const m = msg.match(/^Please enter (.+?) as a number/);
+  if (m) return { 'the goal': '#goal', 'the hard cap': '#cap', 'the reserve price': mode() === 'sealed_auction' ? '#s-reserve' : '#reserve', 'the smallest contribution': '#minimum', 'each deposit size': '#s-tranches' }[m[1]] || null;
+  if (/^Please give 1 to 10 deposit sizes/.test(msg)) return '#s-tranches';
+  if (/^This leaves \d+ block\(s\) for deposits/.test(msg)) return '#deadline';
+  if (/small payments/.test(msg)) return '#s-coins';
+  const hits = [[/hard cap/i, '#cap'], [/\bgoal\b/i, '#goal'], [/ticket window/i, '#ticketk'], [/deadline/i, '#deadline'], [/reserve/i, mode() === 'sealed_auction' ? '#s-reserve' : '#reserve'], [/smallest contribution/i, '#minimum'], [/\bitems?\b/i, mode() === 'sealed_auction' ? '#s-items' : '#items']]
+    .filter(([re, id]) => re.test(msg) && $(id) && $(id).offsetParent !== null);
+  return hits.length === 1 ? hits[0][1] : null;
+}
+function clearFieldErrors() {
+  for (const e of document.querySelectorAll('.su-ferr')) e.remove();
+  for (const e of document.querySelectorAll('[aria-invalid="true"]')) e.removeAttribute('aria-invalid');
+  $('#su-errbar').hidden = true;
+}
+function showFieldError(id, msg) {
+  const f = $(id), line = Object.assign(document.createElement('p'), { className: 'su-ferr', textContent: msg });
+  line.setAttribute('role', 'alert');
+  if (f.tagName === 'FIELDSET') f.append(line); else { f.setAttribute('aria-invalid', 'true'); f.after(line); }
+  $('#su-errbar-t').textContent = 'one field below needs a change before the campaign can be made.';
+  $('#su-errbar').hidden = false;
+  f.scrollIntoView({ block: 'center' });
+}
+
 async function onCreate(ev) {
   ev.preventDefault();
   const err = $('#setup-error');
   err.replaceChildren(); say(err, '');
+  clearFieldErrors();
   const btn = $('#create-btn');
   try {
     const m = mode();
@@ -203,7 +230,8 @@ async function onCreate(ev) {
     await api('campaigns', body);
     location.href = '/';
   } catch (e) {
-    err.replaceChildren(); say(err, e.message);
+    const fid = fieldOf(String(e.message || ''));
+    if (fid) showFieldError(fid, String(e.message)); else { err.replaceChildren(); say(err, e.message); }
     btn.disabled = config && config.network === 'main' && !$('#confirm-mainnet').checked; btn.textContent = 'Create campaign';
   }
 }
@@ -213,25 +241,29 @@ async function main() {
   try {
     config = await api('config');
   } catch {
+    $('#su-host').textContent = `Your computer · ${location.host}`;
     $('#banner').textContent = "This page can't reach the host program right now. Start it with: cb-host serve";
     $('#banner').hidden = false;
     $('#create-btn').disabled = true;
     setNetwork('unknown'); // design round 2: the network bar says it cannot tell, instead of checking for ever
     return;
   }
+  // the chips beside the host nav (prototype): this computer, and the network the host program reported
+  $('#su-host').textContent = `Your computer · ${location.host}`;
+  $('#su-net').textContent = config.network === 'main' ? 'Zcash Mainnet' : config.network === 'test' ? 'Testnet' : ''; $('#su-net').className = `su-net ${config.network}`; $('#su-net').hidden = !$('#su-net').textContent;
   setNetwork(config.network); // design round 2: the TESTNET bar from the network the host program reported (on main the bar hides; the MAINNET banner below stays)
   for (const el of document.querySelectorAll('.ticker')) el.textContent = config.ticker;
   // the hard cap field only when this host program knows the hard cap (an older one would ignore it and make a campaign without one)
   $('#cap-row').hidden = config.hard_cap !== true;
-  // the blind bid auction when this host program offers it (on the main network only while it can end before the NU7 upgrade)
+  // the blind bid auction when this host program offers it (on the main network only while it can end before the next Zcash network upgrade)
   $('#sealed-choice').hidden = config.sealed !== true;
   // the quick test timing: test network only, and only from a host program that knows it (an older one would make a standard auction)
   $('#s-timing').hidden = config.network === 'main' || config.sealed_quick_timing !== true;
   if (config.network === 'main') {
     $('#mainnet-banner').hidden = false; $('#confirm-row').hidden = false; $('#create-btn').disabled = true;
     $('#nu7-note').textContent = config.nu7_mainnet_height
-      ? `The NU7 network upgrade activates at block ${config.nu7_mainnet_height.toLocaleString('en-US')}. A campaign that could still be running then is refused: refund tickets signed before the upgrade stop working after it.`
-      : 'The NU7 network upgrade is at block 3,543,405, expected about 5 November 2026. This host was started without that height, so a campaign must be over a week before that date, and a longer one is refused.';
+      ? `The next Zcash network upgrade activates at block ${config.nu7_mainnet_height.toLocaleString('en-US')}. A campaign that could still be running then is refused: refund tickets signed before the upgrade stop working after it.`
+      : 'The next Zcash network upgrade is at block 3,543,405, expected about 5 November 2026. This host was started without that height, so a campaign must be over a week before that date, and a longer one is refused.';
     $('#confirm-mainnet').addEventListener('change', () => { $('#create-btn').disabled = !$('#confirm-mainnet').checked; });
   }
   $('#net-note').textContent = config.network === 'main' ? 'Main network: real money.' : 'Test network: no real money.';
@@ -252,7 +284,7 @@ async function main() {
     $(id).addEventListener('focus', pick);
     $(id).addEventListener('input', pick);
   }
-  // the default ticket window until the host types one: 30 blocks, three times that for a campaign made after NU7 (25 second blocks), as the
+  // the default ticket window until the host types one: 30 blocks, three times that for a campaign made after the next Zcash network upgrade (25 second blocks), as the
   // host program chooses when it is left out (ll_core::rules::default_ticket_k); the quick test timing keeps 30
   let kTyped = false;
   $('#ticketk').addEventListener('input', () => { kTyped = true; });
