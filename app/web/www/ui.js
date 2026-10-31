@@ -109,11 +109,12 @@ const APP = 'https://app.clewbook.xyz/';
 const REPO = 'https://github.com/clewbook/clewbook';
 const isDemo = () => location.hostname === 'clewbook.xyz' || !!document.querySelector('.demo-link.cur') || document.documentElement.dataset.demo === '1';
 const MARK = '<svg viewBox="1 6 44 33" aria-hidden="true" focusable="false"><path d="M16 12H32A6 6 0 0 1 32 24H12A6 6 0 0 0 12 36H41" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="12" r="3"/></svg>';
-function footerHTML(host) {
-  const site = host || isDemo() ? APP : './';
+function footerHTML(host, root = './') {
+  const site = host || isDemo() ? APP : root;
   const cols = [
     ['Product', [['Campaigns', `${site}#campaigns`], ['Recount', host ? `${APP}recount.html` : 'recount.html'], ['Testnet demo', 'https://clewbook.xyz/demo/'], ['Tested milestones', 'https://clewbook.xyz/demo/proofs/']]],
-    ['Learn', [['Blind bid auctions', `${site}#blind`], ['Refund tickets', `${site}#tickets`], ['Who sees what', `${site}#who`], ['Fundraisers and presales', `${host || isDemo() ? APP : ''}host.html#fundraisers`], ['Auctions', `${host || isDemo() ? APP : ''}host.html#auctions`]]],
+    // Learn (owner, 31 Oct 2026): Intro first, opening the intro at its start even for a returning visitor; every link names an intro step
+    ['Learn', [['Intro', `${site}#start`], ['Blind bid auctions', `${site}#blind`], ['Refund tickets', `${site}#tickets`], ['Who sees what', `${site}#who`], ['Fundraisers and presales', `${site}#run`]]],
     ['Hosting', [['Host with us', `${REPO}/issues/new?title=Host%20with%20us`], ['Host it yourself', `${REPO}/blob/main/docs/HOSTING.md`], ['Docs', `${REPO}/tree/main/docs`]]],
     ['Project', [['GitHub', REPO], ['About', `${host || isDemo() ? APP : ''}about.html`]]],
   ];
@@ -124,7 +125,7 @@ function footerHTML(host) {
       ['#005 ticket', 'issued', '3,524,306'], ['#006 payment', '0.0040 ZEC', '3,524,310'], ['#007 ticket', 'issued', '3,524,311'], ['#008 close', 'goal met', '3,524,355']]
       .map(([e, a, b], i) => `<div class="fp-row${i === 5 ? ' on' : ''}"><span>${e}</span><span>${a}</span><span>${b}</span><span${i < 6 ? ' class="ok"' : ''}><span>${i < 6 ? '✓' : '·'}</span></span></div>`).join('') + '</div>';
   return `<div class="foot-plane" aria-hidden="true">${plane}</div><div class="foot-in">`
-    + `<div class="foot-col foot-brand"><a class="foot-logo" href="${host ? APP : isDemo() ? APP : './#start'}" aria-label="clewbook home">${MARK}<span>clewbook</span></a><span class="foot-tag">Private markets. Public accounting. Refund tickets.</span></div>`
+    + `<div class="foot-col foot-brand"><a class="foot-logo" href="${site}#campaigns" aria-label="clewbook home">${MARK}<span>clewbook</span></a><span class="foot-tag">Private markets. Public accounting. Refund tickets.</span></div>`
     + cols.map(([k, links]) => `<nav class="foot-col" aria-label="${esc2(k)}"><span class="foot-k">${esc2(k)}</span>${links.map(([t, h]) => `<a href="${esc2(h)}"${/^https:\/\/(github|clewbook\.xyz)/.test(h) ? ' rel="noopener"' : ''}>${esc2(t)}</a>`).join('')}</nav>`).join('')
     + '</div>';
 }
@@ -156,19 +157,21 @@ export function ledgerPlane(area, plane, rows, { start = 0 } = {}) {
   setInterval(() => { if (over || document.hidden || area.closest('[hidden]')) return; tick += 1; paint(tick % 10); }, 750);
 }
 
-function mountChrome({ host }) {
+function mountChrome({ host, root = './' }) {
   // the footer: one per page, the same everywhere
   let foot = document.querySelector('footer.sitefoot');
   if (!foot) { foot = document.createElement('footer'); foot.className = 'sitefoot'; document.body.append(foot); }
   if (!foot.dataset.built) {
-    foot.dataset.built = '1'; foot.innerHTML = footerHTML(host);
+    foot.dataset.built = '1'; foot.innerHTML = footerHTML(host, root);
     const fp = foot.querySelector('.fp'); ledgerPlane(foot, fp, [...fp.querySelectorAll('.fp-row')], { start: 6 });
   }
   const bar = document.querySelector('header.bar'), nav = bar && bar.querySelector('nav.nav');
   if (!bar) return;
   // the logo is the site home (the intro); a spacer pushes nav, ◐ and the menu button to the right
   const word = bar.querySelector('.word');
-  if (word && !host && !isDemo()) word.setAttribute('href', './#start');
+  // the logo always opens the live campaigns, never the intro (owner, 31 Oct 2026)
+  const site = host || isDemo() ? APP : root;
+  if (word) word.setAttribute('href', `${site}#campaigns`);
   if (!bar.querySelector('.bar-gap')) { const g = document.createElement('span'); g.className = 'bar-gap'; (bar.querySelector('.tagline') || word || bar.firstChild).after(g); }
   const theme = bar.querySelector('.theme-btn');
   if (!nav || bar.querySelector('.menu-btn')) return;
@@ -180,6 +183,7 @@ function mountChrome({ host }) {
   const open = () => {
     panel = document.createElement('div'); panel.className = 'menu-panel';
     for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
+    const intro = document.createElement('a'); intro.href = `${site}#start`; intro.textContent = 'Replay intro'; panel.append(intro); // the intro from its start, as the footer's Intro
     const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row);
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     applyTheme(themeChoice());
@@ -208,7 +212,7 @@ const pageNet = () => (isDemo() ? 'test' : chosenNet());
 /** A page that can show no campaign (the recount with nothing to recount): html[data-net] follows the network this browser last chose. */
 export function showPageNet() { return setNetwork(pageNet()); }
 /** The 404 page (its own design): the approved footer and the logo, no nav and no other control. */
-export function mountNotFound() { mountChrome({ host: false }); }
+export function mountNotFound() { mountChrome({ host: false, root: '/' }); } // served at any path: links from the site's root
 const NET_NAME = { main: 'Mainnet', test: 'Testnet' };
 function buildNetButton() {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'net-btn'; b.id = 'net-btn';

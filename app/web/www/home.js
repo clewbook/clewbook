@@ -10,6 +10,8 @@ import { readRelay, judge, tipOf, observedBlockSeconds, sibling, DEFAULT_ENDPOIN
 const $ = (s) => document.querySelector(s);
 const INTRO_KEY = 'cb-intro-seen', VIEW_KEY = 'cb-view';
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+/** Whether this browser has seen the intro; blocked storage counts as seen, so nobody is sent into the intro on every visit. */
+const introSeen = () => { try { return localStorage.getItem(INTRO_KEY) !== null; } catch { return true; } };
 const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* the page works without it */ } };
 const narrow = () => innerWidth < 640;
 const motion = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -48,8 +50,9 @@ function route() {
   const h = decodeURIComponent(location.hash.slice(1));
   const k = SEC_ALIAS[h] || h;
   if (h === 'campaigns' || h === 'live' || h === 'mainnet') return campaignsShow(); // #live, #mainnet: the removed Live on mainnet section; its old links open the campaigns
-  if (SECS.includes(k)) return siteShow(k);
-  if (!lsGet(INTRO_KEY)) return siteShow('hero');
+  if (SECS.includes(k)) return siteShow(k); // an address that names an intro step opens it, also for a returning visitor
+  // no step named: a new browser sees the intro once; a returning one (or a browser whose storage is blocked) goes to the campaigns
+  if (!introSeen()) return siteShow('hero');
   return campaignsShow();
 }
 function step(d) { const i = SECS.indexOf(secNow) + d; if (i < 0 || i >= SECS.length) return; location.hash = SECS[i] === 'hero' ? 'start' : SECS[i]; scrollTo(0, 0); }
