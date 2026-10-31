@@ -41,9 +41,10 @@ const vercel = fs.readFileSync(path.join(__dirname, 'vercel.json'), 'utf8');
 check('the hosted copy (vercel.json) allows it too, in both of its policies', vercel.split(`'${h}'`).length - 1 === 2);
 check('no page server policy allows inline scripts in general', !/script-src[^;]*'unsafe-inline'/.test(serve.replace(/\+ \(" 'unsafe-inline'" if DEV else ""\)/, '')));
 const ui = fs.readFileSync(path.join(WWW, 'ui.js'), 'utf8');
-check('ui.js: setup() mounts the control, which offers System, Light and Dark and is labelled Theme', /if \(themeControl\) mountTheme\(\)/.test(ui) && /const THEMES = \[\['system', 'System'\], \['light', 'Light'\], \['dark', 'Dark'\]\];/.test(ui) && /setAttribute\('aria-label', 'Theme'\)/.test(ui));
+// the control is the header's ◐ button on every screen (the phone menu's Theme row is gone, owner 31 Oct 2026): it cycles System, Light, Dark
+check('ui.js: setup() mounts the control, which cycles System, Light and Dark and says which it is', /if \(themeControl\) mountTheme\(\)/.test(ui) && /const THEMES = \[\['system', 'System'\], \['light', 'Light'\], \['dark', 'Dark'\]\];/.test(ui) && /chooseTheme\(order\[\(order\.indexOf\(themeChoice\(\)\) \+ 1\) % order\.length\]\)/.test(ui) && /const label = `Appearance: \$\{THEMES\.find/.test(ui));
 check('ui.js: the choice is saved in try/catch under the same key', /const THEME_KEY = 'cb-theme'/.test(ui) && /try \{ localStorage\.setItem\(THEME_KEY, c\); \} catch/.test(ui));
-check('ui.js: the control shows the choice (no choice, or a saved "system", is System and follows the device)', /b\.dataset\.theme === choice\)/.test(ui) && /return c === 'light' \|\| c === 'dark' \? c : 'system'/.test(ui));
+check('ui.js: the control shows the choice (no choice, or a saved "system", is System and follows the device)', /b\.dataset\.choice = choice;/.test(ui) && /return c === 'light' \|\| c === 'dark' \? c : 'system'/.test(ui));
 check('ui.js: with no choice the page follows the device setting while it is open', /addEventListener\('change', follow\)/.test(ui));
 if (built) check('the built folder has theme-mount.js for its two own pages', fs.existsSync(path.join(built, 'theme-mount.js')));
 console.log(failed ? `${failed} FAILED` : 'ALL PASS');
