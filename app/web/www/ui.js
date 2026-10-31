@@ -66,7 +66,6 @@ export function applyTheme(choice) {
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
   root.dataset.theme = dark ? 'dark' : 'light';
-  for (const b of document.querySelectorAll('.theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === choice));
   const label = `Appearance: ${THEMES.find(([v]) => v === choice)[1]}. Click to change.`;
   for (const b of document.querySelectorAll('.theme-btn')) { b.innerHTML = THEME_ICON[choice]; b.setAttribute('aria-label', label); b.title = label; b.dataset.choice = choice; }
 }
@@ -91,16 +90,6 @@ export function mountTheme() {
     bar.append(b);
   }
   applyTheme(themeChoice());
-}
-/** System, Light and Dark as three pressed buttons in one pill (the phone menu's Theme row). */
-function themeSeg() {
-  const seg = document.createElement('span'); seg.className = 'theme-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Theme');
-  for (const [v, t] of THEMES) {
-    const b = document.createElement('button'); b.type = 'button'; b.dataset.theme = v; b.textContent = t; b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => chooseTheme(v));
-    seg.append(b);
-  }
-  return seg;
 }
 
 // ---------- the frame: header (logo, network badge, nav, ◐, menu) and footer (README §4) ----------
@@ -181,12 +170,11 @@ function mountChrome({ host, root = './' }) {
   let panel = null;
   const close = () => { if (!panel) return; panel.remove(); panel = null; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '☰'; };
   const open = () => {
-    panel = document.createElement('div'); panel.className = 'menu-panel';
+    panel = document.createElement('nav'); panel.className = 'menu-panel'; panel.setAttribute('aria-label', 'Menu');
     for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
     const intro = document.createElement('a'); intro.href = `${site}#start`; intro.textContent = 'Replay intro'; panel.append(intro); // the intro from its start, as the footer's Intro
-    const row = document.createElement('div'); row.className = 'theme-row'; const t = document.createElement('span'); t.textContent = 'Theme'; t.setAttribute('aria-hidden', 'true'); row.append(t, themeSeg()); panel.append(row);
+    // no Theme row (owner, 31 Oct 2026): the header's ◐ button is the theme control on every screen
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
-    applyTheme(themeChoice());
     panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
   };
   btn.addEventListener('click', (e) => { e.stopPropagation(); if (panel) close(); else open(); });

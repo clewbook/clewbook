@@ -175,17 +175,17 @@ main.app-main { display: block; flex: 1 1 0%; overflow-x: clip; width: 100%; max
 /* the menu button (phones and tablets): a square like the theme button beside it, same size, edge and corners (owner, 31 Oct 2026) */
 .menu-btn { order: 3; display: none; width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0; border-radius: 0; border: 1px solid var(--line2); background: transparent;
   align-items: center; justify-content: center; font: 600 19px var(--fb); color: var(--ink); flex: none; cursor: pointer; transition: background .2s, transform .15s; }
-.menu-panel {
-  position: absolute; top: 100%; left: clamp(12px, 4vw, 24px); right: clamp(12px, 4vw, 24px); margin-top: 8px; background: var(--card);
-  border: 1px solid var(--line); border-radius: 20px; padding: 10px; box-shadow: 0 18px 40px rgba(var(--shrgb), .35); display: flex; flex-direction: column; gap: 4px; animation: cb-in .25s ease;
-}
-.menu-panel > a { min-height: 48px; padding: 0 16px; display: flex; align-items: center; font: 500 14px var(--fm); letter-spacing: .14em; text-transform: uppercase; color: var(--mut); text-decoration: none; }
-.menu-panel > a[aria-current] { background: rgba(var(--ov), .08); color: var(--ink); }
-.menu-panel .theme-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 6px 4px; font: 500 14px var(--fb); color: var(--mut); }
-.theme-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
-.theme-seg button { min-height: 36px; padding: 0 12px; margin: 0; border: 0; border-radius: 999px; background: transparent; color: var(--mut); font: 500 13px var(--fb); cursor: pointer; transition: background .2s, color .2s; }
-.theme-seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-.theme-seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+/* the phone and tablet menu (Halide, owner 31 Oct 2026): flush under the header and as wide as it, square, no shadow or blur, the page's own
+   surface with hairlines in the line colour; the items in the type of the buttons (Next, Skip), their text where the logo starts; the current
+   page underlined in the signal colour, as the desktop header marks it */
+.menu-panel { position: absolute; top: 100%; left: 0; right: 0; margin: 0; padding: 0; display: flex; flex-direction: column;
+  background: var(--bg); border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+.menu-panel > a { display: flex; align-items: center; min-height: 48px; margin: 0; padding: 0 clamp(16px, 4vw, 32px); border-top: 1px solid var(--line); border-radius: 0;
+  font: 600 15px var(--bf); letter-spacing: var(--btrack); text-transform: var(--bcase); color: var(--ink); text-decoration: none; transition: background .2s; }
+.menu-panel > a:first-child { border-top: 0; }
+.menu-panel > a:hover, .menu-panel > a:active { background: rgba(var(--ov), .07); color: var(--ink); }
+.menu-panel > a:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.menu-panel > a[aria-current] { text-decoration: underline 2px var(--acc2); text-underline-offset: 8px; }
 /* the network button (owner, 31 Oct 2026): only on the Live campaigns list, left of the theme button, as high and as square; MAIN or TEST in
    mono, as wide as the four letters; the test network in the amber dashed treatment */
 .net-btn { order: 1; height: 40px; min-height: 40px; width: auto; min-width: 0; flex: none; margin: 0; padding: 0 5px; border: 1px solid var(--line2); border-radius: 0; background: transparent;
