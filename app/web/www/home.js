@@ -235,7 +235,6 @@ const nameOf = (item, info) => (info && info.name) || null;
 const ZAT = 1e8;
 const coinTxt = (zat) => { const f = String(zat % ZAT).padStart(8, '0').replace(/0+$/, ''); return `${Math.floor(zat / ZAT)}${f ? '.' + f : ''}`; };
 const raisedOf = (entries) => entries.filter((e) => e.kind === 'issue').reduce((t, e) => t + (e.contribution && e.contribution.value_zat != null ? e.contribution.value_zat : 0), 0);
-const settledOf = (entries) => entries.filter((e) => e.kind === 'settle').reduce((t, e) => t + (e.settle && e.settle.price_zat ? e.settle.price_zat : 0), 0);
 const fromT = (id) => document.getElementById(id).content.firstElementChild.cloneNode(true);
 /** The campaign's name as the prototype sets it: its own name, or the type and the short id (the id not in capitals). */
 function setName(el, item, info) {
@@ -309,7 +308,8 @@ function closedRow(s) {
   setName(c1.children[0], item, info);
   c1.children[1].textContent = `${typeWord(info)} · ${res} · block ${blk}`;
   c2.textContent = typeWord(info); c3.textContent = res; c4.textContent = blk;
-  c5.textContent = coinTxt(info && info.mode === 'auction' ? settledOf(entries) : raisedOf(entries));
+  // an auction has no amount raised (owner, 31 Oct 2026): a plain dash in the Raised column, never the fundraiser total
+  c5.textContent = info && (info.sealed || info.mode === 'auction') ? '–' : coinTxt(raisedOf(entries));
   return el;
 }
 function emptyCard() {
