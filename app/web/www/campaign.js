@@ -91,7 +91,6 @@ function idPanel(c, entries) {
   const full = Object.assign(document.createElement('code'), { id: 'full-id', className: 'sr', textContent: cfg.id });
   $('#cid-short').replaceChildren(`${cfg.id.slice(0, 8)}…`, copyIcon(cfg.id, 'Copy the full campaign id', 'copy-id'), full);
   $('#vk-value').replaceChildren(viewingKeyRow(c, entries));
-  $('#net-value').textContent = c.network === 'main' ? 'Mainnet' : c.network === 'test' ? 'Testnet' : 'Unknown';
 }
 
 /** The "Viewing key" row under "more": the key that lets anyone see the payments into the campaign (a blind bid auction publishes it after
