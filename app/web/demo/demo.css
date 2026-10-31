@@ -97,6 +97,7 @@
   .page .pseg button { min-height: 44px; }
   .prow { grid-template-columns: 32px minmax(0, 1fr); }
   .prow .pacts { grid-column: 2; justify-content: flex-start; }
+  .pexp, .pdesc, .ptl b { white-space: normal; overflow-wrap: anywhere; } /* a long line wraps inside the screen (owner, 31 Oct 2026) */
 }
 /* phones (owner, 22 Oct 2026): both filter rows fit inside 360 px with no sideways scrolling. The list or grid button moves up next to All,
    Passed and Failed; the second row holds only the four types; buttons and text are smaller (tap targets stay 44 px high) */

@@ -426,3 +426,11 @@ main.page.recount { max-width: 1440px; }
 .rdoes-list li::before { content: "✓"; color: var(--pass); font: 600 13px var(--fm); }
 .rh1 { text-wrap: wrap; }
 .reyebrow { font: 500 12px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--mut); }
+
+/* phones (owner, 31 Oct 2026): long transaction ids and long lines wrap inside the screen in the verdict notes, the checks and their details, the
+   summary and the Totals tab, instead of pushing their row past the right edge; wider screens are unchanged */
+@media (max-width: 639px) {
+  #panel-recount, #panel-totals, #verdict, #banners, #rules, #summary, #totals-card, #timeline,
+  .rnote, #banners .notice, .rr-panel, .rr-ev, .rr-name, .rn-grid, .ncrow, #compare-out, #fp-line { overflow-wrap: anywhere; min-width: 0; }
+  .rnote > span, .rr-panel > *, .rr-ev > *, .rn-grid > *, #totals-card * { min-width: 0; }
+}
