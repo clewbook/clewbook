@@ -168,11 +168,13 @@ main.app-main { display: block; flex: 1 1 0%; overflow-x: clip; width: 100%; max
 .nav .demo-link { display: none; } /* the footer links to the testnet demo (owner, 31 Oct 2026) */
 .theme-btn { order: 1; width: 40px; height: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; flex: none; margin: 0; padding: 0;
   border: 1px solid var(--line2); border-radius: 0; background: transparent; color: var(--ink); cursor: pointer; transition: background .2s, transform .15s; }
-.theme-btn:hover { background: rgba(var(--ov), .08); }
+.theme-btn:hover, .menu-btn:hover { background: rgba(var(--ov), .08); }
+.menu-btn:active { transform: scale(.92); }
 .theme-btn:active { transform: scale(.92); }
 .theme-btn svg { display: block; width: 18px; height: 18px; }
-.menu-btn { order: 3; display: none; width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: transparent;
-  align-items: center; justify-content: center; font: 600 19px var(--fb); color: var(--ink); flex: none; cursor: pointer; }
+/* the menu button (phones and tablets): a square like the theme button beside it, same size, edge and corners (owner, 31 Oct 2026) */
+.menu-btn { order: 3; display: none; width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0; border-radius: 0; border: 1px solid var(--line2); background: transparent;
+  align-items: center; justify-content: center; font: 600 19px var(--fb); color: var(--ink); flex: none; cursor: pointer; transition: background .2s, transform .15s; }
 .menu-panel {
   position: absolute; top: 100%; left: clamp(12px, 4vw, 24px); right: clamp(12px, 4vw, 24px); margin-top: 8px; background: var(--card);
   border: 1px solid var(--line); border-radius: 20px; padding: 10px; box-shadow: 0 18px 40px rgba(var(--shrgb), .35); display: flex; flex-direction: column; gap: 4px; animation: cb-in .25s ease;
