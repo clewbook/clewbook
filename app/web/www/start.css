@@ -362,3 +362,10 @@ main.home .lc-none { margin: 0; font: 400 13px var(--fm); color: var(--mut); }
 
 /* the stepper's label on a phone (owner, 31 Oct 2026): the step numbers only, no section name and no ellipsis */
 @media (max-width: 480px) { .site .st-name { display: none; } }
+
+/* the Recount sample's three buttons on a phone (owner, 31 Oct 2026): one row of equal parts, never wrapping; the same font and selected look,
+   44 px high, the type a little smaller only as far as the narrowest screen needs (15 px at 480, 12 px at 360); Run it again stays below */
+@media (max-width: 639px) {
+  .site .rc-tabs { flex: 1 1 100%; flex-wrap: nowrap !important; min-width: 0; }
+  .site .rc-tabs > button { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 0 4px !important; font-size: clamp(12px, 3.4vw, 15px) !important; }
+}
