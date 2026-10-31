@@ -33,7 +33,10 @@ function siteShow(k) {
   for (const s of SECS) { const el = secEl(s); if (el) el.hidden = s !== secNow; }
   const i = SECS.indexOf(secNow), pager = site.querySelector('[data-act="next"]').parentElement;
   const bar = pager.children[1];
-  bar.children[0].firstElementChild.textContent = `${String(i).padStart(2, '0')} / ${String(SECS.length - 1).padStart(2, '0')} · ${SEC_LABEL[i]}`;
+  // the step numbers, then the section's name; a phone (480 px and below) shows the numbers only (start.css .st-name)
+  const lab = bar.children[0].firstElementChild, name = document.createElement('span');
+  name.className = 'st-name'; name.textContent = ` · ${SEC_LABEL[i]}`;
+  lab.replaceChildren(`${String(i).padStart(2, '0')} / ${String(SECS.length - 1).padStart(2, '0')}`, name);
   bar.children[1].firstElementChild.style.width = `${Math.round(i / (SECS.length - 1) * 100)}%`;
   site.querySelector('[data-act="prev"]').style.opacity = i === 0 ? '.4' : '1';
   site.querySelector('[data-act="next"]').style.opacity = i === SECS.length - 1 ? '.4' : '1';
