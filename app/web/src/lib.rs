@@ -548,3 +548,6 @@ fn script_of(field: &[u8]) -> &[u8] {
     };
     field.get(skip..skip + len).unwrap_or(&[])
 }
+
+#[cfg(test)]
+mod nu7_tests;
