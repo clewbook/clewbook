@@ -4,6 +4,13 @@
 
 **Private Markets. Public Accounting.**
 
+Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network, and main network auctions that end before NU7).
+
+- **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
+- **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
+- **Refund tickets.** Each contributor holds a refund transaction signed in advance, which works without the host while the contribution is unspent.
+
+
 ## Try it in five minutes (for judges)
 
 1. **Recount, no wallet needed.** Open [the recount of Test Presale \[For Judges\]](https://app.clewbook.xyz/recount.html#c=a93247a86081e979ffb994a45a910cefcb8a8e6d110c1a04670fbadd9f8313b0&relay=https://relay.clewbook.xyz): your browser checks the host's signed list against the Zcash chain, check by check.
@@ -13,11 +20,6 @@
 5. Test coins: [docs/HOSTING.md](docs/HOSTING.md), section 3, names the public faucet we used. Testnet blocks are uneven, so a testnet campaign can end sooner than its page says; if one has ended, host your own with [docs/HOSTING.md](docs/HOSTING.md), section 3. Around 6 Nov Zcash upgrades and refund tickets are reissued automatically, so a ticket may take a little longer that day.
 6. If Recount says "cannot conclude" or "limited", a public chain server was slow. Wait a minute and press "Run it again".
 
-Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network, and main network auctions that end before NU7).
-
-- **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
-- **Public books anyone can recount.** Checks R1 to R12 run in the browser against the chain itself, and say pass or fail with the evidence.
-- **Refund tickets.** Each contributor holds a refund transaction signed in advance, which works without the host while the contribution is unspent.
 
 ## Quick start
 
@@ -27,7 +29,7 @@ A 2 minute path:
 - **The demo:** https://clewbook.xyz/demo/ (test network campaigns, no wallet needed).
 - **A proof that passes:** [this recount](https://clewbook.xyz/demo/recount.html#c=48b3137b7bf59e4cb15f9c3c4b637b7caaa205ebf4ad92f5ed1b0e152133615f&relay=https://clewbook.xyz/demo/relays/a&relay=https://clewbook.xyz/demo/relays/b) of a test fundraiser that closed and refunded everyone says "All checks pass". It is one of the proofs at https://clewbook.xyz/demo/proofs/ (13 finished test campaigns, including dishonest hosts that the recount catches, and 4 blind bid auctions; each recount runs in your browser).
 - **A cheating host caught:** [this recount](https://clewbook.xyz/demo/recount.html#c=3c34b9ff18656a9fad2e81ea91e803320917eced570ba5f69dde1a10dbba4004&relay=https://clewbook.xyz/demo/relays/a&relay=https://clewbook.xyz/demo/relays/b) of a test host that spent two contributions itself says "Some checks FAIL": R5 and R6, each naming the spending transaction.
-- **The live Blind bid sample:** [Kimchi's Porsche](https://app.clewbook.xyz/campaign.html#c=54813f1b962d4343190b513ab1a481f56e3db83c9e1fe9cfdcc1d212404d5d1e&relay=https://relay.clewbook.xyz), a blind bid auction on the test network.
+
 
 ## How it works
 
