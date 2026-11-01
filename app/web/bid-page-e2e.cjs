@@ -193,14 +193,17 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
     await p.waitForSelector('#pay-card:not([hidden])', { timeout: 30000 });
     check('the payment card shows the version 3 memo and the deposit', (await text(p, '#memo')) === pay.memo && /0\.1/.test(await text(p, '#pay-amount')), (await text(p, '#pay-amount')));
     check('step 2 shows the payment, not the status card, until the page sees the payment', await p.$eval('#status-card', (e) => e.hidden));
-    // the message first: one warning line, the message before the address, the address and amount only once "I attached the message" is ticked
-    check('the pay step warns in one line that a payment without the memo is a donation', (await text(p, '#memo-warn')) === 'Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.', await text(p, '#memo-warn'));
-    check('the message comes before the address', await p.evaluate(() => !!(document.querySelector('#memo').compareDocumentPosition(document.querySelector('#pay-to')) & Node.DOCUMENT_POSITION_FOLLOWING)));
-    check('the address, the amount, the code and "Open in my wallet" stay locked until the box is ticked', await p.$eval('#pay-lock', (e) => e.hidden) && !(await p.isVisible('#pay-to')) && !(await p.isVisible('#open-wallet')) && await p.isVisible('#pay-locked') && !(await p.isChecked('#attached')));
+    // as on the contribute page (owner, 1 Nov 2026): the backup is its own step; the pay step shows the code and Open in my wallet at once, one
+    // warning line under the code, then Copy by hand (Address, Amount, Message) where only the Address and Amount copy buttons wait for the tick
+    check('the backup is its own step: the payment shows after Continue', !(await p.isVisible('#qr')) && await p.isVisible('#to-pay'));
+    await p.click('#to-pay');
+    check('the pay step warns in one line, under the code, that a payment without the message is a donation and that some wallets drop long messages', (await text(p, '#memo-warn')) === 'A payment without the message counts as a donation and cannot be returned. Some wallets drop long messages, see "Which wallets keep the message?".' && await p.evaluate(() => document.querySelector('#memo-warn').getBoundingClientRect().top >= document.querySelector('#qr').getBoundingClientRect().bottom), await text(p, '#memo-warn'));
+    check('Copy by hand lists the address, the amount, then the message', await p.evaluate(() => !!(document.querySelector('#pay-to').compareDocumentPosition(document.querySelector('#pay-amt')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(document.querySelector('#pay-amt').compareDocumentPosition(document.querySelector('#memo')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    check('the code, "Open in my wallet", the address and the amount show at once; only the Address and Amount copy buttons wait for the box', await p.isVisible('#qr') && await p.isVisible('#open-wallet') && await p.isVisible('#pay-to') && await p.isVisible('#pay-amt') && await p.$eval('[data-copy="pay-to"]', (b) => b.disabled) && await p.$eval('[data-copy="pay-amt"]', (b) => b.disabled) && !(await p.$eval('[data-copy="memo"]', (b) => b.disabled)) && await p.isVisible('#pay-locked'));
     const wl = await p.$eval('#wallets-text', (e) => e.textContent);
     check('the wallet line says: tested with zcash-devtool; others read from source only, not tested', /^Tested with zcash-devtool; others read from source only, not tested\. Zashi/.test(wl) && /YWallet/.test(wl) && /Zingo/.test(wl) && !/[A-Za-z] - [A-Za-z]|\u2014/.test(wl), wl);
     await p.check('#attached');
-    check('ticking "I attached the message" shows the address, the amount and the button', await p.isVisible('#pay-to') && await p.isVisible('#pay-amt') && await p.isVisible('#open-wallet') && !(await p.isVisible('#pay-locked')));
+    check('ticking "I attached the message" lets the Address and Amount be copied', !(await p.$eval('[data-copy="pay-to"]', (b) => b.disabled)) && !(await p.$eval('[data-copy="pay-amt"]', (b) => b.disabled)) && !(await p.isVisible('#pay-locked')));
     await shot(p, '2-pay-open');
     check('the tick is kept with the bid', await p.evaluate((id) => JSON.parse(localStorage.getItem(`ll:sealed:${id}`)).memoAttached === true, FX.N));
     await shot(p, '2-pay');
@@ -223,7 +226,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       check('Noir: without the extension there is no Noir button', await noirHidden(p));
       await ctx.close();
 
-      ({ ctx, p } = await withState(FX.N, pay.st, { address: TEST_ADDR, txid: NOIR_TXID }));
+      ({ ctx, p } = await withState(FX.N, { ...pay.st, backupSaved: true }, { address: TEST_ADDR, txid: NOIR_TXID }));
       await p.waitForSelector('#noir-pay:not([hidden])', { timeout: 30000 });
       await p.click('#noir-pay');
       await p.waitForFunction(() => !document.querySelector('#noir-msg').hidden, null, { timeout: 15000 });
@@ -231,7 +234,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       check('Noir: on the wrong network (by its address prefix) nothing is sent', /Nothing was sent/.test(await text(p, '#noir-msg')) && !calls.some((c) => c.method === 'zcash_sendTransaction') && !(await noirHidden(p)), await text(p, '#noir-msg'));
       await ctx.close();
 
-      ({ ctx, p } = await withState(FX.N, pay.st, { address: MAIN_ADDR, txid: NOIR_TXID, shape: 'pair' }));
+      ({ ctx, p } = await withState(FX.N, { ...pay.st, backupSaved: true }, { address: MAIN_ADDR, txid: NOIR_TXID, shape: 'pair' }));
       await p.waitForSelector('#noir-pay:not([hidden])', { timeout: 30000 });
       check('Noir: with the extension the button shows on the payment card', true);
       await p.click('#noir-pay');
@@ -253,7 +256,7 @@ const chainServer = serve(answer), chainServer2 = serve(answer2);
       check('Noir: after a reload the button stays hidden (never twice)', await noirHidden(p));
       await ctx.close();
 
-      ({ ctx, p } = await withState(FX.N, pay.st, { address: MAIN_ADDR, fail: { message: 'Transaction failed on this network' }, late: true, flat: true }));
+      ({ ctx, p } = await withState(FX.N, { ...pay.st, backupSaved: true }, { address: MAIN_ADDR, fail: { message: 'Transaction failed on this network' }, late: true, flat: true }));
       await p.waitForSelector('#noir-pay:not([hidden])', { timeout: 30000 });
       await p.click('#noir-pay');
       await p.waitForFunction(() => !document.querySelector('#noir-msg').hidden, null, { timeout: 15000 });

@@ -546,7 +546,6 @@ function noirAddress(res) {
 }
 function renderNoir() {
   $('#noir-pay').hidden = !(noir && state && state.payTo && !state.paidZat && !state.ticket && !state.noirTxid && !state.noirSent);
-  $('#noir-row').hidden = $('#noir-pay').hidden;
 }
 function noirSay(text, bad) {
   const m = $('#noir-msg');
@@ -596,6 +595,7 @@ async function onNoirPay() {
 
 // ---------- drawing the page: step 1 the bid, step 2 the payment, step 3 one status card ----------
 let editing = false; // "← Bid" from the payment: the form again, filled in, the payment kept until a new one is made
+let payStage = null; // 'backup' | 'pay' while step 2 shows (presentation only, as on the contribute page; the backup never blocks paying)
 let moreOpen = false, moreKey = '', takeAsk = null, cdTimer = null;
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 function factRow(k, v, sub) {
@@ -615,6 +615,7 @@ function render() {
   if (!rules || tip == null) return;
   const s = rules.sealed, d = rules.deadline_height;
   const step = !state || editing ? 1 : seen() ? 3 : 2;
+  if (step === 1) payStage = null; else if (step === 2 && !payStage) payStage = state.backupSaved ? 'pay' : 'backup';
   // the auction line: OPEN · ~time left, or CLOSED once the deadline has passed or the auction closed
   $('#status-line').hidden = false;
   $('#cname').textContent = campaign.name || `Blind bid auction ${cfg.id.slice(0, 8)}`;
@@ -628,7 +629,7 @@ function render() {
     if (n === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
     li.querySelector('span').textContent = n < step ? '✓' : String(n);
   }
-  $('#flow-back').hidden = step !== 1; $('#pay-back').hidden = step !== 2; $('#home-back').hidden = step !== 3;
+  $('#flow-back').hidden = step !== 1; $('#pay-back').hidden = !(step === 2 && payStage === 'backup'); $('#back-to-backup').hidden = !(step === 2 && payStage === 'pay'); $('#home-back').hidden = step !== 3;
   paintHead(step, closed);
   const mine = state ? [['Deposit', coin(state.tranche), 'public size'], ['Your bid', coin(state.bid), closeEntry() ? 'opened at the close' : 'locked until bids open'], ['Refund to', short(state.refund), 'public after the close']] : [];
   for (const box of document.querySelectorAll('.bb-mine')) box.replaceChildren(...mine.map(([k, v, sub]) => factRow(k, v, sub)));
@@ -639,12 +640,12 @@ function render() {
 }
 
 /** The head (prototype): the network chip, the eyebrow, the title by step and the four step bar (Bid, Backup, Pay, Status). The backup and the
- *  payment stay on one screen as before (paying is never blocked by the backup); the bar says Backup until Saved is ticked. Presentation only. */
+ *  payment are two screens, as on the contribute page (Continue goes on to paying whether or not the file was saved). Presentation only. */
 function paintHead(step, closed) {
   const net = campaign.network, nc = $('#net-chip');
   nc.textContent = net === 'test' ? 'Testnet' : net === 'main' ? 'Mainnet' : 'Network unknown'; nc.dataset.net = net || ''; // the logo carries no network chip
   const kind = `Blind bid auction · ${rules.items} ${rules.items === 1 ? 'item' : 'items'}`, name = $('#cname').textContent;
-  const k = step === 1 ? 'bid' : step === 3 ? 'status' : state && state.backupSaved ? 'pay' : 'backup';
+  const k = step === 1 ? 'bid' : step === 3 ? 'status' : payStage === 'pay' ? 'pay' : 'backup';
   $('#bb-eyebrow').textContent = `${kind} · ${step === 1 ? 'your bid' : name}`;
   $('#bb-h1').textContent = { bid: name, backup: 'Download backup file', pay: 'Pay the deposit', status: 'Your status' }[k];
   $('#bb-sub').hidden = k !== 'bid';
@@ -724,9 +725,13 @@ function renderPay() {
   $('#backup-card').classList.toggle('saved', saved);
   $('#bk-tag').textContent = saved ? 'Saved' : 'Important'; $('#bk-tag').classList.toggle('pass', saved);
   $('#saved').checked = saved;
-  // the message comes first: the address and the amount show once the person says the message is in their wallet's memo (Noir attaches it itself)
-  $('#attached').checked = !!state.memoAttached;
-  $('#pay-lock').hidden = !state.memoAttached; $('#pay-locked').hidden = !!state.memoAttached;
+  $('#pay-backup').hidden = payStage !== 'backup'; $('#pay-main').hidden = payStage !== 'pay';
+  // the code, Open in my wallet and Noir carry the message themselves; only copying the address and the amount by hand waits until the
+  // person says the message is in their wallet's memo (owner, 1 Nov 2026)
+  const attached = !!state.memoAttached;
+  $('#attached').checked = attached;
+  for (const k of ['pay-to', 'pay-amt']) document.querySelector(`[data-copy="${k}"]`).disabled = !attached;
+  $('#pay-locked').hidden = attached;
   $('#wallets-text').textContent = wallets(state.memo);
   $('#pay-by').textContent = `Pay by block ${fmtB(lastDeposit())}. Late payments are sent back.`;
 }
@@ -937,9 +942,11 @@ async function main() {
   $('#restore-toggle').addEventListener('click', () => { const b = $('#restore-box'); b.hidden = !b.hidden; $('#restore-toggle').setAttribute('aria-expanded', String(!b.hidden)); });
   $('#restore').addEventListener('change', onRestore);
   $('#pay-back').addEventListener('click', () => { editing = true; render(); window.scrollTo(0, 0); });
+  $('#to-pay').addEventListener('click', () => { payStage = 'pay'; render(); window.scrollTo(0, 0); });
+  $('#back-to-backup').addEventListener('click', () => { payStage = 'backup'; render(); window.scrollTo(0, 0); });
   $('#edit-keep').addEventListener('click', () => { editing = false; delete $('#form').dataset.filled; render(); });
   $('#to-status').addEventListener('click', () => { state.showStatus = true; save(); render(); window.scrollTo(0, 0); });
-  $('#st-back-pay').addEventListener('click', () => { state.showStatus = false; save(); render(); window.scrollTo(0, 0); });
+  $('#st-back-pay').addEventListener('click', () => { state.showStatus = false; payStage = 'pay'; save(); render(); window.scrollTo(0, 0); });
   for (const x of document.querySelectorAll('[data-dismiss]')) x.addEventListener('click', () => { $(`#${x.dataset.dismiss}`).hidden = true; });
   $('#st-more-btn').addEventListener('click', () => { moreOpen = !moreOpen; render(); });
   $('#take-back').addEventListener('click', () => { takeAsk = 'early'; render(); });

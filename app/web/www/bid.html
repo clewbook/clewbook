@@ -24,6 +24,7 @@
     <div class="hk-top bb-top">
       <a class="hk-back bb-back" id="flow-back" href="#">← Auction</a>
       <button type="button" class="hk-back bb-back" id="pay-back" hidden>← Bid</button>
+      <button type="button" class="hk-back bb-back" id="back-to-backup" hidden>← Back to backup</button>
       <a class="hk-back bb-back" id="home-back" href="./#campaigns" hidden>← Back to home</a>
       <span class="hk-chips" id="status-line" hidden><span class="cv-chip bb-pill" id="status-chip"><i></i><span id="pill-t"></span></span><span class="cv-chip" id="net-chip"></span><button type="button" class="hk-link bb-copylink" id="copy-link">Copy link</button></span>
     </div>
@@ -75,42 +76,45 @@
     </aside>
   </section>
 
-  <!-- 2. the backup and the payment (one screen: paying is never blocked by the backup) -->
+  <!-- 2. the backup, then the payment: two steps, as on the contribute page (the backup never blocks paying) -->
   <section class="hk-body bb-grid" id="pay-card" hidden>
     <div class="hk-main">
-      <div class="hk-card bb-backup" id="backup-card"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
-        <div class="bb-row"><span class="hk-kick" id="bk-tag">Important</span><span class="hk-kick a2 bb-only">Only in this browser</span></div>
-        <h2 class="hk-h2">Keep this file private</h2>
-        <p class="hk-p">It holds this page's keys: the only way back from another browser.</p>
-        <div class="hk-btnrow"><button type="button" class="hk-btn out" id="backup">↓ Download backup file</button><label class="hk-tick"><input type="checkbox" id="saved"><span class="box" aria-hidden="true">✓</span>Saved</label></div>
+      <div class="pay-backup" id="pay-backup">
+        <div class="hk-card bb-backup" id="backup-card"><span class="cm tl"></span><span class="cm tr"></span><span class="cm bl"></span><span class="cm br"></span><span class="sq warn"></span>
+          <div class="bb-row"><span class="hk-kick" id="bk-tag">Important</span><span class="hk-kick a2 bb-only">Only in this browser</span></div>
+          <h2 class="hk-h2">Keep this file private</h2>
+          <p class="hk-p">It holds this page's keys: the only way back from another browser.</p>
+          <div class="hk-btnrow"><button type="button" class="hk-btn out" id="backup">↓ Download backup file</button><label class="hk-tick"><input type="checkbox" id="saved"><span class="box" aria-hidden="true">✓</span>Saved</label></div>
+        </div>
+        <div class="hk-btnrow"><button type="button" class="hk-btn" id="to-pay"><span>Continue</span><span aria-hidden="true">→</span></button></div>
       </div>
-      <p class="hk-note bb-payh" id="pay-note"><span>Pay exactly <b id="pay-amount"></b> once, from a shielded address.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
-      <section class="hk-sec bb-memofirst">
-        <div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t">First, put this message in your wallet's memo</span></span></div>
-        <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Message</span><span class="v" id="memo"></span></span><button type="button" class="hk-cpbtn" data-copy="memo" aria-label="Copy message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
-        <p class="hk-note warn" id="memo-warn"><span>Send with the memo the page gives you. A payment without it counts as a donation and cannot be returned.</span></p>
-        <label class="hk-tick"><input type="checkbox" id="attached"><span class="box" aria-hidden="true">✓</span>I attached the message</label>
-        <div class="hk-folds"><details class="bb-fold bb-wallets" id="wallets"><summary><span>▸ Which wallets keep the message?</span></summary><div class="bb-foldb"><span id="wallets-text"></span></div></details></div>
-      </section>
-      <p class="hk-small" id="pay-locked">Tick the box to see the address and the amount.</p>
-      <div class="hk-main bb-paylock" id="pay-lock" hidden>
+      <div class="pay-main" id="pay-main" hidden>
+        <p class="hk-note bb-payh" id="pay-note"><span>Pay exactly <b id="pay-amount"></b> once, from a shielded address.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
         <section class="hk-sec">
-          <div class="hk-sechd"><span class="l"><span class="n">2</span><span class="t">Scan to pay</span></span></div>
-          <div class="hk-scan"><div class="hk-qr" id="qr" role="img" aria-label="Payment code"></div>
-            <div class="hk-scancol"><p class="hk-p">Scan with your wallet. The address, amount and message fill in for you.</p>
-              <div class="hk-btnrow"><a class="hk-btn" id="open-wallet" href="#"><span>Open in my wallet</span><span aria-hidden="true">→</span></a></div></div></div>
-        </section>
-        <section class="hk-sec">
-          <div class="hk-sechd"><span class="l"><span class="n">3</span><span class="t">Can't scan? Copy by hand</span></span></div>
-          <div>
-            <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Address</span><span class="v" id="pay-to"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-to" aria-label="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
-            <div class="hk-cprow"><span class="n">2</span><span class="m"><span class="k">Amount</span><span class="v" id="pay-amt"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-amt" aria-label="Copy amount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+          <div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t">Scan to pay</span></span></div>
+          <div class="hk-scan bb-scan">
+            <div class="qrcol"><div class="hk-qr" id="qr" role="img" aria-label="Payment code"></div></div>
+            <p class="hk-note warn bb-memowarn" id="memo-warn"><span>A payment without the message counts as a donation and cannot be returned. Some wallets drop long messages, see "Which wallets keep the message?".</span></p>
+            <div class="hk-scancol cpwallet">
+              <p class="hk-p">Scan with your wallet. The address, amount and message fill in for you.</p>
+              <div class="hk-btnrow"><a class="hk-btn" id="open-wallet" href="#"><span>Open in my wallet</span><span aria-hidden="true">→</span></a><button type="button" class="hk-btn out noirpay" id="noir-pay" hidden>Pay with Noir</button></div>
+              <p class="hk-hint noir-msg" id="noir-msg" role="status" hidden></p>
+            </div>
           </div>
         </section>
+        <section class="hk-sec">
+          <div class="hk-sechd"><span class="l"><span class="n">2</span><span class="t">Can't scan? Copy by hand</span></span></div>
+          <div class="cprows">
+            <div class="hk-cprow"><span class="n">1</span><span class="m"><span class="k">Address</span><span class="v" id="pay-to"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-to" aria-label="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+            <div class="hk-cprow"><span class="n">2</span><span class="m"><span class="k">Amount</span><span class="v" id="pay-amt"></span></span><button type="button" class="hk-cpbtn" data-copy="pay-amt" aria-label="Copy amount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+            <div class="hk-cprow"><span class="n">3</span><span class="m"><span class="k">Message</span><span class="v" id="memo"></span></span><button type="button" class="hk-cpbtn" data-copy="memo" aria-label="Copy message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+            <label class="hk-tick"><input type="checkbox" id="attached"><span class="box" aria-hidden="true">✓</span>I attached the message</label>
+            <p class="hk-small" id="pay-locked">Tick the box to copy the address and the amount.</p>
+            <div class="hk-folds"><details class="bb-fold bb-wallets" id="wallets"><summary><span>▸ Which wallets keep the message?</span></summary><div class="bb-foldb"><span id="wallets-text"></span></div></details></div>
+          </div>
+        </section>
+        <div class="hk-btnrow"><button type="button" class="hk-link bb-strong" id="to-status">I've paid. Show my status →</button></div>
       </div>
-      <div class="hk-btnrow" id="noir-row" hidden><button type="button" class="hk-btn out" id="noir-pay" hidden>Pay with Noir</button></div>
-      <p class="hk-hint noir-msg" id="noir-msg" role="status" hidden></p>
-      <div class="hk-btnrow"><button type="button" class="hk-link bb-strong" id="to-status">I've paid. Show my status →</button></div>
     </div>
     <aside class="hk-aside">
       <section class="hk-sec"><div class="hk-sechd"><span class="l"><span class="n dash" aria-hidden="true"></span><span class="t">Your bid</span></span></div>

@@ -106,3 +106,14 @@
 /* the confirm card shows only while its question (#take-ask, which the page shows and hides) is open */
 .bb .bb-ask:not(:has(> #take-ask:not([hidden]))) { display: none; }
 .bb .bb-askin { display: flex; flex-direction: column; gap: 18px; }
+
+/* the pay step in the contribute page's structure (owner, 1 Nov 2026): the one warning about the message right under the code (on a phone
+   between the code and the buttons, on a wide screen under the code and its column); the Address and Amount copy buttons wait for the tick */
+.bb .bb-scan > .bb-memowarn { grid-column: 1 / -1; margin: 0; }
+@media (min-width: 760px) { .bb .bb-scan > .qrcol { grid-area: 1 / 1; } .bb .bb-scan > .hk-scancol { grid-area: 1 / 2; } .bb .bb-scan > .bb-memowarn { grid-row: 2; } }
+@media (max-width: 759px) {
+  .bb .bb-scan > .qrcol { order: 0; }
+  .bb .bb-scan > .bb-memowarn { order: 1; }
+  .bb .bb-scan > .hk-scancol { order: 2; }
+}
+.page .bb-grid .hk-cpbtn:disabled { opacity: .35; cursor: not-allowed; }
