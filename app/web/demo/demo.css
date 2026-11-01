@@ -77,6 +77,7 @@
 .plist { border-radius: 0; background: var(--card); border: 1px solid var(--line); padding: 0 clamp(16px, 2.6vw, 28px); }
 .prow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px 20px; align-items: center; padding: 20px 0; border-top: 1px solid var(--line); }
 .prow:first-child { border-top: 0; }
+.prow { padding-left: var(--rowpad); padding-right: var(--rowpad); } /* inner room in the rows, as every ruled list (--rowpad in ui.css: 16 px from 760 px; owner, 1 Nov 2026) */
 .pn { font: 500 14px var(--fm); color: var(--mut); align-self: start; padding-top: 3px; }
 .pmain { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ptl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

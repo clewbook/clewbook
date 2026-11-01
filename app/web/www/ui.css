@@ -977,8 +977,7 @@ main.app-main .amt .u { font: inherit; letter-spacing: inherit; color: inherit; 
 /* inner room in ruled and boxed rows on wider screens (owner, 1 Nov 2026): the text keeps 12 px (tablet) or 16 px (desktop) from both
    ends of its row, the lines stay full width; phones unchanged. Used by the rows below and in campaign, contribute, recount, start and card */
 :root { --rowpad: 0px; }
-@media (min-width: 760px) { :root { --rowpad: 12px; } }
-@media (min-width: 1024px) { :root { --rowpad: 16px; } }
+@media (min-width: 760px) { :root { --rowpad: 16px; } } /* one minimum from 760 px up, nothing smaller (owner, 1 Nov 2026); phones unchanged */
 .hk-kv, .hk-cprow, .hk-note, .cvth12, .cvr18, .cv-note, .pl-foot { padding-left: var(--rowpad); padding-right: var(--rowpad); }
 /* rows drawn with the prototype's own inline padding: the campaign's rules, the public list's summary line and its "more entries" line */
 .hk-kvs > div, .cv-dl > div, #entries > .sum, #public-list > div:has(> #entries-more) { padding-left: var(--rowpad) !important; padding-right: var(--rowpad) !important; }

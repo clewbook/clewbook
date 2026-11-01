@@ -52,6 +52,7 @@
 .bb .bb-fold summary::-webkit-details-marker { display: none; }
 .bb .bb-fold summary .c { color: var(--mut); }
 .bb .bb-foldb { padding: 14px 0; font: 400 14px/1.6 var(--fb); color: var(--mut); display: flex; flex-direction: column; gap: 8px; }
+.bb .bb-fold summary, .bb .bb-foldb { padding-left: var(--rowpad); padding-right: var(--rowpad); } /* inner room as the contribute folds (owner, 1 Nov 2026) */
 .bb .hk-kv > .r > .v { font: 500 14px var(--fm); color: var(--ink); }
 .bb .hk-kv > .r > .s { font: 400 12px var(--fm); color: var(--mut); }
 
@@ -88,6 +89,10 @@
 .bb .bb-takebtn.amber { border-color: var(--warn); color: var(--warn); }
 .bb .bb-ask b { font-weight: 600; overflow-wrap: anywhere; }
 .bb .bb-onlycard .hk-p { font-size: 15px; line-height: 1.5; }
+/* its Download backup file button fills the box, the same room on both sides at every width (owner, 1 Nov 2026): the right column leaves
+   243 px inside the box at 1280, less than the button's one line, so there its words take two lines; style, corner and colours unchanged */
+.bb .bb-onlycard .hk-btnrow { flex-direction: column; align-items: stretch; }
+.bb .bb-onlycard .hk-btnrow > .hk-btn { white-space: normal; text-align: center; }
 
 @media (max-width: 759px) {
   .bb .hk-btnrow > .hk-link { align-self: flex-start; }

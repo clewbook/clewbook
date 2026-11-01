@@ -43,7 +43,7 @@
 .cp-fp .h-f { flex-basis: 100%; font: 500 13px var(--fm); overflow-wrap: anywhere; }
 .cp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cp-list > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); font: 400 14px/1.55 var(--fm); }
-#levels > li { padding: 14px 0; }
+#levels > li { padding: 14px var(--rowpad); }
 #not-checked > li { grid-template-columns: 20px minmax(0, 1fr); }
 .cp-id { font: 600 13px var(--fm); color: var(--acc2); }
 .cp-t { min-width: 0; color: var(--ink); }
@@ -81,3 +81,6 @@
 .cp-terms dt { padding-left: var(--rowpad); }
 .cp-terms dd { padding-right: var(--rowpad); }
 .cp-list > li, .cp-fp { padding-left: var(--rowpad); padding-right: var(--rowpad); }
+/* from 640 to 1023 px the two columns are narrow: label and value share the row 2 to 3, so values no longer break inside a word and the
+   fingerprint buttons stay inside (owner, 1 Nov 2026) */
+@media (min-width: 640px) and (max-width: 1023px) { .cp-terms, .cp-fp { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
