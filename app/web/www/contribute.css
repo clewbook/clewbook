@@ -389,3 +389,6 @@ main.app-main .tk2 .tk-amt .amt .u { font: 500 13px var(--fm); letter-spacing: .
   .ptl-now .ptl-k { font: 500 12px/1.4 var(--fm); letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
   .ptl-now b { font: 500 16px/1.4 var(--fb); color: var(--ink); }
 }
+
+/* inner room in ruled rows on wider screens (owner, 1 Nov 2026; --rowpad in ui.css): the tracker rows and the folds */
+.progress.tracker li, .cfold { padding-left: var(--rowpad); padding-right: var(--rowpad); }

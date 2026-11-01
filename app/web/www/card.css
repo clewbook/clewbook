@@ -76,3 +76,8 @@
   .cp-terms dd { border-top: 0; padding-top: 4px; }
 }
 #checks .cp-t b { font-weight: 600; }
+
+/* inner room in ruled rows on wider screens (owner, 1 Nov 2026; --rowpad in ui.css): the terms, the checks and the fingerprint row */
+.cp-terms dt { padding-left: var(--rowpad); }
+.cp-terms dd { padding-right: var(--rowpad); }
+.cp-list > li, .cp-fp { padding-left: var(--rowpad); padding-right: var(--rowpad); }

@@ -369,3 +369,6 @@ main.home .lc-none { margin: 0; font: 400 13px var(--fm); color: var(--mut); }
   .site .rc-tabs { flex: 1 1 100%; flex-wrap: nowrap !important; min-width: 0; }
   .site .rc-tabs > button { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 0 4px !important; font-size: clamp(12px, 3.4vw, 15px) !important; }
 }
+
+/* inner room in ruled rows on wider screens (owner, 1 Nov 2026; --rowpad in ui.css): the Closed campaigns list and the About page rows */
+main.home .hkth7, main.home .lc-crow, .ab-rows li { padding-left: var(--rowpad); padding-right: var(--rowpad); }

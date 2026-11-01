@@ -445,3 +445,8 @@ main.page.recount { max-width: 1440px; }
   .page .rchip[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
   .page .rchip:not([aria-pressed=true]):hover { background: rgba(var(--ov), .06); color: var(--ink); }
 }
+
+/* inner room in ruled rows on wider screens (owner, 1 Nov 2026; --rowpad in ui.css): the checks, the notes, the totals and the run facts */
+.rrow, .rnote { padding-left: var(--rowpad); padding-right: var(--rowpad); }
+.trows dt, .runfacts dt { padding-left: var(--rowpad); }
+.trows dd, .runfacts dd { padding-right: var(--rowpad); }
