@@ -4,6 +4,15 @@
 
 **Private Markets. Public Accounting.**
 
+## Try it in five minutes (for judges)
+
+1. **Recount, no wallet needed.** Open [the recount of Test Presale \[For Judges\]](https://app.clewbook.xyz/recount.html#c=a93247a86081e979ffb994a45a910cefcb8a8e6d110c1a04670fbadd9f8313b0&relay=https://relay.clewbook.xyz): your browser checks the host's signed list against the Zcash chain, check by check.
+2. **A real presale on the main network:** [Test Presale \[For Judges\]](https://app.clewbook.xyz/contribute.html#c=a93247a86081e979ffb994a45a910cefcb8a8e6d110c1a04670fbadd9f8313b0&relay=https://relay.clewbook.xyz&server=https://zjs.zec.rocks/mainnet). It uses real ZEC, so send only a tiny amount. Every payment gets a refund ticket.
+3. **A standard auction on the test network** (free test coins): [Land Auction \[Standard\]](https://app.clewbook.xyz/contribute.html#c=b584ed2624962638737f1b0120bc94032dd4f45684c5b7db1576731812d9b812&relay=https://relay.clewbook.xyz&server=https://zjs.zec.rocks/testnet).
+4. **A blind bid auction on the test network** (free test coins): [Imperial Jadeite](https://app.clewbook.xyz/c/f8e476e0).
+5. Test coins: [docs/HOSTING.md](docs/HOSTING.md), section 3, names the public faucet we used. Testnet blocks are uneven, so a testnet campaign can end sooner than its page says; if one has ended, host your own with [docs/HOSTING.md](docs/HOSTING.md), section 3. Around 6 Nov Zcash upgrades and refund tickets are reissued automatically, so a ticket may take a little longer that day.
+6. If Recount says "cannot conclude" or "limited", a public chain server was slow. Wait a minute and press "Run it again".
+
 Clewbook runs fundraisers and auctions on Zcash. Contributions go to a shielded address, so who paid and where a refund goes stay off the public record. The campaign's books are public: the host publishes a signed list of every contribution, and anyone can **RECOUNT** the campaign against the Zcash chain in their own browser, check by check, with no account and nothing to install. Every contributor also holds a **REFUND TICKET** that can return their money without the host. In a **BLIND BID** auction nobody, not even the host, can read a bid before the close (test network, and main network auctions that end before NU7).
 
 - **Private contributions.** Who paid and where a refund goes stay off the public record (the host still sees what it receives).
