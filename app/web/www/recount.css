@@ -434,3 +434,14 @@ main.page.recount { max-width: 1440px; }
   .rnote, #banners .notice, .rr-panel, .rr-ev, .rr-name, .rn-grid, .ncrow, #compare-out, #fp-line { overflow-wrap: anywhere; min-width: 0; }
   .rnote > span, .rr-panel > *, .rr-ev > *, .rn-grid > *, #totals-card * { min-width: 0; }
 }
+
+/* the Checks filters on a phone (owner, 1 Nov 2026): one row of three equal parts in the look of the home page's Recount sample switch
+   (44 px, a thin frame, the body type, the selected one filled), the counts kept, never wrapping; above 639 px nothing changes */
+@media (max-width: 639px) {
+  .rf-chips { flex-direction: row; flex-wrap: nowrap; gap: 6px; width: 100%; align-items: stretch; }
+  .page .rchip, .page .rchip[aria-pressed=true] { flex: 1 1 0; min-width: 0; align-self: auto; display: inline-flex; align-items: center; justify-content: center; text-align: center;
+    min-height: 44px; padding: 0 4px; border: 1px solid var(--line2); border-radius: var(--rb); clip-path: none; background: transparent; color: var(--ink);
+    font: 600 clamp(12px, 3.4vw, 15px) var(--bf); letter-spacing: normal; text-transform: none; text-decoration: none; white-space: nowrap; }
+  .page .rchip[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .page .rchip:not([aria-pressed=true]):hover { background: rgba(var(--ov), .06); color: var(--ink); }
+}
