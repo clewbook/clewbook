@@ -280,6 +280,8 @@ main.home .lc-none { margin: 0; font: 400 13px var(--fm); color: var(--mut); }
 .hpc-k { font: 500 11px var(--fm); letter-spacing: .16em; text-transform: uppercase; color: var(--mut); }
 .hpc-chip { padding: 4px 8px; border: 1px solid var(--line2); font: 500 12px var(--fm); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; color: var(--ink); }
 @media (max-width: 1179px) { .hpg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* two columns (760 to 1179 px): a last card alone on its row spans the row (owner, 1 Nov 2026); three columns and phones unchanged */
+@media (min-width: 760px) and (max-width: 1179px) { .hpg-grid > .hpc:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 @media (max-width: 759px) { .hp.hk-page { gap: 28px; padding: 16px 0 90px; } .hpg-grid { grid-template-columns: minmax(0, 1fr); } .hpc-chip { white-space: normal; } }
 
 /* ---- the short link page (go.html) in the Halide design: the eyebrow with a red square, the title, the finding bar, the red status line,

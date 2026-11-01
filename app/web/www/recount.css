@@ -3,7 +3,7 @@
    on the shared tokens of ui.css (its --k names map one to one: 07090C page, 0E1116 surface, 1E232C border, 2A303B border-strong, 3A4150
    border-hover, EEF0F3 ink, C4CAD4 ink-2, 9AA3B2 ink-3, 6B7383 ink-4, FF8A63 accent-text, 5FD49A pass, F5C451 wait, FF8A80 fail). */
 @keyframes cbin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.page.recount { padding: 0 var(--cb-gutter); max-width: none; animation: none; }
+.page.recount { padding: 0 clamp(16px, 4vw, 56px); max-width: none; animation: none; } /* the content edge of the other pages (main.app-main in ui.css; owner, 1 Nov 2026) */
 
 /* the aurora is the shared one (ui.css) */
 .bar, .sitefoot { z-index: 5; }
