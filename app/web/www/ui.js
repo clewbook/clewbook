@@ -3,6 +3,8 @@
 import { PRODUCT_NAME } from './brand.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
+// a passive touch listener, so that iPhone browsers show a button's pressed (:active) look while a finger is on it (ui.css)
+if (typeof document !== 'undefined') document.addEventListener('touchstart', () => {}, { passive: true });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- brand and sprite ----------
@@ -48,7 +50,7 @@ function markApprox(root) {
 // ---------- theme: System (follows the device), Light or Dark ----------
 // The small script in every page's head applies the saved choice before the page is drawn (no flash). With no saved choice, or "system" saved,
 // the page follows the device, also when it changes while the page is open. The ◐ button in the header cycles System → Light → Dark (README §4);
-// the phone menu has the same three as a Theme row. The choice is kept in this browser when it allows it. Only colours change (ui.css).
+// on a phone the menu has the same three as a Theme row instead. The choice is kept in this browser when it allows it. Only colours change (ui.css).
 const THEME_KEY = 'cb-theme';
 const THEMES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 const darkQuery = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
@@ -173,7 +175,11 @@ function mountChrome({ host, root = './' }) {
     panel = document.createElement('nav'); panel.className = 'menu-panel'; panel.setAttribute('aria-label', 'Menu');
     for (const a of nav.querySelectorAll('a:not(.demo-link)')) { const c = a.cloneNode(true); c.removeAttribute('id'); panel.append(c); }
     const intro = document.createElement('a'); intro.href = `${site}#start`; intro.textContent = 'Replay intro'; panel.append(intro); // the intro from its start, as the footer's Intro
-    // no Theme row (owner, 31 Oct 2026): the header's ◐ button is the theme control on every screen
+    // the Theme row (owner, 1 Nov 2026): shown on a phone only, where the header has no ◐ square (ui.css); System, Light, Dark as the square cycles
+    const row = document.createElement('div'); row.className = 'menu-theme'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Theme');
+    row.innerHTML = '<span class="k">Theme</span>' + THEMES.map(([v, n]) => `<button type="button" data-choice="${v}" aria-pressed="${themeChoice() === v}">${n}</button>`).join('');
+    row.addEventListener('click', (e) => { const b = e.target.closest('button[data-choice]'); if (!b) return; chooseTheme(b.dataset.choice); for (const x of row.children) if (x.dataset.choice) x.setAttribute('aria-pressed', String(x === b)); });
+    panel.append(row);
     bar.append(panel); btn.setAttribute('aria-expanded', 'true'); btn.textContent = '✕';
     panel.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
   };

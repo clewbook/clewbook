@@ -118,7 +118,7 @@
       <div class="cbtnrow"><button type="button" id="leave-yes" class="cdanger">Yes, leave this payment code</button><button type="button" id="leave-no" class="cquiet">Keep it</button></div>
     </div>
     <div class="pay-main" id="pay-main" hidden>
-      <p class="hk-note" id="pay-note"><span id="pay-warning">Pay exactly <b id="pay-min"></b> once, from a shielded address.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
+      <p class="hk-note" id="pay-note"><span id="pay-warning">Pay exactly <b id="pay-min"></b> once, from a shielded address. A smaller or second payment is not refunded.</span><button type="button" class="x" aria-label="Dismiss this note" data-dismiss="pay-note">[x]</button></p>
       <section class="hk-sec">
         <div class="hk-sechd"><span class="l"><span class="n">1</span><span class="t">Scan to pay</span></span></div>
         <div class="hk-scan">
@@ -142,9 +142,7 @@
           <pre id="pay-to" class="sr"></pre><pre id="memo" class="sr"></pre><span id="pay-amt" class="sr"></span>
         </div>
       </section>
-      <p class="hk-small">Pay with Noir shows only when the Noir extension is in this browser. The page never pays for you.</p>
       <div><button type="button" class="hk-link" id="show-status">I've paid. Show my status →</button></div>
-      <div class="hk-folds"><details class="cfold why" id="pay-why"><summary class="hk-fold"><span>▸ Why a shielded address?</span><span class="c"></span></summary><p class="cfold-b hk-small">A smaller or second payment is not refunded, and exchange or transparent funds can show who paid.</p></details></div>
     </div>
   </section>
 

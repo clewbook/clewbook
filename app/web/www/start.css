@@ -190,6 +190,9 @@ main.home .lc-none { margin: 0; font: 400 13px var(--fm); color: var(--mut); }
 @media (max-width: 759px) { .hb4 { gap: 28px 48px; } }
 .hs5 { flex: 0 0 auto; white-space: nowrap; cursor: pointer; border: 1px solid var(--line2); background: none; color: inherit; padding: 0px 14px; margin: 0px; text-align: left; font: 500 12px var(--fm); min-height: 44px; letter-spacing: 0.14em; text-transform: uppercase; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; gap: 10px; }
 @media (max-width: 759px) { .hs5 { white-space: normal; } }
+/* the layout button from 640 px (owner, 1 Nov 2026): the size of the header's network box (40 px high; as wide as its four mono letters, 11 px
+   with .06em spacing, plus its 5 px sides and 1 px border); the icon keeps the 18 px of the header's theme icon. Phones keep 44 px to tap. */
+@media (min-width: 640px) { #layout-btn.hs5 { font: 600 11px/1 var(--fm); letter-spacing: .06em; box-sizing: border-box; width: calc(4ch + .24em + 12px); min-width: 0; height: 40px; min-height: 40px; padding: 0; } }
 .hg6 { display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 18px; align-items: stretch; }
 @media (max-width: 1179px) { .hg6 { grid-template-columns: repeat(2, minmax(0px, 1fr)); } }
 @media (max-width: 759px) { .hg6 { grid-template-columns: minmax(0px, 1fr); } }

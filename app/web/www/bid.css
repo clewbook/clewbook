@@ -46,7 +46,7 @@
 .bb .bb-file:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
 .bb .hk-btn:disabled, .bb .hk-btn:disabled:hover { background: var(--acc); color: var(--aink); opacity: .4; transform: none; box-shadow: none; filter: none; cursor: not-allowed; }
 
-/* the folds in the asides (How a blind bid works, Why a shielded address?, Which wallets keep the message?) */
+/* the folds in the asides (How a blind bid works, Which wallets keep the message?) */
 .bb .bb-fold summary { cursor: pointer; list-style: none; border-bottom: 1px solid var(--line); min-height: 48px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
   font: 500 12px var(--fm); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
 .bb .bb-fold summary::-webkit-details-marker { display: none; }
