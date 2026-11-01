@@ -496,7 +496,6 @@ function renderAbout() {
   showHostedBy();
   $('#amount-label').textContent = raise ? 'Amount' : 'Your bid';
   $('#addr-net-rule').textContent = campaign.network === 'test' ? 'A mainnet address on this testnet campaign is refused.' : campaign.network === 'main' ? 'A testnet address on this mainnet campaign is refused.' : '';
-  $('#received-what').textContent = raise ? 'Contribution received' : 'Bid received';
   const closed = view.entries.some((e) => e.kind === 'close');
   let status = 'Checking…', left = '';
   if (tip != null) {
@@ -736,12 +735,7 @@ function renderProgress() {
   setStep('#s-backup', !!state.backupDownloaded || savedTick, state.backupDownloaded ? 'saved' : savedTick ? 'saved, by your word' : 'not yet', !state.backupDownloaded && savedTick ? 'saved, by your word' : '');
   $('#s-backup').classList.toggle('warn', !(state.backupDownloaded || savedTick)); // not saved yet: the yellow ring
   const t = !!state.ticket;
-  const pending = !state.txid && !t && !!state.pendingTxid;
-  setStep('#s-seen', !!state.txid || t, state.txid || t ? 'seen on the network' : pending ? 'Payment seen, waiting for the network' : 'waiting for you to pay', pending ? 'Payment seen, waiting for the network' : '');
-  setStep('#s-received', t, t ? 'done' : 'waiting');
   const tcv = ticketCheck && ticketCheck.verdict;
-  setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…', t && tcv === 'fail' ? 'did NOT pass a check' : '');
-  $('#s-ticket').classList.toggle('bad', t && tcv === 'fail');
   renderPayLine(tcv);
   $('#wait-note').textContent = WAIT_WORDS[campaign && campaign.network] || WAIT_WORDS.other;
   { let first = true; for (const li of document.querySelectorAll('.progress li')) { if (li.id === 's-backup') continue; const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }

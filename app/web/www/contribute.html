@@ -160,9 +160,6 @@
     <div class="stand" id="stand">
       <ul class="progress tracker">
         <li id="s-backup"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what">Backup</b><span class="state"></span></li>
-        <li id="s-seen"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what">Your payment</b><span class="state"></span></li>
-        <li id="s-received"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what" id="received-what">Contribution received</b><span class="state"></span></li>
-        <li id="s-ticket"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what">Refund ticket</b><span class="state"></span></li>
       </ul>
       <div id="host-seen" hidden></div>
       <p id="paid-warning" class="notice bad risk" hidden></p>
@@ -229,10 +226,10 @@
     <div class="hk-btnrow" id="ticket-actions" hidden><button type="button" class="hk-btn" id="finish"><span>Finish</span><span aria-hidden="true">→</span></button><button type="button" class="hk-btn out" id="backup3">↓ Backup file</button></div>
     <div class="paymore" id="pay-more">
       <p class="pnote" id="wait-note">You can leave and come back with the same link.</p>
-      <div id="leave-box" class="cbtnrow footrow"><button type="button" class="coutline" id="backup2">↓ Backup file</button><button type="button" class="coutline" id="start-over">Start over</button></div>
+      <div id="leave-box" class="cbtnrow footrow"><button type="button" class="hk-btn out" id="backup2">↓ Backup file</button><button type="button" class="hk-btn out" id="start-over">Start over</button></div>
       <details class="cfold"><summary>▸ Know your payment's transaction ID?</summary>
         <div class="cfold-b"><p>Optional. If you paste it, this page can check that the campaign accepted your payment.</p>
-        <div class="copyrow"><input id="manual-txid" autocomplete="off" spellcheck="false" placeholder="transaction ID"><button type="button" class="coutline" id="manual-txid-save">Check</button></div></div>
+        <div class="copyrow"><input id="manual-txid" autocomplete="off" spellcheck="false" placeholder="transaction ID"><button type="button" class="hk-btn out" id="manual-txid-save">Check</button></div></div>
       </details>
     </div>
   </section>
