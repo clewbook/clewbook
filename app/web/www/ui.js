@@ -396,6 +396,31 @@ export function checkRow({ id, name, detail, status, cls }) {
   return li;
 }
 
+/** The payment to ticket line (contribute and bid pages): numbered stages as on the step bar, each { label, detail, state: 'done' | 'now' | '',
+ *  now: the words while it is the current stage }; on phones the numbers only, with the current stage in words below (contribute.css .ptl). */
+export function payLine(el, steps) {
+  const key = JSON.stringify(steps);
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  const mk = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+  const ol = mk('ol', `ptl-bar ptl-${steps.length}`, ''); ol.setAttribute('aria-label', 'Payment to ticket');
+  steps.forEach((s, i) => {
+    const li = mk('li', `ptl-s ${s.state || ''}`.trim(), '');
+    if (s.state === 'now') li.setAttribute('aria-current', 'step');
+    li.append(mk('span', 'ptl-n', String(i + 1).padStart(2, '0')), mk('span', 'ptl-l', s.label));
+    if (s.detail) li.append(mk('span', 'ptl-d', s.detail));
+    if (s.state === 'done') li.append(mk('span', 'sr', ', done'));
+    ol.append(li);
+  });
+  // the phone's words: the last stage done (with its detail), then the current one
+  const at = steps.findIndex((s) => s.state === 'now'), now = at < 0 ? steps[steps.length - 1] : steps[at];
+  const prev = at > 0 ? steps[at - 1] : null;
+  const p = mk('p', 'ptl-now', ''); p.setAttribute('aria-hidden', 'true');
+  if (prev) p.append(mk('span', 'ptl-k', [prev.label, prev.detail].filter(Boolean).join(' · ')));
+  p.append(mk('b', '', now.now || now.label));
+  el.replaceChildren(ol, p);
+}
+
 /** "≈12 days" from a number of blocks and a measured seconds per block; null if the block time was not measured. */
 export function etaText(blocks, secondsPerBlock) {
   if (!secondsPerBlock) return null;

@@ -156,6 +156,7 @@
       <h2 class="hk-h2 big">Waiting for the network</h2>
       <p class="hk-p">Your payment is in the mempool. This page updates by itself.</p>
     </div>
+    <div class="ptl" id="pay-line" hidden></div>
     <div class="stand" id="stand">
       <ul class="progress tracker">
         <li id="s-backup"><span class="tdot"><span class="dot"></span><span class="rail"></span></span><b class="what">Backup</b><span class="state"></span></li>
@@ -227,7 +228,7 @@
     <p class="hk-small tk-nudge" id="backup-nudge" hidden><strong>Your refund right is kept in this browser and in your backup file.</strong> Download the file now and keep it private. Anyone who has it can send your refund early (the money still goes only to your refund address) and can see your amount, your refund address and your payment. It cannot be used to send your money anywhere else. <span id="backup3-done" class="saved" hidden><span aria-hidden="true">✓</span> Saved, with your ticket</span></p>
     <div class="hk-btnrow" id="ticket-actions" hidden><button type="button" class="hk-btn" id="finish"><span>Finish</span><span aria-hidden="true">→</span></button><button type="button" class="hk-btn out" id="backup3">↓ Backup file</button></div>
     <div class="paymore" id="pay-more">
-      <p class="pnote" id="wait-note">This usually takes a minute or two; you can leave and come back with the same link.</p>
+      <p class="pnote" id="wait-note">You can leave and come back with the same link.</p>
       <div id="leave-box" class="cbtnrow footrow"><button type="button" class="coutline" id="backup2">↓ Backup file</button><button type="button" class="coutline" id="start-over">Start over</button></div>
       <details class="cfold"><summary>▸ Know your payment's transaction ID?</summary>
         <div class="cfold-b"><p>Optional. If you paste it, this page can check that the campaign accepted your payment.</p>

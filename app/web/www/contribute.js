@@ -7,7 +7,7 @@
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
 import { buildCopy, downloadCopy, fetchFinal, checkMemory, remember, memoryWords, hashesOf } from './copies.js';
-import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat } from './ui.js';
+import { setup, setNetwork, decorateAmounts, amountHTML, checkRow, etaText, statusBadgeHTML, setCampaignLabel, markReady, expectedRefundZat, payLine } from './ui.js';
 import { NOT_CHECKED } from './capabilities.js';
 import { findAnchor } from './anchor.js';
 import { myBids, showResult } from './result.js';
@@ -666,6 +666,37 @@ let showDone = false; // the Done screen after "Finish" (presentation only; this
 /** Done is offered only while it is true: no refund sent, and not a closed campaign that refunds this payment. */
 const doneTrue = () => !!(state && state.ticket && !state.refundSentAt && !(view.entries.some((e) => e.kind === 'close') && owedRefund()));
 
+// The wait, in words per network. The page cannot know how many confirmations the host waits for (its own setting; 3 by default on
+// mainnet, 1 on testnet), so mainnet gives a range.
+const WAIT_WORDS = {
+  test: 'On testnet this usually takes about a minute. You can leave and come back with the same link.',
+  main: 'This usually takes 2 to 5 minutes. Mainnet blocks take about 75 seconds each, and the host may wait for more than one block before it issues your ticket. You can leave and come back with the same link.',
+  other: 'You can leave and come back with the same link.',
+};
+
+// The payment to ticket line, from what the page already has: the mempool scan (Payment seen), the block scan and the tip (In block N), the
+// list (the ticket) and the ticket check. Shown from the moment a payment is seen until the ticket; with the ticket only when it came while
+// this page was open. Not shown for a payment the campaign set aside (a reject, an underpayment) or a ticket that failed a check.
+let waitedHere = false;
+function renderPayLine(tcv) {
+  const el = $('#pay-line'), t = !!state.ticket;
+  const c = t && state.ticket.entry.contribution;
+  const height = state.paidHeight != null ? state.paidHeight : c && c.height != null ? c.height : null;
+  const paid = t || !!state.txid || !!state.pendingTxid;
+  const off = !!myReject() || (state.paidZat != null && state.paidZat < state.amountZat) || (t && tcv === 'fail');
+  if (paid && !off && !t) waitedHere = true;
+  el.hidden = !paid || off || (t && !waitedHere);
+  if (el.hidden) return;
+  const mined = t || !!state.txid, ready = t && tcv === 'pass';
+  const since = height != null && tip != null ? tip - height : null;
+  payLine(el, [
+    { label: 'Payment seen', state: 'done' },
+    { label: height != null ? `In block ${height.toLocaleString('en-US')}` : 'In a block', detail: since == null ? '' : since <= 0 ? 'the newest block' : `${since} ${since === 1 ? 'block' : 'blocks'} ago`, state: mined ? 'done' : 'now', now: 'Waiting for it to be mined into a block' },
+    { label: 'Waiting for the host to issue your ticket', state: t ? 'done' : mined ? 'now' : '' },
+    { label: 'Ticket ready', state: ready ? 'done' : t ? 'now' : '', now: 'Checking your ticket' },
+  ]);
+}
+
 function renderProgress() {
   const has = !!state;
   if (!doneTrue()) showDone = false;
@@ -711,6 +742,8 @@ function renderProgress() {
   const tcv = ticketCheck && ticketCheck.verdict;
   setStep('#s-ticket', t && tcv === 'pass', !t ? 'waiting' : tcv === 'pass' ? 'received; passed the checks below' : tcv === 'fail' ? 'did NOT pass a check' : 'received; checking it…', t && tcv === 'fail' ? 'did NOT pass a check' : '');
   $('#s-ticket').classList.toggle('bad', t && tcv === 'fail');
+  renderPayLine(tcv);
+  $('#wait-note').textContent = WAIT_WORDS[campaign && campaign.network] || WAIT_WORDS.other;
   { let first = true; for (const li of document.querySelectorAll('.progress li')) { if (li.id === 's-backup') continue; const w = first && !li.classList.contains('done') && !li.classList.contains('bad'); li.classList.toggle('wait', w); if (w) first = false; } }
   renderTicketView(tcv);
   renderTicketChecks();

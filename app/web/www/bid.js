@@ -10,7 +10,7 @@
 
 import init, * as W from './pkg/ll_web.js';
 import { grpcWeb } from './recount.js';
-import { setup, setNetwork, markReady } from './ui.js';
+import { setup, setNetwork, markReady, payLine } from './ui.js';
 import { milestones, DEFAULT_RELAY, copyLinkButton } from './public.js';
 import { afterNu7, firstMeasured } from './nu7.js';
 import { findAnchor } from './anchor.js';
@@ -328,6 +328,28 @@ async function detectPending() {
   const h = raw && raw.length ? readVarintField(raw, 2) : null;
   const waiting = !!(raw && raw.length) && !(h != null && h > 0 && h < 0xffffffff);
   if (waiting !== !!state.pendingSeen) { state.pendingSeen = waiting; save(); }
+  if (raw && raw.length && !waiting && h != null) noirMinedAt = h; // the payment to ticket line only (kept in memory, never saved)
+}
+
+// The payment to ticket line. A blind bid has no "Payment seen" (the auction's viewing key is not public): it starts at the block, known
+// from the Noir transaction this page already asks for, or from the list once the host lists the payment. "Ticket ready" is PROTECTED
+// (the late ticket checked), shown only when it came while this page was open; the line is not shown in any other state (rejected, too late,
+// taken back, problems, after bidding).
+let noirMinedAt = null, waitedHere = false;
+function renderPayLine(st) {
+  const el = $('#pay-line'), ready = !!state.late;
+  const c = state.ticket && state.ticket.entry && state.ticket.entry.contribution;
+  const height = c && c.height != null ? c.height : noirMinedAt;
+  const on = height != null && (['WAITING', 'CHECKING', 'ALMOST THERE'].includes(st.tag) || (st.title === 'PROTECTED' && waitedHere));
+  if (on && !ready) waitedHere = true;
+  el.hidden = !on;
+  if (!on) return;
+  const since = tip != null ? tip - height : null;
+  payLine(el, [
+    { label: `In block ${fmtB(height)}`, detail: since == null ? '' : since <= 0 ? 'the newest block' : `${since} ${since === 1 ? 'block' : 'blocks'} ago`, state: 'done' },
+    { label: 'Waiting for the host to issue your ticket', state: ready ? 'done' : 'now' },
+    { label: 'Ticket ready', state: ready ? 'done' : '' },
+  ]);
 }
 
 /** The coin came: open the late ticket, check it against the list and the chain (coin, anchor, refund output, signatures, proof), sign it. */
@@ -739,6 +761,7 @@ function renderPay() {
 function renderStatus() {
   $('#status-card').hidden = false;
   const st = status(), card = $('#st-card');
+  renderPayLine(st);
   const key = `${st.tone}|${st.title}`;
   if (key !== moreKey) { moreKey = key; moreOpen = false; if (takeAsk && !st.action) takeAsk = null; }
   card.dataset.tone = st.tone;

@@ -367,3 +367,25 @@ main.app-main .tk2 .tk-amt .amt .u { font: 500 13px var(--fm); letter-spacing: .
 @media (max-width: 759px) { .qrcol { align-items: center; } }
 /* Pay with Noir (owner, 1 Nov 2026): a complete outline on all four sides, as the site's other outlined buttons draw it (no cut corner) */
 .page .noirpay.hk-btn.out { clip-path: none; }
+
+/* the payment to ticket line (contribute and bid pages, ui.js payLine): numbered stages drawn as the step bar (.hk-step): a hairline on top,
+   the current stage under an ink line with the red square, a done stage under a green line with a tick; on phones the numbers only, and the
+   last stage done and the current one in words below */
+.ptl { display: flex; flex-direction: column; gap: 12px; }
+.ptl-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; list-style: none; margin: 0; padding: 0; }
+.ptl-bar.ptl-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ptl-s { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 10px; box-shadow: inset 0 1px 0 var(--line2); color: var(--mut); }
+.ptl-n { display: flex; align-items: center; gap: 8px; font: 500 12px var(--fm); letter-spacing: .12em; }
+.ptl-l { font: 400 14px/1.4 var(--fb); overflow-wrap: anywhere; }
+.ptl-d { font: 500 12px/1.4 var(--fm); color: var(--mut); }
+.ptl-s.now { color: var(--ink); box-shadow: inset 0 2px 0 var(--ink); }
+.ptl-s.now .ptl-n::before { content: ""; width: 7px; height: 7px; flex: 0 0 auto; background: var(--acc2); }
+.ptl-s.done { color: var(--ink); box-shadow: inset 0 2px 0 var(--pass); }
+.ptl-s.done .ptl-n::after { content: "✓"; color: var(--pass); }
+.ptl-now { display: none; }
+@media (max-width: 759px) {
+  .ptl-s .ptl-l, .ptl-s .ptl-d { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ptl-now { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+  .ptl-now .ptl-k { font: 500 12px/1.4 var(--fm); letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+  .ptl-now b { font: 500 16px/1.4 var(--fb); color: var(--ink); }
+}
